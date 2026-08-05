@@ -308,10 +308,16 @@ class MainActivity : ComponentActivity() {
                                         audioFolder = audioFld,
                                         initialVideoFolder = videoFld,
                                         initialImageFolder = imageFld,
-                                        onOpenQuickView = { item ->
+                                        onOpenQuickView = { item, currentList ->
+                                            val index = currentList.indexOfFirst { it.uri == item.uri }
                                             val intent = Intent(this@MainActivity, QuickViewActivity::class.java).apply {
                                                 action = Intent.ACTION_VIEW
                                                 setDataAndType(item.uri, item.mimeType)
+                                                if (currentList.isNotEmpty()) {
+                                                    putStringArrayListExtra("media_uris", ArrayList(currentList.map { it.uri.toString() }))
+                                                    putStringArrayListExtra("media_titles", ArrayList(currentList.map { it.title }))
+                                                    putExtra("start_index", if (index >= 0) index else 0)
+                                                }
                                             }
                                             startActivity(intent)
                                         },

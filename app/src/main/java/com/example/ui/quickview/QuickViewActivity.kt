@@ -87,28 +87,47 @@ class QuickViewActivity : ComponentActivity() {
 
                         LaunchedEffect(intentData) {
                             lifecycleScope.launch {
-                                val resolved = mediaStoreRepository.resolveSiblingsForUri(intentData, mimeType)
-                                if (resolved.isNotEmpty()) {
-                                    val firstType = resolved.first().type
-                                    if (firstType == com.example.data.db.MediaType.VIDEO) {
-                                        val playerIntent = Intent(this@QuickViewActivity, VideoPlayerActivity::class.java).apply {
-                                            putExtra("media_uri", intentData.toString())
-                                            putExtra("mime_type", mimeType)
-                                        }
-                                        startActivity(playerIntent)
-                                        finish()
-                                        return@launch
-                                    } else if (firstType == com.example.data.db.MediaType.AUDIO) {
-                                        val exoPlayerManager = ExoPlayerManager.getInstance(applicationContext)
-                                        exoPlayerManager.playMediaList(resolved, 0)
-                                        MiniPlayerOverlayManager.show(applicationContext)
-                                        finish()
-                                        return@launch
+                                val uris = intent.getStringArrayListExtra("media_uris")
+                                val titles = intent.getStringArrayListExtra("media_titles")
+                                val startIndex = intent.getIntExtra("start_index", -1)
+
+                                if (uris != null && titles != null) {
+                                    mediaList = uris.mapIndexed { idx, uStr ->
+                                        MediaItem(
+                                            id = idx.toLong(),
+                                            uri = Uri.parse(uStr),
+                                            title = titles.getOrNull(idx) ?: "Image ${idx + 1}",
+                                            mimeType = "image/*",
+                                            type = com.example.data.db.MediaType.IMAGE
+                                        )
                                     }
+                                    initialIndex = if (startIndex != -1) startIndex else {
+                                        mediaList.indexOfFirst { it.uri == intentData || it.uri.toString() == intentData.toString() }.coerceAtLeast(0)
+                                    }
+                                } else {
+                                    val resolved = mediaStoreRepository.resolveSiblingsForUri(intentData, mimeType)
+                                    if (resolved.isNotEmpty()) {
+                                        val firstType = resolved.first().type
+                                        if (firstType == com.example.data.db.MediaType.VIDEO) {
+                                            val playerIntent = Intent(this@QuickViewActivity, VideoPlayerActivity::class.java).apply {
+                                                putExtra("media_uri", intentData.toString())
+                                                putExtra("mime_type", mimeType)
+                                            }
+                                            startActivity(playerIntent)
+                                            finish()
+                                            return@launch
+                                        } else if (firstType == com.example.data.db.MediaType.AUDIO) {
+                                            val exoPlayerManager = ExoPlayerManager.getInstance(applicationContext)
+                                            exoPlayerManager.playMediaList(resolved, 0)
+                                            MiniPlayerOverlayManager.show(applicationContext)
+                                            finish()
+                                            return@launch
+                                        }
+                                    }
+                                    mediaList = resolved
+                                    val idx = resolved.indexOfFirst { it.uri == intentData || it.uri.toString() == intentData.toString() }
+                                    initialIndex = if (idx != -1) idx else 0
                                 }
-                                mediaList = resolved
-                                val idx = resolved.indexOfFirst { it.uri == intentData || it.uri.toString() == intentData.toString() }
-                                initialIndex = if (idx != -1) idx else 0
                             }
                         }
 

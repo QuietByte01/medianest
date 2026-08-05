@@ -46,7 +46,7 @@ fun AnalyticsScreen(
     imagesList: List<MediaItem>,
     videosList: List<MediaItem>,
     audioList: List<MediaItem>,
-    onOpenQuickView: (MediaItem) -> Unit,
+    onOpenQuickView: (MediaItem, List<MediaItem>) -> Unit,
     onOpenVideoPlayer: (MediaItem) -> Unit,
     onOpenAudioPlayer: (MediaItem) -> Unit,
     onOpenSettings: (() -> Unit)? = null
@@ -469,6 +469,7 @@ fun AllAvailableFormatsSection(
                                 stat = stat,
                                 modifier = Modifier
                                     .weight(1f)
+                                    .clip(RoundedCornerShape(20.dp))
                                     .clickable { onSelectFormat(stat) }
                             )
                         }
@@ -591,6 +592,7 @@ fun MediaCategoriesSection(
                                 type = type,
                                 modifier = Modifier
                                     .weight(1f)
+                                    .clip(RoundedCornerShape(20.dp))
                                     .clickable { onSelectCategory(type) }
                             )
                         }
@@ -614,6 +616,7 @@ fun MediaCategoriesSection(
                         type = type,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable { onSelectCategory(type) }
                     )
                 }

@@ -206,6 +206,7 @@ fun VideosTab(
                     borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                     modifier = Modifier
                         .height(38.dp)
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable {
                             isFolderViewActive = false
                             selectedFolder = null
@@ -233,6 +234,7 @@ fun VideosTab(
                     borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                     modifier = Modifier
                         .height(38.dp)
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable {
                             isFolderViewActive = false
                             selectedFolder = null
@@ -260,6 +262,7 @@ fun VideosTab(
                     borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                     modifier = Modifier
                         .height(38.dp)
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable {
                             isFolderViewActive = false
                             selectedFolder = null
@@ -287,6 +290,7 @@ fun VideosTab(
                     borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                     modifier = Modifier
                         .height(38.dp)
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable {
                             isFolderViewActive = false
                             selectedFolder = null
@@ -314,6 +318,7 @@ fun VideosTab(
                     borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                     modifier = Modifier
                         .height(38.dp)
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable {
                             isFolderViewActive = false
                             selectedFolder = null
@@ -341,6 +346,7 @@ fun VideosTab(
                     borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                     modifier = Modifier
                         .height(38.dp)
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable {
                             isFolderViewActive = false
                             selectedFolder = null
@@ -368,6 +374,7 @@ fun VideosTab(
                     borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                     modifier = Modifier
                         .height(38.dp)
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable {
                             isFolderViewActive = false
                             selectedFolder = null
@@ -395,6 +402,7 @@ fun VideosTab(
                     borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                     modifier = Modifier
                         .height(38.dp)
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable {
                             isFolderViewActive = false
                             selectedFolder = null
@@ -422,6 +430,7 @@ fun VideosTab(
                     borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                     modifier = Modifier
                         .height(38.dp)
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable {
                             isFolderViewActive = false
                             selectedFolder = null
@@ -448,6 +457,7 @@ fun VideosTab(
                     borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                     modifier = Modifier
                         .height(38.dp)
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable {
                             isFolderViewActive = true
                             selectedFolder = null
@@ -505,6 +515,7 @@ fun VideosTab(
                             borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                             modifier = Modifier
                                 .height(44.dp)
+                                .clip(RoundedCornerShape(20.dp))
                                 .clickable {
                                     isFolderViewActive = false
                                     selectedFolder = null
@@ -759,6 +770,7 @@ fun VideosTab(
                         GlassSurface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .clip(cardShape)
                                 .clickable { selectedFolder = folderName },
                             shape = cardShape,
                             backgroundColor = if (isHidden) Color(0x22121520) else Color(0x28181C2B),
@@ -953,6 +965,7 @@ fun VideosTab(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(168.dp)
+                                .clip(RoundedCornerShape(20.dp))
                                 .clickable { onCreateCategoryClick() },
                             shape = RoundedCornerShape(20.dp),
                             backgroundColor = Color(0x12FFFFFF),

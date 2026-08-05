@@ -76,7 +76,7 @@ fun LibraryScreen(
     audioFolder: String? = null,
     initialVideoFolder: String? = null,
     initialImageFolder: String? = null,
-    onOpenQuickView: (MediaItem) -> Unit,
+    onOpenQuickView: (MediaItem, List<MediaItem>) -> Unit,
     onOpenVideoPlayer: (MediaItem) -> Unit,
     onOpenAudioPlayer: (Int) -> Unit,
     onOpenSettings: () -> Unit,
@@ -352,6 +352,7 @@ fun LibraryScreen(
                                     Surface(
                                         modifier = Modifier
                                             .size(40.dp)
+                                            .clip(RoundedCornerShape(12.dp))
                                             .clickable { onOpenSettings() },
                                         shape = RoundedCornerShape(12.dp),
                                         color = Color(0x221C1F2B),
@@ -569,12 +570,12 @@ fun LibraryScreen(
                     onCreateCollection = onCreateImageCollection,
                     onUpdateCollection = onUpdateImageCollection,
                     onDeleteCollection = onDeleteImageCollection,
-                    onImageClick = { item ->
+                    onImageClick = { item, currentList ->
                         if (isSelectionMode) {
                             val uriStr = item.uri.toString()
                             selectedUris = if (selectedUris.contains(uriStr)) selectedUris - uriStr else selectedUris + uriStr
                         } else {
-                            onOpenQuickView(item)
+                            onOpenQuickView(item, currentList)
                         }
                     },
                     onImageLongClick = { item ->

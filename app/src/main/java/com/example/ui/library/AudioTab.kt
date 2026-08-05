@@ -179,12 +179,21 @@ fun AudioTab(
                 if (artist != null) targetArtist = artist
                 if (folder != null) targetFolder = folder
             })
-            6 -> PlaylistsList(playlists, audioList, onCreatePlaylistClick, onSongClick, onAddToPlaylist = { itemToAddToPlaylist = it }, onNavigateSubTab = { tab, album, artist, folder ->
-                subTabState = tab
-                if (album != null) targetAlbum = album
-                if (artist != null) targetArtist = artist
-                if (folder != null) targetFolder = folder
-            })
+            6 -> PlaylistsList(
+                playlists = playlists,
+                audioList = audioList,
+                recentSongs = recentSongs,
+                mostPlayedSongs = mostPlayedSongs,
+                onCreatePlaylistClick = onCreatePlaylistClick,
+                onSongClick = onSongClick,
+                onAddToPlaylist = { itemToAddToPlaylist = it },
+                onNavigateSubTab = { tab, album, artist, folder ->
+                    subTabState = tab
+                    if (album != null) targetAlbum = album
+                    if (artist != null) targetArtist = artist
+                    if (folder != null) targetFolder = folder
+                }
+            )
         }
     }
 
@@ -266,6 +275,7 @@ fun AudioTab(
                     GlassSurface(
                         modifier = Modifier
                             .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable { subTabState = item.index },
                         shape = RoundedCornerShape(20.dp),
                         backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
@@ -356,6 +366,7 @@ fun SongsList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 5.dp)
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable { onSongClick(item) },
                     shape = RoundedCornerShape(20.dp),
                     backgroundColor = Color(0x221C1F2B),
@@ -1604,6 +1615,8 @@ fun FoldersGrid(
 fun PlaylistsList(
     playlists: List<MediaCategory>,
     audioList: List<MediaItem>,
+    recentSongs: List<MediaItem> = emptyList(),
+    mostPlayedSongs: List<MediaItem> = emptyList(),
     onCreatePlaylistClick: () -> Unit,
     onSongClick: (MediaItem) -> Unit,
     onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?) -> Unit = { _, _, _, _ -> },
@@ -1709,8 +1722,8 @@ fun PlaylistsList(
             val db = com.example.MediaNestApp.instance.database
             db.categoryDao().getMediaUrisForCategory(favPlaylist.id).collect { uris ->
                 favCount = uris.size
-                val favTrack = audioList.firstOrNull { uris.contains(it.uri.toString()) && it.albumArtUri != null }
-                favArtUri = favTrack?.albumArtUri ?: latestAddedArtUri
+                val favTracksWithArt = audioList.filter { uris.contains(it.uri.toString()) && it.albumArtUri != null }
+                favArtUri = favTracksWithArt.maxByOrNull { it.dateAdded }?.albumArtUri ?: latestAddedArtUri
             }
         } else {
             favArtUri = latestAddedArtUri
@@ -1718,19 +1731,20 @@ fun PlaylistsList(
         }
     }
 
-    val mostPlayedArtUri = remember(audioList) {
-        audioList.sortedByDescending { it.id }.firstOrNull { it.albumArtUri != null }?.albumArtUri
-            ?: audioList.sortedByDescending { it.id }.firstOrNull()?.uri
+    val mostPlayedArtUri = remember(mostPlayedSongs) {
+        mostPlayedSongs.firstOrNull { it.albumArtUri != null }?.albumArtUri
+            ?: mostPlayedSongs.firstOrNull()?.uri
     }
 
-    val recentlyPlayedArtUri = remember(audioList) {
-        audioList.sortedByDescending { it.dateAdded }.firstOrNull { it.albumArtUri != null }?.albumArtUri
-            ?: audioList.sortedByDescending { it.dateAdded }.firstOrNull()?.uri
+    val recentlyPlayedArtUri = remember(recentSongs) {
+        recentSongs.firstOrNull { it.albumArtUri != null }?.albumArtUri
+            ?: recentSongs.firstOrNull()?.uri
     }
 
     val recentlyAddedArtUri = remember(audioList) {
-        audioList.sortedByDescending { it.dateAdded }.firstOrNull { it.albumArtUri != null }?.albumArtUri
-            ?: audioList.sortedByDescending { it.dateAdded }.firstOrNull()?.uri
+        val sorted = audioList.sortedByDescending { it.dateAdded }
+        sorted.firstOrNull { it.albumArtUri != null }?.albumArtUri
+            ?: sorted.firstOrNull()?.uri
     }
     val userPlaylists = remember(playlists) {
         playlists.filter { 
@@ -1925,6 +1939,7 @@ private fun UserPlaylistCard(
     GlassSurface(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
         backgroundColor = Color(0x221C1F2B),
@@ -2219,6 +2234,7 @@ private fun QuickAccessCard(
     GlassSurface(
         modifier = modifier
             .width(148.dp)
+            .clip(RoundedCornerShape(20.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
         backgroundColor = Color(0x221C1F2B),

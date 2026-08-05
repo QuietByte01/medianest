@@ -292,7 +292,11 @@ fun VideoPlayerScreen(
                         var isZooming = false
                         var startVolume = currentVolume
                         var startBrightness = currentBrightness
-                        var startPosition = playerState.currentPositionMs
+                        
+                        var dragType = 0 // 0: None, 1: Vertical, 2: Horizontal
+                        var totalDragX = 0f
+                        var totalDragY = 0f
+                        val slop = 15f // dp slop approximately
 
                         while (true) {
                             val event = awaitPointerEvent()
@@ -306,19 +310,31 @@ fun VideoPlayerScreen(
                                 isDraggingVolume = false
                                 isDraggingBrightness = false
                                 isHorizontalDragging = false
+                                dragType = 0
                                 
                                 val zoom = event.calculateZoom()
                                 if (!isControlsLocked) {
                                     scale = (scale * zoom).coerceIn(1f, 10f)
                                 }
                             } else if (!isZooming && changes.size == 1) {
-                                // Single-finger gesture -> Vol/Brightness/Seek
+                                // Single-finger gesture
                                 val change = changes[0]
                                 val dragAmount = change.position - change.previousPosition
                                 val screenWidth = size.width
                                 val screenHeight = size.height
                                 
-                                if (kotlin.math.abs(dragAmount.y) > kotlin.math.abs(dragAmount.x)) {
+                                if (dragType == 0) {
+                                    totalDragX += kotlin.math.abs(dragAmount.x)
+                                    totalDragY += kotlin.math.abs(dragAmount.y)
+                                    
+                                    if (totalDragY > slop && totalDragY > totalDragX) {
+                                        dragType = 1 // Vertical Lock
+                                    } else if (totalDragX > slop && totalDragX > totalDragY) {
+                                        dragType = 2 // Horizontal Lock
+                                    }
+                                }
+
+                                if (dragType == 1) {
                                     // Vertical drag -> Vol/Brightness
                                     if (!isControlsLocked) {
                                         val delta = -dragAmount.y / screenHeight.toFloat()
@@ -343,7 +359,7 @@ fun VideoPlayerScreen(
                                             )
                                         }
                                     }
-                                } else if (kotlin.math.abs(dragAmount.x) > 10f) {
+                                } else if (dragType == 2) {
                                     // Horizontal drag -> Seek
                                     if (!isControlsLocked && playerState.durationMs > 0) {
                                         isHorizontalDragging = true
@@ -367,6 +383,7 @@ fun VideoPlayerScreen(
                         isHorizontalDragging = false
                         isZooming = false
                         seekDeltaMs = 0L
+                        dragType = 0
                     }
                 }
                 .pointerInput(Unit) {
@@ -778,40 +795,48 @@ fun VideoPlayerScreen(
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                         }
                         Spacer(modifier = Modifier.width(8.dp))
+                        val displayTitle = playerState.currentItem?.title ?: "Video Player"
                         Text(
-                            text = playerState.currentItem?.title ?: "Video Player",
+                            text = displayTitle,
                             color = Color.White,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color.Transparent)
-                                .border(0.5.dp, Color(0xB3FFFFFF), RoundedCornerShape(4.dp))
-                                .clickable {
-                                    val nextMode = when (decoderMode) {
-                                        "HW+" -> "HW"
-                                        "HW" -> "SW"
-                                        else -> "HW+"
+                        
+                        val config = androidx.compose.ui.platform.LocalConfiguration.current
+                        val isPortrait = config.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+                        val isPhone = config.screenWidthDp < 600
+
+                        if (!(isPhone && isPortrait)) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color.Transparent)
+                                    .border(0.5.dp, Color(0xB3FFFFFF), RoundedCornerShape(4.dp))
+                                    .clickable {
+                                        val nextMode = when (decoderMode) {
+                                            "HW+" -> "HW"
+                                            "HW" -> "SW"
+                                            else -> "HW+"
+                                        }
+                                        decoderMode = nextMode
+                                        scope.launch {
+                                            settingsManager.setDecoderMode(nextMode)
+                                        }
+                                        android.widget.Toast.makeText(context, "Decoder: $nextMode", android.widget.Toast.LENGTH_SHORT).show()
                                     }
-                                    decoderMode = nextMode
-                                    scope.launch {
-                                        settingsManager.setDecoderMode(nextMode)
-                                    }
-                                    android.widget.Toast.makeText(context, "Decoder: $nextMode", android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                                .padding(horizontal = 5.dp, vertical = 0.dp)
-                        ) {
-                            Text(
-                                text = decoderMode,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
+                                    .padding(horizontal = 5.dp, vertical = 0.dp)
+                            ) {
+                                Text(
+                                    text = decoderMode,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
                         }
                     }
 

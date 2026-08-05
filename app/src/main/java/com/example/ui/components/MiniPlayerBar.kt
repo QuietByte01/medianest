@@ -111,6 +111,7 @@ fun MiniPlayerBar(
     GlassSurface(
         modifier = modifier
             .then(swipeGestureModifier)
+            .clip(shape)
             .clickable(onClick = onClickExpand),
         shape = shape,
         backgroundColor = Color(0x381F2332),
@@ -184,6 +185,7 @@ fun MiniPlayerBar(
                     GlassSurface(
                         modifier = Modifier
                             .size(32.dp)
+                            .clip(CircleShape)
                             .clickable {
                                 onPrevious?.invoke() ?: com.example.player.ExoPlayerManager.activeManager?.previous()
                             },
@@ -204,6 +206,7 @@ fun MiniPlayerBar(
                     GlassSurface(
                         modifier = Modifier
                             .size(38.dp)
+                            .clip(CircleShape)
                             .clickable(onClick = onPlayPauseToggle),
                         shape = CircleShape,
                         backgroundColor = Color(0x4DFFFFFF),
@@ -222,6 +225,7 @@ fun MiniPlayerBar(
                     GlassSurface(
                         modifier = Modifier
                             .size(32.dp)
+                            .clip(CircleShape)
                             .clickable(onClick = onNext),
                         shape = CircleShape,
                         backgroundColor = Color(0x26FFFFFF),

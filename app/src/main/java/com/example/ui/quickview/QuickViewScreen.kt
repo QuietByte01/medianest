@@ -11,14 +11,13 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.border
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -883,11 +882,11 @@ fun ZoomableImageView(
     onToggleControls: () -> Unit = {},
     onSwipeUpForInfo: () -> Unit = {}
 ) {
-    var scale by remember { mutableFloatStateOf(1f) }
-    var offsetX by remember { mutableFloatStateOf(0f) }
-    var offsetY by remember { mutableFloatStateOf(0f) }
+    val scope = rememberCoroutineScope()
+    val animatedScale = remember { Animatable(1f) }
+    val animatedOffsetX = remember { Animatable(0f) }
+    val animatedOffsetY = remember { Animatable(0f) }
 
-    val context = LocalContext.current
     val colorFilter = remember(pictureModeEnabled, pictureMode, customSat, customCon, customWarmth) {
         com.example.ui.components.PictureModeUtils.getComposeColorFilter(
             modeKey = pictureMode,
@@ -899,9 +898,9 @@ fun ZoomableImageView(
     }
 
     LaunchedEffect(item.uri) {
-        scale = 1f
-        offsetX = 0f
-        offsetY = 0f
+        animatedScale.snapTo(1f)
+        animatedOffsetX.snapTo(0f)
+        animatedOffsetY.snapTo(0f)
     }
 
     val isPng = remember(item) {
@@ -912,70 +911,100 @@ fun ZoomableImageView(
         modifier = Modifier
             .fillMaxSize()
             .background(if (isPng) Color.White else Color.Black)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = { onToggleControls() },
-                    onDoubleTap = { centroid ->
-                        if (scale > 1.1f) {
-                            scale = 1f
-                            offsetX = 0f
-                            offsetY = 0f
-                        } else {
-                            // Zoom to "Natural Resolution" (approx 3x or 4x depending on image size)
-                            // For simplicity and user request: small images zoom out, large zoom in.
-                            // We'll use 4x as a good "detail" zoom that usually covers natural res.
-                            scale = 4f
-                            // Center zoom on double tap point
-                            val centerX = size.width / 2f
-                            val centerY = size.height / 2f
-                            offsetX = (centerX - centroid.x) * (scale - 1f)
-                            offsetY = (centerY - centroid.y) * (scale - 1f)
-                        }
-                    }
-                )
-            }
-            .pointerInput(item.uri, scale) {
-                detectTransformGestures { centroid, pan, zoom, _ ->
-                    val oldScale = scale
-                    val newScale = (scale * zoom).coerceIn(1f, 10f)
-                    
-                    if (newScale <= 1.001f) {
-                        scale = 1f
-                        offsetX = 0f
-                        offsetY = 0f
-                    } else {
-                        val scaleFactor = newScale / oldScale
-                        val centerX = size.width / 2f
-                        val centerY = size.height / 2f
-
-                        // Standard smooth centroid-based zoom
-                        val newOffsetX = (offsetX + centroid.x - centerX) * scaleFactor - (centroid.x - centerX) + pan.x
-                        val newOffsetY = (offsetY + centroid.y - centerY) * scaleFactor - (centroid.y - centerY) + pan.y
-
-                        val maxOffsetX = (size.width * (newScale - 1f)) / 2f
-                        val maxOffsetY = (size.height * (newScale - 1f)) / 2f
-
-                        offsetX = newOffsetX.coerceIn(-maxOffsetX, maxOffsetX)
-                        offsetY = newOffsetY.coerceIn(-maxOffsetY, maxOffsetY)
-                        scale = newScale
-                    }
-                }
-            }
-            .pointerInput(Unit) {
+            .pointerInput(item.uri) {
                 awaitEachGesture {
+                    var isPinching = false
+                    var isTapping = true
+                    var lastTapTime = 0L
+
                     while (true) {
                         val event = awaitPointerEvent()
-                        if (event.changes.all { !it.pressed }) break
-                        if (event.changes.size == 1 && scale <= 1.05f) {
-                            val change = event.changes[0]
-                            val drag = change.position - change.previousPosition
-                            if (drag.y < -20f && kotlin.math.abs(drag.y) > kotlin.math.abs(drag.x) * 2f) {
-                                onSwipeUpForInfo()
-                                change.consume()
+                        val changes = event.changes
+                        
+                        if (changes.all { !it.pressed }) break
+
+                        if (changes.size > 1) {
+                            // PINCH ZOOM
+                            isPinching = true
+                            isTapping = false
+                            
+                            val zoom = event.calculateZoom()
+                            val oldScale = animatedScale.value
+                            val newScale = (oldScale * zoom).coerceIn(1f, 10f)
+                            
+                            val centroid = event.calculateCentroid(useCurrent = true)
+                            val centerX = size.width / 2f
+                            val centerY = size.height / 2f
+                            
+                            val scaleFactor = newScale / oldScale
+                            val newOffsetX = (animatedOffsetX.value + centroid.x - centerX) * scaleFactor - (centroid.x - centerX)
+                            val newOffsetY = (animatedOffsetY.value + centroid.y - centerY) * scaleFactor - (centroid.y - centerY)
+
+                            scope.launch {
+                                animatedScale.snapTo(newScale)
+                                val maxOffsetX = (size.width * (newScale - 1f)) / 2f
+                                val maxOffsetY = (size.height * (newScale - 1f)) / 2f
+                                animatedOffsetX.snapTo(newOffsetX.coerceIn(-maxOffsetX, maxOffsetX))
+                                animatedOffsetY.snapTo(newOffsetY.coerceIn(-maxOffsetY, maxOffsetY))
+                            }
+                        } else if (changes.size == 1 && !isPinching) {
+                            // PAN or SWIPE
+                            val change = changes[0]
+                            val dragAmount = change.position - change.previousPosition
+                            
+                            if (animatedScale.value > 1.01f) {
+                                // Panning inside zoomed image
+                                val newX = animatedOffsetX.value + dragAmount.x
+                                val newY = animatedOffsetY.value + dragAmount.y
+                                val maxOffsetX = (size.width * (animatedScale.value - 1f)) / 2f
+                                val maxOffsetY = (size.height * (animatedScale.value - 1f)) / 2f
+                                
+                                scope.launch {
+                                    animatedOffsetX.snapTo(newX.coerceIn(-maxOffsetX, maxOffsetX))
+                                    animatedOffsetY.snapTo(newY.coerceIn(-maxOffsetY, maxOffsetY))
+                                }
+                                // Consume horizontal drag if not at edges to prevent Pager from swiping
+                                if (newX.coerceIn(-maxOffsetX, maxOffsetX) == newX) {
+                                    change.consume()
+                                }
+                            } else {
+                                // Scale is 1.0 - Let HorizontalPager handle horizontal drag
+                                // But check for vertical swipe up for info
+                                if (dragAmount.y < -15f && kotlin.math.abs(dragAmount.y) > kotlin.math.abs(dragAmount.x) * 2f) {
+                                    onSwipeUpForInfo()
+                                    change.consume()
+                                }
                             }
                         }
                     }
                 }
+            }
+            .pointerInput(item.uri) {
+                detectTapGestures(
+                    onTap = { onToggleControls() },
+                    onDoubleTap = { centroid ->
+                        scope.launch {
+                            if (animatedScale.value > 1.1f) {
+                                launch { animatedScale.animateTo(1f, tween(300)) }
+                                launch { animatedOffsetX.animateTo(0f, tween(300)) }
+                                launch { animatedOffsetY.animateTo(0f, tween(300)) }
+                            } else {
+                                val targetScale = 4f
+                                val centerX = size.width / 2f
+                                val centerY = size.height / 2f
+                                val targetX = (centerX - centroid.x) * (targetScale - 1f)
+                                val targetY = (centerY - centroid.y) * (targetScale - 1f)
+                                
+                                val maxOffsetX = (size.width * (targetScale - 1f)) / 2f
+                                val maxOffsetY = (size.height * (targetScale - 1f)) / 2f
+                                
+                                launch { animatedScale.animateTo(targetScale, tween(350)) }
+                                launch { animatedOffsetX.animateTo(targetX.coerceIn(-maxOffsetX, maxOffsetX), tween(350)) }
+                                launch { animatedOffsetY.animateTo(targetY.coerceIn(-maxOffsetY, maxOffsetY), tween(350)) }
+                            }
+                        }
+                    }
+                )
             },
         contentAlignment = Alignment.Center
     ) {
@@ -990,16 +1019,16 @@ fun ZoomableImageView(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer(
-                    scaleX = scale,
-                    scaleY = scale,
-                    translationX = offsetX,
-                    translationY = offsetY
+                    scaleX = animatedScale.value,
+                    scaleY = animatedScale.value,
+                    translationX = animatedOffsetX.value,
+                    translationY = animatedOffsetY.value
                 )
         )
 
         // Bottom-Right Glass Zoom Percentage Control Pill
         AnimatedVisibility(
-            visible = scale > 1.01f,
+            visible = animatedScale.value > 1.01f,
             enter = fadeIn() + scaleIn(),
             exit = fadeOut() + scaleOut(),
             modifier = Modifier
@@ -1018,10 +1047,14 @@ fun ZoomableImageView(
             ) {
                 IconButton(
                     onClick = {
-                        val newScale = (scale - 0.5f).coerceAtLeast(1f)
-                        if (newScale <= 1.05f) {
-                            scale = 1f; offsetX = 0f; offsetY = 0f
-                        } else scale = newScale
+                        scope.launch {
+                            val newScale = (animatedScale.value - 1f).coerceAtLeast(1f)
+                            animatedScale.animateTo(newScale)
+                            if (newScale == 1f) {
+                                animatedOffsetX.animateTo(0f)
+                                animatedOffsetY.animateTo(0f)
+                            }
+                        }
                     },
                     modifier = Modifier.size(32.dp)
                 ) {
@@ -1029,15 +1062,25 @@ fun ZoomableImageView(
                 }
 
                 Text(
-                    text = "${(scale * 100).toInt()}%",
+                    text = "${(animatedScale.value * 100).toInt()}%",
                     color = Color.White,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable { scale = 1f; offsetX = 0f; offsetY = 0f }.padding(4.dp)
+                    modifier = Modifier.clickable { 
+                        scope.launch {
+                            launch { animatedScale.animateTo(1f) }
+                            launch { animatedOffsetX.animateTo(0f) }
+                            launch { animatedOffsetY.animateTo(0f) }
+                        }
+                    }.padding(4.dp)
                 )
 
                 IconButton(
-                    onClick = { scale = (scale + 0.5f).coerceAtMost(10f) },
+                    onClick = {
+                        scope.launch {
+                            animatedScale.animateTo((animatedScale.value + 1f).coerceAtMost(10f))
+                        }
+                    },
                     modifier = Modifier.size(32.dp)
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))

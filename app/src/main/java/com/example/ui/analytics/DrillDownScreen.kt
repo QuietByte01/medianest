@@ -108,7 +108,7 @@ fun DrillDownScreen(
     allVideos: List<MediaItem>,
     allAudio: List<MediaItem>,
     onBack: () -> Unit,
-    onOpenQuickView: (MediaItem) -> Unit,
+    onOpenQuickView: (MediaItem, List<MediaItem>) -> Unit,
     onOpenVideoPlayer: (MediaItem) -> Unit,
     onOpenAudioPlayer: (MediaItem) -> Unit
 ) {
@@ -308,12 +308,13 @@ fun DrillDownScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .aspectRatio(1f)
+                                .clip(RoundedCornerShape(12.dp))
                                 .clickable {
                                     if (isSelectionMode) {
                                         selectedUris = if (isSelected) selectedUris - item.uri.toString() else selectedUris + item.uri.toString()
                                     } else {
                                         when {
-                                            allImages.contains(item) -> onOpenQuickView(item)
+                                            allImages.contains(item) -> onOpenQuickView(item, sortedFiles.filter { it.type == com.example.data.db.MediaType.IMAGE })
                                             allVideos.contains(item) -> onOpenVideoPlayer(item)
                                             else -> onOpenAudioPlayer(item)
                                         }
@@ -436,7 +437,7 @@ fun DrillDownScreen(
                                     selectedUris = if (isSelected) selectedUris - item.uri.toString() else selectedUris + item.uri.toString()
                                 } else {
                                     when {
-                                        allImages.contains(item) -> onOpenQuickView(item)
+                                        allImages.contains(item) -> onOpenQuickView(item, sortedFiles.filter { it.type == com.example.data.db.MediaType.IMAGE })
                                         allVideos.contains(item) -> onOpenVideoPlayer(item)
                                         else -> onOpenAudioPlayer(item)
                                     }

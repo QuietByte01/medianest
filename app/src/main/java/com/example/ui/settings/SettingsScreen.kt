@@ -7,6 +7,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -170,35 +172,27 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(darkBackgroundGradient)
+            .drawBehind {
+                val gridSpacing = 30.dp.toPx()
+                val lineWeight = 1.dp.toPx()
+                val gridColor = Color.White.copy(alpha = 0.05f)
+
+                // Vertical lines
+                var x = 0f
+                while (x < size.width) {
+                    drawLine(gridColor, Offset(x, 0f), Offset(x, size.height), lineWeight)
+                    x += gridSpacing
+                }
+
+                // Horizontal lines
+                var y = 0f
+                while (y < size.height) {
+                    drawLine(gridColor, Offset(0f, y), Offset(size.width, y), lineWeight)
+                    y += gridSpacing
+                }
+            }
             .dismissKeyboardOnOutsideTap()
     ) {
-        // Ambient background blur shapes for glassmorphism
-        Box(
-            modifier = Modifier
-                .offset(x = (-50).dp, y = (-30).dp)
-                .size(240.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF0A0C14)) // Darker Obsidian circle
-                .blur(60.dp)
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .offset(x = 60.dp, y = 80.dp)
-                .size(260.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF05060A)) // Subtle Obsidian circle
-                .blur(70.dp)
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .offset(x = (-30).dp, y = 50.dp)
-                .size(200.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF020204)) // Very deep circle
-                .blur(60.dp)
-        )
             val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
             Column(
                 modifier = Modifier

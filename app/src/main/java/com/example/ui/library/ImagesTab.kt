@@ -65,7 +65,7 @@ fun ImagesTab(
     onCreateCollection: (String, List<String>, String?) -> Unit = { _, _, _ -> },
     onUpdateCollection: (Long, String, List<String>, String?) -> Unit = { _, _, _, _ -> },
     onDeleteCollection: (Long) -> Unit = {},
-    onImageClick: (MediaItem) -> Unit,
+    onImageClick: (MediaItem, List<MediaItem>) -> Unit,
     onImageLongClick: (MediaItem) -> Unit
 ) {
     val currentContext = androidx.compose.ui.platform.LocalContext.current
@@ -227,6 +227,7 @@ fun ImagesTab(
                         borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                         modifier = Modifier
                             .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable {
                                 activeFilterTab = "ALL"
                                 viewMode = 0
@@ -254,6 +255,7 @@ fun ImagesTab(
                         borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                         modifier = Modifier
                             .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable {
                                 activeFilterTab = "FOLDERS"
                                 viewMode = 1
@@ -281,6 +283,7 @@ fun ImagesTab(
                         borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                         modifier = Modifier
                             .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable {
                                 activeFilterTab = "CAMERA"
                                 viewMode = 0
@@ -308,6 +311,7 @@ fun ImagesTab(
                         borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                         modifier = Modifier
                             .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable {
                                 activeFilterTab = "FAVORITES"
                                 viewMode = 0
@@ -335,6 +339,7 @@ fun ImagesTab(
                         borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                         modifier = Modifier
                             .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable {
                                 activeFilterTab = "TRASH"
                                 viewMode = 0
@@ -362,6 +367,7 @@ fun ImagesTab(
                         borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                         modifier = Modifier
                             .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable {
                                 activeFilterTab = "SOCIAL"
                                 viewMode = 0
@@ -389,6 +395,7 @@ fun ImagesTab(
                         borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                         modifier = Modifier
                             .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable {
                                 activeFilterTab = "GIFS"
                                 viewMode = 0
@@ -416,6 +423,7 @@ fun ImagesTab(
                         borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                         modifier = Modifier
                             .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable {
                                 activeFilterTab = "PNG_SVG"
                                 viewMode = 0
@@ -443,6 +451,7 @@ fun ImagesTab(
                         borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                         modifier = Modifier
                             .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable {
                                 activeFilterTab = "EDITED"
                                 viewMode = 0
@@ -470,6 +479,7 @@ fun ImagesTab(
                         borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                         modifier = Modifier
                             .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable {
                                 activeFilterTab = "AI_GENERATED"
                                 viewMode = 0
@@ -497,6 +507,7 @@ fun ImagesTab(
                         borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                         modifier = Modifier
                             .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable {
                                 activeFilterTab = "ANIME"
                                 viewMode = 0
@@ -524,6 +535,7 @@ fun ImagesTab(
                         borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                         modifier = Modifier
                             .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable {
                                 activeFilterTab = "WALLPAPERS"
                                 viewMode = 0
@@ -551,6 +563,7 @@ fun ImagesTab(
                         borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                         modifier = Modifier
                             .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable {
                                 activeFilterTab = "SCREENSHOTS"
                                 viewMode = 0
@@ -578,6 +591,7 @@ fun ImagesTab(
                         borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                         modifier = Modifier
                             .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable {
                                 activeFilterTab = "NOTES"
                                 viewMode = 0
@@ -605,6 +619,7 @@ fun ImagesTab(
                         borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                         modifier = Modifier
                             .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable {
                                 activeFilterTab = "HIDDEN"
                                 viewMode = 1
@@ -718,7 +733,7 @@ fun ImagesTab(
                                         isSelectionMode = isSelectionMode,
                                         cornerRadiusDp = cornerRadiusDp,
                                         roundedCornersEnabled = roundedCornersEnabled,
-                                        onClick = { onImageClick(item) },
+                                        onClick = { onImageClick(item, collectionImages) },
                                         onLongClick = { onImageLongClick(item) },
                                         onMoreClick = { contextSheetItem = item }
                                     )
@@ -771,7 +786,7 @@ fun ImagesTab(
                                     isSelectionMode = isSelectionMode,
                                     cornerRadiusDp = cornerRadiusDp,
                                     roundedCornersEnabled = roundedCornersEnabled,
-                                    onClick = { onImageClick(item) },
+                                    onClick = { onImageClick(item, folderImages) },
                                     onLongClick = { onImageLongClick(item) },
                                     onInfo = { infoItem = item },
                                     onDelete = { imageToDelete = item },
@@ -898,6 +913,7 @@ fun ImagesTab(
                                     borderColor = if (isChecked) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .clip(RoundedCornerShape(16.dp))
                                         .clickable {
                                             if (isFolderSelectionActive) {
                                                 selectedFolderNames = if (isChecked) {
@@ -1475,7 +1491,7 @@ fun ImagesTab(
                                     isSelectionMode = isSelectionMode,
                                     cornerRadiusDp = cornerRadiusDp,
                                     roundedCornersEnabled = roundedCornersEnabled,
-                                    onClick = { onImageClick(item) },
+                                    onClick = { onImageClick(item, displayList) },
                                     onLongClick = { onImageLongClick(item) },
                                     onInfo = { infoItem = item },
                                     onDelete = { imageToDelete = item },
@@ -1882,7 +1898,13 @@ fun ImagesTab(
                     onClick = {
                         val target = activeItem
                         contextSheetItem = null
-                        onImageClick(target)
+                        // Determine appropriate list for filmstrip
+                        val listForContext = when {
+                            selectedCategory != null -> imagesList.filter { (it.bucketName ?: "Pictures") in (categoryFolderMap[selectedCategory!!.id] ?: emptyList()) }
+                            selectedFolder != null -> folderGroups[selectedFolder] ?: emptyList()
+                            else -> imagesList // Fallback to all images
+                        }
+                        onImageClick(target, listForContext)
                     }
                 )
                 DropdownMenuItem(
