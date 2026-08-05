@@ -1682,7 +1682,7 @@ private fun isMusicVideo(item: MediaItem): Boolean {
 
     // 3. Strong Music Indicators (Path, Metadata, or Title Keywords)
     val hasArtist = !item.artist.isNullOrBlank() && item.artist != "<unknown>"
-    val hasAlbumOrGenre = !item.album.isNullOrBlank() || !item.genre.isNullOrBlank()
+    val hasAlbumOrGenre = !item.album.isNullOrBlank()
 
     val musicPathKeywords = listOf("/music/", "/songs/", "/mv/", "/mvs/", "/audio/", "vevo", "soundtrack")
     val matchesMusicPath = musicPathKeywords.any { path.contains(it) }

@@ -84,8 +84,8 @@ fun ImagesTab(
         if (favoriteCat != null) categoryCrossRefs.filter { it.categoryId == favoriteCat.id }.map { it.mediaUri }.toSet()
         else emptySet()
     }
-    
-    
+
+
     val trashUris by remember { mutableStateOf(setOf<String>()) }
 
     // Folder selection mode for grouping
@@ -150,7 +150,7 @@ fun ImagesTab(
     }
 
     val appHiddenFolders by settingsManager.hiddenFolders.collectAsState(initial = emptySet())
-    
+
     val selectiveHiddenFolders by db.selectiveHiddenFolderDao().getAllHiddenFolders().collectAsState(initial = emptyList())
 
     val selectiveImageHidden = remember(selectiveHiddenFolders) {
@@ -1383,7 +1383,6 @@ fun ImagesTab(
                             else -> imagesList
                         }
                     }
-                }
 
                     if (isLoading && displayList.isEmpty()) {
                         Box(
@@ -1971,3 +1970,4 @@ fun ImagesTab(
             )
         }
     }
+}
