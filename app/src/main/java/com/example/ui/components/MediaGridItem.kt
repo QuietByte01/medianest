@@ -8,6 +8,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MoreVert
@@ -46,9 +49,14 @@ fun MediaGridItem(
     modifier: Modifier = Modifier,
     cornerRadiusDp: Int = 8,
     roundedCornersEnabled: Boolean = true,
-    onMoreClick: (() -> Unit)? = null
+    onMoreClick: (() -> Unit)? = null,
+    onInfo: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
+    onRemoveFromCategory: (() -> Unit)? = null,
+    showRemoveOption: Boolean = false
 ) {
     val context = LocalContext.current
+    var showMenu by remember { mutableStateOf(false) }
     val calculatedRatio = item.aspectRatio.coerceIn(0.45f, 2.2f)
     val itemShape = if (roundedCornersEnabled) RoundedCornerShape(cornerRadiusDp.dp) else RoundedCornerShape(0.dp)
 
@@ -229,20 +237,77 @@ fun MediaGridItem(
                         }
                     }
                 }
-            } else if (onMoreClick != null) {
-                IconButton(
-                    onClick = onMoreClick,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(4.dp)
-                        .size(28.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "More options",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
+            } else if (onMoreClick != null || onInfo != null) {
+                Box(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "More options",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    val isDark = com.example.ui.theme.LocalDarkTheme.current
+                    val menuBg = if (isDark) Color(0xBF0F1015) else Color(0xA6FFFFFF)
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        containerColor = menuBg,
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.width(180.dp)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Play / View", color = if (isDark) Color.White else Color.Black) },
+                            leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                            onClick = {
+                                showMenu = false
+                                onClick()
+                            }
+                        )
+                        if (onInfo != null) {
+                            DropdownMenuItem(
+                                text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                onClick = {
+                                    showMenu = false
+                                    onInfo()
+                                }
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("Select", color = if (isDark) Color.White else Color.Black) },
+                            leadingIcon = { Icon(Icons.Default.Check, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                            onClick = {
+                                showMenu = false
+                                onLongClick()
+                            }
+                        )
+                        if (showRemoveOption && onRemoveFromCategory != null) {
+                            DropdownMenuItem(
+                                text = { Text("Remove", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                onClick = {
+                                    showMenu = false
+                                    onRemoveFromCategory()
+                                }
+                            )
+                        }
+                        if (onDelete != null) {
+                            DropdownMenuItem(
+                                text = { Text("Delete File", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                onClick = {
+                                    showMenu = false
+                                    onDelete()
+                                }
+                            )
+                        }
+                    }
                 }
             }
 

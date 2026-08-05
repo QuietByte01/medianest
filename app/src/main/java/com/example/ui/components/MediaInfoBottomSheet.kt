@@ -90,11 +90,14 @@ fun MediaInfoBottomSheet(
     val configuration = LocalConfiguration.current
     val isTabletLandscape = configuration.screenWidthDp >= 600 || configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
+    val isDark = com.example.ui.theme.LocalDarkTheme.current
+    val sheetBg = if (isDark) Color(0xBF121522) else Color(0xA6FFFFFF)
+
     AdaptiveBottomSheet(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        containerColor = Color(0xDC121522),
-        contentColor = Color.White,
+        containerColor = sheetBg,
+        contentColor = if (isDark) Color.White else Color.Black,
         dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
         if (item.type == MediaType.VIDEO) {

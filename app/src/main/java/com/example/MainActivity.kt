@@ -41,6 +41,7 @@ import com.example.ui.quickview.QuickViewActivity
 import com.example.ui.settings.SettingsScreen
 import com.example.ui.theme.MediaNestTheme
 import com.example.ui.videoplayer.VideoPlayerActivity
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -52,7 +53,14 @@ class MainActivity : ComponentActivity() {
     private val networkRepository by lazy { com.example.data.repository.NetworkRepository() }
     private val analyticsRepository by lazy { com.example.data.repository.AnalyticsRepository(MediaNestApp.instance.database.analyticsDao(), mediaStoreRepository, MediaNestApp.instance.database.selectiveHiddenFolderDao()) }
 
-    private val pendingScreenState = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    private val pendingScreenState = MutableStateFlow<String?>(null)
+    private val targetMainTab = MutableStateFlow(0)
+    private val targetAudioSubTab = MutableStateFlow(0)
+    private val targetAudioAlbum = MutableStateFlow<String?>(null)
+    private val targetAudioArtist = MutableStateFlow<String?>(null)
+    private val targetAudioFolder = MutableStateFlow<String?>(null)
+    private val targetVideoFolder = MutableStateFlow<String?>(null)
+    private val targetImageFolder = MutableStateFlow<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,10 +89,10 @@ class MainActivity : ComponentActivity() {
                     var imageCollections by remember { mutableStateOf<List<MediaCategory>>(emptyList()) }
                     var categoryCrossRefs by remember { mutableStateOf<List<CategoryMediaCrossRef>>(emptyList()) }
 
-                    val gridGapDp by settingsManager.gridGapDp.collectAsState(initial = 2)
+                    val gridGapDp by settingsManager.gridGapDp.collectAsState(initial = 8)
+                    val gridSizeLevel by settingsManager.gridSizeLevel.collectAsState(initial = 1)
                     val cornerRadiusDp by settingsManager.gridCornerRadiusDp.collectAsState(initial = 8)
                     val roundedCornersEnabled by settingsManager.roundedCornersEnabled.collectAsState(initial = true)
-                    val largeImageGrid by settingsManager.largeImageGrid.collectAsState(initial = false)
 
                     val appLockEnabled by settingsManager.appLockEnabled.collectAsState(initial = false)
                     val appLockPin by settingsManager.appLockPin.collectAsState(initial = "")
@@ -107,11 +115,14 @@ class MainActivity : ComponentActivity() {
                             pendingScreenState.value = null
                         }
                     }
-                    var targetMainTab by rememberSaveable { mutableIntStateOf(0) }
-                    var targetAudioSubTab by rememberSaveable { mutableIntStateOf(0) }
-                    var targetAudioAlbum by rememberSaveable { mutableStateOf<String?>(null) }
-                    var targetAudioArtist by rememberSaveable { mutableStateOf<String?>(null) }
-                    var targetAudioFolder by rememberSaveable { mutableStateOf<String?>(null) }
+
+                    val mainTab by targetMainTab.collectAsState()
+                    val audioSub by targetAudioSubTab.collectAsState()
+                    val audioAlb by targetAudioAlbum.collectAsState()
+                    val audioArt by targetAudioArtist.collectAsState()
+                    val audioFld by targetAudioFolder.collectAsState()
+                    val videoFld by targetVideoFolder.collectAsState()
+                    val imageFld by targetImageFolder.collectAsState()
 
                     // Prevent back press from exiting app when in sub-screens
                     BackHandler(enabled = currentScreen != "LIBRARY") {
@@ -230,6 +241,7 @@ class MainActivity : ComponentActivity() {
                                         onClearHistory = {
                                             lifecycleScope.launch {
                                                 db.playbackStateDao().clearAllHistory()
+                                                db.metadataCacheDao().clearCache()
                                             }
                                         },
                                         onClose = { currentScreen = "LIBRARY" }
@@ -242,21 +254,21 @@ class MainActivity : ComponentActivity() {
                                         networkRepository = networkRepository,
                                         onClose = { currentScreen = "LIBRARY" },
                                         onOpenAlbum = { album ->
-                                            targetMainTab = if (enableAnalyticsTab) 3 else 2
-                                            targetAudioSubTab = 1
-                                            targetAudioAlbum = album
+                                            targetMainTab.value = if (enableAnalyticsTab) 3 else 2
+                                            targetAudioSubTab.value = 1
+                                            targetAudioAlbum.value = album
                                             currentScreen = "LIBRARY"
                                         },
                                         onOpenArtist = { artist ->
-                                            targetMainTab = if (enableAnalyticsTab) 3 else 2
-                                            targetAudioSubTab = 2
-                                            targetAudioArtist = artist
+                                            targetMainTab.value = if (enableAnalyticsTab) 3 else 2
+                                            targetAudioSubTab.value = 2
+                                            targetAudioArtist.value = artist
                                             currentScreen = "LIBRARY"
                                         },
                                         onOpenFolder = { folder ->
-                                            targetMainTab = if (enableAnalyticsTab) 3 else 2
-                                            targetAudioSubTab = 3
-                                            targetAudioFolder = folder
+                                            targetMainTab.value = if (enableAnalyticsTab) 3 else 2
+                                            targetAudioSubTab.value = 3
+                                            targetAudioFolder.value = folder
                                             currentScreen = "LIBRARY"
                                         },
                                         onOpenSettings = { currentScreen = "SETTINGS" }
@@ -273,9 +285,9 @@ class MainActivity : ComponentActivity() {
                                         imageCollections = imageCollections,
                                         categoryCrossRefs = categoryCrossRefs,
                                         gridGapDp = gridGapDp,
+                                        gridSizeLevel = gridSizeLevel,
                                         cornerRadiusDp = cornerRadiusDp,
                                         roundedCornersEnabled = roundedCornersEnabled,
-                                        largeImageGrid = largeImageGrid,
                                         enableAnalyticsTab = enableAnalyticsTab,
                                         isLoading = isScanLoading,
                                         analyticsSnapshot = analyticsSnapshot,
@@ -289,11 +301,13 @@ class MainActivity : ComponentActivity() {
                                             }
                                         },
                                         exoPlayerManager = exoPlayerManager,
-                                        initialTab = targetMainTab,
-                                        audioSubTab = targetAudioSubTab,
-                                        audioAlbum = targetAudioAlbum,
-                                        audioArtist = targetAudioArtist,
-                                        audioFolder = targetAudioFolder,
+                                        initialTab = mainTab,
+                                        audioSubTab = audioSub,
+                                        audioAlbum = audioAlb,
+                                        audioArtist = audioArt,
+                                        audioFolder = audioFld,
+                                        initialVideoFolder = videoFld,
+                                        initialImageFolder = imageFld,
                                         onOpenQuickView = { item ->
                                             val intent = Intent(this@MainActivity, QuickViewActivity::class.java).apply {
                                                 action = Intent.ACTION_VIEW
@@ -302,22 +316,37 @@ class MainActivity : ComponentActivity() {
                                             startActivity(intent)
                                         },
                                         onOpenVideoPlayer = { item ->
-                                            val index = videosList.indexOfFirst { it.uri == item.uri }
-                                            val intent = Intent(this@MainActivity, VideoPlayerActivity::class.java).apply {
-                                                if (videosList.isNotEmpty()) {
-                                                    putStringArrayListExtra("video_uris", ArrayList(videosList.map { it.uri.toString() }))
-                                                    putStringArrayListExtra("video_titles", ArrayList(videosList.map { it.title }))
-                                                    putExtra("start_index", if (index >= 0) index else 0)
-                                                } else {
-                                                    putExtra("media_uri", item.uri.toString())
-                                                    putExtra("media_title", item.title)
-                                                    putExtra("mime_type", item.mimeType)
+                                            // Handle GIFs separately if needed, though most should go to QuickView
+                                            if (item.mimeType.contains("gif", ignoreCase = true)) {
+                                                val intent = Intent(this@MainActivity, QuickViewActivity::class.java).apply {
+                                                    action = Intent.ACTION_VIEW
+                                                    setDataAndType(item.uri, item.mimeType)
                                                 }
+                                                startActivity(intent)
+                                            } else {
+                                                // Filter list to only include videos from the same folder
+                                                val currentFolder = item.relativePath ?: item.bucketName ?: ""
+                                                val filteredList = videosList.filter { 
+                                                    (it.relativePath ?: it.bucketName ?: "") == currentFolder 
+                                                }
+                                                val index = filteredList.indexOfFirst { it.uri == item.uri }
+                                                
+                                                val intent = Intent(this@MainActivity, VideoPlayerActivity::class.java).apply {
+                                                    if (filteredList.isNotEmpty()) {
+                                                        putStringArrayListExtra("video_uris", ArrayList(filteredList.map { it.uri.toString() }))
+                                                        putStringArrayListExtra("video_titles", ArrayList(filteredList.map { it.title }))
+                                                        putExtra("start_index", if (index >= 0) index else 0)
+                                                    } else {
+                                                        putExtra("media_uri", item.uri.toString())
+                                                        putExtra("media_title", item.title)
+                                                        putExtra("mime_type", item.mimeType)
+                                                    }
+                                                }
+                                                startActivity(intent)
                                             }
-                                            startActivity(intent)
                                         },
                                         onOpenAudioPlayer = { activeTab ->
-                                            targetMainTab = activeTab
+                                            targetMainTab.value = activeTab
                                             currentScreen = "AUDIO_PLAYER"
                                         },
                                         onOpenSettings = { currentScreen = "SETTINGS" },
@@ -394,6 +423,14 @@ class MainActivity : ComponentActivity() {
             pendingScreenState.value = "AUDIO_PLAYER"
         } else if (intent?.getStringExtra("open_screen") == "SETTINGS") {
             pendingScreenState.value = "SETTINGS"
+        } else if (intent?.getStringExtra("open_screen") == "VIDEOS_FOLDER") {
+            val folder = intent.getStringExtra("folder_name")
+            targetVideoFolder.value = folder
+            pendingScreenState.value = "LIBRARY"
+        } else if (intent?.getStringExtra("open_screen") == "IMAGES_FOLDER") {
+            val folder = intent.getStringExtra("folder_name")
+            targetImageFolder.value = folder
+            pendingScreenState.value = "LIBRARY"
         }
     }
 

@@ -15,6 +15,7 @@ class SettingsManager(private val context: Context) {
         val KEY_THEME = stringPreferencesKey("theme") // DARK, LIGHT, SYSTEM
         val KEY_ACCENT_COLOR = intPreferencesKey("accent_color") // Hex int
         val KEY_GRID_GAP_DP = intPreferencesKey("grid_gap_dp")
+        val KEY_GRID_SIZE_LEVEL = intPreferencesKey("grid_size_level")
         val KEY_ROUNDED_CORNERS_ENABLED = booleanPreferencesKey("rounded_corners_enabled")
         val KEY_GRID_CORNER_RADIUS_DP = intPreferencesKey("grid_corner_radius_dp")
         val KEY_GLASSMORPHISM_ENABLED = booleanPreferencesKey("glassmorphism_enabled")
@@ -54,7 +55,8 @@ class SettingsManager(private val context: Context) {
 
     val theme: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_THEME] ?: "DARK" }
     val accentColor: Flow<Int> = context.dataStore.data.map { prefs -> prefs[KEY_ACCENT_COLOR] ?: 0xFF818CF8.toInt() }
-    val gridGapDp: Flow<Int> = context.dataStore.data.map { prefs -> prefs[KEY_GRID_GAP_DP] ?: 2 }
+    val gridGapDp: Flow<Int> = context.dataStore.data.map { prefs -> prefs[KEY_GRID_GAP_DP] ?: 8 }
+    val gridSizeLevel: Flow<Int> = context.dataStore.data.map { prefs -> prefs[KEY_GRID_SIZE_LEVEL] ?: 1 }
     val roundedCornersEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_ROUNDED_CORNERS_ENABLED] ?: true }
     val gridCornerRadiusDp: Flow<Int> = context.dataStore.data.map { prefs -> prefs[KEY_GRID_CORNER_RADIUS_DP] ?: 8 }
     val glassmorphismEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_GLASSMORPHISM_ENABLED] ?: true }
@@ -94,6 +96,7 @@ class SettingsManager(private val context: Context) {
     suspend fun setTheme(theme: String) = context.dataStore.edit { it[KEY_THEME] = theme }
     suspend fun setAccentColor(color: Int) = context.dataStore.edit { it[KEY_ACCENT_COLOR] = color }
     suspend fun setGridGapDp(gap: Int) = context.dataStore.edit { it[KEY_GRID_GAP_DP] = gap }
+    suspend fun setGridSizeLevel(level: Int) = context.dataStore.edit { it[KEY_GRID_SIZE_LEVEL] = level }
     suspend fun setRoundedCornersEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_ROUNDED_CORNERS_ENABLED] = enabled }
     suspend fun setGridCornerRadiusDp(radius: Int) = context.dataStore.edit { it[KEY_GRID_CORNER_RADIUS_DP] = radius }
     suspend fun setGlassmorphismEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_GLASSMORPHISM_ENABLED] = enabled }

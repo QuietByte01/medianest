@@ -59,9 +59,9 @@ fun LibraryScreen(
     imageCollections: List<MediaCategory> = emptyList(),
     categoryCrossRefs: List<CategoryMediaCrossRef> = emptyList(),
     gridGapDp: Int,
+    gridSizeLevel: Int = 1,
     cornerRadiusDp: Int = 8,
     roundedCornersEnabled: Boolean = true,
-    largeImageGrid: Boolean = false,
     enableAnalyticsTab: Boolean = true,
     isLoading: Boolean = false,
     analyticsSnapshot: FileStatSnapshot? = null,
@@ -74,6 +74,8 @@ fun LibraryScreen(
     audioAlbum: String? = null,
     audioArtist: String? = null,
     audioFolder: String? = null,
+    initialVideoFolder: String? = null,
+    initialImageFolder: String? = null,
     onOpenQuickView: (MediaItem) -> Unit,
     onOpenVideoPlayer: (MediaItem) -> Unit,
     onOpenAudioPlayer: (Int) -> Unit,
@@ -560,9 +562,9 @@ fun LibraryScreen(
                     selectedUris = selectedUris,
                     isSelectionMode = isSelectionMode,
                     gridGapDp = gridGapDp,
+                    gridSizeLevel = gridSizeLevel,
                     cornerRadiusDp = cornerRadiusDp,
                     roundedCornersEnabled = roundedCornersEnabled,
-                    largeImageGrid = largeImageGrid,
                     isLoading = isLoading,
                     onCreateCollection = onCreateImageCollection,
                     onUpdateCollection = onUpdateImageCollection,
@@ -587,6 +589,7 @@ fun LibraryScreen(
                     selectedUris = selectedUris,
                     isSelectionMode = isSelectionMode,
                     gridGapDp = gridGapDp,
+                    gridSizeLevel = gridSizeLevel,
                     cornerRadiusDp = cornerRadiusDp,
                     roundedCornersEnabled = roundedCornersEnabled,
                     isLoading = isLoading,
@@ -605,7 +608,8 @@ fun LibraryScreen(
                     },
                     showAddVideosDialog = showAddVideosToCategoryModal,
                     onDismissAddVideosDialog = { showAddVideosToCategoryModal = false },
-                    onClearSelection = { selectedUris = emptySet() }
+                    onClearSelection = { selectedUris = emptySet() },
+                    initialFolder = initialVideoFolder
                 )
 
                 isAudioTab -> AudioTab(
@@ -613,6 +617,7 @@ fun LibraryScreen(
                     playlists = audioPlaylists,
                     selectedUris = selectedUris,
                     isSelectionMode = isSelectionMode,
+                    gridSizeLevel = gridSizeLevel,
                     isLoading = isLoading,
                     onSongClick = { item ->
                         val idx = audioList.indexOf(item)

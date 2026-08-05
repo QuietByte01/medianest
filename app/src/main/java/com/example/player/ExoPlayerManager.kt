@@ -136,9 +136,12 @@ class ExoPlayerManager private constructor(private val context: Context) {
     }
 
     val exoPlayer: ExoPlayer by lazy {
-        // 1. Configure Extractors with Constant Bitrate Seeking Enabled (Avoid heavy header/ID3 scanning on local files)
+        // 1. Configure Extractors with optimized flags for local media compatibility (MKV, AVI, FLV, MP4)
         val extractorsFactory = DefaultExtractorsFactory()
             .setConstantBitrateSeekingEnabled(true)
+            .setAdtsExtractorFlags(androidx.media3.extractor.ts.AdtsExtractor.FLAG_ENABLE_CONSTANT_BITRATE_SEEKING)
+            .setAmrExtractorFlags(androidx.media3.extractor.amr.AmrExtractor.FLAG_ENABLE_CONSTANT_BITRATE_SEEKING)
+            .setMatroskaExtractorFlags(0) // Default flags
 
         // 2. Configure MediaSourceFactory with optimized Extractors
         val mediaSourceFactory = DefaultMediaSourceFactory(context, extractorsFactory)
@@ -634,6 +637,30 @@ class ExoPlayerManager private constructor(private val context: Context) {
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    /**
+     * Clears thumbnails, image caches (Coil), and internal app caches.
+     */
+    fun clearAllCache(onComplete: () -> Unit = {}) {
+        scope.launch(Dispatchers.IO) {
+            try {
+                // 1. Clear Coil Cache
+                val imageLoader = coil.ImageLoader(context)
+                imageLoader.diskCache?.clear()
+                imageLoader.memoryCache?.clear()
+
+                // 2. Clear Internal Cache Directory
+                context.cacheDir.deleteRecursively()
+                context.externalCacheDir?.deleteRecursively()
+
+                withContext(Dispatchers.Main) {
+                    onComplete()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 

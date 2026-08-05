@@ -291,8 +291,9 @@ fun QuickViewScreen(
                                 onClick = {
                                     showOverflowMenu = false
                                     currentItem?.let { item ->
+                                        val sharingUri = com.example.util.ContentUriUtils.getSharingUri(context, item.uri)
                                         val openIntent = Intent(Intent.ACTION_VIEW).apply {
-                                            setDataAndType(item.uri, item.mimeType.ifEmpty { "image/*" })
+                                            setDataAndType(sharingUri, item.mimeType.ifEmpty { "image/*" })
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                         }
                                         context.startActivity(Intent.createChooser(openIntent, "Open with"))
@@ -319,9 +320,10 @@ fun QuickViewScreen(
                                 onClick = {
                                     showOverflowMenu = false
                                     currentItem?.let { item ->
+                                        val sharingUri = com.example.util.ContentUriUtils.getSharingUri(context, item.uri)
                                         val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                             type = item.mimeType.ifEmpty { "image/*" }
-                                            putExtra(Intent.EXTRA_STREAM, item.uri)
+                                            putExtra(Intent.EXTRA_STREAM, sharingUri)
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                         }
                                         context.startActivity(Intent.createChooser(shareIntent, "Share Image"))
@@ -513,9 +515,11 @@ fun QuickViewScreen(
                         // 4. Share
                         IconButton(onClick = {
                             currentItem?.let { item ->
+                                val sharingUri = com.example.util.ContentUriUtils.getSharingUri(context, item.uri)
                                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                     type = item.mimeType
-                                    putExtra(Intent.EXTRA_STREAM, item.uri)
+                                    putExtra(Intent.EXTRA_STREAM, sharingUri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
                                 context.startActivity(Intent.createChooser(shareIntent, "Share Media"))
                             }
@@ -883,6 +887,7 @@ fun ZoomableImageView(
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
 
+    val context = LocalContext.current
     val colorFilter = remember(pictureModeEnabled, pictureMode, customSat, customCon, customWarmth) {
         com.example.ui.components.PictureModeUtils.getComposeColorFilter(
             modeKey = pictureMode,
@@ -903,8 +908,6 @@ fun ZoomableImageView(
         item.title.endsWith(".png", ignoreCase = true) || item.mimeType.lowercase().contains("png")
     }
 
-    var totalVerticalDrag by remember { mutableFloatStateOf(0f) }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -912,64 +915,63 @@ fun ZoomableImageView(
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { onToggleControls() },
-                    onDoubleTap = {
-                        if (scale > 1.2f) {
+                    onDoubleTap = { centroid ->
+                        if (scale > 1.1f) {
                             scale = 1f
                             offsetX = 0f
                             offsetY = 0f
                         } else {
-                            scale = 2.5f
+                            // Zoom to "Natural Resolution" (approx 3x or 4x depending on image size)
+                            // For simplicity and user request: small images zoom out, large zoom in.
+                            // We'll use 4x as a good "detail" zoom that usually covers natural res.
+                            scale = 4f
+                            // Center zoom on double tap point
+                            val centerX = size.width / 2f
+                            val centerY = size.height / 2f
+                            offsetX = (centerX - centroid.x) * (scale - 1f)
+                            offsetY = (centerY - centroid.y) * (scale - 1f)
                         }
                     }
                 )
             }
             .pointerInput(item.uri, scale) {
-                if (scale > 1.02f) {
-                    detectTransformGestures { centroid, pan, zoom, _ ->
-                        val oldScale = scale
-                        val newScale = (scale * zoom).coerceIn(1f, 6f)
-                        if (newScale <= 1.005f) {
-                            scale = 1f
-                            offsetX = 0f
-                            offsetY = 0f
-                        } else {
-                            val scaleFactor = newScale / oldScale
-                            val centerX = size.width / 2f
-                            val centerY = size.height / 2f
+                detectTransformGestures { centroid, pan, zoom, _ ->
+                    val oldScale = scale
+                    val newScale = (scale * zoom).coerceIn(1f, 10f)
+                    
+                    if (newScale <= 1.001f) {
+                        scale = 1f
+                        offsetX = 0f
+                        offsetY = 0f
+                    } else {
+                        val scaleFactor = newScale / oldScale
+                        val centerX = size.width / 2f
+                        val centerY = size.height / 2f
 
-                            val newOffsetX = (offsetX + centroid.x - centerX) * scaleFactor - (centroid.x - centerX) + pan.x
-                            val newOffsetY = (offsetY + centroid.y - centerY) * scaleFactor - (centroid.y - centerY) + pan.y
+                        // Standard smooth centroid-based zoom
+                        val newOffsetX = (offsetX + centroid.x - centerX) * scaleFactor - (centroid.x - centerX) + pan.x
+                        val newOffsetY = (offsetY + centroid.y - centerY) * scaleFactor - (centroid.y - centerY) + pan.y
 
-                            val maxOffsetX = (size.width * (newScale - 1f)) / 2f
-                            val maxOffsetY = (size.height * (newScale - 1f)) / 2f
+                        val maxOffsetX = (size.width * (newScale - 1f)) / 2f
+                        val maxOffsetY = (size.height * (newScale - 1f)) / 2f
 
-                            offsetX = newOffsetX.coerceIn(-maxOffsetX, maxOffsetX)
-                            offsetY = newOffsetY.coerceIn(-maxOffsetY, maxOffsetY)
-                            scale = newScale
-                        }
+                        offsetX = newOffsetX.coerceIn(-maxOffsetX, maxOffsetX)
+                        offsetY = newOffsetY.coerceIn(-maxOffsetY, maxOffsetY)
+                        scale = newScale
                     }
-                } else {
-                    awaitEachGesture {
-                        var isPinch = false
-                        var verticalSwipeTriggered = false
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            if (event.changes.all { !it.pressed }) break
-                            if (event.changes.size > 1) {
-                                isPinch = true
-                                val zoom = event.calculateZoom()
-                                if (zoom > 1.02f) {
-                                    scale = zoom.coerceIn(1f, 6f)
-                                    event.changes.forEach { it.consume() }
-                                }
-                            } else if (!isPinch && event.changes.size == 1) {
-                                val change = event.changes[0]
-                                val pan = change.position - change.previousPosition
-                                if (pan.y < -25f && kotlin.math.abs(pan.y) > kotlin.math.abs(pan.x) * 1.5f && !verticalSwipeTriggered) {
-                                    verticalSwipeTriggered = true
-                                    onSwipeUpForInfo()
-                                    change.consume()
-                                }
+                }
+            }
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        if (event.changes.all { !it.pressed }) break
+                        if (event.changes.size == 1 && scale <= 1.05f) {
+                            val change = event.changes[0]
+                            val drag = change.position - change.previousPosition
+                            if (drag.y < -20f && kotlin.math.abs(drag.y) > kotlin.math.abs(drag.x) * 2f) {
+                                onSwipeUpForInfo()
+                                change.consume()
                             }
                         }
                     }
@@ -995,7 +997,7 @@ fun ZoomableImageView(
                 )
         )
 
-        // Bottom-Right Glass Zoom Percentage Control Pill (- [ % ] +)
+        // Bottom-Right Glass Zoom Percentage Control Pill
         AnimatedVisibility(
             visible = scale > 1.01f,
             enter = fadeIn() + scaleIn(),
@@ -1014,57 +1016,31 @@ fun ZoomableImageView(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                // Zoom Out (-) Button
                 IconButton(
                     onClick = {
-                        val newScale = (scale - 0.25f).coerceAtLeast(1f)
-                        if (newScale == 1f) {
-                            scale = 1f
-                            offsetX = 0f
-                            offsetY = 0f
-                        } else {
-                            scale = newScale
-                        }
+                        val newScale = (scale - 0.5f).coerceAtLeast(1f)
+                        if (newScale <= 1.05f) {
+                            scale = 1f; offsetX = 0f; offsetY = 0f
+                        } else scale = newScale
                     },
                     modifier = Modifier.size(32.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Remove,
-                        contentDescription = "Zoom Out",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    Icon(Icons.Default.Remove, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                 }
 
-                // Zoom Percentage Display (Tap to reset to 100%)
                 Text(
                     text = "${(scale * 100).toInt()}%",
                     color = Color.White,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable {
-                            scale = 1f
-                            offsetX = 0f
-                            offsetY = 0f
-                        }
-                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                    modifier = Modifier.clickable { scale = 1f; offsetX = 0f; offsetY = 0f }.padding(4.dp)
                 )
 
-                // Zoom In (+) Button
                 IconButton(
-                    onClick = {
-                        scale = (scale + 0.25f).coerceAtMost(6f)
-                    },
+                    onClick = { scale = (scale + 0.5f).coerceAtMost(10f) },
                     modifier = Modifier.size(32.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Zoom In",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                 }
             }
         }

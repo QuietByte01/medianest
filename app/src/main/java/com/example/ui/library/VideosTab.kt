@@ -3,6 +3,7 @@ package com.example.ui.library
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -67,6 +68,7 @@ fun VideosTab(
     selectedUris: Set<String>,
     isSelectionMode: Boolean,
     gridGapDp: Int,
+    gridSizeLevel: Int = 1,
     cornerRadiusDp: Int = 8,
     roundedCornersEnabled: Boolean = true,
     isLoading: Boolean = false,
@@ -76,13 +78,13 @@ fun VideosTab(
     onVideoLongClick: (MediaItem) -> Unit,
     showAddVideosDialog: Boolean = false,
     onDismissAddVideosDialog: () -> Unit = {},
-    onClearSelection: () -> Unit = {}
+    onClearSelection: () -> Unit = {},
+    initialFolder: String? = null
 ) {
-    var activeFilterTab by remember { mutableStateOf("ALL") } // "ALL", "MUSIC", "MOVIES", "CLIPS", "SHORTS", "EDITED", "DOWNLOADED", "FOLDERS"
-    var isFolderViewActive by remember { mutableStateOf(false) }
-    var selectedFolder by remember { mutableStateOf<String?>(null) }
+    var activeFilterTab by remember(initialFolder) { mutableStateOf(if (initialFolder != null) "FOLDERS" else "ALL") }
+    var isFolderViewActive by remember(initialFolder) { mutableStateOf(initialFolder != null) }
+    var selectedFolder by remember(initialFolder) { mutableStateOf(initialFolder) }
     var infoItem by remember { mutableStateOf<MediaItem?>(null) }
-    var contextSheetItem by remember { mutableStateOf<MediaItem?>(null) }
     var videoToDelete by remember { mutableStateOf<MediaItem?>(null) }
 
     // Folder Actions State
@@ -1004,8 +1006,14 @@ fun VideosTab(
                 }
             }
         } else {
+            val videoMinSize = when (gridSizeLevel) {
+                0 -> 100.dp
+                2 -> 180.dp
+                3 -> 220.dp
+                else -> 135.dp
+            }
             LazyVerticalStaggeredGrid(
-                columns = StaggeredGridCells.Adaptive(minSize = 130.dp),
+                columns = StaggeredGridCells.Adaptive(minSize = videoMinSize),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(Dp(gridGapDp.toFloat())),
                 horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
@@ -1019,15 +1027,14 @@ fun VideosTab(
                         cornerRadiusDp = cornerRadiusDp,
                         roundedCornersEnabled = roundedCornersEnabled,
                         onClick = { onVideoClick(item) },
-                        onLongClick = {
-                            if (isSelectionMode) {
-                                onVideoLongClick(item)
-                            } else {
-                                contextSheetItem = item
+                        onLongClick = { onVideoLongClick(item) },
+                        onInfo = { infoItem = item },
+                        onDelete = { videoToDelete = item },
+                        showRemoveOption = selectedCategory != null,
+                        onRemoveFromCategory = {
+                            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                db.categoryDao().removeMediaFromCategory(selectedCategory!!.id, item.uri.toString())
                             }
-                        },
-                        onMoreClick = {
-                            contextSheetItem = item
                         }
                     )
                 }
@@ -1035,98 +1042,6 @@ fun VideosTab(
         }
     }
 
-    if (contextSheetItem != null) {
-        val activeItem = contextSheetItem!!
-        AlertDialog(
-            onDismissRequest = { contextSheetItem = null },
-            containerColor = Color(0xDC141722),
-            shape = RoundedCornerShape(20.dp),
-            title = {
-                Text(
-                    text = activeItem.title,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    ListItem(
-                        headlineContent = { Text("Play Video", color = Color.White) },
-                        leadingContent = { Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable {
-                            val target = activeItem
-                            contextSheetItem = null
-                            onVideoClick(target)
-                        }
-                    )
-                    ListItem(
-                        headlineContent = { Text("File Info", color = Color.White) },
-                        leadingContent = { Icon(Icons.Default.Info, contentDescription = null, tint = Color.White) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable {
-                            val target = activeItem
-                            contextSheetItem = null
-                            infoItem = target
-                        }
-                    )
-                    ListItem(
-                        headlineContent = { Text("Select", color = Color.White) },
-                        leadingContent = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable {
-                            val target = activeItem
-                            contextSheetItem = null
-                            onVideoLongClick(target)
-                        }
-                    )
-
-                    // In Category: Show "Remove from Category" with NO warning dialog
-                    if (selectedCategory != null) {
-                        ListItem(
-                            headlineContent = { Text("Remove from Category", color = MaterialTheme.colorScheme.error) },
-                            leadingContent = { Icon(Icons.Default.RemoveCircleOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            modifier = Modifier.clickable {
-                                val target = activeItem
-                                val cat = selectedCategory!!
-                                contextSheetItem = null
-                                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                    db.categoryDao().removeMediaFromCategory(cat.id, target.uri.toString())
-                                }
-                            }
-                        )
-                    }
-
-                    // In Folder: Show "Delete Video" with warning confirmation dialog
-                    if (isFolderViewActive && selectedFolder != null) {
-                        ListItem(
-                            headlineContent = { Text("Delete Video", color = MaterialTheme.colorScheme.error) },
-                            leadingContent = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            modifier = Modifier.clickable {
-                                val target = activeItem
-                                contextSheetItem = null
-                                videoToDelete = target
-                            }
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { contextSheetItem = null }) {
-                    Text("Close", color = Color(0xFF94A3B8))
-                }
-            }
-        )
-    }
-
-    // Warning confirmation dialog before deleting file inside folder
     if (videoToDelete != null) {
         val target = videoToDelete!!
         AlertDialog(
@@ -1588,6 +1503,11 @@ private fun isClipsAndRecordings(item: MediaItem): Boolean {
     val path = ((item.relativePath ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
     val title = item.title.lowercase()
 
+    // FAST PASS: Include everything inside DCIM/Camera/ immediately
+    if (path.contains("dcim/camera/") || item.bucketName?.lowercase() == "camera") {
+        return true
+    }
+
     // 1. Keywords that should NEVER be treated as simple camera clips/recordings
     val excludedKeywords = listOf(
         // Social media
@@ -1604,7 +1524,7 @@ private fun isClipsAndRecordings(item: MediaItem): Boolean {
     }
 
     // 2. Otherwise, check for standard camera / recording patterns
-    val isInDcim = path.contains("/dcim/")
+    val isInDcim = path.contains("dcim/")
     val isRecording = path.contains("recording") || path.contains("screenrecord")
     val isCameraVid = title.startsWith("vid_")
 

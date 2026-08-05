@@ -17,6 +17,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -271,7 +273,8 @@ fun VideoPlayerScreen(
         }
     }
 
-    var currentVolume by remember { mutableFloatStateOf(runCatching { playerManager.exoPlayer.volume }.getOrDefault(1f)) }
+    val audioManager = remember { context.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager }
+    var currentVolume by remember { mutableFloatStateOf(audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC).toFloat() / audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).toFloat()) }
     var currentBrightness by remember { mutableFloatStateOf(0.7f) }
 
     Box(
@@ -285,97 +288,86 @@ fun VideoPlayerScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(Unit) {
-                    detectTransformGestures { _, _, zoom, _ ->
-                        if (!isControlsLocked) {
-                            scale = (scale * zoom).coerceIn(1f, 4f)
-                        }
-                    }
-                }
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onDragStart = { offset ->
-                            if (!isControlsLocked) {
-                                val screenWidth = size.width
-                                if (offset.x < screenWidth / 2f) {
-                                    isDraggingBrightness = true
-                                    isDraggingVolume = false
-                                } else {
-                                    isDraggingVolume = true
-                                    isDraggingBrightness = false
+                    awaitEachGesture {
+                        var isZooming = false
+                        var startVolume = currentVolume
+                        var startBrightness = currentBrightness
+                        var startPosition = playerState.currentPositionMs
+
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val changes = event.changes
+                            
+                            if (changes.all { !it.pressed }) break
+
+                            if (changes.size > 1) {
+                                // Multi-finger gesture -> Zoom
+                                isZooming = true
+                                isDraggingVolume = false
+                                isDraggingBrightness = false
+                                isHorizontalDragging = false
+                                
+                                val zoom = event.calculateZoom()
+                                if (!isControlsLocked) {
+                                    scale = (scale * zoom).coerceIn(1f, 10f)
                                 }
-                            }
-                        },
-                        onDragEnd = {
-                            isDraggingBrightness = false
-                            isDraggingVolume = false
-                        },
-                        onDragCancel = {
-                            isDraggingBrightness = false
-                            isDraggingVolume = false
-                        },
-                        onVerticalDrag = { change: androidx.compose.ui.input.pointer.PointerInputChange, dragAmount: Float ->
-                            if (!isControlsLocked) {
+                            } else if (!isZooming && changes.size == 1) {
+                                // Single-finger gesture -> Vol/Brightness/Seek
+                                val change = changes[0]
+                                val dragAmount = change.position - change.previousPosition
                                 val screenWidth = size.width
                                 val screenHeight = size.height
-                                if (screenHeight > 0) {
-                                    val delta = -dragAmount / screenHeight.toFloat()
-                                    if (!delta.isNaN() && !delta.isInfinite()) {
+                                
+                                if (kotlin.math.abs(dragAmount.y) > kotlin.math.abs(dragAmount.x)) {
+                                    // Vertical drag -> Vol/Brightness
+                                    if (!isControlsLocked) {
+                                        val delta = -dragAmount.y / screenHeight.toFloat()
                                         if (change.position.x < screenWidth / 2f) {
                                             isDraggingBrightness = true
                                             isDraggingVolume = false
-                                            val newBrightness = (currentBrightness + delta).coerceIn(0.05f, 1f)
-                                            currentBrightness = newBrightness
+                                            currentBrightness = (currentBrightness + delta).coerceIn(0.05f, 1f)
                                             activity?.let { act ->
-                                                try {
-                                                    val lp = act.window.attributes
-                                                    lp.screenBrightness = newBrightness
-                                                    act.window.attributes = lp
-                                                } catch (_: Exception) {}
+                                                val lp = act.window.attributes
+                                                lp.screenBrightness = currentBrightness
+                                                act.window.attributes = lp
                                             }
                                         } else {
                                             isDraggingVolume = true
                                             isDraggingBrightness = false
-                                            val newVol = (currentVolume + delta).coerceIn(0f, 1f)
-                                            currentVolume = newVol
-                                            runCatching { playerManager.exoPlayer.volume = newVol }
+                                            currentVolume = (currentVolume + delta).coerceIn(0f, 1f)
+                                            val maxVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+                                            audioManager.setStreamVolume(
+                                                android.media.AudioManager.STREAM_MUSIC,
+                                                (currentVolume * maxVol).toInt(),
+                                                0
+                                            )
                                         }
+                                    }
+                                } else if (kotlin.math.abs(dragAmount.x) > 10f) {
+                                    // Horizontal drag -> Seek
+                                    if (!isControlsLocked && playerState.durationMs > 0) {
+                                        isHorizontalDragging = true
+                                        showControls = true
+                                        val deltaRatio = dragAmount.x / screenWidth.toFloat()
+                                        val addedMs = (deltaRatio * 120_000).toLong()
+                                        seekDeltaMs += addedMs
+                                        seekTargetPositionMs = (playerState.currentPositionMs + seekDeltaMs).coerceIn(0L, playerState.durationMs)
                                     }
                                 }
                             }
+                            changes.forEach { it.consume() }
                         }
-                    )
-                }
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragStart = {
-                            if (!isControlsLocked && playerState.durationMs > 0) {
-                                isHorizontalDragging = true
-                                showControls = true
-                                seekDeltaMs = 0L
-                                seekTargetPositionMs = playerState.currentPositionMs
-                            }
-                        },
-                        onDragEnd = {
-                            if (isHorizontalDragging) {
-                                playerManager.seekTo(seekTargetPositionMs)
-                                isHorizontalDragging = false
-                            }
-                        },
-                        onDragCancel = {
-                            isHorizontalDragging = false
-                        },
-                        onHorizontalDrag = { _, dragAmount ->
-                            if (!isControlsLocked && playerState.durationMs > 0) {
-                                val screenWidth = size.width
-                                if (screenWidth > 0) {
-                                    val deltaRatio = dragAmount / screenWidth.toFloat()
-                                    val addedMs = (deltaRatio * 120_000).toLong()
-                                    seekDeltaMs += addedMs
-                                    seekTargetPositionMs = (playerState.currentPositionMs + seekDeltaMs).coerceIn(0L, playerState.durationMs)
-                                }
-                            }
+                        
+                        // Drag end
+                        if (isHorizontalDragging) {
+                            playerManager.seekTo(seekTargetPositionMs)
                         }
-                    )
+                        isDraggingBrightness = false
+                        isDraggingVolume = false
+                        isHorizontalDragging = false
+                        isZooming = false
+                        seekDeltaMs = 0L
+                    }
                 }
                 .pointerInput(Unit) {
                     detectTapGestures(
@@ -453,25 +445,37 @@ fun VideoPlayerScreen(
                     .graphicsLayer(scaleX = scale, scaleY = scale)
             )
 
-            // Video Zoom Percentage Pill
+            // Video Zoom Percentage Pill - Relocated to Bottom-Right
             if (scale > 1.05f) {
                 GlassSurface(
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 110.dp)
-                        .clip(CircleShape)
+                        .align(Alignment.BottomEnd)
+                        .padding(bottom = 120.dp, end = 24.dp)
+                        .clip(RoundedCornerShape(12.dp))
                         .clickable { scale = 1f },
-                    shape = CircleShape,
-                    backgroundColor = Color(0x99000000),
-                    borderColor = Color(0x40FFFFFF)
+                    shape = RoundedCornerShape(12.dp),
+                    backgroundColor = Color(0x33000000),
+                    borderColor = Color(0x1AFFFFFF)
                 ) {
-                    Text(
-                        text = "Zoom: ${(scale * 100).toInt()}% • Tap to Reset",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "Zoom: ${(scale * 100).toInt()}%",
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Box(modifier = Modifier.size(1.dp, 10.dp).background(Color.White.copy(alpha = 0.2f)))
+                        Text(
+                            text = "Reset",
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
 
@@ -1087,19 +1091,13 @@ fun VideoPlayerScreen(
                                 showOverflowMenu = false
                                 val item = playerState.currentItem
                                 if (item?.uri != null) {
+                                    val sharingUri = com.example.util.ContentUriUtils.getSharingUri(context, item.uri)
                                     val openIntent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                                        setDataAndType(item.uri, item.mimeType.ifEmpty { "video/*" })
-                                        // Crucial: Give temporary read permission to the receiving app
+                                        setDataAndType(sharingUri, item.mimeType.ifEmpty { "video/*" })
                                         addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
                                     runCatching {
-                                        // Use a chooser so they can pick external players
-                                        // val chooser = android.content.Intent.createChooser(openIntent, "Open video with")
-                                        // chooser.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        // context.startActivity(chooser)
-
-                                        // Direct call triggers Android's system resolver with "Just Once" and "Always"
-                                        context.startActivity(openIntent)
+                                        context.startActivity(android.content.Intent.createChooser(openIntent, "Open video with"))
                                     }.onFailure {
                                         android.widget.Toast.makeText(context, "No app available to open video", android.widget.Toast.LENGTH_SHORT).show()
                                     }
@@ -1150,9 +1148,10 @@ fun VideoPlayerScreen(
                                 showOverflowMenu = false
                                 val item = playerState.currentItem
                                 if (item?.uri != null) {
+                                    val sharingUri = com.example.util.ContentUriUtils.getSharingUri(context, item.uri)
                                     val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                                         type = item.mimeType.ifEmpty { "video/*" }
-                                        putExtra(android.content.Intent.EXTRA_STREAM, item.uri)
+                                        putExtra(android.content.Intent.EXTRA_STREAM, sharingUri)
                                         putExtra(android.content.Intent.EXTRA_SUBJECT, item.title)
                                         addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }

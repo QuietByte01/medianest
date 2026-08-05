@@ -3,6 +3,7 @@ package com.example.ui.settings
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,13 +49,14 @@ fun SettingsScreen(
     val scrollState = rememberScrollState()
 
     val theme by settingsManager.theme.collectAsState(initial = "DARK")
-    val gridGapDp by settingsManager.gridGapDp.collectAsState(initial = 12)
+    val gridGapDp by settingsManager.gridGapDp.collectAsState(initial = 8)
+    val gridSizeLevel by settingsManager.gridSizeLevel.collectAsState(initial = 1)
     val roundedCornersEnabled by settingsManager.roundedCornersEnabled.collectAsState(initial = true)
     val glassmorphism by settingsManager.glassmorphismEnabled.collectAsState(initial = true)
-    val largeImageGrid by settingsManager.largeImageGrid.collectAsState(initial = false)
 
     val showPlaybackNotification by settingsManager.showPlaybackNotification.collectAsState(initial = true)
-    val showStatusBar by settingsManager.showStatusBarInPlayback.collectAsState(initial = false)
+    val showVideoNotification by settingsManager.showVideoNotification.collectAsState(initial = true)
+    val hwAccelEnabled by settingsManager.hardwareAccelerationEnabled.collectAsState(initial = true)
     val keepScreenOn by settingsManager.keepScreenOn.collectAsState(initial = true)
 
     val currentPictureMode by settingsManager.pictureMode.collectAsState(initial = "Vivid Color Accent")
@@ -148,9 +150,9 @@ fun SettingsScreen(
     val darkBackgroundGradient = remember {
         Brush.verticalGradient(
             colors = listOf(
-                Color(0xFF14161F),
-                Color(0xFF0F1118),
-                Color(0xFF0B0C12)
+                Color(0xFF08090C), // Deep Obsidian Start
+                Color(0xFF040507), // Obsidian Center
+                Color(0xFF020203)  // Deep Obsidian End
             )
         )
     }
@@ -176,7 +178,7 @@ fun SettingsScreen(
                 .offset(x = (-50).dp, y = (-30).dp)
                 .size(240.dp)
                 .clip(CircleShape)
-                .background(Color(0x2B6366F1))
+                .background(Color(0xFF0A0C14)) // Darker Obsidian circle
                 .blur(60.dp)
         )
         Box(
@@ -185,7 +187,7 @@ fun SettingsScreen(
                 .offset(x = 60.dp, y = 80.dp)
                 .size(260.dp)
                 .clip(CircleShape)
-                .background(Color(0x228B5CF6))
+                .background(Color(0xFF05060A)) // Subtle Obsidian circle
                 .blur(70.dp)
         )
         Box(
@@ -194,7 +196,7 @@ fun SettingsScreen(
                 .offset(x = (-30).dp, y = 50.dp)
                 .size(200.dp)
                 .clip(CircleShape)
-                .background(Color(0x1AEC4899))
+                .background(Color(0xFF020204)) // Very deep circle
                 .blur(60.dp)
         )
             val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
@@ -224,131 +226,6 @@ fun SettingsScreen(
 
             // SECTION 1: DISPLAY & INTERFACE
             SettingsGlassCard(title = "DISPLAY & INTERFACE") {
-                /*
-                // Theme Mode Option (Commented per settings requirement)
-                var themeDropdownExpanded by remember { mutableStateOf(false) }
-                val themeModeLabel = when (theme.uppercase()) {
-                    "LIGHT" -> "Light Mode"
-                    "SYSTEM" -> "System Default"
-                    else -> "Dark Mode"
-                }
-
-                SettingsRowItem(
-                    title = "Theme Mode",
-                    subtitle = "Switch between Light, Dark, or System default theme",
-                    control = {
-                        Box {
-                            SettingsDropdownPill(
-                                label = themeModeLabel,
-                                onClick = { themeDropdownExpanded = true }
-                            )
-                            DropdownMenu(
-                                expanded = themeDropdownExpanded,
-                                onDismissRequest = { themeDropdownExpanded = false },
-                                containerColor = Color(0xDC141722),
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Dark Mode", color = Color.White) },
-                                    onClick = {
-                                        scope.launch { settingsManager.setTheme("DARK") }
-                                        themeDropdownExpanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Light Mode", color = Color.White) },
-                                    onClick = {
-                                        scope.launch { settingsManager.setTheme("LIGHT") }
-                                        themeDropdownExpanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("System Default", color = Color.White) },
-                                    onClick = {
-                                        scope.launch { settingsManager.setTheme("SYSTEM") }
-                                        themeDropdownExpanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                )
-                */
-
-                // Hide Status Notification Bar
-                SettingsRowItem(
-                    title = "Hide Status Notification Bar",
-                    subtitle = "Remove the top device status bar for immersive full screen",
-                    control = {
-                        Switch(
-                            checked = showStatusBar,
-                            onCheckedChange = { scope.launch { settingsManager.setShowStatusBarInPlayback(it) } },
-                            colors = customSwitchColors
-                        )
-                    }
-                )
-
-                /*
-                // Glassmorphism UI Toggle (Commented per settings requirement)
-                SettingsRowItem(
-                    title = "Glassmorphism UI",
-                    subtitle = "Enable real-time background blur and translucent panels",
-                    control = {
-                        GlassSurface(
-                            shape = CircleShape,
-                            backgroundColor = Color(0x33FFFFFF),
-                            borderColor = Color(0x40FFFFFF),
-                            modifier = Modifier.padding(2.dp)
-                        ) {
-                            Switch(
-                                checked = glassmorphism,
-                                onCheckedChange = { scope.launch { settingsManager.setGlassmorphismEnabled(it) } },
-                                colors = customSwitchColors
-                            )
-                        }
-                    }
-                )
-
-                // Custom Picture Mode & Toggle (Commented per settings requirement)
-                var pictureModeDropdownExpanded by remember { mutableStateOf(false) }
-                SettingsRowItem(
-                    title = "Custom Picture Mode",
-                    subtitle = "Visual post-processing mode for album art & backgrounds",
-                    control = {
-                        Box {
-                            SettingsDropdownPill(
-                                label = currentPictureMode,
-                                onClick = { pictureModeDropdownExpanded = true }
-                            )
-                            DropdownMenu(
-                                expanded = pictureModeDropdownExpanded,
-                                onDismissRequest = { pictureModeDropdownExpanded = false },
-                                containerColor = Color(0xDC141722),
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
-                            ) {
-                                listOf(
-                                    "Vivid Color Accent",
-                                    "Balanced Natural+",
-                                    "Deep Contrast",
-                                    "Film Cinema",
-                                    "Disabled"
-                                ).forEach { modeName ->
-                                    DropdownMenuItem(
-                                        text = { Text(modeName, color = Color.White) },
-                                        onClick = {
-                                            scope.launch { settingsManager.setPictureMode(modeName) }
-                                            pictureModeDropdownExpanded = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                )
-                */
-
                 // Grid Spacing (Gap) Discrete Slider
                 val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
                 SettingsRowItem(
@@ -361,7 +238,7 @@ fun SettingsScreen(
                             modifier = if (isPhoneScreen) Modifier.fillMaxWidth() else Modifier.widthIn(max = 240.dp)
                         ) {
                             val gapValues = listOf(8, 12, 16, 24)
-                            val currentIndex = gapValues.indexOf(gridGapDp).coerceAtLeast(1)
+                            val currentIndex = gapValues.indexOf(gridGapDp).coerceAtLeast(0)
 
                             Slider(
                                 value = currentIndex.toFloat(),
@@ -400,16 +277,48 @@ fun SettingsScreen(
                     }
                 )
 
-                // Larger Image Grid
+                // Grid Size Granular Slider
                 SettingsRowItem(
-                    title = "Larger Image Grid",
-                    subtitle = "Reduce column counts to display larger album covers",
+                    title = "Grid Item Size",
+                    subtitle = "Adjust size of media tiles in the gallery",
+                    stackedOnPhone = true,
                     control = {
-                        Switch(
-                            checked = largeImageGrid,
-                            onCheckedChange = { scope.launch { settingsManager.setLargeImageGrid(it) } },
-                            colors = customSwitchColors
-                        )
+                        Column(
+                            horizontalAlignment = if (isPhoneScreen) Alignment.Start else Alignment.End,
+                            modifier = if (isPhoneScreen) Modifier.fillMaxWidth() else Modifier.widthIn(max = 240.dp)
+                        ) {
+                            val sizeLabels = listOf("Compact", "Standard", "Large", "XL")
+                            Slider(
+                                value = gridSizeLevel.toFloat(),
+                                onValueChange = { level ->
+                                    scope.launch { settingsManager.setGridSizeLevel(level.toInt()) }
+                                },
+                                valueRange = 0f..3f,
+                                steps = 2,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFF818CF8),
+                                    activeTrackColor = Color(0xFF6366F1),
+                                    inactiveTrackColor = Color(0x336366F1),
+                                    activeTickColor = Color.White,
+                                    inactiveTickColor = Color(0xFF475569)
+                                ),
+                                modifier = Modifier.height(24.dp)
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                sizeLabels.forEachIndexed { index, label ->
+                                    Text(
+                                        text = label,
+                                        fontSize = 10.sp,
+                                        fontWeight = if (index == gridSizeLevel) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (index == gridSizeLevel) Color(0xFF818CF8) else Color(0xFF64748B)
+                                    )
+                                }
+                            }
+                        }
                     }
                 )
 
@@ -604,6 +513,19 @@ fun SettingsScreen(
 
             // SECTION 3: PLAYBACK & ENGINE
             SettingsGlassCard(title = "PLAYBACK & ENGINE") {
+                // Master Hardware Acceleration Toggle
+                SettingsRowItem(
+                    title = "Enable Hardware Acceleration",
+                    subtitle = "Use device GPU/DSP for high-performance zero-copy media rendering",
+                    control = {
+                        Switch(
+                            checked = hwAccelEnabled,
+                            onCheckedChange = { scope.launch { settingsManager.setHardwareAccelerationEnabled(it) } },
+                            colors = customSwitchColors
+                        )
+                    }
+                )
+
                 // HDR Video Playback Support
                 val displayManager = remember { context.getSystemService(android.content.Context.DISPLAY_SERVICE) as? android.hardware.display.DisplayManager }
                 val defaultDisplay = remember { displayManager?.getDisplay(android.view.Display.DEFAULT_DISPLAY) }
@@ -701,11 +623,22 @@ fun SettingsScreen(
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFFA5B4FC)
                         )
+                        if (!isPhoneScreen) {
+                            Text(
+                                text = "100% Offline • Local GPU",
+                                fontSize = 10.sp,
+                                color = Color(0xFF34D399),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                    if (isPhoneScreen) {
                         Text(
                             text = "100% Offline • Local GPU",
                             fontSize = 10.sp,
                             color = Color(0xFF34D399),
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(top = 2.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(6.dp))
@@ -763,14 +696,27 @@ fun SettingsScreen(
 
             // SECTION 4: NOTIFICATIONS & DATA
             SettingsGlassCard(title = "NOTIFICATIONS & DATA") {
-                // Playback Notifications
+                // Audio Playback Notifications
                 SettingsRowItem(
-                    title = "Playback Notifications",
-                    subtitle = "Show media control widget on lock screen & status bar",
+                    title = "Audio Playback Notifications",
+                    subtitle = "Show control widget for music on lock screen",
                     control = {
                         Switch(
                             checked = showPlaybackNotification,
                             onCheckedChange = { scope.launch { settingsManager.setShowPlaybackNotification(it) } },
+                            colors = customSwitchColors
+                        )
+                    }
+                )
+
+                // Video Playback Notifications
+                SettingsRowItem(
+                    title = "Video Playback Notifications",
+                    subtitle = "Show notification for video background playback",
+                    control = {
+                        Switch(
+                            checked = showVideoNotification,
+                            onCheckedChange = { scope.launch { settingsManager.setShowVideoNotification(it) } },
                             colors = customSwitchColors
                         )
                     }
@@ -790,8 +736,29 @@ fun SettingsScreen(
                                 text = "Clear History",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFFEF4444) // Bright red text
+                                color = Color(0xFFEF4444)
                             )
+                        }
+                    }
+                )
+
+                // Clear All Cache & Thumbs
+                SettingsRowItem(
+                    title = "Clean Storage & Rebuild Thumbs",
+                    subtitle = "Purge all generated thumbnails and temporary caches",
+                    stackedOnPhone = true,
+                    control = {
+                        Button(
+                            onClick = {
+                                com.example.player.ExoPlayerManager.getInstance(context).clearAllCache {
+                                    Toast.makeText(context, "Cache purged! Refreshing library...", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0x33EF4444)),
+                            border = BorderStroke(1.dp, Color(0x66EF4444))
+                        ) {
+                            Text("Clear All Cache", fontSize = 13.sp, color = Color(0xFFEF4444), fontWeight = FontWeight.SemiBold)
                         }
                     }
                 )
@@ -805,12 +772,19 @@ fun SettingsGlassCard(
     title: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val isDark = com.example.ui.theme.LocalDarkTheme.current
     val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
+    
+    // Obsidian Tint for Dark Mode, Light Glossy for Light Mode
+    val cardBg = if (isDark) Color(0xBF0F1015) else Color(0xA6FFFFFF)
+    val cardBorder = if (isDark) Color(0x26FFFFFF) else Color(0x33000000)
+
     GlassSurface(
         shape = RoundedCornerShape(20.dp),
-        backgroundColor = Color(0x3B181A24),
-        borderColor = Color(0x28FFFFFF),
+        backgroundColor = cardBg,
+        borderColor = cardBorder,
         enableBlur = true,
+        blurRadius = 24.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(

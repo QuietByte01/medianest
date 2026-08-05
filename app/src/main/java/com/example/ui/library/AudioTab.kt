@@ -72,6 +72,7 @@ fun AudioTab(
     playlists: List<MediaCategory>,
     selectedUris: Set<String>,
     isSelectionMode: Boolean,
+    gridSizeLevel: Int = 1,
     isLoading: Boolean = false,
     onSongClick: (MediaItem) -> Unit,
     onSongLongClick: (MediaItem) -> Unit,
@@ -170,8 +171,8 @@ fun AudioTab(
                     if (folder != null) targetFolder = folder
                 }
             )
-            3 -> AlbumsGrid(audioList, selectedUris, isSelectionMode, onSongClick, onSongLongClick, initialSelectedAlbum = targetAlbum, onAddToPlaylist = { itemToAddToPlaylist = it })
-            4 -> ArtistsGrid(audioList, selectedUris, isSelectionMode, onSongClick, onSongLongClick, initialSelectedArtist = targetArtist, onAddToPlaylist = { itemToAddToPlaylist = it })
+            3 -> AlbumsGrid(audioList, selectedUris, isSelectionMode, onSongClick, onSongLongClick, gridSizeLevel = gridSizeLevel, initialSelectedAlbum = targetAlbum, onAddToPlaylist = { itemToAddToPlaylist = it })
+            4 -> ArtistsGrid(audioList, selectedUris, isSelectionMode, onSongClick, onSongLongClick, gridSizeLevel = gridSizeLevel, initialSelectedArtist = targetArtist, onAddToPlaylist = { itemToAddToPlaylist = it })
             5 -> FoldersGrid(audioList, selectedUris, isSelectionMode, onSongClick, onSongLongClick, initialSelectedFolder = targetFolder, onAddToPlaylist = { itemToAddToPlaylist = it }, onNavigateSubTab = { tab, album, artist, folder ->
                 subTabState = tab
                 if (album != null) targetAlbum = album
@@ -440,8 +441,9 @@ fun SongsList(
                             DropdownMenu(
                                 expanded = showMenu,
                                 onDismissRequest = { showMenu = false },
-                                containerColor = Color(0xDC141722),
-                                shape = RoundedCornerShape(16.dp)
+                                containerColor = if (com.example.ui.theme.LocalDarkTheme.current) Color(0xBF0F1015) else Color(0xA6FFFFFF),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.border(1.dp, if (com.example.ui.theme.LocalDarkTheme.current) Color(0x28FFFFFF) else Color(0x33000000), RoundedCornerShape(16.dp))
                             ) {
                                 DropdownMenuItem(
                                     text = { Text("Add to Playlist") },
@@ -569,6 +571,7 @@ fun AlbumsGrid(
     isSelectionMode: Boolean,
     onSongClick: (MediaItem) -> Unit,
     onSongLongClick: (MediaItem) -> Unit,
+    gridSizeLevel: Int = 1,
     initialSelectedAlbum: String? = null,
     onAddToPlaylist: (MediaItem) -> Unit = {}
 ) {
@@ -608,7 +611,14 @@ fun AlbumsGrid(
         }
     } else {
         val screenWidthDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
-        val gridColumns = if (screenWidthDp >= 840) 5 else if (screenWidthDp >= 600) 4 else 2
+        val baseColumns = if (screenWidthDp >= 840) 5 else if (screenWidthDp >= 600) 4 else 2
+        val gridColumns = when (gridSizeLevel) {
+            0 -> (baseColumns * 1.5f).toInt()
+            1 -> baseColumns
+            2 -> (baseColumns * 0.75f).toInt().coerceAtLeast(1)
+            3 -> (baseColumns * 0.5f).toInt().coerceAtLeast(1)
+            else -> baseColumns
+        }
         LazyVerticalGrid(
             columns = GridCells.Fixed(gridColumns),
             modifier = Modifier.fillMaxSize(),
@@ -758,6 +768,7 @@ fun ArtistsGrid(
     isSelectionMode: Boolean,
     onSongClick: (MediaItem) -> Unit,
     onSongLongClick: (MediaItem) -> Unit,
+    gridSizeLevel: Int = 1,
     initialSelectedArtist: String? = null,
     onAddToPlaylist: (MediaItem) -> Unit = {}
 ) {
@@ -937,7 +948,14 @@ fun ArtistsGrid(
             }
 
             val screenWidthDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
-            val gridColumns = if (screenWidthDp >= 840) 5 else if (screenWidthDp >= 600) 4 else 2
+            val baseColumns = if (screenWidthDp >= 840) 5 else if (screenWidthDp >= 600) 4 else 2
+            val gridColumns = when (gridSizeLevel) {
+                0 -> (baseColumns * 1.5f).toInt()
+                1 -> baseColumns
+                2 -> (baseColumns * 0.75f).toInt().coerceAtLeast(1)
+                3 -> (baseColumns * 0.5f).toInt().coerceAtLeast(1)
+                else -> baseColumns
+            }
             LazyVerticalGrid(
                 columns = GridCells.Fixed(gridColumns),
                 modifier = Modifier.fillMaxSize(),
@@ -1971,8 +1989,9 @@ private fun UserPlaylistCard(
                 DropdownMenu(
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false },
-                    containerColor = Color(0xDC141722),
-                    shape = RoundedCornerShape(16.dp)
+                    containerColor = if (com.example.ui.theme.LocalDarkTheme.current) Color(0xBF0F1015) else Color(0xA6FFFFFF),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.border(1.dp, if (com.example.ui.theme.LocalDarkTheme.current) Color(0x28FFFFFF) else Color(0x33000000), RoundedCornerShape(16.dp))
                 ) {
                     DropdownMenuItem(
                         text = { Text("Open Playlist") },
@@ -2016,7 +2035,13 @@ fun AddToPlaylistBottomSheet(
         }
     }
 
-    AdaptiveBottomSheet(onDismissRequest = onDismissRequest) {
+    val isDark = com.example.ui.theme.LocalDarkTheme.current
+    val sheetBg = if (isDark) Color(0xBF0F1015) else Color(0xA6FFFFFF)
+
+    AdaptiveBottomSheet(
+        onDismissRequest = onDismissRequest,
+        containerColor = sheetBg
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

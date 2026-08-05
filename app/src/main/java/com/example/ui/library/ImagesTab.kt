@@ -58,9 +58,9 @@ fun ImagesTab(
     selectedUris: Set<String>,
     isSelectionMode: Boolean,
     gridGapDp: Int,
+    gridSizeLevel: Int = 1,
     cornerRadiusDp: Int = 8,
     roundedCornersEnabled: Boolean = true,
-    largeImageGrid: Boolean = false,
     isLoading: Boolean = false,
     onCreateCollection: (String, List<String>, String?) -> Unit = { _, _, _ -> },
     onUpdateCollection: (Long, String, List<String>, String?) -> Unit = { _, _, _, _ -> },
@@ -105,9 +105,9 @@ fun ImagesTab(
     var folderToMove by remember { mutableStateOf<String?>(null) }
     var folderToDelete by remember { mutableStateOf<String?>(null) }
     var folderForInfo by remember { mutableStateOf<String?>(null) }
-    var contextSheetItem by remember { mutableStateOf<MediaItem?>(null) }
     var imageToDelete by remember { mutableStateOf<MediaItem?>(null) }
     var infoItem by remember { mutableStateOf<MediaItem?>(null) }
+    var contextSheetItem by remember { mutableStateOf<MediaItem?>(null) }
 
     BackHandler(
         enabled = showUngroupConfirmDialog || showEditCollectionDialog || showCreateCollectionDialog ||
@@ -198,7 +198,13 @@ fun ImagesTab(
     }
 
     val cardShape = if (roundedCornersEnabled) RoundedCornerShape(cornerRadiusDp.dp) else RoundedCornerShape(0.dp)
-    val imageMinSize = if (largeImageGrid) 170.dp else 105.dp
+    
+    val imageMinSize = when (gridSizeLevel) {
+        0 -> 100.dp
+        2 -> 180.dp
+        3 -> 220.dp
+        else -> 135.dp
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -767,7 +773,14 @@ fun ImagesTab(
                                     roundedCornersEnabled = roundedCornersEnabled,
                                     onClick = { onImageClick(item) },
                                     onLongClick = { onImageLongClick(item) },
-                                    onMoreClick = { contextSheetItem = item }
+                                    onInfo = { infoItem = item },
+                                    onDelete = { imageToDelete = item },
+                                    showRemoveOption = selectedCategory != null,
+                                    onRemoveFromCategory = {
+                                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                            db.categoryDao().removeMediaFromCategory(selectedCategory!!.id, item.uri.toString())
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -1464,7 +1477,14 @@ fun ImagesTab(
                                     roundedCornersEnabled = roundedCornersEnabled,
                                     onClick = { onImageClick(item) },
                                     onLongClick = { onImageLongClick(item) },
-                                    onMoreClick = { contextSheetItem = item }
+                                    onInfo = { infoItem = item },
+                                    onDelete = { imageToDelete = item },
+                                    showRemoveOption = selectedCategory != null,
+                                    onRemoveFromCategory = {
+                                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                            db.categoryDao().removeMediaFromCategory(selectedCategory!!.id, item.uri.toString())
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -1829,96 +1849,88 @@ fun ImagesTab(
             )
         }
 
-        // Image Options Dialog
+        // Uniform Glossy Context Menu
         if (contextSheetItem != null) {
+            val isDark = com.example.ui.theme.LocalDarkTheme.current
             val activeItem = contextSheetItem!!
-            AlertDialog(
+            
+            // Obsidian for Dark, Light Glossy for Light
+            val menuBg = if (isDark) Color(0xBF0F1015) else Color(0xA6FFFFFF)
+
+            DropdownMenu(
+                expanded = true,
                 onDismissRequest = { contextSheetItem = null },
-                containerColor = Color(0xDC141722),
+                containerColor = menuBg,
                 shape = RoundedCornerShape(20.dp),
-                title = {
-                    Text(
-                        text = activeItem.title,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                modifier = Modifier.width(220.dp).border(1.dp, if (isDark) Color(0x28FFFFFF) else Color(0x33000000), RoundedCornerShape(20.dp))
+            ) {
+                Text(
+                    text = activeItem.title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = if (isDark) Color.White else Color.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+                
+                HorizontalDivider(color = if (isDark) Color(0x1AFFFFFF) else Color(0x1A000000))
+
+                DropdownMenuItem(
+                    text = { Text("View Image", color = if (isDark) Color.White else Color.Black) },
+                    leadingIcon = { Icon(Icons.Default.Image, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                    onClick = {
+                        val target = activeItem
+                        contextSheetItem = null
+                        onImageClick(target)
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
+                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                    onClick = {
+                        val target = activeItem
+                        contextSheetItem = null
+                        infoItem = target
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Select", color = if (isDark) Color.White else Color.Black) },
+                    leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                    onClick = {
+                        val target = activeItem
+                        contextSheetItem = null
+                        onImageLongClick(target)
+                    }
+                )
+
+                if (selectedCategory != null) {
+                    DropdownMenuItem(
+                        text = { Text("Remove from Collection", color = MaterialTheme.colorScheme.error) },
+                        leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
+                        onClick = {
+                            val target = activeItem
+                            val cat = selectedCategory!!
+                            contextSheetItem = null
+                            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                db.categoryDao().removeMediaFromCategory(cat.id, target.uri.toString())
+                            }
+                        }
                     )
-                },
-                text = {
-                    Column(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        ListItem(
-                            headlineContent = { Text("View Image", color = Color.White) },
-                            leadingContent = { Icon(Icons.Default.Image, contentDescription = null, tint = Color.White) },
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            modifier = Modifier.clickable {
-                                val target = activeItem
-                                contextSheetItem = null
-                                onImageClick(target)
-                            }
-                        )
-                        ListItem(
-                            headlineContent = { Text("File Info", color = Color.White) },
-                            leadingContent = { Icon(Icons.Default.Info, contentDescription = null, tint = Color.White) },
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            modifier = Modifier.clickable {
-                                val target = activeItem
-                                contextSheetItem = null
-                                infoItem = target
-                            }
-                        )
-                        ListItem(
-                            headlineContent = { Text("Select", color = Color.White) },
-                            leadingContent = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White) },
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            modifier = Modifier.clickable {
-                                val target = activeItem
-                                contextSheetItem = null
-                                onImageLongClick(target)
-                            }
-                        )
-
-                        // In Collection/Category: Show "Remove from Collection" with NO warning dialog
-                        if (selectedCategory != null) {
-                            ListItem(
-                                headlineContent = { Text("Remove from Collection", color = MaterialTheme.colorScheme.error) },
-                                leadingContent = { Icon(Icons.Default.RemoveCircleOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                modifier = Modifier.clickable {
-                                    val target = activeItem
-                                    val cat = selectedCategory!!
-                                    contextSheetItem = null
-                                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                        db.categoryDao().removeMediaFromCategory(cat.id, target.uri.toString())
-                                    }
-                                }
-                            )
-                        }
-
-                        // In Folder: Show "Delete Image" with warning confirmation dialog
-                        if (selectedFolder != null) {
-                            ListItem(
-                                headlineContent = { Text("Delete Image", color = MaterialTheme.colorScheme.error) },
-                                leadingContent = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                modifier = Modifier.clickable {
-                                    val target = activeItem
-                                    contextSheetItem = null
-                                    imageToDelete = target
-                                }
-                            )
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = { contextSheetItem = null }) {
-                        Text("Close", color = Color(0xFF94A3B8))
-                    }
                 }
-            )
+
+                if (selectedFolder != null) {
+                    DropdownMenuItem(
+                        text = { Text("Delete Image", color = MaterialTheme.colorScheme.error) },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
+                        onClick = {
+                            val target = activeItem
+                            contextSheetItem = null
+                            imageToDelete = target
+                        }
+                    )
+                }
+            }
         }
 
         // Warning confirmation dialog before deleting image file inside folder

@@ -55,7 +55,6 @@ import com.example.ui.components.ThinSeekBar
 import com.example.ui.components.formatDuration
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,13 +82,11 @@ fun AudioPlayerScreen(
     val screenWidthDp = configuration.screenWidthDp
     val screenHeightDp = configuration.screenHeightDp
 
-    val maxArtByHeight = (screenHeightDp * 0.42f).coerceIn(250f, 380f).dp
-    val maxArtByWidth = (screenWidthDp - 36).coerceIn(250, 360).dp
-    val baseArtSize = if (isTablet) (screenWidthDp * 0.52f).coerceIn(380f, 540f).dp else minOf(maxArtByHeight, maxArtByWidth)
-    val compactArtSize = if (isTablet) (baseArtSize * 0.85f) else baseArtSize * 0.82f
+    val baseArtSize = if (isTablet) (screenWidthDp * 0.61f).coerceAtMost(540f).dp else (screenHeightDp * 0.41f).dp
+    val compactArtSize = if (isTablet) (baseArtSize * 0.90f) else baseArtSize * 0.85f
 
     val albumArtSize by animateDpAsState(
-        targetValue = if (isVisualizerActive) compactArtSize else baseArtSize,
+        targetValue = baseArtSize,
         animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
         label = "albumArtSize"
     )
@@ -109,7 +106,6 @@ fun AudioPlayerScreen(
     var showAlbumSongsInPortraitBox by remember { mutableStateOf(false) }
     var showAddAlbumToPlaylistDialog by remember { mutableStateOf(false) }
     var isFavorite by remember { mutableStateOf(false) }
-    var fetchedTagInfo by remember { mutableStateOf<com.example.data.model.AudioTagInfo?>(null) }
     val context = LocalContext.current
     val db = MediaNestApp.instance.database
     val audioPlaylists by db.categoryDao().getCategoriesByType("AUDIO").collectAsState(initial = emptyList())
@@ -208,6 +204,8 @@ fun AudioPlayerScreen(
     ) {
         val configuration = LocalConfiguration.current
         val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val isDark = com.example.ui.theme.LocalDarkTheme.current
+        val menuBg = if (isDark) Color(0xBF0F1015) else Color(0xA6FFFFFF)
 
         Column(
             modifier = Modifier
@@ -265,30 +263,30 @@ fun AudioPlayerScreen(
                     DropdownMenu(
                         expanded = showOverflowMenu,
                         onDismissRequest = { showOverflowMenu = false },
-                        containerColor = Color(0xDC12141F),
+                        containerColor = menuBg,
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier
-                            .border(1.dp, Color.White.copy(alpha = 0.20f), RoundedCornerShape(16.dp))
+                            .border(1.dp, if (isDark) Color(0x28FFFFFF) else Color(0x33000000), RoundedCornerShape(16.dp))
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Add to Playlist", color = Color.White) },
-                            leadingIcon = { Icon(Icons.Default.PlaylistAdd, contentDescription = null, tint = Color.White) },
+                            text = { Text("Add to Playlist", color = if (isDark) Color.White else Color.Black) },
+                            leadingIcon = { Icon(Icons.Default.PlaylistAdd, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                             onClick = {
                                 showOverflowMenu = false
                                 showAddAlbumToPlaylistDialog = true
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("File Info", color = Color.White) },
-                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = Color.White) },
+                            text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
+                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                             onClick = {
                                 showOverflowMenu = false
                                 showDetailsSheet = true
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Edit Tag & Metadata", color = Color.White) },
-                            leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null, tint = Color.White) },
+                            text = { Text("Edit Tag & Metadata", color = if (isDark) Color.White else Color.Black) },
+                            leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                             onClick = {
                                 showOverflowMenu = false
                                 showMetadataModal = true
@@ -296,8 +294,8 @@ fun AudioPlayerScreen(
                         )
                         if (currentItem != null) {
                             DropdownMenuItem(
-                                text = { Text("Show Album", color = Color.White) },
-                                leadingIcon = { Icon(Icons.Default.Album, contentDescription = null, tint = Color.White) },
+                                text = { Text("Show Album", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Album, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                                 onClick = {
                                     showOverflowMenu = false
                                     onClose()
@@ -305,8 +303,8 @@ fun AudioPlayerScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Show Artist", color = Color.White) },
-                                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = Color.White) },
+                                text = { Text("Show Artist", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                                 onClick = {
                                     showOverflowMenu = false
                                     onClose()
@@ -314,8 +312,8 @@ fun AudioPlayerScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Show In Folder", color = Color.White) },
-                                leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null, tint = Color.White) },
+                                text = { Text("Show In Folder", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                                 onClick = {
                                     showOverflowMenu = false
                                     onClose()
@@ -324,8 +322,8 @@ fun AudioPlayerScreen(
                             )
                         }
                         DropdownMenuItem(
-                            text = { Text("Settings", color = Color.White) },
-                            leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White) },
+                            text = { Text("Settings", color = if (isDark) Color.White else Color.Black) },
+                            leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                             onClick = {
                                 showOverflowMenu = false
                                 onClose()
@@ -333,8 +331,8 @@ fun AudioPlayerScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text(if (showAudioVisualizer) "Hide Audio Visualizer" else "Show Audio Visualizer", color = Color.White) },
-                            leadingIcon = { Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Color.White) },
+                            text = { Text(if (showAudioVisualizer) "Hide Audio Visualizer" else "Show Audio Visualizer", color = if (isDark) Color.White else Color.Black) },
+                            leadingIcon = { Icon(Icons.Default.GraphicEq, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                             onClick = {
                                 showOverflowMenu = false
                                 scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) }
@@ -506,13 +504,13 @@ fun AudioPlayerScreen(
                         modifier = Modifier
                             .weight(0.56f)
                             .fillMaxHeight(),
-                        verticalArrangement = Arrangement.SpaceBetween
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         // UP NEXT / Album Songs standalone Glass Card
                         GlassSurface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .weight(0.82f),
+                                .weight(0.70f),
                             shape = RoundedCornerShape(16.dp),
                             backgroundColor = Color(0x1F24293A),
                             borderColor = Color(0x2EFFFFFF)
@@ -720,207 +718,213 @@ fun AudioPlayerScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        // Action Row (Toggle Album Songs vs Up Next, Favorite, Add)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
+                        // Bottom area for actions and controls
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(0.30f),
+                            verticalArrangement = Arrangement.Center
                         ) {
-                            IconButton(
-                                onClick = { showAlbumSongsInPanel = !showAlbumSongsInPanel },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.FormatListBulleted,
-                                    contentDescription = "Toggle Album Songs / Up Next",
-                                    tint = if (showAlbumSongsInPanel) Color(0xFF64B5F6) else Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    val item = currentItem
-                                    if (item != null) {
-                                        scope.launch {
-                                            val categories = db.categoryDao().getCategoriesByType("AUDIO").first()
-                                            var favCat = categories.find { it.name.equals("Favorites", ignoreCase = true) }
-                                            if (favCat == null) {
-                                                val newId = db.categoryDao().insertCategory(
-                                                    com.example.data.db.MediaCategory(name = "Favorites", type = "AUDIO")
-                                                )
-                                                favCat = com.example.data.db.MediaCategory(id = newId, name = "Favorites", type = "AUDIO")
-                                            }
-                                            db.categoryDao().insertCategoryCrossRefs(
-                                                listOf(com.example.data.db.CategoryMediaCrossRef(categoryId = favCat!!.id, mediaUri = item.uri.toString()))
-                                            )
-                                            isFavorite = !isFavorite
-                                            android.widget.Toast.makeText(context, if (isFavorite) "Added to Favorites" else "Removed from Favorites", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                    contentDescription = "Favorite",
-                                    tint = if (isFavorite) Color.Red else Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-
-                            IconButton(
-                                onClick = { showAddAlbumToPlaylistDialog = true },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "Add Playlist",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Seek Slider
-                        var isSeekingLs by remember { mutableStateOf(false) }
-                        var sliderPosLs by remember { mutableFloatStateOf(0f) }
-                        val currentPosMsLs = playerState.currentPositionMs
-                        val durationMsLs = if (playerState.durationMs > 0) playerState.durationMs else currentItem?.durationMs ?: 0L
-                        val effectiveSliderValLs = if (isSeekingLs) sliderPosLs else currentPosMsLs.toFloat()
-                        val maxSliderValLs = durationMsLs.coerceAtLeast(1L).toFloat()
-
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            ThinSeekBar(
-                                value = effectiveSliderValLs.coerceIn(0f, maxSliderValLs),
-                                onValueChange = {
-                                    isSeekingLs = true
-                                    sliderPosLs = it
-                                },
-                                onValueChangeFinished = {
-                                    isSeekingLs = false
-                                    playerManager.seekTo(sliderPosLs.toLong())
-                                },
-                                valueRange = 0f..maxSliderValLs,
-                                activeTrackColor = Color.White,
-                                inactiveTrackColor = Color.White.copy(alpha = 0.25f),
-                                thumbColor = Color.White,
-                                trackHeight = 3.dp,
-                                thumbRadius = 5.dp,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                            // Action Row (Toggle Album Songs vs Up Next, Favorite, Add)
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 2.dp)
-                                    .padding(top = 2.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(formatDuration(effectiveSliderValLs.toLong()), fontSize = 11.sp, color = Color.White.copy(alpha = 0.70f))
-                                Text(formatDuration(durationMsLs), fontSize = 11.sp, color = Color.White.copy(alpha = 0.70f))
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Main Player Transport Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Surface(
-                                onClick = { playerManager.setShuffleMode(!playerState.isShuffle) },
-                                shape = CircleShape,
-                                color = if (playerState.isShuffle) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.12f),
-                                border = if (playerState.isShuffle) BorderStroke(1.dp, Color.White.copy(alpha = 0.45f)) else null,
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
+                                IconButton(
+                                    onClick = { showAlbumSongsInPanel = !showAlbumSongsInPanel },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
                                     Icon(
-                                        imageVector = Icons.Default.Shuffle,
-                                        contentDescription = "Shuffle",
+                                        imageVector = Icons.Default.FormatListBulleted,
+                                        contentDescription = "Toggle Album Songs / Up Next",
+                                        tint = if (showAlbumSongsInPanel) Color(0xFF64B5F6) else Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = {
+                                        val item = currentItem
+                                        if (item != null) {
+                                            scope.launch {
+                                                val categories = db.categoryDao().getCategoriesByType("AUDIO").first()
+                                                var favCat = categories.find { it.name.equals("Favorites", ignoreCase = true) }
+                                                if (favCat == null) {
+                                                    val newId = db.categoryDao().insertCategory(
+                                                        com.example.data.db.MediaCategory(name = "Favorites", type = "AUDIO")
+                                                    )
+                                                    favCat = com.example.data.db.MediaCategory(id = newId, name = "Favorites", type = "AUDIO")
+                                                }
+                                                db.categoryDao().insertCategoryCrossRefs(
+                                                    listOf(com.example.data.db.CategoryMediaCrossRef(categoryId = favCat!!.id, mediaUri = item.uri.toString()))
+                                                )
+                                                isFavorite = !isFavorite
+                                                android.widget.Toast.makeText(context, if (isFavorite) "Added to Favorites" else "Removed from Favorites", android.widget.Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                        contentDescription = "Favorite",
+                                        tint = if (isFavorite) Color.Red else Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = { showAddAlbumToPlaylistDialog = true },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add Playlist",
                                         tint = Color.White,
-                                        modifier = Modifier.size(18.dp)
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
                             }
 
-                            Surface(
-                                onClick = { playerManager.previous() },
-                                shape = CircleShape,
-                                color = Color.White.copy(alpha = 0.12f),
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.SkipPrevious,
-                                        contentDescription = "Previous",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(22.dp)
-                                    )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Seek Slider
+                            var isSeekingLs by remember { mutableStateOf(false) }
+                            var sliderPosLs by remember { mutableFloatStateOf(0f) }
+                            val currentPosMsLs = playerState.currentPositionMs
+                            val durationMsLs = if (playerState.durationMs > 0) playerState.durationMs else currentItem?.durationMs ?: 0L
+                            val effectiveSliderValLs = if (isSeekingLs) sliderPosLs else currentPosMsLs.toFloat()
+                            val maxSliderValLs = durationMsLs.coerceAtLeast(1L).toFloat()
+
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                ThinSeekBar(
+                                    value = effectiveSliderValLs.coerceIn(0f, maxSliderValLs),
+                                    onValueChange = {
+                                        isSeekingLs = true
+                                        sliderPosLs = it
+                                    },
+                                    onValueChangeFinished = {
+                                        isSeekingLs = false
+                                        playerManager.seekTo(sliderPosLs.toLong())
+                                    },
+                                    valueRange = 0f..maxSliderValLs,
+                                    activeTrackColor = Color.White,
+                                    inactiveTrackColor = Color.White.copy(alpha = 0.25f),
+                                    thumbColor = Color.White,
+                                    trackHeight = 3.dp,
+                                    thumbRadius = 5.dp,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 2.dp)
+                                        .padding(top = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(formatDuration(effectiveSliderValLs.toLong()), fontSize = 11.sp, color = Color.White.copy(alpha = 0.70f))
+                                    Text(formatDuration(durationMsLs), fontSize = 11.sp, color = Color.White.copy(alpha = 0.70f))
                                 }
                             }
 
-                            Surface(
-                                onClick = { playerManager.togglePlayPause() },
-                                shape = CircleShape,
-                                color = Color.White.copy(alpha = 0.28f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.40f)),
-                                modifier = Modifier.size(56.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = if (playerState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                        contentDescription = if (playerState.isPlaying) "Pause" else "Play",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(30.dp)
-                                    )
-                                }
-                            }
+                            Spacer(modifier = Modifier.height(8.dp))
 
-                            Surface(
-                                onClick = { playerManager.next() },
-                                shape = CircleShape,
-                                color = Color.White.copy(alpha = 0.12f),
-                                modifier = Modifier.size(40.dp)
+                            // Main Player Transport Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.SkipNext,
-                                        contentDescription = "Next",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
-
-                            Surface(
-                                onClick = {
-                                    val nextRepeat = when (playerState.repeatMode) {
-                                        androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
-                                        androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
-                                        else -> androidx.media3.common.Player.REPEAT_MODE_OFF
+                                Surface(
+                                    onClick = { playerManager.setShuffleMode(!playerState.isShuffle) },
+                                    shape = CircleShape,
+                                    color = if (playerState.isShuffle) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.12f),
+                                    border = if (playerState.isShuffle) BorderStroke(1.dp, Color.White.copy(alpha = 0.45f)) else null,
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.Shuffle,
+                                            contentDescription = "Shuffle",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
                                     }
-                                    playerManager.setRepeatMode(nextRepeat)
-                                },
-                                shape = CircleShape,
-                                color = if (playerState.repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.12f),
-                                border = if (playerState.repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) BorderStroke(1.dp, Color.White.copy(alpha = 0.45f)) else null,
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    val icon = if (playerState.repeatMode == androidx.media3.common.Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat
-                                    Icon(
-                                        imageVector = icon,
-                                        contentDescription = "Repeat",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                                }
+
+                                Surface(
+                                    onClick = { playerManager.previous() },
+                                    shape = CircleShape,
+                                    color = Color.White.copy(alpha = 0.12f),
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.SkipPrevious,
+                                            contentDescription = "Previous",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    onClick = { playerManager.togglePlayPause() },
+                                    shape = CircleShape,
+                                    color = Color.White.copy(alpha = 0.28f),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.40f)),
+                                    modifier = Modifier.size(56.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = if (playerState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                            contentDescription = if (playerState.isPlaying) "Pause" else "Play",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(30.dp)
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    onClick = { playerManager.next() },
+                                    shape = CircleShape,
+                                    color = Color.White.copy(alpha = 0.12f),
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.SkipNext,
+                                            contentDescription = "Next",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    onClick = {
+                                        val nextRepeat = when (playerState.repeatMode) {
+                                            androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
+                                            androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
+                                            else -> androidx.media3.common.Player.REPEAT_MODE_OFF
+                                        }
+                                        playerManager.setRepeatMode(nextRepeat)
+                                    },
+                                    shape = CircleShape,
+                                    color = if (playerState.repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.12f),
+                                    border = if (playerState.repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) BorderStroke(1.dp, Color.White.copy(alpha = 0.45f)) else null,
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        val icon = if (playerState.repeatMode == androidx.media3.common.Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = "Repeat",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1157,22 +1161,7 @@ fun AudioPlayerScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            AnimatedVisibility(
-                                visible = isVisualizerActive,
-                                enter = fadeIn(animationSpec = tween(300)) + expandVertically(animationSpec = tween(300)),
-                                exit = fadeOut(animationSpec = tween(300)) + shrinkVertically(animationSpec = tween(300))
-                            ) {
-                                AudioReactiveVisualizerPattern(
-                                    isPlaying = playerState.isPlaying,
-                                    currentPosMs = playerState.currentPositionMs,
-                                    trackSeed = currentItem?.id ?: currentItem?.title?.hashCode()?.toLong() ?: 0L,
-                                    albumArtUri = currentItem?.albumArtUri ?: currentItem?.uri,
-                                    audioSessionId = playerManager.exoPlayer.audioSessionId,
-                                    modifier = Modifier
-                                        .width(albumArtSize)
-                                        .height(28.dp)
-                                )
-                            }
+                            /* Visualizer pattern removed to reclaim space */
                             Card(
                                 modifier = Modifier
                                     .size(albumArtSize)

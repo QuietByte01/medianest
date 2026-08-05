@@ -43,4 +43,25 @@ object ContentUriUtils {
 
         return uri
     }
+
+    /**
+     * Resolves a URI to a safe content:// URI for sharing with external apps.
+     * Uses FileProvider for file:// URIs.
+     */
+    fun getSharingUri(context: Context, uri: Uri): Uri {
+        if (uri.scheme == "content") return uri
+        if (uri.scheme != "file") return uri
+
+        return try {
+            val file = File(uri.path ?: return uri)
+            androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            uri
+        }
+    }
 }

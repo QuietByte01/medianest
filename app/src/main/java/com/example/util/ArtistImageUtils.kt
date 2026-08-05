@@ -47,12 +47,16 @@ object ArtistImageUtils {
         return cache[cleanKey] ?: getFallbackArtistImageUrl(artistName)
     }
 
-    suspend fun fetchArtistImageUrl(artistName: String?): String = withContext(Dispatchers.IO) {
+    suspend fun fetchArtistImageUrl(artistName: String?, offlineMode: Boolean = false): String = withContext(Dispatchers.IO) {
         if (artistName.isNullOrBlank() || artistName.equals("Unknown Artist", ignoreCase = true) || artistName.equals("Unknown", ignoreCase = true)) {
             return@withContext ARTIST_PORTRAITS[0]
         }
         val cleanKey = artistName.trim().lowercase()
         cache[cleanKey]?.let { return@withContext it }
+
+        if (offlineMode) {
+            return@withContext getFallbackArtistImageUrl(artistName)
+        }
 
         try {
             // 1. Query Deezer API for artist portrait
@@ -144,11 +148,14 @@ object ArtistImageUtils {
 
 @Composable
 fun rememberArtistImageUrl(artistName: String?): String {
+    val settingsManager = remember { com.example.MediaNestApp.instance.settingsManager }
+    val offlineMode by settingsManager.offlineMode.collectAsState(initial = false)
+    
     val clean = artistName?.trim() ?: "Unknown Artist"
     var imageUrl by remember(clean) { mutableStateOf(ArtistImageUtils.getArtistImageUrl(clean)) }
 
-    LaunchedEffect(clean) {
-        val fetched = ArtistImageUtils.fetchArtistImageUrl(clean)
+    LaunchedEffect(clean, offlineMode) {
+        val fetched = ArtistImageUtils.fetchArtistImageUrl(clean, offlineMode)
         imageUrl = fetched
     }
 
