@@ -18,6 +18,10 @@ import kotlinx.coroutines.launch
 
 class QuickViewActivity : ComponentActivity() {
 
+    companion object {
+        var activeList: List<MediaItem>? = null
+    }
+
     private val mediaStoreRepository by lazy {
         MediaStoreRepository(applicationContext)
     }
@@ -87,25 +91,16 @@ class QuickViewActivity : ComponentActivity() {
 
                         LaunchedEffect(intentData) {
                             lifecycleScope.launch {
-                                val uris = intent.getStringArrayListExtra("media_uris")
-                                val titles = intent.getStringArrayListExtra("media_titles")
                                 val startIndex = intent.getIntExtra("start_index", -1)
 
-                                if (uris != null && titles != null) {
-                                    mediaList = uris.mapIndexed { idx, uStr ->
-                                        MediaItem(
-                                            id = idx.toLong(),
-                                            uri = Uri.parse(uStr),
-                                            title = titles.getOrNull(idx) ?: "Image ${idx + 1}",
-                                            mimeType = "image/*",
-                                            type = com.example.data.db.MediaType.IMAGE
-                                        )
-                                    }
+                                if (activeList != null) {
+                                    mediaList = activeList!!
                                     initialIndex = if (startIndex != -1) startIndex else {
                                         mediaList.indexOfFirst { it.uri == intentData || it.uri.toString() == intentData.toString() }.coerceAtLeast(0)
                                     }
                                 } else {
                                     val resolved = mediaStoreRepository.resolveSiblingsForUri(intentData, mimeType)
+                                    // ... existing sibling resolution logic
                                     if (resolved.isNotEmpty()) {
                                         val firstType = resolved.first().type
                                         if (firstType == com.example.data.db.MediaType.VIDEO) {
@@ -147,6 +142,13 @@ class QuickViewActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (isFinishing) {
+            activeList = null
         }
     }
 }

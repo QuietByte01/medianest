@@ -19,6 +19,7 @@ class VideoPlayerActivity : ComponentActivity() {
 
     companion object {
         var activePlayerManager: ExoPlayerManager? = null
+        var activeList: List<com.example.data.model.MediaItem>? = null
     }
 
     private lateinit var playerManager: ExoPlayerManager
@@ -49,8 +50,6 @@ class VideoPlayerActivity : ComponentActivity() {
         val uriString = intent.getStringExtra("media_uri")
         val title = intent.getStringExtra("media_title") ?: "Video"
         val mimeType = intent.getStringExtra("mime_type") ?: "video/*"
-        val uris = intent.getStringArrayListExtra("video_uris")
-        val titles = intent.getStringArrayListExtra("video_titles")
         val startIndex = intent.getIntExtra("start_index", 0)
 
         // Hide notification bar & status bar for immersive video playback
@@ -59,17 +58,8 @@ class VideoPlayerActivity : ComponentActivity() {
         controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
         controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
-        if (!uris.isNullOrEmpty()) {
-            val items = uris.mapIndexed { idx, uStr ->
-                com.example.data.model.MediaItem(
-                    id = idx.toLong(),
-                    uri = Uri.parse(uStr),
-                    title = titles?.getOrNull(idx) ?: "Video ${idx + 1}",
-                    mimeType = "video/*",
-                    type = com.example.data.db.MediaType.VIDEO
-                )
-            }
-            playerManager.playMediaList(items, startIndex.coerceIn(0, items.size - 1))
+        if (activeList != null) {
+            playerManager.playMediaList(activeList!!, startIndex.coerceIn(0, activeList!!.size - 1))
         } else if (uriString != null) {
             val uri = Uri.parse(uriString)
             playerManager.playSingleUri(uri, title, mimeType)
@@ -158,6 +148,9 @@ class VideoPlayerActivity : ComponentActivity() {
             stopService(Intent(this, FloatingPlayerService::class.java))
             if (activePlayerManager == playerManager) {
                 activePlayerManager = null
+            }
+            if (isFinishing) {
+                activeList = null
             }
         } catch (e: Exception) {
             e.printStackTrace()

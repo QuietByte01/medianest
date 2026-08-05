@@ -18,6 +18,7 @@ import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
+import coil.compose.AsyncImagePainter
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -911,103 +912,9 @@ fun ZoomableImageView(
         modifier = Modifier
             .fillMaxSize()
             .background(if (isPng) Color.White else Color.Black)
-            .pointerInput(item.uri) {
-                awaitEachGesture {
-                    var isPinching = false
-                    var isTapping = true
-                    var lastTapTime = 0L
-
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val changes = event.changes
-                        
-                        if (changes.all { !it.pressed }) break
-
-                        if (changes.size > 1) {
-                            // PINCH ZOOM
-                            isPinching = true
-                            isTapping = false
-                            
-                            val zoom = event.calculateZoom()
-                            val oldScale = animatedScale.value
-                            val newScale = (oldScale * zoom).coerceIn(1f, 10f)
-                            
-                            val centroid = event.calculateCentroid(useCurrent = true)
-                            val centerX = size.width / 2f
-                            val centerY = size.height / 2f
-                            
-                            val scaleFactor = newScale / oldScale
-                            val newOffsetX = (animatedOffsetX.value + centroid.x - centerX) * scaleFactor - (centroid.x - centerX)
-                            val newOffsetY = (animatedOffsetY.value + centroid.y - centerY) * scaleFactor - (centroid.y - centerY)
-
-                            scope.launch {
-                                animatedScale.snapTo(newScale)
-                                val maxOffsetX = (size.width * (newScale - 1f)) / 2f
-                                val maxOffsetY = (size.height * (newScale - 1f)) / 2f
-                                animatedOffsetX.snapTo(newOffsetX.coerceIn(-maxOffsetX, maxOffsetX))
-                                animatedOffsetY.snapTo(newOffsetY.coerceIn(-maxOffsetY, maxOffsetY))
-                            }
-                        } else if (changes.size == 1 && !isPinching) {
-                            // PAN or SWIPE
-                            val change = changes[0]
-                            val dragAmount = change.position - change.previousPosition
-                            
-                            if (animatedScale.value > 1.01f) {
-                                // Panning inside zoomed image
-                                val newX = animatedOffsetX.value + dragAmount.x
-                                val newY = animatedOffsetY.value + dragAmount.y
-                                val maxOffsetX = (size.width * (animatedScale.value - 1f)) / 2f
-                                val maxOffsetY = (size.height * (animatedScale.value - 1f)) / 2f
-                                
-                                scope.launch {
-                                    animatedOffsetX.snapTo(newX.coerceIn(-maxOffsetX, maxOffsetX))
-                                    animatedOffsetY.snapTo(newY.coerceIn(-maxOffsetY, maxOffsetY))
-                                }
-                                // Consume horizontal drag if not at edges to prevent Pager from swiping
-                                if (newX.coerceIn(-maxOffsetX, maxOffsetX) == newX) {
-                                    change.consume()
-                                }
-                            } else {
-                                // Scale is 1.0 - Let HorizontalPager handle horizontal drag
-                                // But check for vertical swipe up for info
-                                if (dragAmount.y < -15f && kotlin.math.abs(dragAmount.y) > kotlin.math.abs(dragAmount.x) * 2f) {
-                                    onSwipeUpForInfo()
-                                    change.consume()
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .pointerInput(item.uri) {
-                detectTapGestures(
-                    onTap = { onToggleControls() },
-                    onDoubleTap = { centroid ->
-                        scope.launch {
-                            if (animatedScale.value > 1.1f) {
-                                launch { animatedScale.animateTo(1f, tween(300)) }
-                                launch { animatedOffsetX.animateTo(0f, tween(300)) }
-                                launch { animatedOffsetY.animateTo(0f, tween(300)) }
-                            } else {
-                                val targetScale = 4f
-                                val centerX = size.width / 2f
-                                val centerY = size.height / 2f
-                                val targetX = (centerX - centroid.x) * (targetScale - 1f)
-                                val targetY = (centerY - centroid.y) * (targetScale - 1f)
-                                
-                                val maxOffsetX = (size.width * (targetScale - 1f)) / 2f
-                                val maxOffsetY = (size.height * (targetScale - 1f)) / 2f
-                                
-                                launch { animatedScale.animateTo(targetScale, tween(350)) }
-                                launch { animatedOffsetX.animateTo(targetX.coerceIn(-maxOffsetX, maxOffsetX), tween(350)) }
-                                launch { animatedOffsetY.animateTo(targetY.coerceIn(-maxOffsetY, maxOffsetY), tween(350)) }
-                            }
-                        }
-                    }
-                )
-            },
-        contentAlignment = Alignment.Center
     ) {
+        var imageIntrinsicSize by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
+
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
                 .data(item.uri)
@@ -1016,6 +923,11 @@ fun ZoomableImageView(
             contentDescription = item.title,
             contentScale = ContentScale.Fit,
             colorFilter = colorFilter,
+            onState = { state ->
+                if (state is AsyncImagePainter.State.Success) {
+                    imageIntrinsicSize = state.painter?.intrinsicSize ?: androidx.compose.ui.geometry.Size.Zero
+                }
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer(
@@ -1024,6 +936,131 @@ fun ZoomableImageView(
                     translationX = animatedOffsetX.value,
                     translationY = animatedOffsetY.value
                 )
+                .pointerInput(item.uri) {
+                    awaitEachGesture {
+                        var isPinching = false
+                        var firstTapTime = 0L
+                        val doubleTapTimeout = 300L
+
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val changes = event.changes
+                            
+                            if (changes.all { !it.pressed }) {
+                                // Double tap detection logic on release
+                                if (!isPinching && changes.size == 1) {
+                                    val currentTime = System.currentTimeMillis()
+                                    if (currentTime - firstTapTime < doubleTapTimeout) {
+                                        // Double Tap Triggered
+                                        val centroid = changes[0].position
+                                        scope.launch {
+                                            if (animatedScale.value > 1.1f) {
+                                                launch { animatedScale.animateTo(1f, tween(300)) }
+                                                launch { animatedOffsetX.animateTo(0f, tween(300)) }
+                                                launch { animatedOffsetY.animateTo(0f, tween(300)) }
+                                            } else {
+                                                val targetScale = 4f
+                                                val centerX = size.width / 2f
+                                                val centerY = size.height / 2f
+                                                val targetX = (centerX - centroid.x) * (targetScale - 1f)
+                                                val targetY = (centerY - centroid.y) * (targetScale - 1f)
+
+                                                // Bounds for targetX/Y
+                                                val f = if (imageIntrinsicSize.width > 0 && imageIntrinsicSize.height > 0) {
+                                                    kotlin.math.min(size.width / imageIntrinsicSize.width, size.height / imageIntrinsicSize.height)
+                                                } else 1f
+                                                val actualImgW = imageIntrinsicSize.width * f
+                                                val actualImgH = imageIntrinsicSize.height * f
+                                                
+                                                val maxOffsetX = kotlin.math.max(0f, (actualImgW * targetScale - size.width) / 2f)
+                                                val maxOffsetY = kotlin.math.max(0f, (actualImgH * targetScale - size.height) / 2f)
+
+                                                launch { animatedScale.animateTo(targetScale, tween(350)) }
+                                                launch { animatedOffsetX.animateTo(targetX.coerceIn(-maxOffsetX, maxOffsetX), tween(350)) }
+                                                launch { animatedOffsetY.animateTo(targetY.coerceIn(-maxOffsetY, maxOffsetY), tween(350)) }
+                                            }
+                                        }
+                                        firstTapTime = 0L
+                                    } else {
+                                        firstTapTime = currentTime
+                                    }
+                                }
+                                break
+                            }
+
+                            if (changes.size > 1) {
+                                // PINCH ZOOM
+                                isPinching = true
+                                val zoom = event.calculateZoom()
+                                val oldScale = animatedScale.value
+                                val newScale = (oldScale * zoom).coerceIn(1f, 10f)
+                                
+                                val centroid = event.calculateCentroid(useCurrent = true)
+                                val centerX = size.width / 2f
+                                val centerY = size.height / 2f
+                                
+                                val scaleFactor = newScale / oldScale
+                                val newOffsetX = (animatedOffsetX.value + centroid.x - centerX) * scaleFactor - (centroid.x - centerX)
+                                val newOffsetY = (animatedOffsetY.value + centroid.y - centerY) * scaleFactor - (centroid.y - centerY)
+
+                                scope.launch {
+                                    animatedScale.snapTo(newScale)
+                                    
+                                    val f = if (imageIntrinsicSize.width > 0 && imageIntrinsicSize.height > 0) {
+                                        kotlin.math.min(size.width / imageIntrinsicSize.width, size.height / imageIntrinsicSize.height)
+                                    } else 1f
+                                    val actualImgW = imageIntrinsicSize.width * f
+                                    val actualImgH = imageIntrinsicSize.height * f
+                                    
+                                    val maxOffsetX = kotlin.math.max(0f, (actualImgW * newScale - size.width) / 2f)
+                                    val maxOffsetY = kotlin.math.max(0f, (actualImgH * newScale - size.height) / 2f)
+                                    
+                                    animatedOffsetX.snapTo(newOffsetX.coerceIn(-maxOffsetX, maxOffsetX))
+                                    animatedOffsetY.snapTo(newOffsetY.coerceIn(-maxOffsetY, maxOffsetY))
+                                }
+                                changes.forEach { it.consume() }
+                            } else if (changes.size == 1 && !isPinching) {
+                                // PAN or SWIPE
+                                val change = changes[0]
+                                val dragAmount = change.position - change.previousPosition
+                                
+                                if (animatedScale.value > 1.01f) {
+                                    val newX = animatedOffsetX.value + dragAmount.x
+                                    val newY = animatedOffsetY.value + dragAmount.y
+                                    
+                                    val f = if (imageIntrinsicSize.width > 0 && imageIntrinsicSize.height > 0) {
+                                        kotlin.math.min(size.width / imageIntrinsicSize.width, size.height / imageIntrinsicSize.height)
+                                    } else 1f
+                                    val actualImgW = imageIntrinsicSize.width * f
+                                    val actualImgH = imageIntrinsicSize.height * f
+                                    
+                                    val maxOffsetX = kotlin.math.max(0f, (actualImgW * animatedScale.value - size.width) / 2f)
+                                    val maxOffsetY = kotlin.math.max(0f, (actualImgH * animatedScale.value - size.height) / 2f)
+                                    
+                                    scope.launch {
+                                        animatedOffsetX.snapTo(newX.coerceIn(-maxOffsetX, maxOffsetX))
+                                        animatedOffsetY.snapTo(newY.coerceIn(-maxOffsetY, maxOffsetY))
+                                    }
+                                    
+                                    // Lock to pan if not hitting edges horizontally
+                                    if (newX.coerceIn(-maxOffsetX, maxOffsetX) == newX) {
+                                        change.consume()
+                                    }
+                                } else {
+                                    // Info swipe up
+                                    if (dragAmount.y < -15f && kotlin.math.abs(dragAmount.y) > kotlin.math.abs(dragAmount.x) * 2f) {
+                                        onSwipeUpForInfo()
+                                        change.consume()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null
+                ) { onToggleControls() }
         )
 
         // Bottom-Right Glass Zoom Percentage Control Pill

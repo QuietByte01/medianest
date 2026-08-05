@@ -310,19 +310,16 @@ class MainActivity : ComponentActivity() {
                                         initialImageFolder = imageFld,
                                         onOpenQuickView = { item, currentList ->
                                             val index = currentList.indexOfFirst { it.uri == item.uri }
+                                            com.example.ui.quickview.QuickViewActivity.activeList = currentList
                                             val intent = Intent(this@MainActivity, QuickViewActivity::class.java).apply {
                                                 action = Intent.ACTION_VIEW
                                                 setDataAndType(item.uri, item.mimeType)
-                                                if (currentList.isNotEmpty()) {
-                                                    putStringArrayListExtra("media_uris", ArrayList(currentList.map { it.uri.toString() }))
-                                                    putStringArrayListExtra("media_titles", ArrayList(currentList.map { it.title }))
-                                                    putExtra("start_index", if (index >= 0) index else 0)
-                                                }
+                                                putExtra("start_index", if (index >= 0) index else 0)
                                             }
                                             startActivity(intent)
                                         },
                                         onOpenVideoPlayer = { item ->
-                                            // Handle GIFs separately if needed, though most should go to QuickView
+                                            // Handle GIFs separately
                                             if (item.mimeType.contains("gif", ignoreCase = true)) {
                                                 val intent = Intent(this@MainActivity, QuickViewActivity::class.java).apply {
                                                     action = Intent.ACTION_VIEW
@@ -337,16 +334,12 @@ class MainActivity : ComponentActivity() {
                                                 }
                                                 val index = filteredList.indexOfFirst { it.uri == item.uri }
                                                 
+                                                com.example.ui.videoplayer.VideoPlayerActivity.activeList = filteredList
                                                 val intent = Intent(this@MainActivity, VideoPlayerActivity::class.java).apply {
-                                                    if (filteredList.isNotEmpty()) {
-                                                        putStringArrayListExtra("video_uris", ArrayList(filteredList.map { it.uri.toString() }))
-                                                        putStringArrayListExtra("video_titles", ArrayList(filteredList.map { it.title }))
-                                                        putExtra("start_index", if (index >= 0) index else 0)
-                                                    } else {
-                                                        putExtra("media_uri", item.uri.toString())
-                                                        putExtra("media_title", item.title)
-                                                        putExtra("mime_type", item.mimeType)
-                                                    }
+                                                    putExtra("media_uri", item.uri.toString())
+                                                    putExtra("media_title", item.title)
+                                                    putExtra("mime_type", item.mimeType)
+                                                    putExtra("start_index", if (index >= 0) index else 0)
                                                 }
                                                 startActivity(intent)
                                             }

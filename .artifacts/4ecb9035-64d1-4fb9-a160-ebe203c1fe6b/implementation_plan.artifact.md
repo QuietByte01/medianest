@@ -1,32 +1,44 @@
-# Implementation Plan - Fix Tablet Installation
+# Implementation Plan - Crash Fix & Settings Refinement
 
-If the app installs on your phone but not your tablet (both on Android 16), the issue is likely **Device Filtering** due to hardware requirements or a **Signature Conflict** on the tablet specifically.
+This plan addresses the "TransactionTooLarge" crash when clicking media items and refines the settings screen background.
 
-## Analysis
-- **API Level**: We will keep it at **36** as requested.
-- **Signing**: The `debug.keystore` file is missing from the project root. Restoring the `debugConfig` in `build.gradle.kts` will cause the build to fail.
-- **Hardware**: The `RECORD_AUDIO` permission implicitly requires a microphone. If the tablet lacks certain microphone hardware features, it might be filtered.
-- **Screens**: Explicitly declaring support for tablet screens is a best practice to avoid system-level filtering.
+## User Review Required
+
+> [!IMPORTANT]
+> To fix the crash, I am moving the media list transfer from `Intent` extras to a shared static memory structure. This is necessary because Android has a 1MB limit for Intents, which large media folders exceed.
 
 ## Proposed Changes
 
-### [app]
+### [Component] Core - Media Sharing (Crash Fix)
 
-#### [MODIFY] [AndroidManifest.xml](file:///Users/sachin/Desktop/Lab/VibeCoded/medianest/app/src/main/AndroidManifest.xml)
-- Add `<uses-feature android:name="android.hardware.microphone" android:required="false" />`
-- Add `<uses-feature android:name="android.hardware.telephony" android:required="false" />`
-- Add `<supports-screens android:xlargeScreens="true" android:largeScreens="true" />`
+#### [MODIFY] [QuickViewActivity.kt](file:///Users/sachin/Desktop/Lab/VibeCoded/medianest/app/src/main/java/com/example/ui/quickview/QuickViewActivity.kt)
+- Add a `companion object` to hold a static `activeList: List<MediaItem>?`.
+- Use this list for the image pager if it's available.
+- Clear the list on `onDestroy` if finishing.
 
-## Verification & Recovery Steps
+#### [MODIFY] [VideoPlayerActivity.kt](file:///Users/sachin/Desktop/Lab/VibeCoded/medianest/app/src/main/java/com/example/ui/videoplayer/VideoPlayerActivity.kt)
+- Add a `companion object` to hold a static `activeList: List<MediaItem>?`.
+- Use this list for the video playlist.
+- Clear the list on `onDestroy` if finishing.
 
-### 1. Manual Uninstall (CRITICAL)
-> [!IMPORTANT]
-> To rule out signature conflicts, please **manually uninstall** MediaNest from the tablet before trying to install the new build. Since the `debug.keystore` is missing, we are using the default Android debug key now, which will conflict with any old installation.
+#### [MODIFY] [MainActivity.kt](file:///Users/sachin/Desktop/Lab/VibeCoded/medianest/app/src/main/java/com/example/MainActivity.kt)
+- Update `onOpenQuickView` and `onOpenVideoPlayer` to set the static `activeList` on the target activity before starting it.
+- Remove large array extras from the Intents.
 
-### 2. Automated Build
-- Run `./gradlew assembleDebug` to ensure the manifest changes are valid and the build completes.
+---
 
-### 3. Deployment
-- Attempt to install the new build on the tablet via Android Studio or ADB.
+### [Component] UI - Settings
 
-**Shall I proceed with the manifest updates?**
+#### [MODIFY] [SettingsScreen.kt](file:///Users/sachin/Desktop/Lab/VibeCoded/medianest/app/src/main/java/com/example/ui/settings/SettingsScreen.kt)
+- Update the `drawBehind` grid logic to use **16dp** spacing (was 30dp) for a denser, more refined look.
+- Slightly reduce alpha of the grid lines for subtlety.
+
+## Verification Plan
+
+### Automated Tests
+- Verify successful build via `./gradlew assembleDebug`.
+
+### Manual Verification
+- **Crash Test:** Open an image from a folder with thousands of files.
+- **Visual Test:** Check that the Settings grid looks more compact and refined.
+- **Context Test:** Ensure the filmstrip in QuickView correctly shows the contextual list.

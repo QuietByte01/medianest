@@ -464,34 +464,38 @@ fun VideoPlayerScreen(
 
             // Video Zoom Percentage Pill - Relocated to Bottom-Right
             if (scale > 1.05f) {
-                GlassSurface(
+                Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(bottom = 120.dp, end = 24.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { scale = 1f },
-                    shape = RoundedCornerShape(12.dp),
-                    backgroundColor = Color(0x33000000),
-                    borderColor = Color(0x1AFFFFFF)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    GlassSurface(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { scale = 1f },
+                        shape = RoundedCornerShape(12.dp),
+                        backgroundColor = Color(0x33000000),
+                        borderColor = Color(0x1AFFFFFF)
                     ) {
-                        Text(
-                            text = "Zoom: ${(scale * 100).toInt()}%",
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Box(modifier = Modifier.size(1.dp, 10.dp).background(Color.White.copy(alpha = 0.2f)))
-                        Text(
-                            text = "Reset",
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "Zoom: ${(scale * 100).toInt()}%",
+                                color = Color.White.copy(alpha = 0.9f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Box(modifier = Modifier.size(1.dp, 10.dp).background(Color.White.copy(alpha = 0.2f)))
+                            Text(
+                                text = "Reset",
+                                color = Color.White.copy(alpha = 0.9f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
             }

@@ -173,9 +173,9 @@ fun SettingsScreen(
             .fillMaxSize()
             .background(darkBackgroundGradient)
             .drawBehind {
-                val gridSpacing = 30.dp.toPx()
+                val gridSpacing = 16.dp.toPx()
                 val lineWeight = 1.dp.toPx()
-                val gridColor = Color.White.copy(alpha = 0.05f)
+                val gridColor = Color.White.copy(alpha = 0.04f)
 
                 // Vertical lines
                 var x = 0f
