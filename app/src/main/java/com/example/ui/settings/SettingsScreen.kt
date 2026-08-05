@@ -1,0 +1,933 @@
+@file:kotlin.OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+package com.example.ui.settings
+
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.data.db.HiddenFolderDao
+import com.example.data.repository.MediaStoreRepository
+import com.example.data.settings.SettingsManager
+import com.example.ui.components.GlassSurface
+import com.example.ui.components.dismissKeyboardOnOutsideTap
+import kotlinx.coroutines.launch
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(
+    settingsManager: SettingsManager,
+    hiddenFolderDao: HiddenFolderDao,
+    mediaStoreRepository: MediaStoreRepository,
+    onClearHistory: () -> Unit,
+    onClose: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+
+    val theme by settingsManager.theme.collectAsState(initial = "DARK")
+    val gridGapDp by settingsManager.gridGapDp.collectAsState(initial = 12)
+    val roundedCornersEnabled by settingsManager.roundedCornersEnabled.collectAsState(initial = true)
+    val glassmorphism by settingsManager.glassmorphismEnabled.collectAsState(initial = true)
+    val largeImageGrid by settingsManager.largeImageGrid.collectAsState(initial = false)
+
+    val showPlaybackNotification by settingsManager.showPlaybackNotification.collectAsState(initial = true)
+    val showStatusBar by settingsManager.showStatusBarInPlayback.collectAsState(initial = false)
+    val keepScreenOn by settingsManager.keepScreenOn.collectAsState(initial = true)
+
+    val currentPictureMode by settingsManager.pictureMode.collectAsState(initial = "Vivid Color Accent")
+
+    val autoFetchLyrics by settingsManager.autoFetchLyrics.collectAsState(initial = true)
+    val offlineMode by settingsManager.offlineMode.collectAsState(initial = false)
+    val showHiddenFiles by settingsManager.showHiddenFiles.collectAsState(initial = false)
+    val decoderMode by settingsManager.decoderMode.collectAsState(initial = "AUTO")
+
+    // Selective Hidden Folders State
+    var folderCategoryTab by remember { mutableIntStateOf(0) } // 0: Audio, 1: Images, 2: Videos
+    val selectiveHiddenDao = remember { com.example.MediaNestApp.instance.database.selectiveHiddenFolderDao() }
+    val allSelectiveFolders by selectiveHiddenDao.getAllHiddenFolders().collectAsState(initial = emptyList())
+
+    var imageItems by remember { mutableStateOf<List<com.example.data.model.MediaItem>>(emptyList()) }
+    var videoItems by remember { mutableStateOf<List<com.example.data.model.MediaItem>>(emptyList()) }
+    var audioItems by remember { mutableStateOf<List<com.example.data.model.MediaItem>>(emptyList()) }
+
+    var hwAccelMode by remember { mutableStateOf("Enabled (Full GPU/DSP)") }
+
+    val m3uPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val db = com.example.MediaNestApp.instance.database
+                    val audioList = mediaStoreRepository.getAudio(emptySet(), true)
+                    val contentResolver = context.contentResolver
+                    var playlistName = "Imported Playlist"
+                    val matchedUris = mutableListOf<String>()
+
+                    contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex != -1 && cursor.moveToFirst()) {
+                            val fileName = cursor.getString(nameIndex)
+                            if (!fileName.isNullOrBlank()) {
+                                playlistName = fileName.removeSuffix(".m3u").removeSuffix(".m3u8").removeSuffix(".pls")
+                            }
+                        }
+                    }
+
+                    contentResolver.openInputStream(uri)?.use { inputStream ->
+                        inputStream.bufferedReader().useLines { lines ->
+                            lines.forEach { rawLine ->
+                                val line = rawLine.trim()
+                                if (line.isNotBlank() && !line.startsWith("#")) {
+                                    val fileName = line.substringAfterLast('/').substringAfterLast('\\')
+                                    val matchedTrack = audioList.firstOrNull { track ->
+                                        track.title.equals(fileName.substringBeforeLast('.'), ignoreCase = true) ||
+                                        track.title.equals(fileName, ignoreCase = true) ||
+                                        track.uri.toString().endsWith(fileName)
+                                    }
+                                    if (matchedTrack != null) {
+                                        matchedUris.add(matchedTrack.uri.toString())
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    val catId = db.categoryDao().insertCategory(
+                        com.example.data.db.MediaCategory(name = playlistName, type = "AUDIO", iconName = "QueueMusic")
+                    )
+                    matchedUris.distinct().forEach { mediaUri ->
+                        db.categoryDao().insertCategoryCrossRef(
+                            com.example.data.db.CategoryMediaCrossRef(categoryId = catId, mediaUri = mediaUri)
+                        )
+                    }
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        Toast.makeText(context, "Imported '$playlistName' (${matchedUris.size} tracks matched)", Toast.LENGTH_LONG).show()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        Toast.makeText(context, "Failed to import playlist file", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(showHiddenFiles, folderCategoryTab) {
+        imageItems = mediaStoreRepository.getImages(emptySet(), showHiddenFiles)
+        videoItems = mediaStoreRepository.getVideos(emptySet(), showHiddenFiles)
+        audioItems = mediaStoreRepository.getAudio(emptySet(), showHiddenFiles)
+    }
+
+    BackHandler { onClose() }
+
+    val darkBackgroundGradient = remember {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF14161F),
+                Color(0xFF0F1118),
+                Color(0xFF0B0C12)
+            )
+        )
+    }
+
+    val customSwitchColors = SwitchDefaults.colors(
+        checkedThumbColor = Color.White,
+        checkedTrackColor = Color(0xFF6366F1), // Bright indigo/purple from screenshot
+        checkedBorderColor = Color.Transparent,
+        uncheckedThumbColor = Color(0xFF717D96),
+        uncheckedTrackColor = Color(0x3D2D3748),
+        uncheckedBorderColor = Color.Transparent
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(darkBackgroundGradient)
+            .dismissKeyboardOnOutsideTap()
+    ) {
+        // Ambient background blur shapes for glassmorphism
+        Box(
+            modifier = Modifier
+                .offset(x = (-50).dp, y = (-30).dp)
+                .size(240.dp)
+                .clip(CircleShape)
+                .background(Color(0x2B6366F1))
+                .blur(60.dp)
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .offset(x = 60.dp, y = 80.dp)
+                .size(260.dp)
+                .clip(CircleShape)
+                .background(Color(0x228B5CF6))
+                .blur(70.dp)
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .offset(x = (-30).dp, y = 50.dp)
+                .size(200.dp)
+                .clip(CircleShape)
+                .background(Color(0x1AEC4899))
+                .blur(60.dp)
+        )
+            val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(
+                        horizontal = if (isPhoneScreen) 12.dp else 24.dp,
+                        vertical = if (isPhoneScreen) 12.dp else 20.dp
+                    ),
+                verticalArrangement = Arrangement.spacedBy(if (isPhoneScreen) 14.dp else 20.dp)
+            ) {
+            // Header
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Settings",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+                )
+            }
+
+            // SECTION 1: DISPLAY & INTERFACE
+            SettingsGlassCard(title = "DISPLAY & INTERFACE") {
+                /*
+                // Theme Mode Option (Commented per settings requirement)
+                var themeDropdownExpanded by remember { mutableStateOf(false) }
+                val themeModeLabel = when (theme.uppercase()) {
+                    "LIGHT" -> "Light Mode"
+                    "SYSTEM" -> "System Default"
+                    else -> "Dark Mode"
+                }
+
+                SettingsRowItem(
+                    title = "Theme Mode",
+                    subtitle = "Switch between Light, Dark, or System default theme",
+                    control = {
+                        Box {
+                            SettingsDropdownPill(
+                                label = themeModeLabel,
+                                onClick = { themeDropdownExpanded = true }
+                            )
+                            DropdownMenu(
+                                expanded = themeDropdownExpanded,
+                                onDismissRequest = { themeDropdownExpanded = false },
+                                containerColor = Color(0xDC141722),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Dark Mode", color = Color.White) },
+                                    onClick = {
+                                        scope.launch { settingsManager.setTheme("DARK") }
+                                        themeDropdownExpanded = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Light Mode", color = Color.White) },
+                                    onClick = {
+                                        scope.launch { settingsManager.setTheme("LIGHT") }
+                                        themeDropdownExpanded = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("System Default", color = Color.White) },
+                                    onClick = {
+                                        scope.launch { settingsManager.setTheme("SYSTEM") }
+                                        themeDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                )
+                */
+
+                // Hide Status Notification Bar
+                SettingsRowItem(
+                    title = "Hide Status Notification Bar",
+                    subtitle = "Remove the top device status bar for immersive full screen",
+                    control = {
+                        Switch(
+                            checked = showStatusBar,
+                            onCheckedChange = { scope.launch { settingsManager.setShowStatusBarInPlayback(it) } },
+                            colors = customSwitchColors
+                        )
+                    }
+                )
+
+                /*
+                // Glassmorphism UI Toggle (Commented per settings requirement)
+                SettingsRowItem(
+                    title = "Glassmorphism UI",
+                    subtitle = "Enable real-time background blur and translucent panels",
+                    control = {
+                        GlassSurface(
+                            shape = CircleShape,
+                            backgroundColor = Color(0x33FFFFFF),
+                            borderColor = Color(0x40FFFFFF),
+                            modifier = Modifier.padding(2.dp)
+                        ) {
+                            Switch(
+                                checked = glassmorphism,
+                                onCheckedChange = { scope.launch { settingsManager.setGlassmorphismEnabled(it) } },
+                                colors = customSwitchColors
+                            )
+                        }
+                    }
+                )
+
+                // Custom Picture Mode & Toggle (Commented per settings requirement)
+                var pictureModeDropdownExpanded by remember { mutableStateOf(false) }
+                SettingsRowItem(
+                    title = "Custom Picture Mode",
+                    subtitle = "Visual post-processing mode for album art & backgrounds",
+                    control = {
+                        Box {
+                            SettingsDropdownPill(
+                                label = currentPictureMode,
+                                onClick = { pictureModeDropdownExpanded = true }
+                            )
+                            DropdownMenu(
+                                expanded = pictureModeDropdownExpanded,
+                                onDismissRequest = { pictureModeDropdownExpanded = false },
+                                containerColor = Color(0xDC141722),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+                            ) {
+                                listOf(
+                                    "Vivid Color Accent",
+                                    "Balanced Natural+",
+                                    "Deep Contrast",
+                                    "Film Cinema",
+                                    "Disabled"
+                                ).forEach { modeName ->
+                                    DropdownMenuItem(
+                                        text = { Text(modeName, color = Color.White) },
+                                        onClick = {
+                                            scope.launch { settingsManager.setPictureMode(modeName) }
+                                            pictureModeDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                )
+                */
+
+                // Grid Spacing (Gap) Discrete Slider
+                val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
+                SettingsRowItem(
+                    title = "Grid Spacing (Gap)",
+                    subtitle = "Adjust padding gap between media grid tiles",
+                    stackedOnPhone = true,
+                    control = {
+                        Column(
+                            horizontalAlignment = if (isPhoneScreen) Alignment.Start else Alignment.End,
+                            modifier = if (isPhoneScreen) Modifier.fillMaxWidth() else Modifier.widthIn(max = 240.dp)
+                        ) {
+                            val gapValues = listOf(8, 12, 16, 24)
+                            val currentIndex = gapValues.indexOf(gridGapDp).coerceAtLeast(1)
+
+                            Slider(
+                                value = currentIndex.toFloat(),
+                                onValueChange = { index ->
+                                    val selectedGap = gapValues[index.toInt().coerceIn(0, 3)]
+                                    scope.launch { settingsManager.setGridGapDp(selectedGap) }
+                                },
+                                valueRange = 0f..3f,
+                                steps = 2,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFF818CF8),
+                                    activeTrackColor = Color(0xFF6366F1),
+                                    inactiveTrackColor = Color(0x336366F1),
+                                    activeTickColor = Color.White,
+                                    inactiveTickColor = Color(0xFF475569)
+                                ),
+                                modifier = Modifier.height(24.dp)
+                            )
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                gapValues.forEach { gap ->
+                                    Text(
+                                        text = "${gap}dp",
+                                        fontSize = 10.sp,
+                                        fontWeight = if (gap == gridGapDp) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (gap == gridGapDp) Color(0xFF818CF8) else Color(0xFF64748B)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                )
+
+                // Larger Image Grid
+                SettingsRowItem(
+                    title = "Larger Image Grid",
+                    subtitle = "Reduce column counts to display larger album covers",
+                    control = {
+                        Switch(
+                            checked = largeImageGrid,
+                            onCheckedChange = { scope.launch { settingsManager.setLargeImageGrid(it) } },
+                            colors = customSwitchColors
+                        )
+                    }
+                )
+
+                // Rounded Grid Tiles
+                SettingsRowItem(
+                    title = "Rounded Grid Tiles",
+                    subtitle = "Apply corner curvature to album & artist tiles",
+                    control = {
+                        Switch(
+                            checked = roundedCornersEnabled,
+                            onCheckedChange = { scope.launch { settingsManager.setRoundedCornersEnabled(it) } },
+                            colors = customSwitchColors
+                        )
+                    }
+                )
+            }
+
+            // SECTION 2: LIBRARY & FOLDER FILTERS
+            SettingsGlassCard(title = "LIBRARY & FOLDER FILTERS") {
+                // Show Hidden Files & Folders
+                SettingsRowItem(
+                    title = "Show Hidden Files & Folders",
+                    subtitle = "Display files starting with a dot (.) in directory views",
+                    control = {
+                        Switch(
+                            checked = showHiddenFiles,
+                            onCheckedChange = { checked ->
+                                scope.launch { settingsManager.setShowHiddenFiles(checked) }
+                                if (checked && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R && !android.os.Environment.isExternalStorageManager()) {
+                                    try {
+                                        val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                                            data = android.net.Uri.parse("package:${context.packageName}")
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        try {
+                                            val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                                            context.startActivity(intent)
+                                        } catch (ex: Exception) {
+                                            // ignore
+                                        }
+                                    }
+                                }
+                            },
+                            colors = customSwitchColors
+                        )
+                    }
+                )
+
+                // Folders to Hide From Library
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Folders to Hide From Library",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Toggle folders to exclude them from scanning",
+                        fontSize = 12.sp,
+                        color = Color(0xFF8E95A5)
+                    )
+
+                    // Category Pills Row: Audio, Images, Videos
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+                    ) {
+                        listOf("Audio", "Images", "Videos").forEachIndexed { index, catName ->
+                            val isSelected = folderCategoryTab == index
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = if (isSelected) Color(0xFF4F46E5) else Color(0x22FFFFFF),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .clickable { folderCategoryTab = index }
+                            ) {
+                                Text(
+                                    text = catName,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Selected Folder items list
+                    val currentItems = when (folderCategoryTab) {
+                        0 -> audioItems
+                        1 -> imageItems
+                        else -> videoItems
+                    }
+                    val mediaTypeStr = when (folderCategoryTab) {
+                        0 -> "AUDIO"
+                        1 -> "IMAGE"
+                        else -> "VIDEO"
+                    }
+
+                    val fallbackFolder = if (folderCategoryTab == 0) "Music" else if (folderCategoryTab == 1) "Pictures" else "Movies"
+                    val folderGroups = remember(currentItems, folderCategoryTab) {
+                        currentItems.groupBy { item ->
+                            item.bucketName ?: item.relativePath?.trim('/')?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: fallbackFolder
+                        }.mapValues { it.value.size }
+                    }
+
+                    val hiddenForType = remember(allSelectiveFolders, mediaTypeStr) {
+                        allSelectiveFolders.filter { it.mediaType == mediaTypeStr && it.isHidden }
+                            .flatMap { listOf(it.folderPath, it.folderName) }
+                            .filter { it.isNotBlank() }
+                            .toSet()
+                    }
+
+                    val folderNamesList = remember(folderGroups, hiddenForType) {
+                        (folderGroups.keys + hiddenForType).sorted()
+                    }
+
+                    if (folderNamesList.isEmpty()) {
+                        Text(
+                            text = "/Internal Storage/Recordings",
+                            fontSize = 13.sp,
+                            color = Color(0xFF94A3B8),
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 220.dp)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            folderNamesList.forEach { folderName ->
+                                val isHidden = hiddenForType.contains(folderName)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0x1AFFFFFF))
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "/Internal Storage/$folderName",
+                                        fontSize = 13.sp,
+                                        color = Color.White,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Switch(
+                                        checked = !isHidden,
+                                        onCheckedChange = { isChecked ->
+                                            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                                selectiveHiddenDao.insertOrUpdate(
+                                                    com.example.data.db.SelectiveHiddenFolder(
+                                                        folderPath = folderName,
+                                                        folderName = folderName,
+                                                        mediaType = mediaTypeStr,
+                                                        isHidden = !isChecked
+                                                    )
+                                                )
+                                            }
+                                        },
+                                        colors = customSwitchColors
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Import External Playlists
+                SettingsRowItem(
+                    title = "Import External Playlists",
+                    subtitle = "Scan and import playlist files (.m3u, .m3u8, .pls)",
+                    control = {
+                        Button(
+                            onClick = { m3uPickerLauncher.launch(arrayOf("*/*")) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3730A3)),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Text("Import Files", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                )
+            }
+
+            // SECTION 3: PLAYBACK & ENGINE
+            SettingsGlassCard(title = "PLAYBACK & ENGINE") {
+                // HDR Video Playback Support
+                val displayManager = remember { context.getSystemService(android.content.Context.DISPLAY_SERVICE) as? android.hardware.display.DisplayManager }
+                val defaultDisplay = remember { displayManager?.getDisplay(android.view.Display.DEFAULT_DISPLAY) }
+                val isHdrSupported = remember(context) {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                        try {
+                            val caps = defaultDisplay?.hdrCapabilities
+                            caps != null && (caps.supportedHdrTypes?.isNotEmpty() == true)
+                        } catch (_: Exception) { true }
+                    } else true
+                }
+                var hdrPlaybackEnabled by remember { mutableStateOf(isHdrSupported) }
+
+                SettingsRowItem(
+                    title = "HDR Video Playback",
+                    subtitle = if (isHdrSupported) "Display hardware supports HDR10 / Dolby Vision • Enhanced color range" else "HDR rendering unavailable on this display hardware",
+                    control = {
+                        Switch(
+                            checked = hdrPlaybackEnabled && isHdrSupported,
+                            enabled = isHdrSupported,
+                            onCheckedChange = { hdrPlaybackEnabled = it },
+                            colors = customSwitchColors
+                        )
+                    }
+                )
+
+                // Hardware Acceleration (HW)
+                var hwDropdownExpanded by remember { mutableStateOf(false) }
+                val currentDecoderLabel = when (decoderMode) {
+                    "HARDWARE" -> "Hardware Only (GPU/DSP)"
+                    "SOFTWARE" -> "Software Only (CPU)"
+                    else -> "Auto (Hardware + SW Fallback)"
+                }
+                SettingsRowItem(
+                    title = "Hardware Acceleration (HW)",
+                    subtitle = "Configure GPU/DSP decoding & software fallback strategy",
+                    stackedOnPhone = true,
+                    control = {
+                        Box {
+                            SettingsDropdownPill(
+                                label = currentDecoderLabel,
+                                onClick = { hwDropdownExpanded = true }
+                            )
+                            DropdownMenu(
+                                expanded = hwDropdownExpanded,
+                                onDismissRequest = { hwDropdownExpanded = false },
+                                containerColor = Color(0xDC141722),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Auto (Hardware + SW Fallback)", color = Color.White) },
+                                    onClick = {
+                                        scope.launch { settingsManager.setDecoderMode("AUTO") }
+                                        hwDropdownExpanded = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Hardware Only (GPU/DSP)", color = Color.White) },
+                                    onClick = {
+                                        scope.launch { settingsManager.setDecoderMode("HARDWARE") }
+                                        hwDropdownExpanded = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Software Only (CPU)", color = Color.White) },
+                                    onClick = {
+                                        scope.launch { settingsManager.setDecoderMode("SOFTWARE") }
+                                        hwDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                )
+
+                // Hardware Pipeline Profile Summary
+                val hwCaps = remember { com.example.hardware.AndroidHardwareEngine.detectCapabilities(context) }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp, bottom = 4.dp)
+                        .background(Color(0x1A6366F1), RoundedCornerShape(12.dp))
+                        .border(1.dp, Color(0x336366F1), RoundedCornerShape(12.dp))
+                        .padding(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Hardware Pipeline Diagnostics",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFA5B4FC)
+                        )
+                        Text(
+                            text = "100% Offline • Local GPU",
+                            fontSize = 10.sp,
+                            color = Color(0xFF34D399),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "• Device Profile: ${hwCaps.deviceModel} (${hwCaps.ramTier} RAM)\n" +
+                               "• GPU Backend: ${if (hwCaps.isVulkanSupported) "Vulkan 1.3 / OpenGL ES 3.2" else "OpenGL ES 3.0"}\n" +
+                               "• Video Decode: MediaCodec SoC DSP (H.264, HEVC${if (hwCaps.isAv1HwSupported) ", AV1" else ""})\n" +
+                               "• Audio Sink: ${if (hwCaps.isAAudioSupported) "AAudio Exclusive Low-Latency" else "OpenSL ES / AudioTrack"}\n" +
+                               "• Image Engine: Hardware Bitmaps (VRAM Zero-Copy)",
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.85f),
+                        lineHeight = 16.sp
+                    )
+                }
+
+                // Keep Screen On During Playback
+                SettingsRowItem(
+                    title = "Keep Screen On During Playback",
+                    subtitle = "Prevent device sleep timer while player is active",
+                    control = {
+                        Switch(
+                            checked = keepScreenOn,
+                            onCheckedChange = { scope.launch { settingsManager.setKeepScreenOn(it) } },
+                            colors = customSwitchColors
+                        )
+                    }
+                )
+
+                // Auto-Fetch Synced Lyrics
+                SettingsRowItem(
+                    title = "Auto-Fetch Synced Lyrics",
+                    subtitle = "Automatically download time-synced lyrics over network",
+                    control = {
+                        Switch(
+                            checked = autoFetchLyrics,
+                            onCheckedChange = { scope.launch { settingsManager.setAutoFetchLyrics(it) } },
+                            colors = customSwitchColors
+                        )
+                    }
+                )
+
+                // Offline Mode
+                SettingsRowItem(
+                    title = "Offline Mode",
+                    subtitle = "Block all online network calls and lyrics fetching",
+                    control = {
+                        Switch(
+                            checked = offlineMode,
+                            onCheckedChange = { scope.launch { settingsManager.setOfflineMode(it) } },
+                            colors = customSwitchColors
+                        )
+                    }
+                )
+            }
+
+            // SECTION 4: NOTIFICATIONS & DATA
+            SettingsGlassCard(title = "NOTIFICATIONS & DATA") {
+                // Playback Notifications
+                SettingsRowItem(
+                    title = "Playback Notifications",
+                    subtitle = "Show media control widget on lock screen & status bar",
+                    control = {
+                        Switch(
+                            checked = showPlaybackNotification,
+                            onCheckedChange = { scope.launch { settingsManager.setShowPlaybackNotification(it) } },
+                            colors = customSwitchColors
+                        )
+                    }
+                )
+
+                // Playback History & Cache
+                SettingsRowItem(
+                    title = "Playback History & Cache",
+                    subtitle = "Clear recent queue logs, search history, and cached lyrics",
+                    stackedOnPhone = true,
+                    control = {
+                        TextButton(
+                            onClick = onClearHistory,
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text(
+                                text = "Clear History",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFEF4444) // Bright red text
+                            )
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsGlassCard(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
+    GlassSurface(
+        shape = RoundedCornerShape(20.dp),
+        backgroundColor = Color(0x3B181A24),
+        borderColor = Color(0x28FFFFFF),
+        enableBlur = true,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(if (isPhoneScreen) 14.dp else 20.dp),
+            verticalArrangement = Arrangement.spacedBy(if (isPhoneScreen) 14.dp else 18.dp)
+        ) {
+            Text(
+                text = title,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF8B92A5),
+                letterSpacing = 0.8.sp
+            )
+            content()
+        }
+    }
+}
+
+@Composable
+fun SettingsRowItem(
+    title: String,
+    subtitle: String,
+    stackedOnPhone: Boolean = false,
+    control: @Composable () -> Unit
+) {
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isPhone = configuration.screenWidthDp < 600
+
+    if (isPhone && stackedOnPhone) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 12.sp,
+                    color = Color(0xFF8E95A5),
+                    lineHeight = 16.sp
+                )
+            }
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                control()
+            }
+        }
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 12.sp,
+                    color = Color(0xFF8E95A5),
+                    lineHeight = 16.sp
+                )
+            }
+            control()
+        }
+    }
+}
+
+@Composable
+fun SettingsDropdownPill(
+    label: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0x2A1E2230),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFFFFF))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = label,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.White
+            )
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                tint = Color(0xFF94A3B8),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
