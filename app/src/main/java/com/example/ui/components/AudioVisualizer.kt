@@ -436,25 +436,29 @@ private fun DrawScope.drawGlossySpectrumBars(
     timeNanos: Float
 ) {
     val totalBars = state.numBands
-    val spacing = 12.dp.toPx() // Increased spacing for more "breathing" room
+    val spacing = 8.dp.toPx()
     val totalSpacing = spacing * (totalBars - 1)
     val barWidth = ((size.width - totalSpacing) / totalBars).coerceAtLeast(4f)
     val maxHeight = size.height
 
     for (i in 0 until totalBars) {
+        val norm = i.toFloat() / totalBars.toFloat()
         val value = state.smoothedBands[i]
-        val barHeight = (maxHeight * value * 0.92f).coerceAtLeast(6.dp.toPx())
+        val barHeight = (maxHeight * value * 0.90f).coerceAtLeast(6.dp.toPx())
 
         val x = i * (barWidth + spacing)
         val top = maxHeight - barHeight
 
-        // MAIN BAR BODY (Fades to 0 at bottom to let the blur layer take over)
+        val topColor = dynamicSpectrumColor(norm, artBaseHue)
+        val midColor = Color.hsv((artBaseHue + norm * 30f + 180f) % 360f, 0.85f, 0.95f)
+
+        // 1. MAIN GRADIENT BAR BODY
         drawRoundRect(
             brush = Brush.verticalGradient(
                 colors = listOf(
-                    Color.White.copy(alpha = 0.90f), // Top: Solid
-                    Color.White.copy(alpha = 0.50f), // Mid
-                    Color.White.copy(alpha = 0.0f)   // Bottom: Completely transparent (diffused)
+                    topColor.copy(alpha = 0.95f),
+                    midColor.copy(alpha = 0.65f),
+                    primaryColor.copy(alpha = 0.10f)
                 ),
                 startY = top,
                 endY = maxHeight
@@ -464,20 +468,33 @@ private fun DrawScope.drawGlossySpectrumBars(
             cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f)
         )
 
-        // Subtle Specular highlight for gloss (only at the sharper top half)
-        if (barWidth >= 4f && value > 0.2f) {
-            val specWidth = barWidth * 0.25f
+        // 2. FLOATING PEAK CAP
+        val peakVal = state.peakCaps[i]
+        if (peakVal > 0.05f) {
+            val peakY = (maxHeight * (1f - peakVal * 0.90f)).coerceIn(0f, maxHeight - 4.dp.toPx())
+            val capHeight = 3.dp.toPx()
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.90f),
+                topLeft = Offset(x, peakY),
+                size = Size(barWidth, capHeight),
+                cornerRadius = CornerRadius(capHeight / 2f, capHeight / 2f)
+            )
+        }
+
+        // 3. SPECULAR GLOSS HIGHLIGHT
+        if (barWidth >= 4f && value > 0.15f) {
+            val specWidth = barWidth * 0.30f
             drawRoundRect(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color.White.copy(alpha = 0.4f),
+                        Color.White.copy(alpha = 0.5f),
                         Color.Transparent
                     ),
                     startY = top + (barWidth / 4f),
-                    endY = top + (barHeight * 0.5f)
+                    endY = top + (barHeight * 0.4f)
                 ),
                 topLeft = Offset(x + (barWidth * 0.15f), top + (barWidth / 4f)),
-                size = Size(specWidth, barHeight * 0.4f),
+                size = Size(specWidth, barHeight * 0.35f),
                 cornerRadius = CornerRadius(specWidth / 2f)
             )
         }

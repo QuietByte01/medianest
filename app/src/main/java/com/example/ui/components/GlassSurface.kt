@@ -35,7 +35,7 @@ fun GlassSurface(
     shape: Shape = RoundedCornerShape(16.dp), // Max 16dp constraint
     backgroundColor: Color = Color.Unspecified,
     borderColor: Color = Color.Unspecified,
-    borderWidth: Dp = 1.dp,
+    borderWidth: Dp = 0.5.dp,
     backgroundImage: Any? = null,
     enableBlur: Boolean = true,
     blurRadius: Dp = 24.dp,
@@ -46,8 +46,8 @@ fun GlassSurface(
     val glassEnabled by settingsManager.glassmorphismEnabled.collectAsState(initial = true)
 
     // Dark / Light Glass Colors
-    val defaultBg = if (isDark) Color(0x2B1E222A) else Color(0x40FFFFFF)
-    val defaultBorder = if (isDark) Color(0x28FFFFFF) else Color(0x28000000)
+    val defaultBg = if (isDark) Color(0x1A141722) else Color(0x73FFFFFF)
+    val defaultBorder = if (isDark) Color(0x18FFFFFF) else Color(0x18000000)
 
     val effectiveBg = if (backgroundColor != Color.Unspecified) backgroundColor else defaultBg
     val effectiveBorder = if (borderColor != Color.Unspecified) borderColor else defaultBorder

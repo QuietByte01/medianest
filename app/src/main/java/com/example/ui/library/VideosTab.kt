@@ -11,10 +11,12 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -58,6 +60,8 @@ import com.example.ui.components.AdaptiveBottomSheet
 import com.example.ui.components.MediaGridItem
 import com.example.ui.components.MediaInfoBottomSheet
 import com.example.ui.components.MediaLoadingAnimation
+import com.example.ui.components.translucentScrollBarGrid
+import com.example.ui.components.translucentScrollBarStaggeredGrid
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -724,7 +728,7 @@ fun VideosTab(
             }
         }
 
-        if (isLoading && videosList.isEmpty()) {
+        if (isLoading && (videosList.isEmpty() || displayList.isEmpty())) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -822,9 +826,13 @@ fun VideosTab(
                     )
                 }
 
+                val videoFolderGridState = rememberLazyGridState()
                 LazyVerticalGrid(
+                    state = videoFolderGridState,
                     columns = GridCells.Adaptive(minSize = 280.dp),
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .translucentScrollBarGrid(videoFolderGridState),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -1095,9 +1103,13 @@ fun VideosTab(
                 3 -> 220.dp
                 else -> 135.dp
             }
+            val videoGridState = rememberLazyStaggeredGridState()
             LazyVerticalStaggeredGrid(
+                state = videoGridState,
                 columns = StaggeredGridCells.Adaptive(minSize = videoMinSize),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .translucentScrollBarStaggeredGrid(videoGridState),
                 contentPadding = PaddingValues(Dp(gridGapDp.toFloat())),
                 horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
                 verticalItemSpacing = Dp(gridGapDp.toFloat())
@@ -1118,6 +1130,10 @@ fun VideosTab(
                             scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                 db.categoryDao().removeMediaFromCategory(selectedCategory!!.id, item.uri.toString())
                             }
+                        },
+                        onOpenFolder = { folderName ->
+                            isFolderViewActive = true
+                            selectedFolder = folderName
                         }
                     )
                 }

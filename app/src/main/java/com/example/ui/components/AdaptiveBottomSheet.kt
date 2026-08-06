@@ -68,7 +68,7 @@ fun AdaptiveBottomSheet(
                         .fillMaxWidth(0.90f),
                     shape = RoundedCornerShape(24.dp),
                     backgroundColor = if (containerColor == Color.Transparent) Color(0xF20E111A) else containerColor,
-                    borderColor = Color.White.copy(alpha = 0.22f),
+                    borderColor = Color.White.copy(alpha = 0.16f),
                     enableBlur = true
                 ) {
                     Column(

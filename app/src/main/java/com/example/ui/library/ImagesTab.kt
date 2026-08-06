@@ -14,10 +14,12 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,6 +52,8 @@ import com.example.ui.components.getFilePathFromUri
 import com.example.data.model.MediaItem
 import com.example.ui.components.MediaGridItem
 import com.example.ui.components.MediaLoadingAnimation
+import com.example.ui.components.translucentScrollBarGrid
+import com.example.ui.components.translucentScrollBarStaggeredGrid
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -725,9 +729,13 @@ fun ImagesTab(
                                 }
                             }
                         } else {
+                            val collectionGridState = rememberLazyStaggeredGridState()
                             LazyVerticalStaggeredGrid(
+                                state = collectionGridState,
                                 columns = StaggeredGridCells.Adaptive(minSize = imageMinSize),
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .translucentScrollBarStaggeredGrid(collectionGridState),
                                 contentPadding = PaddingValues(Dp(gridGapDp.toFloat())),
                                 horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
                                 verticalItemSpacing = Dp(gridGapDp.toFloat())
@@ -778,9 +786,13 @@ fun ImagesTab(
                             )
                         }
 
+                        val folderViewGridState = rememberLazyStaggeredGridState()
                         LazyVerticalStaggeredGrid(
+                            state = folderViewGridState,
                             columns = StaggeredGridCells.Adaptive(minSize = imageMinSize),
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .translucentScrollBarStaggeredGrid(folderViewGridState),
                             contentPadding = PaddingValues(Dp(gridGapDp.toFloat())),
                             horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
                             verticalItemSpacing = Dp(gridGapDp.toFloat())
@@ -801,6 +813,10 @@ fun ImagesTab(
                                         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                             db.categoryDao().removeMediaFromCategory(selectedCategory!!.id, item.uri.toString())
                                         }
+                                    },
+                                    onOpenFolder = { folderName ->
+                                        viewMode = 1
+                                        selectedFolder = folderName
                                     }
                                 )
                             }
@@ -864,7 +880,18 @@ fun ImagesTab(
                             }
                         }
 
-                        if (visibleFolders.isEmpty()) {
+                        if (isLoading && visibleFolders.isEmpty()) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                MediaLoadingAnimation(
+                                    mediaType = MediaType.IMAGE,
+                                    iconSize = 52.dp,
+                                    showLabel = true
+                                )
+                            }
+                        } else if (visibleFolders.isEmpty()) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -890,11 +917,14 @@ fun ImagesTab(
                                 }
                             }
                         } else {
+                            val folderGridState = rememberLazyGridState()
                             LazyVerticalGrid(
+                                state = folderGridState,
                                 columns = GridCells.Adaptive(minSize = 160.dp),
                                 modifier = Modifier
                                     .weight(1f)
-                                    .fillMaxWidth(),
+                                    .fillMaxWidth()
+                                    .translucentScrollBarGrid(folderGridState),
                                 contentPadding = PaddingValues(12.dp),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1163,9 +1193,19 @@ fun ImagesTab(
                 }
             }
 
-                // 4. Collections Grid View
                 viewMode == 2 -> {
-                    if (imageCollections.isEmpty()) {
+                    if (isLoading && imageCollections.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            MediaLoadingAnimation(
+                                mediaType = MediaType.IMAGE,
+                                iconSize = 52.dp,
+                                showLabel = true
+                            )
+                        }
+                    } else if (imageCollections.isEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -1203,9 +1243,13 @@ fun ImagesTab(
                             }
                         }
                     } else {
+                        val collectionsGridState = rememberLazyGridState()
                         LazyVerticalGrid(
+                            state = collectionsGridState,
                             columns = GridCells.Adaptive(minSize = 150.dp),
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .translucentScrollBarGrid(collectionsGridState),
                             contentPadding = PaddingValues(12.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1391,40 +1435,46 @@ fun ImagesTab(
                                 val full = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
                                 full.contains("screenshot") || full.contains("screenshots")
                             }
-                            "NOTES" -> imagesList.filter { item ->
-                                val path = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "")).lowercase()
-
-                                // Explicitly skip WhatsApp specific folders that aren't for personal notes
-                                if (path.contains("whatsapp documents") || path.contains("whatsapp video notes")) {
-                                    return@filter false
-                                }
-
-                                // Use only path and title for matching, excluding URI noise
-                                val full = (path + "/" + item.title).lowercase()
-                                val notesKeywords = listOf(
+                            "NOTES" -> {
+                                val notesKeywordsSet = setOf(
                                     // Core notes, docs & receipts
-                                    "note", "notes", "document", "documents", "doc", "scan", "scanner", "receipt", "whiteboard",
+                                    "note", "notes", "document", "documents", "doc", "docs", "scan", "scanner", "receipt", "whiteboard",
+                                    "pdf", "slides", "ppt", "pptx", "sheet", "page", "paper", "quiz", "test", "exam", "syllabus", "lecture",
+                                    "assignment", "homework", "formula", "ch1", "chapter", "unit", "topic", "memo", "class", "course", "lab",
+                                    "revision", "summary", "mindmap", "diagram", "handwritten", "notion", "obsidian", "evernote", "onenote",
+                                    "camscanner", "goodnotes", "notability",
 
                                     // Programming Languages
-                                    "kotlin", "java", "python", "javascript", "typescript", "c++", "c#", "rust", "golang", "swift",
+                                    "kotlin", "java", "python", "javascript", "typescript", "rust", "golang", "swift",
                                     "objc", "php", "ruby", "scala", "html", "css", "sql", "bash", "shell", "assembly",
 
                                     // Engineering & Development Tools/Tech
-                                    "programming", "coding", "developer", "development", "software", "android", "ios", "flutter",
-                                    "react", "angular", "node", "git", "github", "docker", "kubernetes", "linux", "ubuntu",
+                                    "programming", "coding", "developer", "development", "software", "flutter",
+                                    "git", "github", "docker", "kubernetes", "linux", "ubuntu",
                                     "terminal", "database", "api", "backend", "frontend", "algorithm", "datastructure", "syntax",
                                     "architecture", "bug", "debug", "compile", "ide", "vscode", "androidstudio", "intellij",
 
                                     // General Knowledge, Academics & Science
-                                    "gk", "general knowledge", "history", "english", "disscussion", "discussion", "nutrients",
-                                    "medical", "quotes", "isro", "nasa", "communication", "rules", "science", "physics",
+                                    "gk", "discussion", "nutrients", "isro", "nasa", "communication", "rules", "science", "physics",
                                     "chemistry", "biology", "math", "mathematics", "geography", "economics", "civics", "study",
-                                    "education", "tutorial", "exam", "syllabus", "lecture", "assignment", "homework", "formula"
+                                    "education", "tutorial"
                                 )
-                                // Ensure whole word matching using regex word boundaries (\b)
-                                notesKeywords.any { kw -> 
-                                    val regex = Regex("\\b${Regex.escape(kw)}\\b", RegexOption.IGNORE_CASE)
-                                    regex.containsMatchIn(full)
+
+                                imagesList.filter { item ->
+                                    val path = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "")).lowercase()
+
+                                    // Explicitly skip ALL WhatsApp folders
+                                    if (path.contains("whatsapp")) {
+                                        return@filter false
+                                    }
+
+                                    val full = (path + "/" + item.title).lowercase()
+                                    if (full.contains("c++") || full.contains("c#")) {
+                                        return@filter true
+                                    }
+
+                                    val words = full.split(Regex("[/_\\s\\.\\-\\(\\)\\[\\]]+"))
+                                    words.any { it in notesKeywordsSet }
                                 }
                             }
                             else -> imagesList
@@ -1495,9 +1545,13 @@ fun ImagesTab(
                             }
                         }
                     } else {
+                        val imageGridState = rememberLazyStaggeredGridState()
                         LazyVerticalStaggeredGrid(
+                            state = imageGridState,
                             columns = StaggeredGridCells.Adaptive(minSize = imageMinSize),
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .translucentScrollBarStaggeredGrid(imageGridState),
                             contentPadding = PaddingValues(Dp(gridGapDp.toFloat())),
                             horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
                             verticalItemSpacing = Dp(gridGapDp.toFloat())
@@ -1518,6 +1572,10 @@ fun ImagesTab(
                                         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                             db.categoryDao().removeMediaFromCategory(selectedCategory!!.id, item.uri.toString())
                                         }
+                                    },
+                                    onOpenFolder = { folderName ->
+                                        viewMode = 1
+                                        selectedFolder = folderName
                                     }
                                 )
                             }

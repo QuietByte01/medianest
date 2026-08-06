@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
@@ -53,7 +54,8 @@ fun MediaGridItem(
     onInfo: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     onRemoveFromCategory: (() -> Unit)? = null,
-    showRemoveOption: Boolean = false
+    showRemoveOption: Boolean = false,
+    onOpenFolder: ((String) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
@@ -295,6 +297,16 @@ fun MediaGridItem(
                                 onClick = {
                                     showMenu = false
                                     onInfo()
+                                }
+                            )
+                        }
+                        if (onOpenFolder != null) {
+                            DropdownMenuItem(
+                                text = { Text("Show in Folder", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                onClick = {
+                                    showMenu = false
+                                    onOpenFolder(item.bucketName ?: "Folder")
                                 }
                             )
                         }

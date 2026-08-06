@@ -255,19 +255,19 @@ class MainActivity : ComponentActivity() {
                                         onClose = { currentScreen = "LIBRARY" },
                                         onOpenAlbum = { album ->
                                             targetMainTab.value = if (enableAnalyticsTab) 3 else 2
-                                            targetAudioSubTab.value = 1
+                                            targetAudioSubTab.value = 3
                                             targetAudioAlbum.value = album
                                             currentScreen = "LIBRARY"
                                         },
                                         onOpenArtist = { artist ->
                                             targetMainTab.value = if (enableAnalyticsTab) 3 else 2
-                                            targetAudioSubTab.value = 2
+                                            targetAudioSubTab.value = 4
                                             targetAudioArtist.value = artist
                                             currentScreen = "LIBRARY"
                                         },
                                         onOpenFolder = { folder ->
                                             targetMainTab.value = if (enableAnalyticsTab) 3 else 2
-                                            targetAudioSubTab.value = 3
+                                            targetAudioSubTab.value = 5
                                             targetAudioFolder.value = folder
                                             currentScreen = "LIBRARY"
                                         },
@@ -438,10 +438,12 @@ class MainActivity : ComponentActivity() {
         } else if (intent?.getStringExtra("open_screen") == "VIDEOS_FOLDER") {
             val folder = intent.getStringExtra("folder_name")
             targetVideoFolder.value = folder
+            targetMainTab.value = 2 // Videos tab
             pendingScreenState.value = "LIBRARY"
         } else if (intent?.getStringExtra("open_screen") == "IMAGES_FOLDER") {
             val folder = intent.getStringExtra("folder_name")
             targetImageFolder.value = folder
+            targetMainTab.value = 1 // Images tab
             pendingScreenState.value = "LIBRARY"
         }
     }

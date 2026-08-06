@@ -313,43 +313,32 @@ class ExoPlayerManager private constructor(private val context: Context) {
     fun playMediaList(items: List<MediaItem>, startIndex: Int = 0, startPosMs: Long = 0L) {
         if (items.isEmpty()) return
 
-        scope.launch(Dispatchers.IO) {
-            // 1. Resolve content URIs to direct file paths on Dispatchers.IO to eliminate ContentResolver IPC overhead
-            val optimizedItems = items.map { item ->
-                val optUri = ContentUriUtils.resolveOptimizedUri(context, item.uri)
-                if (optUri != item.uri) item.copy(uri = optUri) else item
-            }
+        val targetIndex = startIndex.coerceIn(0, items.size - 1)
+        val currentTarget = items[targetIndex]
 
-            val targetIndex = startIndex.coerceIn(0, optimizedItems.size - 1)
-            val currentTarget = optimizedItems[targetIndex]
-
-            val media3Items = optimizedItems.map { item ->
-                Media3Item.Builder()
-                    .setUri(item.uri)
-                    .setMimeType(item.mimeType)
-                    .build()
-            }
-
-            // 2. Perform player state updates and playback invocation on Main thread
-            withContext(Dispatchers.Main) {
-                try {
-                    exoPlayer.stop()
-                    exoPlayer.setMediaItems(media3Items, targetIndex, startPosMs)
-                    exoPlayer.prepare()
-                    exoPlayer.play()
-
-                    _playerState.value = _playerState.value.copy(
-                        queue = optimizedItems,
-                        queueIndex = targetIndex,
-                        currentItem = currentTarget
-                    )
-                } catch (e: Exception) {
-                    Log.e("ExoPlayerManager", "Failed to prepare playback", e)
-                }
-            }
-
-            recordPlay(currentTarget.uri.toString())
+        val media3Items = items.map { item ->
+            Media3Item.Builder()
+                .setUri(item.uri)
+                .setMimeType(item.mimeType)
+                .build()
         }
+
+        try {
+            exoPlayer.stop()
+            exoPlayer.setMediaItems(media3Items, targetIndex, startPosMs)
+            exoPlayer.prepare()
+            exoPlayer.play()
+
+            _playerState.value = _playerState.value.copy(
+                queue = items,
+                queueIndex = targetIndex,
+                currentItem = currentTarget
+            )
+        } catch (e: Exception) {
+            Log.e("ExoPlayerManager", "Failed to prepare playback", e)
+        }
+
+        recordPlay(currentTarget.uri.toString())
     }
 
     fun addToQueue(items: List<MediaItem>) {

@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -63,6 +64,7 @@ import com.example.data.db.MediaType
 import com.example.data.model.MediaItem
 import com.example.ui.components.getFilePathFromUri
 import com.example.ui.components.MediaLoadingAnimation
+import com.example.ui.components.translucentScrollBar
 import com.example.ui.components.formatDuration
 import com.example.util.ArtistImageUtils
 import com.example.util.rememberArtistImageUrl
@@ -187,6 +189,7 @@ fun AudioTab(
                 mostPlayedSongs = mostPlayedSongs,
                 onCreatePlaylistClick = onCreatePlaylistClick,
                 onSongClick = onSongClick,
+                isLoading = isLoading,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
                 onNavigateSubTab = { tab, album, artist, folder ->
                     subTabState = tab
@@ -355,8 +358,12 @@ fun SongsList(
             Text("No Audio Files Found", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     } else {
+        val listState = rememberLazyListState()
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .translucentScrollBar(listState),
             contentPadding = PaddingValues(bottom = 80.dp)
         ) {
             items(songs, key = { it.id }) { item ->
@@ -611,13 +618,33 @@ fun AlbumsGrid(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                IconButton(onClick = { selectedAlbum = null }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to Albums", tint = Color.White)
+                val coverUri = albumSongs.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: albumSongs.firstOrNull()?.uri
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0x33FFFFFF)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (coverUri != null) {
+                        coil.compose.AsyncImage(
+                            model = coverUri,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                    } else {
+                        Icon(Icons.Default.Album, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
+                    }
                 }
-                Text(selectedAlbum!!, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = selectedAlbum!!, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(text = "${albumSongs.size} Tracks • ${albumSongs.firstOrNull()?.artist ?: "Unknown Artist"}", fontSize = 12.5.sp, color = Color(0xFF9EA3B0), maxLines = 1)
+                }
             }
             SongsList(albumSongs, selectedUris, isSelectionMode, onSongClick, onSongLongClick, onAddToPlaylist = onAddToPlaylist)
         }
@@ -805,15 +832,32 @@ fun ArtistsGrid(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                IconButton(onClick = { selectedArtist = null }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to Artists", tint = Color.White)
+                val coverUri = artistSongs.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: artistSongs.firstOrNull()?.uri
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x33FFFFFF)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (coverUri != null) {
+                        coil.compose.AsyncImage(
+                            model = coverUri,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                    } else {
+                        Icon(Icons.Default.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
+                    }
                 }
-                Column {
-                    Text(text = selectedArtist!!, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
-                    Text(text = "${artistSongs.size} tracks", fontSize = 12.sp, color = Color(0xFF9EA3B0))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = selectedArtist!!, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(text = "${artistSongs.size} Tracks", fontSize = 12.5.sp, color = Color(0xFF9EA3B0))
                 }
             }
             SongsList(artistSongs, selectedUris, isSelectionMode, onSongClick, onSongLongClick, onAddToPlaylist = onAddToPlaylist)
@@ -1627,6 +1671,7 @@ fun PlaylistsList(
     mostPlayedSongs: List<MediaItem> = emptyList(),
     onCreatePlaylistClick: () -> Unit,
     onSongClick: (MediaItem) -> Unit,
+    isLoading: Boolean = false,
     onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?) -> Unit = { _, _, _, _ -> },
     onAddToPlaylist: (MediaItem) -> Unit = {}
 ) {
@@ -1705,12 +1750,18 @@ fun PlaylistsList(
         selectedPlaylist = null
     }
 
+    var isPlaylistLoading by remember(selectedPlaylist?.id) { mutableStateOf(selectedPlaylist != null) }
+
     LaunchedEffect(selectedPlaylist?.id) {
         if (selectedPlaylist != null) {
+            isPlaylistLoading = true
             val db = com.example.MediaNestApp.instance.database
             db.categoryDao().getMediaUrisForCategory(selectedPlaylist!!.id).collect { uris ->
                 playlistUris = uris
+                isPlaylistLoading = false
             }
+        } else {
+            isPlaylistLoading = false
         }
     }
 
@@ -1777,7 +1828,15 @@ fun PlaylistsList(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
             )
 
-            if (playlistSongs.isEmpty()) {
+            if (isPlaylistLoading || (isLoading && playlistSongs.isEmpty())) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    MediaLoadingAnimation(
+                        mediaType = MediaType.AUDIO,
+                        iconSize = 52.dp,
+                        showLabel = true
+                    )
+                }
+            } else if (playlistSongs.isEmpty()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text("No Songs in Playlist", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -1808,7 +1867,16 @@ fun PlaylistsList(
             )
         }
     } else {
-        Column(modifier = Modifier.fillMaxSize()) {
+        if (isLoading && playlists.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                MediaLoadingAnimation(
+                    mediaType = MediaType.AUDIO,
+                    iconSize = 52.dp,
+                    showLabel = true
+                )
+            }
+        } else {
+            Column(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 90.dp, start = 16.dp, end = 16.dp, top = 8.dp),
@@ -1936,6 +2004,7 @@ fun PlaylistsList(
                 }
             }
         }
+    }
     }
 
     if (showRecognizedPlaylistsSheet) {
