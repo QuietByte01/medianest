@@ -1761,6 +1761,8 @@ fun PlaylistsList(
         }
     }
 
+    var showRecognizedPlaylistsSheet by remember { mutableStateOf(false) }
+
     if (selectedPlaylist != null) {
         val playlistSongs = audioList.filter { playlistUris.contains(it.uri.toString()) }
         var showPlaylistMenu by remember { mutableStateOf(false) }
@@ -1875,16 +1877,29 @@ fun PlaylistsList(
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
-                        IconButton(
-                            onClick = { onCreatePlaylistClick() },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "Create Playlist",
-                                tint = Color.White,
-                                modifier = Modifier.size(22.dp)
-                            )
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            IconButton(
+                                onClick = { showRecognizedPlaylistsSheet = true },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FileDownload,
+                                    contentDescription = "Import Playlist File",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            IconButton(
+                                onClick = { onCreatePlaylistClick() },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Create Playlist",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -1921,6 +1936,13 @@ fun PlaylistsList(
                 }
             }
         }
+    }
+
+    if (showRecognizedPlaylistsSheet) {
+        RecognizedPlaylistsSheet(
+            audioList = audioList,
+            onDismiss = { showRecognizedPlaylistsSheet = false }
+        )
     }
 }
 
@@ -2527,6 +2549,187 @@ fun AudioMetadataEditDialog(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+data class DiscoveredPlaylist(
+    val name: String,
+    val path: String,
+    val file: java.io.File
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RecognizedPlaylistsSheet(
+    audioList: List<com.example.data.model.MediaItem>,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var discoveredFiles by remember { mutableStateOf<List<DiscoveredPlaylist>>(emptyList()) }
+    var isScanning by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val results = mutableListOf<DiscoveredPlaylist>()
+            try {
+                val projection = arrayOf(
+                    android.provider.MediaStore.Files.FileColumns.DATA,
+                    android.provider.MediaStore.Files.FileColumns.DISPLAY_NAME
+                )
+                val selection = "${android.provider.MediaStore.Files.FileColumns.DATA} LIKE '%.m3u' OR " +
+                        "${android.provider.MediaStore.Files.FileColumns.DATA} LIKE '%.m3u8' OR " +
+                        "${android.provider.MediaStore.Files.FileColumns.DATA} LIKE '%.pls' OR " +
+                        "${android.provider.MediaStore.Files.FileColumns.DATA} LIKE '%.xspf'"
+
+                context.contentResolver.query(
+                    android.provider.MediaStore.Files.getContentUri("external"),
+                    projection,
+                    selection,
+                    null,
+                    null
+                )?.use { cursor ->
+                    val dataCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Files.FileColumns.DATA)
+                    val nameCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Files.FileColumns.DISPLAY_NAME)
+                    while (cursor.moveToNext()) {
+                        val path = cursor.getString(dataCol)
+                        val name = cursor.getString(nameCol) ?: path?.substringAfterLast('/') ?: "Playlist"
+                        if (path != null) {
+                            val f = java.io.File(path)
+                            if (f.exists() && f.isFile) {
+                                results.add(DiscoveredPlaylist(name = name.substringBeforeLast('.'), path = path, file = f))
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            discoveredFiles = results.distinctBy { it.path }
+            isScanning = false
+        }
+    }
+
+    fun importPlaylistFile(playlist: DiscoveredPlaylist) {
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val db = com.example.MediaNestApp.instance.database
+            val catId = db.categoryDao().insertCategory(
+                com.example.data.db.MediaCategory(
+                    name = playlist.name,
+                    type = "AUDIO",
+                    iconName = "playlist"
+                )
+            )
+
+            val lines = try { playlist.file.readLines() } catch (e: Exception) { emptyList() }
+            val trackPaths = lines.filter { it.isNotBlank() && !it.startsWith("#") }
+            val audioMap = audioList.associateBy { it.uri.toString() }
+            val titleMap = audioList.associateBy { it.title.lowercase() }
+
+            val matchedUris = mutableSetOf<String>()
+            for (line in trackPaths) {
+                val cleanLine = line.trim()
+                val lineTitle = cleanLine.substringAfterLast('/').substringBeforeLast('.').lowercase()
+
+                val matchedByUri = audioList.firstOrNull { it.uri.toString().contains(cleanLine) }
+                val matchedByTitle = titleMap[lineTitle]
+
+                if (matchedByUri != null) matchedUris.add(matchedByUri.uri.toString())
+                else if (matchedByTitle != null) matchedUris.add(matchedByTitle.uri.toString())
+            }
+
+            matchedUris.forEach { uri ->
+                db.categoryDao().insertCategoryCrossRef(
+                    com.example.data.db.CategoryMediaCrossRef(
+                        categoryId = catId,
+                        mediaUri = uri
+                    )
+                )
+            }
+
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                Toast.makeText(context, "Imported '${playlist.name}' (${matchedUris.size} tracks)", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    AdaptiveBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Recognized Playlists (${discoveredFiles.size})",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+
+                if (discoveredFiles.isNotEmpty()) {
+                    Button(
+                        onClick = {
+                            discoveredFiles.forEach { importPlaylistFile(it) }
+                            onDismiss()
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Import All", fontSize = 12.sp)
+                    }
+                }
+            }
+
+            if (isScanning) {
+                Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                }
+            } else if (discoveredFiles.isEmpty()) {
+                Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "No playlist files (.m3u / .pls) found on device",
+                        color = Color(0xFF8E95A5),
+                        fontSize = 13.sp
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 350.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(discoveredFiles, key = { it.path }) { pl ->
+                        GlassSurface(
+                            shape = RoundedCornerShape(12.dp),
+                            backgroundColor = Color(0x221C1F2B),
+                            borderColor = Color(0x28FFFFFF),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Text(text = pl.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text(text = pl.path, fontSize = 11.sp, color = Color(0xFF8E95A5), maxLines = 1)
+                                }
+                                Button(
+                                    onClick = { importPlaylistFile(pl) },
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Text("Import", fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

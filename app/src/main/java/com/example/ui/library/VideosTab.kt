@@ -190,6 +190,10 @@ fun VideosTab(
 
     val moviesCount = remember(videosList) { videosList.count { isMovie(it) } }
     val seriesCount = remember(videosList) { videosList.count { isTVSeries(it) } }
+    val trashedVideoItems = remember(activeFilterTab) {
+        com.example.util.TrashManager.getTrashedItems(currentContext)
+            .filter { it.mimeType.startsWith("video") }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Top Filter Tabs (Exact Order: All Videos, Music Videos, Movies, Web Series, Clips & Recordings, Shorts, Edited, Downloaded)
@@ -481,6 +485,36 @@ fun VideosTab(
                     ) {
                         Icon(Icons.Default.Download, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
                         Text("Downloaded", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                    }
+                }
+            }
+
+            // 8. Trash (Recycle Bin)
+            if (trashedVideoItems.isNotEmpty()) {
+                item {
+                    val isSelected = activeFilterTab == "TRASH"
+                    GlassSurface(
+                        shape = RoundedCornerShape(20.dp),
+                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
+                        modifier = Modifier
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable {
+                                isFolderViewActive = false
+                                selectedFolder = null
+                                activeFilterTab = "TRASH"
+                                onCategorySelect(null)
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
+                            Text("Trash (${trashedVideoItems.size})", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                        }
                     }
                 }
             }
@@ -1507,6 +1541,23 @@ fun VideosTab(
 
 //[Please Do Not Change: Important]
 private fun filterVideoList(videos: List<MediaItem>, filterTab: String): List<MediaItem> {
+    if (filterTab == "TRASH") {
+        val trashed = com.example.util.TrashManager.getTrashedItems(com.example.MediaNestApp.instance)
+            .filter { it.mimeType.startsWith("video") }
+        return trashed.map { info ->
+            MediaItem(
+                id = info.originalPath.hashCode().toLong(),
+                uri = android.net.Uri.fromFile(java.io.File(info.trashedPath)),
+                title = info.title,
+                durationMs = 0L,
+                size = info.size,
+                dateAdded = info.trashedTimestamp,
+                mimeType = info.mimeType,
+                type = com.example.data.db.MediaType.VIDEO,
+                bucketName = "Trash"
+            )
+        }
+    }
     return when (filterTab) {
         "ALL" -> videos
         "CLIPS" -> videos.filter { isClipsAndRecordings(it) }

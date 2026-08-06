@@ -210,6 +210,10 @@ fun VideoPlayerScreen(
                 act.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
 
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                act.window.colorMode = android.content.pm.ActivityInfo.COLOR_MODE_HDR
+            }
+
             val windowInsetsController = WindowCompat.getInsetsController(act.window, act.window.decorView)
             if (!showStatusBar) {
                 windowInsetsController.hide(WindowInsetsCompat.Type.statusBars())
@@ -218,7 +222,11 @@ fun VideoPlayerScreen(
                 windowInsetsController.show(WindowInsetsCompat.Type.statusBars())
             }
         }
-        onDispose {}
+        onDispose {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                activity?.window?.colorMode = android.content.pm.ActivityInfo.COLOR_MODE_DEFAULT
+            }
+        }
     }
 
     // Auto-hide controls timer
@@ -1193,23 +1201,41 @@ fun VideoPlayerScreen(
                                 showOverflowMenu = false
                                 val item = playerState.currentItem
                                 if (item?.uri != null) {
-                                    val editIntent = android.content.Intent(android.content.Intent.ACTION_EDIT).apply {
-                                        setDataAndType(item.uri, item.mimeType.ifEmpty { "video/*" })
-                                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                                    val pm = context.packageManager
+                                    val samsungPackages = listOf(
+                                        "com.samsung.android.videoeditor",
+                                        "com.sec.android.app.vepreload",
+                                        "com.sec.android.app.ve",
+                                        "com.sec.android.app.editor",
+                                        "com.samsung.android.movieeditor"
+                                    )
+                                    var launched = false
+                                    for (pkg in samsungPackages) {
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_EDIT).apply {
+                                            setDataAndType(item.uri, item.mimeType.ifEmpty { "video/*" })
+                                            setPackage(pkg)
+                                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                                        }
+                                        if (intent.resolveActivity(pm) != null) {
+                                            runCatching {
+                                                context.startActivity(intent)
+                                                launched = true
+                                            }
+                                            if (launched) break
+                                        }
                                     }
-                                    
-                                    // Try Samsung Editor specifically
-                                    editIntent.setPackage("com.sec.android.app.editor")
-                                    
-                                    runCatching {
-                                        context.startActivity(editIntent)
-                                    }.onFailure {
-                                        // Fallback to generic ACTION_EDIT with chooser
-                                        editIntent.setPackage(null)
-                                        runCatching {
-                                            context.startActivity(android.content.Intent.createChooser(editIntent, "Edit Video"))
-                                        }.onFailure {
-                                            android.widget.Toast.makeText(context, "No video editor found on device", android.widget.Toast.LENGTH_SHORT).show()
+                                    if (!launched) {
+                                        val editIntent = android.content.Intent(android.content.Intent.ACTION_EDIT).apply {
+                                            setDataAndType(item.uri, item.mimeType.ifEmpty { "video/*" })
+                                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                                        }
+                                        val chooser = android.content.Intent.createChooser(editIntent, "Edit Video With")
+                                        runCatching { context.startActivity(chooser) }.onFailure {
+                                            val viewIntent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                                setDataAndType(item.uri, item.mimeType.ifEmpty { "video/*" })
+                                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
+                                            runCatching { context.startActivity(android.content.Intent.createChooser(viewIntent, "Open With")) }
                                         }
                                     }
                                 }
@@ -1252,13 +1278,38 @@ fun VideoPlayerScreen(
                             onClick = {
                                 showOverflowMenu = false
                                 playerState.currentItem?.uri?.let { uri ->
-                                    val editIntent = android.content.Intent(android.content.Intent.ACTION_EDIT).apply {
-                                        setDataAndType(uri, "video/*")
-                                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    val pm = context.packageManager
+                                    val samsungPackages = listOf(
+                                        "com.samsung.android.videoeditor",
+                                        "com.sec.android.app.vepreload",
+                                        "com.sec.android.app.ve",
+                                        "com.sec.android.app.editor",
+                                        "com.samsung.android.movieeditor"
+                                    )
+                                    var launched = false
+                                    for (pkg in samsungPackages) {
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_EDIT).apply {
+                                            setDataAndType(uri, "video/*")
+                                            setPackage(pkg)
+                                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                                        }
+                                        if (intent.resolveActivity(pm) != null) {
+                                            runCatching {
+                                                context.startActivity(intent)
+                                                launched = true
+                                            }
+                                            if (launched) break
+                                        }
                                     }
-                                    val chooser = android.content.Intent.createChooser(editIntent, "Edit Video With")
-                                    runCatching { context.startActivity(chooser) }.onFailure {
-                                        android.widget.Toast.makeText(context, "No video editor app found", android.widget.Toast.LENGTH_SHORT).show()
+                                    if (!launched) {
+                                        val editIntent = android.content.Intent(android.content.Intent.ACTION_EDIT).apply {
+                                            setDataAndType(uri, "video/*")
+                                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                                        }
+                                        val chooser = android.content.Intent.createChooser(editIntent, "Edit Video With")
+                                        runCatching { context.startActivity(chooser) }.onFailure {
+                                            android.widget.Toast.makeText(context, "No video editor app found", android.widget.Toast.LENGTH_SHORT).show()
+                                        }
                                     }
                                 }
                             }

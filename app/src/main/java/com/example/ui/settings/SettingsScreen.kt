@@ -77,6 +77,12 @@ fun SettingsScreen(
     var videoItems by remember { mutableStateOf<List<com.example.data.model.MediaItem>>(emptyList()) }
     var audioItems by remember { mutableStateOf<List<com.example.data.model.MediaItem>>(emptyList()) }
 
+    var showCombinedTrashSheet by remember { mutableStateOf(false) }
+
+    if (showCombinedTrashSheet) {
+        CombinedTrashSheet(onDismiss = { showCombinedTrashSheet = false })
+    }
+
     var hwAccelMode by remember { mutableStateOf("Enabled (Full GPU/DSP)") }
 
     val m3uPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -716,25 +722,7 @@ fun SettingsScreen(
                     }
                 )
 
-                // Playback History & Cache
-                SettingsRowItem(
-                    title = "Playback History & Cache",
-                    subtitle = "Clear recent queue logs, search history, and cached lyrics",
-                    stackedOnPhone = true,
-                    control = {
-                        TextButton(
-                            onClick = onClearHistory,
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text(
-                                text = "Clear History",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFEF4444)
-                            )
-                        }
-                    }
-                )
+                // Playback History & Cache removed as requested - merged into Clear All Cache button below
 
                 // Recycle Bin (Trash) Toggle
                 val enableTrash by settingsManager.enableTrash.collectAsState(initial = true)
@@ -754,119 +742,58 @@ fun SettingsScreen(
                     val trashedCount = remember { com.example.util.TrashManager.getTrashedItems(context).size }
                     SettingsRowItem(
                         title = "Manage Recycle Bin ($trashedCount items)",
-                        subtitle = "Restore or permanently delete trashed files",
+                        subtitle = "View, restore or empty trashed media files",
                         stackedOnPhone = true,
                         control = {
                             Button(
-                                onClick = {
-                                    com.example.util.TrashManager.emptyTrash(context)
-                                    Toast.makeText(context, "Recycle Bin emptied", Toast.LENGTH_SHORT).show()
-                                },
-                                enabled = trashedCount > 0,
+                                onClick = { showCombinedTrashSheet = true },
                                 shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0x33EF4444))
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0x3338BDF8))
                             ) {
-                                Text("Empty Bin", fontSize = 12.sp, color = Color(0xFFEF4444), fontWeight = FontWeight.SemiBold)
+                                Text("Open Trash", fontSize = 12.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.SemiBold)
                             }
                         }
                     )
                 }
 
-                // SECTION: PICTURE MODES & DISPLAY PROFILE
-                SettingsGlassCard(title = "PICTURE MODES & DISPLAY PROFILE") {
-                    val pictureMode by settingsManager.pictureMode.collectAsState(initial = "DEVICE_DEFAULT")
-                    val currentPictureModeLabel = when (pictureMode) {
-                        "DEVICE_DEFAULT" -> "Device Default (Original)"
-                        "BALANCED" -> "Balanced Natural+"
-                        "NATURAL" -> "Natural (Standard sRGB)"
-                        "VIVID" -> "Vivid Punch"
-                        "CINEMATIC" -> "Cinematic Warm"
-                        "CUSTOM" -> "Custom Profile"
-                        else -> "Device Default (Original)"
-                    }
-                    var modeDropdownExpanded by remember { mutableStateOf(false) }
-
+                // SECTION: PICTURE MODE
+                SettingsGlassCard(title = "PICTURE MODE") {
+                    val pictureModeEnabled by settingsManager.pictureModeEnabled.collectAsState(initial = true)
                     SettingsRowItem(
-                        title = "Picture Mode",
-                        subtitle = "Select video & image color processing mode",
-                        stackedOnPhone = true,
+                        title = "Enable Picture Mode",
+                        subtitle = "Enhance photo & video display colors",
                         control = {
-                            Box {
-                                SettingsDropdownPill(
-                                    label = currentPictureModeLabel,
-                                    onClick = { modeDropdownExpanded = true }
-                                )
-                                DropdownMenu(
-                                    expanded = modeDropdownExpanded,
-                                    onDismissRequest = { modeDropdownExpanded = false },
-                                    containerColor = Color(0xDC141722),
-                                    shape = RoundedCornerShape(16.dp)
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Device Default (Original)", color = Color.White) },
-                                        onClick = {
-                                            scope.launch { settingsManager.setPictureMode("DEVICE_DEFAULT") }
-                                            modeDropdownExpanded = false
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Balanced Natural+", color = Color.White) },
-                                        onClick = {
-                                            scope.launch { settingsManager.setPictureMode("BALANCED") }
-                                            modeDropdownExpanded = false
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Natural (Standard sRGB)", color = Color.White) },
-                                        onClick = {
-                                            scope.launch { settingsManager.setPictureMode("NATURAL") }
-                                            modeDropdownExpanded = false
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Vivid Punch", color = Color.White) },
-                                        onClick = {
-                                            scope.launch { settingsManager.setPictureMode("VIVID") }
-                                            modeDropdownExpanded = false
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Cinematic Warm", color = Color.White) },
-                                        onClick = {
-                                            scope.launch { settingsManager.setPictureMode("CINEMATIC") }
-                                            modeDropdownExpanded = false
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Custom Profile", color = Color.White) },
-                                        onClick = {
-                                            scope.launch { settingsManager.setPictureMode("CUSTOM") }
-                                            modeDropdownExpanded = false
-                                        }
-                                    )
-                                }
-                            }
+                            Switch(
+                                checked = pictureModeEnabled,
+                                onCheckedChange = { scope.launch { settingsManager.setPictureModeEnabled(it) } },
+                                colors = customSwitchColors
+                            )
                         }
                     )
+                    /* Picture mode selection dropdown & sliders commented out per user request:
+                    val pictureMode by settingsManager.pictureMode.collectAsState(initial = "DEVICE_DEFAULT")
+                    ...
+                    */
                 }
 
-                // Clear All Cache & Thumbs
+                // Clear All Cache & Playback History
                 SettingsRowItem(
-                    title = "Clean Storage & Rebuild Thumbs",
-                    subtitle = "Purge all generated thumbnails and temporary caches",
+                    title = "Clean Storage & History",
+                    subtitle = "Clear playback history, search logs, generated thumbnails and cached files",
                     stackedOnPhone = true,
                     control = {
                         Button(
                             onClick = {
+                                onClearHistory()
                                 com.example.player.ExoPlayerManager.getInstance(context).clearAllCache {
-                                    Toast.makeText(context, "Cache purged! Refreshing library...", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Cache and playback history cleared!", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0x33EF4444)),
                             border = BorderStroke(1.dp, Color(0x66EF4444))
                         ) {
-                            Text("Clear All Cache", fontSize = 13.sp, color = Color(0xFFEF4444), fontWeight = FontWeight.SemiBold)
+                            Text("Clear All Cache & History", fontSize = 13.sp, color = Color(0xFFEF4444), fontWeight = FontWeight.SemiBold)
                         }
                     }
                 )
@@ -921,9 +848,9 @@ fun SettingsRowItem(
     control: @Composable () -> Unit
 ) {
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-    val isPhone = configuration.screenWidthDp < 600
+    val isPhoneScreen = configuration.screenWidthDp < 600
 
-    if (isPhone && stackedOnPhone) {
+    if (isPhoneScreen && stackedOnPhone) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(6.dp)
