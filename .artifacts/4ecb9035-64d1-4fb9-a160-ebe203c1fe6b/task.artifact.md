@@ -1,11 +1,11 @@
-# Task: Crash Fix & Settings Refinement
+# Task: Video & Image Player Fixes
 
-- `[/]` UI - Settings
-    - `[ ]` Update grid spacing to 16dp in `SettingsScreen.kt`
-- `[ ]` Core - Media Sharing (Fix Crash)
-    - `[ ]` Implement static `activeList` in `QuickViewActivity.kt`
-    - `[ ]` Implement static `activeList` in `VideoPlayerActivity.kt`
-    - `[ ]` Update `MainActivity.kt` to use static lists and remove large intent extras
+- `[x]` UI - Video Player
+    - `[x]` Fix Samsung Smart View (target Smart View instead of Cast)
+    - `[x]` Fix Edit Video (target Samsung Studio/Editor)
+    - `[x]` Implement true Background Play in `VideoPlayerActivity`
+- `[ ]` UI - Image Viewer
+    - `[ ]` Fix one-finger double tap zoom
+    - `[ ]` Fix panning constraints (stay within image bounds)
 - `[ ]` Verification
-    - `[ ]` Verify build status
-    - `[ ]` Manual test large folder opening
+    - `[ ]` Manual test on device

@@ -1,44 +1,33 @@
-# Implementation Plan - Crash Fix & Settings Refinement
+# Implementation Plan - Video Player Features & Image Viewer Refinement
 
-This plan addresses the "TransactionTooLarge" crash when clicking media items and refines the settings screen background.
-
-## User Review Required
-
-> [!IMPORTANT]
-> To fix the crash, I am moving the media list transfer from `Intent` extras to a shared static memory structure. This is necessary because Android has a 1MB limit for Intents, which large media folders exceed.
+This plan addresses the fixes for Video Player's Background Play, Auto-Repeat, Editing, and Smart View, as well as refining the Image Viewer's zoom and panning behavior.
 
 ## Proposed Changes
 
-### [Component] Core - Media Sharing (Crash Fix)
+### [Component] UI - Video Player
 
-#### [MODIFY] [QuickViewActivity.kt](file:///Users/sachin/Desktop/Lab/VibeCoded/medianest/app/src/main/java/com/example/ui/quickview/QuickViewActivity.kt)
-- Add a `companion object` to hold a static `activeList: List<MediaItem>?`.
-- Use this list for the image pager if it's available.
-- Clear the list on `onDestroy` if finishing.
+#### [MODIFY] [VideoPlayerScreen.kt](file:///Users/sachin/Desktop/Lab/VibeCoded/medianest/app/src/main/java/com/example/ui/videoplayer/VideoPlayerScreen.kt)
+- **Edit Video:** Update "Edit Video" menu logic to try Samsung-specific editor intent (`com.sec.android.app.editor.intent.action.EDIT`) before falling back to generic `ACTION_EDIT`.
+- **Samsung Smart View:** Change the Intent from `ACTION_CAST_SETTINGS` to `android.settings.WIFI_DISPLAY_SETTINGS` and try Samsung-specific action `com.samsung.wfd.LAUNCH_WFD_PICKER_DLG` to prioritize Smart View over Google Cast.
+- **Auto Repeat:** Ensure the `isAutoRepeatEnabled` state is correctly synchronized with `ExoPlayer`'s repeat mode and persists correctly within the session.
 
 #### [MODIFY] [VideoPlayerActivity.kt](file:///Users/sachin/Desktop/Lab/VibeCoded/medianest/app/src/main/java/com/example/ui/videoplayer/VideoPlayerActivity.kt)
-- Add a `companion object` to hold a static `activeList: List<MediaItem>?`.
-- Use this list for the video playlist.
-- Clear the list on `onDestroy` if finishing.
-
-#### [MODIFY] [MainActivity.kt](file:///Users/sachin/Desktop/Lab/VibeCoded/medianest/app/src/main/java/com/example/MainActivity.kt)
-- Update `onOpenQuickView` and `onOpenVideoPlayer` to set the static `activeList` on the target activity before starting it.
-- Remove large array extras from the Intents.
+- **Background Play:** Update `onStop` to ensure the player does NOT automatically pause if "Background Play" was enabled in the UI.
 
 ---
 
-### [Component] UI - Settings
+### [Component] UI - Image Viewer (QuickView)
 
-#### [MODIFY] [SettingsScreen.kt](file:///Users/sachin/Desktop/Lab/VibeCoded/medianest/app/src/main/java/com/example/ui/settings/SettingsScreen.kt)
-- Update the `drawBehind` grid logic to use **16dp** spacing (was 30dp) for a denser, more refined look.
-- Slightly reduce alpha of the grid lines for subtlety.
+#### [MODIFY] [QuickViewScreen.kt](file:///Users/sachin/Desktop/Lab/VibeCoded/medianest/app/src/main/java/com/example/ui/quickview/QuickViewScreen.kt)
+- **Double Tap Zoom:** Fix the one-finger double-tap detection logic. Use a more robust timer and gesture listener within the `pointerInput` block to ensure it triggers every time.
+- **Strict Panning Bounds:** Recalculate the `maxOffsetX` and `maxOffsetY` more precisely based on the current `scale` and the image's "fit" dimensions to ensure the image never pans into the black bar areas.
 
 ## Verification Plan
 
-### Automated Tests
-- Verify successful build via `./gradlew assembleDebug`.
-
 ### Manual Verification
-- **Crash Test:** Open an image from a folder with thousands of files.
-- **Visual Test:** Check that the Settings grid looks more compact and refined.
-- **Context Test:** Ensure the filmstrip in QuickView correctly shows the contextual list.
+- **Background Play:** Start a video, enable "Background Play" in the menu, then press the Home button. Verify audio continues.
+- **Edit Video:** Tap "Edit Video" and verify it opens the device's default editor (Samsung Studio on Samsung devices).
+- **Smart View:** Tap "Samsung Smart View" and verify it opens the screen mirroring menu, not Google Cast.
+- **Image Zoom:**
+    - Verify one-finger double-tap toggles zoom reliably.
+    - Zoom in and try to pan to the extreme edges; verify the image stops exactly at its borders and doesn't "float" over the background.

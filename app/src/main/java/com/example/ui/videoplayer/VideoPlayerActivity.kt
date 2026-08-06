@@ -125,18 +125,28 @@ class VideoPlayerActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
-        // If app is minimized (not finishing/destroying) and not in Picture-in-Picture mode, start background notification if playing
+        // If app is minimized (not finishing/destroying) and not in Picture-in-Picture mode
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !isInPictureInPictureMode) {
+            val isBgPlayEnabled = playerManager.playerState.value.isBackgroundPlayEnabled
+            
             if (playerManager.exoPlayer.isPlaying && !isFinishing && !isChangingConfigurations) {
-                val title = playerManager.playerState.value.currentItem?.title ?: "Video Playback"
-                val serviceIntent = Intent(this, FloatingPlayerService::class.java).apply {
-                    action = FloatingPlayerService.ACTION_START
-                    putExtra("media_title", title)
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(serviceIntent)
+                // Only start foreground service notification if NOT background play enabled 
+                // OR if we want to ensure visibility in all cases.
+                // If bg play is NOT enabled, we should pause playback here.
+                
+                if (!isBgPlayEnabled) {
+                    playerManager.exoPlayer.pause()
                 } else {
-                    startService(serviceIntent)
+                    val title = playerManager.playerState.value.currentItem?.title ?: "Video Playback"
+                    val serviceIntent = Intent(this, FloatingPlayerService::class.java).apply {
+                        action = FloatingPlayerService.ACTION_START
+                        putExtra("media_title", title)
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(serviceIntent)
+                    } else {
+                        startService(serviceIntent)
+                    }
                 }
             }
         }

@@ -45,6 +45,7 @@ data class PlayerState(
     val queueIndex: Int = 0,
     val isShuffle: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
+    val isBackgroundPlayEnabled: Boolean = false,
     val activeDecoderName: String = "Hardware Default",
     val isHardwareAccelerated: Boolean = true,
     val droppedFrames: Int = 0,
@@ -447,6 +448,10 @@ class ExoPlayerManager private constructor(private val context: Context) {
     fun setRepeatMode(repeatMode: Int) {
         exoPlayer.repeatMode = repeatMode
         _playerState.value = _playerState.value.copy(repeatMode = repeatMode)
+    }
+
+    fun setBackgroundPlayEnabled(enabled: Boolean) {
+        _playerState.value = _playerState.value.copy(isBackgroundPlayEnabled = enabled)
     }
 
     fun setShuffleMode(shuffleMode: Boolean) {

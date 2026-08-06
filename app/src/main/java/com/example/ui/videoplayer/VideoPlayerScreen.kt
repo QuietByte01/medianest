@@ -116,7 +116,6 @@ fun VideoPlayerScreen(
     var seekTargetPositionMs by remember { mutableLongStateOf(0L) }
     var seekDeltaMs by remember { mutableLongStateOf(0L) }
     var showOverflowMenu by remember { mutableStateOf(false) }
-    var isBackgroundPlayEnabled by remember { mutableStateOf(false) }
     var selectedSubtitleTrackIndex by remember { mutableIntStateOf(0) }
 
     var showDrawer by remember { mutableStateOf(false) }
@@ -1199,33 +1198,45 @@ fun VideoPlayerScreen(
                                         setDataAndType(item.uri, item.mimeType.ifEmpty { "video/*" })
                                         addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
                                     }
+                                    
+                                    // Try Samsung Editor specifically
+                                    editIntent.setPackage("com.sec.android.app.editor")
+                                    
                                     runCatching {
-                                        context.startActivity(android.content.Intent.createChooser(editIntent, "Edit Video"))
+                                        context.startActivity(editIntent)
                                     }.onFailure {
-                                        android.widget.Toast.makeText(context, "No video editor found on device", android.widget.Toast.LENGTH_SHORT).show()
+                                        // Fallback to generic ACTION_EDIT with chooser
+                                        editIntent.setPackage(null)
+                                        runCatching {
+                                            context.startActivity(android.content.Intent.createChooser(editIntent, "Edit Video"))
+                                        }.onFailure {
+                                            android.widget.Toast.makeText(context, "No video editor found on device", android.widget.Toast.LENGTH_SHORT).show()
+                                        }
                                     }
                                 }
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Background Play: ${if (isBackgroundPlayEnabled) "On" else "Off"}", color = Color.White, fontSize = 14.sp) },
+                            text = { Text("Background Play: ${if (playerState.isBackgroundPlayEnabled) "On" else "Off"}", color = Color.White, fontSize = 14.sp) },
                             leadingIcon = { Icon(Icons.Default.MusicNote, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp)) },
                             onClick = {
-                                isBackgroundPlayEnabled = !isBackgroundPlayEnabled
+                                playerManager.setBackgroundPlayEnabled(!playerState.isBackgroundPlayEnabled)
                                 showOverflowMenu = false
-                                android.widget.Toast.makeText(context, "Background Play ${if (isBackgroundPlayEnabled) "Enabled" else "Disabled"}", android.widget.Toast.LENGTH_SHORT).show()
+                                android.widget.Toast.makeText(context, "Background Play ${if (playerState.isBackgroundPlayEnabled) "Enabled" else "Disabled"}", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Auto Repeat: ${if (isAutoRepeatEnabled) "On" else "Off"}", color = Color.White, fontSize = 14.sp) },
+                            text = { Text("Auto Repeat: ${if (playerState.repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) "On" else "Off"}", color = Color.White, fontSize = 14.sp) },
                             leadingIcon = { Icon(Icons.Default.Repeat, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp)) },
                             onClick = {
-                                isAutoRepeatEnabled = !isAutoRepeatEnabled
-                                playerManager.setRepeatMode(
-                                    if (isAutoRepeatEnabled) androidx.media3.common.Player.REPEAT_MODE_ALL else androidx.media3.common.Player.REPEAT_MODE_OFF
-                                )
+                                val nextMode = if (playerState.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF) 
+                                    androidx.media3.common.Player.REPEAT_MODE_ALL 
+                                else 
+                                    androidx.media3.common.Player.REPEAT_MODE_OFF
+                                    
+                                playerManager.setRepeatMode(nextMode)
                                 showOverflowMenu = false
-                                android.widget.Toast.makeText(context, "Auto Repeat ${if (isAutoRepeatEnabled) "Enabled" else "Disabled"}", android.widget.Toast.LENGTH_SHORT).show()
+                                android.widget.Toast.makeText(context, "Auto Repeat ${if (nextMode != androidx.media3.common.Player.REPEAT_MODE_OFF) "Enabled" else "Disabled"}", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         )
                         DropdownMenuItem(
@@ -1241,13 +1252,25 @@ fun VideoPlayerScreen(
                             leadingIcon = { Icon(Icons.Default.Tv, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp)) },
                             onClick = {
                                 showOverflowMenu = false
-                                android.widget.Toast.makeText(context, "Opening Samsung Smart View...", android.widget.Toast.LENGTH_SHORT).show()
-                                val castIntent = android.content.Intent(android.provider.Settings.ACTION_CAST_SETTINGS)
+                                
+                                // Try Samsung Smart View specific intent
+                                val smartViewIntent = android.content.Intent().apply {
+                                    action = "com.samsung.wfd.LAUNCH_WFD_PICKER_DLG"
+                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                
                                 runCatching {
-                                    context.startActivity(castIntent)
+                                    context.startActivity(smartViewIntent)
                                 }.onFailure {
-                                    val wirelessIntent = android.content.Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS)
-                                    runCatching { context.startActivity(wirelessIntent) }
+                                    // Fallback to Wifi Display Settings (Smart View's system page)
+                                    val wifiDisplayIntent = android.content.Intent("android.settings.WIFI_DISPLAY_SETTINGS")
+                                    runCatching {
+                                        context.startActivity(wifiDisplayIntent)
+                                    }.onFailure {
+                                        // Final fallback to Cast Settings
+                                        val castIntent = android.content.Intent(android.provider.Settings.ACTION_CAST_SETTINGS)
+                                        runCatching { context.startActivity(castIntent) }
+                                    }
                                 }
                             }
                         )
