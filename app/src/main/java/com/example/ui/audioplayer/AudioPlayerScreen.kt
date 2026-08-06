@@ -422,6 +422,28 @@ fun AudioPlayerScreen(
                                     }
                                 }
                             }
+                        } else if (showAudioVisualizer) {
+                            GlassSurface(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.85f)
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(24.dp)),
+                                shape = RoundedCornerShape(24.dp),
+                                backgroundColor = Color(0x12FFFFFF),
+                                borderColor = Color(0x28FFFFFF),
+                                blurRadius = 30.dp
+                            ) {
+                                AudioReactiveVisualizerPattern(
+                                    isPlaying = playerState.isPlaying,
+                                    currentPosMs = playerState.currentPositionMs,
+                                    trackSeed = currentItem?.id ?: 0L,
+                                    albumArtUri = currentItem?.albumArtUri,
+                                    audioSessionId = playerState.audioSessionId,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(24.dp)
+                                )
+                            }
                         } else {
                             Card(
                                 modifier = Modifier
@@ -728,7 +750,7 @@ fun AudioPlayerScreen(
                             // Action Row (Toggle Album Songs vs Up Next, Favorite, Add)
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 IconButton(
@@ -1156,6 +1178,70 @@ fun AudioPlayerScreen(
                                 )
                             }
                         }
+                    } else if (showAudioVisualizer) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            GlassSurface(
+                                modifier = Modifier
+                                    .size(albumArtSize)
+                                    .clip(RoundedCornerShape(20.dp)),
+                                shape = RoundedCornerShape(20.dp),
+                                backgroundColor = Color(0x12FFFFFF),
+                                borderColor = Color(0x28FFFFFF),
+                                blurRadius = 30.dp
+                            ) {
+                                AudioReactiveVisualizerPattern(
+                                    isPlaying = playerState.isPlaying,
+                                    currentPosMs = playerState.currentPositionMs,
+                                    trackSeed = currentItem?.id ?: 0L,
+                                    albumArtUri = currentItem?.albumArtUri,
+                                    audioSessionId = playerState.audioSessionId,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(18.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            // Title and Artist Info BELOW visualizer (aligned with size)
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .width(albumArtSize)
+                                    .padding(horizontal = 2.dp)
+                            ) {
+                                Text(
+                                    text = currentItem?.title ?: "No Track Selected",
+                                    fontSize = if (isTablet) 26.sp else 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    color = Color.White,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.basicMarquee()
+                                )
+                                Text(
+                                    text = buildString {
+                                        append(currentItem?.artist ?: "Unknown Artist")
+                                        if (!currentItem?.album.isNullOrBlank()) {
+                                            append(" — ")
+                                            append(currentItem?.album)
+                                        }
+                                    },
+                                    fontSize = if (isTablet) 15.sp else 14.sp,
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .basicMarquee()
+                                )
+                            }
+                        }
                     } else {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -1261,7 +1347,7 @@ fun AudioPlayerScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 28.dp, vertical = 2.dp),
+                        .padding(horizontal = 24.dp, vertical = 2.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {

@@ -49,7 +49,8 @@ data class PlayerState(
     val activeDecoderName: String = "Hardware Default",
     val isHardwareAccelerated: Boolean = true,
     val droppedFrames: Int = 0,
-    val decoderFallbackReason: String? = null
+    val decoderFallbackReason: String? = null,
+    val audioSessionId: Int = 0
 )
 
 @OptIn(UnstableApi::class)
@@ -254,7 +255,8 @@ class ExoPlayerManager private constructor(private val context: Context) {
             if (playbackState == Player.STATE_READY) {
                 _playerState.value = _playerState.value.copy(
                     durationMs = exoPlayer.duration.coerceAtLeast(0L),
-                    currentPositionMs = exoPlayer.currentPosition.coerceAtLeast(0L)
+                    currentPositionMs = exoPlayer.currentPosition.coerceAtLeast(0L),
+                    audioSessionId = exoPlayer.audioSessionId
                 )
             }
         }
@@ -266,7 +268,8 @@ class ExoPlayerManager private constructor(private val context: Context) {
                 val currentItem = queue[curIndex]
                 _playerState.value = _playerState.value.copy(
                     currentItem = currentItem,
-                    queueIndex = curIndex
+                    queueIndex = curIndex,
+                    audioSessionId = exoPlayer.audioSessionId
                 )
                 recordPlay(currentItem.uri.toString())
             }

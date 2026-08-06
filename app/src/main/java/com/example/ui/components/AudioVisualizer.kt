@@ -258,22 +258,24 @@ fun AudioVisualizer(
 
                         val rawVal = state.rawFFT[i]
                         val syntheticTarget = run {
-                            val f1 = sin((timeSec * (3.8f + i * 0.35f) + i * 0.45f).toDouble()).toFloat()
-                            val f2 = cos((timeSec * (6.5f - i * 0.15f) + i * 0.7f).toDouble()).toFloat()
-                            val f3 = sin((timeSec * (12.0f + i * 0.4f)).toDouble()).toFloat()
+                            // Much slower frequencies for natural breathing
+                            val f1 = sin((timeSec * (1.2f + i * 0.12f) + i * 0.45f).toDouble()).toFloat()
+                            val f2 = cos((timeSec * (2.1f - i * 0.08f) + i * 0.7f).toDouble()).toFloat()
+                            val f3 = sin((timeSec * (3.8f + i * 0.15f)).toDouble()).toFloat()
 
                             val bandPulse = when {
-                                norm < 0.25f -> 0.55f * sharpBeat + 0.30f * abs(f1) + 0.15f * abs(f2)
-                                norm < 0.70f -> 0.25f * sharpBeat + 0.45f * abs(f2) + 0.30f * abs(f3)
-                                else -> 0.15f * sharpBeat + 0.35f * abs(f1 * f3) + 0.50f * abs(f3)
+                                norm < 0.25f -> 0.45f * sharpBeat + 0.30f * abs(f1) + 0.25f * abs(f2)
+                                norm < 0.70f -> 0.20f * sharpBeat + 0.50f * abs(f2) + 0.30f * abs(f3)
+                                else -> 0.10f * sharpBeat + 0.40f * abs(f1 * f3) + 0.50f * abs(f3)
                             }
-                            bandPulse.coerceIn(0.08f, 1.0f)
+                            bandPulse.coerceIn(0.06f, 1.0f)
                         }
 
-                        val targetVal = if (rawVal > 0.02f) {
-                            (rawVal * 0.75f + syntheticTarget * 0.25f).coerceIn(0.08f, 1f)
+                        // Heavily favor raw audio data if it exists
+                        val targetVal = if (rawVal > 0.005f) {
+                            (rawVal * 0.92f + syntheticTarget * 0.08f).coerceIn(0.06f, 1f)
                         } else {
-                            syntheticTarget
+                            syntheticTarget * 0.6f // Subtle movement when quiet
                         }
 
                         // Fast attack, smooth decay
@@ -384,7 +386,7 @@ fun AudioVisualizer(
 private fun dynamicSpectrumColor(norm: Float, baseHue: Float): Color {
     // Keep hue tightly within an analogous range (±20°) around baseHue so it strictly matches album art
     val hue = (baseHue + (norm - 0.5f) * 40f + 360f) % 360f
-    return Color.hsv(hue, 0.88f, 0.98f)
+    return Color.hsv(hue, 0.75f, 1.0f) // Slightly less saturated for neon feel
 }
 
 private fun DrawScope.drawGlossySpectrumBars(
@@ -396,9 +398,9 @@ private fun DrawScope.drawGlossySpectrumBars(
     timeNanos: Float
 ) {
     val totalBars = state.numBands
-    val spacing = 3.dp.toPx()
+    val spacing = 4.dp.toPx() // Slightly wider spacing for "Neon" look
     val totalSpacing = spacing * (totalBars - 1)
-    val barWidth = ((size.width - totalSpacing) / totalBars).coerceAtLeast(3f)
+    val barWidth = ((size.width - totalSpacing) / totalBars).coerceAtLeast(4f)
     val maxHeight = size.height
 
     // Base Hue locked to album art base hue with subtle organic pulse
@@ -407,16 +409,15 @@ private fun DrawScope.drawGlossySpectrumBars(
 
     val colorStart = Color.hsv(baseHue, 0.85f, 0.98f)
     val colorMid = Color.hsv((baseHue + 15f) % 360f, 0.88f, 0.98f)
-    val colorEnd = Color.hsv((baseHue - 15f + 360f) % 360f, 0.90f, 1.0f)
 
-    // Background Glowing Dynamic Aura
+    // Background Glowing Dynamic Aura (Subtle Glow behind all bars)
     if (state.overallAmplitude > 0.05f) {
         drawRect(
             brush = Brush.verticalGradient(
                 colors = listOf(
                     Color.Transparent,
-                    colorMid.copy(alpha = 0.15f * state.overallAmplitude),
-                    colorStart.copy(alpha = 0.28f * state.overallAmplitude)
+                    colorMid.copy(alpha = 0.12f * state.overallAmplitude),
+                    colorStart.copy(alpha = 0.22f * state.overallAmplitude)
                 ),
                 startY = 0f,
                 endY = maxHeight
@@ -429,62 +430,73 @@ private fun DrawScope.drawGlossySpectrumBars(
     for (i in 0 until totalBars) {
         val norm = i.toFloat() / (totalBars - 1)
         val value = state.smoothedBands[i]
-        val barHeight = (maxHeight * value * 0.88f).coerceAtLeast(4.dp.toPx())
+        val barHeight = (maxHeight * value * 0.92f).coerceAtLeast(6.dp.toPx())
 
         val x = i * (barWidth + spacing)
         val top = maxHeight - barHeight
 
-        // Continuously shifting dynamic spectrum color for each bar
-        val barColor = dynamicSpectrumColor(norm, baseHue)
+        // Continuously shifting dynamic spectrum color for the glow
+        val barGlowColor = dynamicSpectrumColor(norm, baseHue)
 
-        // Glossy Multi-Stop Vertical Gradient Brush
-        val barBrush = Brush.verticalGradient(
-            colors = listOf(
-                Color.White,
-                barColor,
-                barColor.copy(alpha = 0.65f),
-                barColor.copy(alpha = 0.25f)
-            ),
-            startY = top,
-            endY = maxHeight
+        // 1. ULTRA WIDE DIFFUSED NEON GLOW (Softest layer)
+        drawRoundRect(
+            color = barGlowColor.copy(alpha = 0.05f * value),
+            topLeft = Offset(x - 14.dp.toPx(), top - 8.dp.toPx()),
+            size = Size(barWidth + 28.dp.toPx(), barHeight + 16.dp.toPx()),
+            cornerRadius = CornerRadius((barWidth + 28.dp.toPx()) / 2f)
         )
 
-        // Main Glossy Bar
+        // 2. EXTRA WIDE DIFFUSED NEON GLOW
         drawRoundRect(
-            brush = barBrush,
+            color = barGlowColor.copy(alpha = 0.10f * value),
+            topLeft = Offset(x - 10.dp.toPx(), top - 6.dp.toPx()),
+            size = Size(barWidth + 20.dp.toPx(), barHeight + 12.dp.toPx()),
+            cornerRadius = CornerRadius((barWidth + 20.dp.toPx()) / 2f)
+        )
+
+        // 3. OUTER SOFT NEON GLOW
+        drawRoundRect(
+            color = barGlowColor.copy(alpha = 0.18f * value),
+            topLeft = Offset(x - 6.dp.toPx(), top - 4.dp.toPx()),
+            size = Size(barWidth + 12.dp.toPx(), barHeight + 8.dp.toPx()),
+            cornerRadius = CornerRadius((barWidth + 12.dp.toPx()) / 2f)
+        )
+
+        // 4. MAIN GLOSSY BAR BODY (High visibility with tube effect)
+        drawRoundRect(
+            brush = Brush.horizontalGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.15f), // Edge shadow
+                    Color.White.copy(alpha = 0.75f), // Bright center
+                    Color.White.copy(alpha = 0.75f), // Bright center
+                    Color.White.copy(alpha = 0.15f)  // Edge shadow
+                ),
+                startX = x,
+                endX = x + barWidth
+            ),
             topLeft = Offset(x, top),
             size = Size(barWidth, barHeight),
             cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f)
         )
 
-        // Center Specular Glass Highlight Line
-        if (barHeight > 8.dp.toPx() && barWidth >= 3f) {
-            val highlightHeight = barHeight * 0.45f
-            val highlightWidth = (barWidth * 0.4f).coerceAtLeast(1f)
-            val highlightLeft = x + (barWidth - highlightWidth) / 2f
-
+        // 5. SHARP VERTICAL SPECULAR HIGHLIGHT (Glassy look)
+        if (barWidth >= 4f) {
+            val specWidth = barWidth * 0.22f
             drawRoundRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color.White.copy(alpha = 0.92f),
-                        Color.White.copy(alpha = 0.0f)
-                    ),
-                    startY = top,
-                    endY = top + highlightHeight
-                ),
-                topLeft = Offset(highlightLeft, top + 1f),
-                size = Size(highlightWidth, highlightHeight),
-                cornerRadius = CornerRadius(highlightWidth / 2f, highlightWidth / 2f)
+                color = Color.White.copy(alpha = 0.92f),
+                topLeft = Offset(x + (barWidth * 0.2f), top + (barWidth / 4f)),
+                size = Size(specWidth, barHeight - (barWidth / 2f)),
+                cornerRadius = CornerRadius(specWidth / 2f)
             )
         }
 
         // Faded Inverted Mirror Reflection Below Baseline
-        val reflectionHeight = barHeight * 0.22f
+        val reflectionHeight = barHeight * 0.18f
         if (reflectionHeight > 2.dp.toPx()) {
             drawRoundRect(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        barColor.copy(alpha = 0.30f),
+                        barGlowColor.copy(alpha = 0.25f),
                         Color.Transparent
                     ),
                     startY = maxHeight,
@@ -493,25 +505,6 @@ private fun DrawScope.drawGlossySpectrumBars(
                 topLeft = Offset(x, maxHeight),
                 size = Size(barWidth, reflectionHeight),
                 cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f)
-            )
-        }
-
-        // Glowing Floating Peak Cap
-        val peakVal = state.peakCaps[i]
-        if (peakVal > 0.05f) {
-            val peakTop = (maxHeight - (maxHeight * peakVal * 0.88f)).coerceIn(0f, maxHeight - 4.dp.toPx())
-
-            // Peak aura glow
-            drawCircle(
-                color = barColor.copy(alpha = 0.50f),
-                radius = (barWidth * 0.85f).coerceAtMost(6.dp.toPx()),
-                center = Offset(x + barWidth / 2f, peakTop)
-            )
-            // Solid peak bead
-            drawCircle(
-                color = Color.White,
-                radius = (barWidth / 2f).coerceAtMost(3.dp.toPx()),
-                center = Offset(x + barWidth / 2f, peakTop)
             )
         }
     }
