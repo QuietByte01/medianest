@@ -1,33 +1,39 @@
-# Implementation Plan - Video Player Features & Image Viewer Refinement
+# Implementation Plan - Tablet Audio Player & Landscape Refinement
 
-This plan addresses the fixes for Video Player's Background Play, Auto-Repeat, Editing, and Smart View, as well as refining the Image Viewer's zoom and panning behavior.
+This plan addresses the UI layout for tablets and landscape mode in the Audio Player, as well as fixing video features and refining the image viewer.
 
 ## Proposed Changes
 
-### [Component] UI - Video Player
+### [Component] UI - Audio Player (Tablet & Landscape)
 
-#### [MODIFY] [VideoPlayerScreen.kt](file:///Users/sachin/Desktop/Lab/VibeCoded/medianest/app/src/main/java/com/example/ui/videoplayer/VideoPlayerScreen.kt)
-- **Edit Video:** Update "Edit Video" menu logic to try Samsung-specific editor intent (`com.sec.android.app.editor.intent.action.EDIT`) before falling back to generic `ACTION_EDIT`.
-- **Samsung Smart View:** Change the Intent from `ACTION_CAST_SETTINGS` to `android.settings.WIFI_DISPLAY_SETTINGS` and try Samsung-specific action `com.samsung.wfd.LAUNCH_WFD_PICKER_DLG` to prioritize Smart View over Google Cast.
-- **Auto Repeat:** Ensure the `isAutoRepeatEnabled` state is correctly synchronized with `ExoPlayer`'s repeat mode and persists correctly within the session.
-
-#### [MODIFY] [VideoPlayerActivity.kt](file:///Users/sachin/Desktop/Lab/VibeCoded/medianest/app/src/main/java/com/example/ui/videoplayer/VideoPlayerActivity.kt)
-- **Background Play:** Update `onStop` to ensure the player does NOT automatically pause if "Background Play" was enabled in the UI.
+#### [MODIFY] [AudioPlayerScreen.kt](file:///Users/sachin/Desktop/Lab/VibeCoded/medianest/app/src/main/java/com/example/ui/audioplayer/AudioPlayerScreen.kt)
+- **Album Art Size:**
+    - Increase `baseArtSize` for tablets to be larger and more immersive.
+    - Set the landscape weight to `0.4f` for the artwork side.
+- **Landscape Split Panel:**
+    - Redesign the right side (`0.6f` weight) to be a vertical split:
+        - **Top (50%):** Synced Lyrics view in a glass card.
+        - **Bottom (50%):** Up Next / Album Songs queue in a glass card.
+    - Ensure the seek bar and transport controls are visible and accessible (either as a shared footer or integrated into the right-side flow).
+- **Responsive Sizing:**
+    - Use screen width percentages to ensure the art doesn't look too small on ultra-wide tablet screens.
 
 ---
 
-### [Component] UI - Image Viewer (QuickView)
+### [Component] UI - Video Player & Image Viewer (Carry-over fixes)
+
+#### [MODIFY] [VideoPlayerScreen.kt](file:///Users/sachin/Desktop/Lab/VibeCoded/medianest/app/src/main/java/com/example/ui/videoplayer/VideoPlayerScreen.kt)
+- Fix Samsung Smart View and Edit Video intents (targeted Samsung apps).
+- Ensure Background Play and Auto-Repeat are correctly synchronized.
 
 #### [MODIFY] [QuickViewScreen.kt](file:///Users/sachin/Desktop/Lab/VibeCoded/medianest/app/src/main/java/com/example/ui/quickview/QuickViewScreen.kt)
-- **Double Tap Zoom:** Fix the one-finger double-tap detection logic. Use a more robust timer and gesture listener within the `pointerInput` block to ensure it triggers every time.
-- **Strict Panning Bounds:** Recalculate the `maxOffsetX` and `maxOffsetY` more precisely based on the current `scale` and the image's "fit" dimensions to ensure the image never pans into the black bar areas.
+- Fix double-tap zoom detection.
+- Add strict panning constraints to prevent images from floating into black bars.
 
 ## Verification Plan
 
 ### Manual Verification
-- **Background Play:** Start a video, enable "Background Play" in the menu, then press the Home button. Verify audio continues.
-- **Edit Video:** Tap "Edit Video" and verify it opens the device's default editor (Samsung Studio on Samsung devices).
-- **Smart View:** Tap "Samsung Smart View" and verify it opens the screen mirroring menu, not Google Cast.
-- **Image Zoom:**
-    - Verify one-finger double-tap toggles zoom reliably.
-    - Zoom in and try to pan to the extreme edges; verify the image stops exactly at its borders and doesn't "float" over the background.
+- **Tablet Landscape:** Verify the "Artwork | (Lyrics / Queue)" split layout.
+- **Artwork Size:** Compare art size on phone vs tablet; should be significantly larger on tablet.
+- **Video Intents:** Verify Samsung Studio and Smart View picker open correctly.
+- **Image Zoom:** Verify double-tap and panning limits.

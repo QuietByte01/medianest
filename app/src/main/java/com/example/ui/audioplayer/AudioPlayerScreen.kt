@@ -354,7 +354,7 @@ fun AudioPlayerScreen(
                     // Left Side: Artwork & Track / Artist Info below
                     Column(
                         modifier = Modifier
-                            .weight(0.44f)
+                            .weight(0.40f)
                             .fillMaxHeight(),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
@@ -502,7 +502,7 @@ fun AudioPlayerScreen(
                     // Right Side: UP NEXT queue / Album Songs glass card & Player Controls
                     Column(
                         modifier = Modifier
-                            .weight(0.56f)
+                            .weight(0.60f)
                             .fillMaxHeight(),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -510,7 +510,7 @@ fun AudioPlayerScreen(
                         GlassSurface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .weight(0.70f),
+                                .weight(0.65f),
                             shape = RoundedCornerShape(16.dp),
                             backgroundColor = Color(0x1F24293A),
                             borderColor = Color(0x2EFFFFFF)
@@ -722,7 +722,7 @@ fun AudioPlayerScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .weight(0.30f),
+                                .weight(0.35f),
                             verticalArrangement = Arrangement.Center
                         ) {
                             // Action Row (Toggle Album Songs vs Up Next, Favorite, Add)

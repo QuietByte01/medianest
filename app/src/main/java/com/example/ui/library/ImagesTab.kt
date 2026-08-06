@@ -330,9 +330,9 @@ fun ImagesTab(
                     }
                 }
 
-                // 5. Trash
+                // 14. Notes (Moved before GIFs)
                 item {
-                    val isSelected = activeFilterTab == "TRASH"
+                    val isSelected = activeFilterTab == "NOTES"
                     GlassSurface(
                         shape = RoundedCornerShape(20.dp),
                         backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
@@ -341,7 +341,7 @@ fun ImagesTab(
                             .height(38.dp)
                             .clip(RoundedCornerShape(20.dp))
                             .clickable {
-                                activeFilterTab = "TRASH"
+                                activeFilterTab = "NOTES"
                                 viewMode = 0
                                 selectedFolder = null
                                 selectedCategory = null
@@ -352,36 +352,8 @@ fun ImagesTab(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFFC0C5D0), modifier = Modifier.size(16.dp))
-                            Text("Trash", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFFC0C5D0))
-                        }
-                    }
-                }
-
-                // 6. Social Media
-                item {
-                    val isSelected = activeFilterTab == "SOCIAL"
-                    GlassSurface(
-                        shape = RoundedCornerShape(20.dp),
-                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
-                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
-                        modifier = Modifier
-                            .height(38.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .clickable {
-                                activeFilterTab = "SOCIAL"
-                                viewMode = 0
-                                selectedFolder = null
-                                selectedCategory = null
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(Icons.Default.Share, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFFC0C5D0), modifier = Modifier.size(16.dp))
-                            Text("Social Media", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFFC0C5D0))
+                            Icon(Icons.Default.Note, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFFC0C5D0), modifier = Modifier.size(16.dp))
+                            Text("Notes & Studies", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFFC0C5D0))
                         }
                     }
                 }
@@ -410,6 +382,62 @@ fun ImagesTab(
                         ) {
                             Icon(Icons.Default.Animation, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFFC0C5D0), modifier = Modifier.size(16.dp))
                             Text("GIFs", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFFC0C5D0))
+                        }
+                    }
+                }
+
+                // 13. Screenshots (Moved after GIFs)
+                item {
+                    val isSelected = activeFilterTab == "SCREENSHOTS"
+                    GlassSurface(
+                        shape = RoundedCornerShape(20.dp),
+                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
+                        modifier = Modifier
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable {
+                                activeFilterTab = "SCREENSHOTS"
+                                viewMode = 0
+                                selectedFolder = null
+                                selectedCategory = null
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.Screenshot, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFFC0C5D0), modifier = Modifier.size(16.dp))
+                            Text("Screenshots", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFFC0C5D0))
+                        }
+                    }
+                }
+
+                // 6. Social Media
+                item {
+                    val isSelected = activeFilterTab == "SOCIAL"
+                    GlassSurface(
+                        shape = RoundedCornerShape(20.dp),
+                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
+                        modifier = Modifier
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable {
+                                activeFilterTab = "SOCIAL"
+                                viewMode = 0
+                                selectedFolder = null
+                                selectedCategory = null
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFFC0C5D0), modifier = Modifier.size(16.dp))
+                            Text("Social Media", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFFC0C5D0))
                         }
                     }
                 }
@@ -465,7 +493,7 @@ fun ImagesTab(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Icon(Icons.Default.Edit, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFFC0C5D0), modifier = Modifier.size(16.dp))
-                            Text("Edited", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFFC0C5D0))
+                            Text("Edited", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
                         }
                     }
                 }
@@ -554,62 +582,6 @@ fun ImagesTab(
                     }
                 }
 
-                // 13. Screenshots
-                item {
-                    val isSelected = activeFilterTab == "SCREENSHOTS"
-                    GlassSurface(
-                        shape = RoundedCornerShape(20.dp),
-                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
-                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
-                        modifier = Modifier
-                            .height(38.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .clickable {
-                                activeFilterTab = "SCREENSHOTS"
-                                viewMode = 0
-                                selectedFolder = null
-                                selectedCategory = null
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(Icons.Default.Screenshot, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFFC0C5D0), modifier = Modifier.size(16.dp))
-                            Text("Screenshots", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFFC0C5D0))
-                        }
-                    }
-                }
-
-                // 14. Notes
-                item {
-                    val isSelected = activeFilterTab == "NOTES"
-                    GlassSurface(
-                        shape = RoundedCornerShape(20.dp),
-                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
-                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
-                        modifier = Modifier
-                            .height(38.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .clickable {
-                                activeFilterTab = "NOTES"
-                                viewMode = 0
-                                selectedFolder = null
-                                selectedCategory = null
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(Icons.Default.Note, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFFC0C5D0), modifier = Modifier.size(16.dp))
-                            Text("Notes & Studies", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFFC0C5D0))
-                        }
-                    }
-                }
-
                 // 15. Hidden Folders
                 item {
                     val isSelected = activeFilterTab == "HIDDEN"
@@ -635,6 +607,34 @@ fun ImagesTab(
                         ) {
                             Icon(Icons.Default.FolderZip, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFFC0C5D0), modifier = Modifier.size(16.dp))
                             Text("Hidden Folders", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFFC0C5D0))
+                        }
+                    }
+                }
+
+                // 5. Trash (Moved to Last)
+                item {
+                    val isSelected = activeFilterTab == "TRASH"
+                    GlassSurface(
+                        shape = RoundedCornerShape(20.dp),
+                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
+                        modifier = Modifier
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable {
+                                activeFilterTab = "TRASH"
+                                viewMode = 0
+                                selectedFolder = null
+                                selectedCategory = null
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFFC0C5D0), modifier = Modifier.size(16.dp))
+                            Text("Trash", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFFC0C5D0))
                         }
                     }
                 }

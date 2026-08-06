@@ -1,19 +1,28 @@
-# Gesture & Player UI Fixes Walkthrough
+# UI Refinement: Library Tab Reordering
 
-I have addressed the issues with image gestures, panning constraints, and the video player's reset button to ensure a smooth and reliable user experience.
+I have reorganized the filter tabs in both the Video and Image libraries to match your requested layout, making common navigation elements more accessible.
 
-## Key Fixes
+## 📹 Video Library Refinements
+The filter chips at the top of the video tab have been reordered as follows:
+1.  **All Videos**
+2.  **Folders** (Moved from last to be immediately after "All Videos")
+3.  **Music Videos**
+4.  **Movies & Shows**
+5.  **Clips & Recordings**
+6.  **Shorts**
+7.  **Social Media** (Moved before "Edited")
+8.  **Edited**
+9.  **Downloaded**
+10. **Category**
 
-### 🖼️ Image Viewer (QuickView)
-- **One-Finger Double Tap:** Fixed the double-tap detection. It now correctly identifies a quick sequence of two taps and toggles between 1x and 4x zoom smoothly.
-- **Constrained Panning:** Improved the `maxOffsetX/Y` calculation. The image is now constrained to its actual displayed bounds (respecting the "Fit" scale) rather than the entire screen. This prevents the image from "moving anywhere" into the black bar areas.
-- **Gesture Reliability:** Moved the gesture logic onto the `AsyncImage` directly and ensured the control overlay doesn't block interactions when zoomed out.
+## 🖼️ Image Library Refinements
+The collections and filter chips in the image tab have been reordered for better grouping:
+- **Trash:** Moved to the **very end** of the list.
+- **Notes:** Now appears **before GIFs**.
+- **Screenshots:** Now appears immediately **after GIFs**.
+- **Sequence:** `... Favorites -> Notes & Studies -> GIFs -> Screenshots -> Social Media ...`
 
-### 📹 Video Player
-- **Reset Button Fix:** Fixed the event consumption issue that was making the "Reset" pill unresponsive. By wrapping it in a separate `Box` with appropriate clipping, clicks now reach the button correctly, and it properly resets the zoom to 100%.
-
-## Verification Results
-- ✅ **Build Status:** Success (Gradle assembleDebug)
-- ✅ **Gestures:** Double-tap and constrained panning verified via code analysis and local build.
-- ✅ **Reset Button:** Event flow verified to ensure clickability.
-- ✅ **Git Status:** All changes committed to main branch.
+## Verification
+- ✅ **Videos:** Folders now accessible right at the start. Social Media moved forward.
+- ✅ **Images:** Notes and Screenshots grouped near media types (GIFs). Trash safely tucked away at the end.
+- ✅ **Stability:** Build verified; duplicate folder tags in the video tab removed.

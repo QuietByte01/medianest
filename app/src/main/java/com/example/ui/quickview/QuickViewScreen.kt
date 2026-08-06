@@ -937,20 +937,21 @@ fun ZoomableImageView(
                     translationY = animatedOffsetY.value
                 )
                 .pointerInput(item.uri) {
+                    var lastTapTime = 0L
+                    val doubleTapTimeout = 300L
+
                     awaitEachGesture {
                         var isPinching = false
-                        var firstTapTime = 0L
-                        val doubleTapTimeout = 300L
 
                         while (true) {
                             val event = awaitPointerEvent()
                             val changes = event.changes
                             
                             if (changes.all { !it.pressed }) {
-                                // Double tap detection logic on release
+                                // Detect one-finger double tap on release
                                 if (!isPinching && changes.size == 1) {
                                     val currentTime = System.currentTimeMillis()
-                                    if (currentTime - firstTapTime < doubleTapTimeout) {
+                                    if (currentTime - lastTapTime < doubleTapTimeout) {
                                         // Double Tap Triggered
                                         val centroid = changes[0].position
                                         scope.launch {
@@ -965,7 +966,7 @@ fun ZoomableImageView(
                                                 val targetX = (centerX - centroid.x) * (targetScale - 1f)
                                                 val targetY = (centerY - centroid.y) * (targetScale - 1f)
 
-                                                // Bounds for targetX/Y
+                                                // Strict Bounds calculation
                                                 val f = if (imageIntrinsicSize.width > 0 && imageIntrinsicSize.height > 0) {
                                                     kotlin.math.min(size.width / imageIntrinsicSize.width, size.height / imageIntrinsicSize.height)
                                                 } else 1f
@@ -980,9 +981,9 @@ fun ZoomableImageView(
                                                 launch { animatedOffsetY.animateTo(targetY.coerceIn(-maxOffsetY, maxOffsetY), tween(350)) }
                                             }
                                         }
-                                        firstTapTime = 0L
+                                        lastTapTime = 0L
                                     } else {
-                                        firstTapTime = currentTime
+                                        lastTapTime = currentTime
                                     }
                                 }
                                 break
