@@ -69,7 +69,9 @@ class ExoPlayerManager private constructor(private val context: Context) {
         // Backwards compatibility property
         var activeManager: ExoPlayerManager?
             get() = instance
-            set(_) {}
+            set(value) {
+                instance = value
+            }
     }
 
     private val _playerState = MutableStateFlow(PlayerState())
@@ -124,7 +126,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
 
     private val customMediaCodecSelector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
         val decoders = MediaCodecUtil.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
-        if (!isHwAccelEnabled || currentDecoderPreference == "SOFTWARE") {
+        val sorted = if (!isHwAccelEnabled || currentDecoderPreference == "SOFTWARE") {
             decoders.sortedWith(compareByDescending { it.softwareOnly || !it.hardwareAccelerated })
         } else if (currentDecoderPreference == "HARDWARE") {
             decoders.sortedWith(compareByDescending { it.hardwareAccelerated })
@@ -135,6 +137,11 @@ class ExoPlayerManager private constructor(private val context: Context) {
                     .thenBy { it.softwareOnly }
             )
         }
+        if (sorted.isEmpty()) {
+            MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
+        } else {
+            sorted
+        }
     }
 
     val exoPlayer: ExoPlayer by lazy {
@@ -143,7 +150,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
             .setConstantBitrateSeekingEnabled(true)
             .setAdtsExtractorFlags(androidx.media3.extractor.ts.AdtsExtractor.FLAG_ENABLE_CONSTANT_BITRATE_SEEKING)
             .setAmrExtractorFlags(androidx.media3.extractor.amr.AmrExtractor.FLAG_ENABLE_CONSTANT_BITRATE_SEEKING)
-            .setMatroskaExtractorFlags(0) // Default flags
+            .setMatroskaExtractorFlags(0) // Default flags for MKV
 
         // 2. Configure MediaSourceFactory with optimized Extractors
         val mediaSourceFactory = DefaultMediaSourceFactory(context, extractorsFactory)
@@ -162,7 +169,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
         // 4. Custom Renderer Factory with MediaCodecSelector & Decoder Fallback
         val renderersFactory = DefaultRenderersFactory(context)
             .setEnableDecoderFallback(true)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             .setMediaCodecSelector(customMediaCodecSelector)
 
         ExoPlayer.Builder(context, renderersFactory)
@@ -416,12 +423,9 @@ class ExoPlayerManager private constructor(private val context: Context) {
         if (exoPlayer.hasNextMediaItem()) {
             exoPlayer.seekToNextMediaItem()
         } else {
-            val queue = _playerState.value.queue
-            if (queue.size > 1) {
-                val nextIdx = (_playerState.value.queueIndex + 1) % queue.size
-                exoPlayer.seekToDefaultPosition(nextIdx)
-            } else {
-                seekTo(0L)
+            // End of queue. If repeat ALL is not on, we loop manually to start
+            if (exoPlayer.repeatMode == Player.REPEAT_MODE_OFF) {
+                exoPlayer.seekToDefaultPosition(0)
             }
         }
     }
@@ -432,13 +436,10 @@ class ExoPlayerManager private constructor(private val context: Context) {
         } else if (exoPlayer.hasPreviousMediaItem()) {
             exoPlayer.seekToPreviousMediaItem()
         } else {
-            val queue = _playerState.value.queue
-            if (queue.size > 1) {
-                val curIdx = _playerState.value.queueIndex
-                val prevIdx = if (curIdx - 1 < 0) queue.size - 1 else curIdx - 1
-                exoPlayer.seekToDefaultPosition(prevIdx)
-            } else {
-                seekTo(0L)
+            // Loop to end manually if at start
+            val queueSize = exoPlayer.mediaItemCount
+            if (queueSize > 0) {
+                exoPlayer.seekToDefaultPosition(queueSize - 1)
             }
         }
     }

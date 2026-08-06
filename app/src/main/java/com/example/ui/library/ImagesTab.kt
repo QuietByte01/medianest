@@ -45,6 +45,8 @@ import com.example.data.db.MediaCategory
 import com.example.data.db.MediaType
 import com.example.ui.components.GlassSurface
 import com.example.ui.components.AdaptiveBottomSheet
+import com.example.ui.components.MediaInfoBottomSheet
+import com.example.ui.components.getFilePathFromUri
 import com.example.data.model.MediaItem
 import com.example.ui.components.MediaGridItem
 import com.example.ui.components.MediaLoadingAnimation
@@ -95,6 +97,10 @@ fun ImagesTab(
     // Dialog states
     var showCreateCollectionDialog by remember { mutableStateOf(false) }
     var newCollectionName by remember { mutableStateOf("") }
+
+    // Sort options state
+    var sortOption by remember { mutableStateOf("DATE_DESC") }
+    var showSortMenu by remember { mutableStateOf(false) }
 
     var showEditCollectionDialog by remember { mutableStateOf(false) }
     var editCollectionName by remember { mutableStateOf("") }
@@ -1852,26 +1858,33 @@ fun ImagesTab(
 
         // Folder Action Dialog: Folder Info
         if (folderForInfo != null) {
-            val srcFolder = folderForInfo
+            val srcFolder = folderForInfo!!
             val items = folderGroups[srcFolder] ?: emptyList()
             val totalSize = items.sumOf { it.size }
+            val folderPath = items.firstOrNull()?.let {
+                val p = getFilePathFromUri(currentContext, it.uri)
+                if (p.contains('/')) p.substringBeforeLast('/') else it.relativePath ?: srcFolder
+            } ?: srcFolder
+
             AlertDialog(
                 onDismissRequest = { folderForInfo = null },
                 containerColor = Color(0xDC141722),
                 shape = RoundedCornerShape(24.dp),
-                title = { Text("Folder Info") },
+                title = { Text("Folder Info", color = Color.White, fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
-                        Text("Folder Name: $srcFolder", fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text("Total Items: ${items.size}")
+                        Text("Folder Name: ${srcFolder.substringAfterLast('/')}", fontWeight = FontWeight.Bold, color = Color.White)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Folder Path: $folderPath", fontSize = 13.sp, color = Color(0xFF9EA3B0))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Total Items: ${items.size}", color = Color.White)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("Total Size: ${android.text.format.Formatter.formatFileSize(currentContext, totalSize)}")
+                        Text("Total Size: ${android.text.format.Formatter.formatFileSize(currentContext, totalSize)}", color = Color.White)
                     }
                 },
                 confirmButton = {
                     TextButton(onClick = { folderForInfo = null }) {
-                        Text("OK")
+                        Text("OK", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             )

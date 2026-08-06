@@ -33,6 +33,11 @@ class MediaNestApp : Application() {
             .allowHardware(true) // Enable Hardware Bitmaps stored in VRAM for zero-copy UI rendering
             .components {
                 add(VideoFrameDecoder.Factory())
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                    add(coil.decode.ImageDecoderDecoder.Factory())
+                } else {
+                    add(coil.decode.GifDecoder.Factory())
+                }
             }
             .memoryCache {
                 MemoryCache.Builder(this)

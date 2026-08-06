@@ -90,9 +90,12 @@ data class FileStatSnapshot(
     val audioSize: Long = 0L
 )
 
-@Entity(tableName = "format_stats")
+@Entity(
+    tableName = "format_stats",
+    primaryKeys = ["extension", "category"]
+)
 data class FormatStat(
-    @PrimaryKey val extension: String,
+    val extension: String,
     val fileCount: Int,
     val sizeBytes: Long,
     val category: String // IMAGE, VIDEO, AUDIO

@@ -1,6 +1,8 @@
 @file:kotlin.OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.example.ui.audioplayer
 
+import android.content.Intent
+import android.media.audiofx.AudioEffect
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
@@ -322,6 +324,23 @@ fun AudioPlayerScreen(
                             )
                         }
                         DropdownMenuItem(
+                            text = { Text("Equalizer", color = if (isDark) Color.White else Color.Black) },
+                            leadingIcon = { Icon(Icons.Default.Equalizer, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                            onClick = {
+                                showOverflowMenu = false
+                                try {
+                                    val intent = Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL).apply {
+                                        putExtra(AudioEffect.EXTRA_AUDIO_SESSION, playerState.audioSessionId)
+                                        putExtra(AudioEffect.EXTRA_PACKAGE_NAME, context.packageName)
+                                        putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
+                                    }
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    android.widget.Toast.makeText(context, "System equalizer not found", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Settings", color = if (isDark) Color.White else Color.Black) },
                             leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                             onClick = {
@@ -430,7 +449,7 @@ fun AudioPlayerScreen(
                                     .clip(RoundedCornerShape(24.dp)),
                                 shape = RoundedCornerShape(24.dp),
                                 backgroundColor = Color(0x12FFFFFF),
-                                borderColor = Color(0x28FFFFFF),
+                                borderColor = Color.Transparent, // Removed sharp border
                                 blurRadius = 30.dp
                             ) {
                                 AudioReactiveVisualizerPattern(
@@ -1189,7 +1208,7 @@ fun AudioPlayerScreen(
                                     .clip(RoundedCornerShape(20.dp)),
                                 shape = RoundedCornerShape(20.dp),
                                 backgroundColor = Color(0x12FFFFFF),
-                                borderColor = Color(0x28FFFFFF),
+                                borderColor = Color.Transparent, // Removed sharp border
                                 blurRadius = 30.dp
                             ) {
                                 AudioReactiveVisualizerPattern(
@@ -2073,7 +2092,7 @@ fun AudioReactiveVisualizerPattern(
     albumArtUri: android.net.Uri? = null,
     audioSessionId: Int = 0,
     modifier: Modifier = Modifier,
-    barCount: Int = 32,
+    barCount: Int = 16,
     barColor: Color = Color.White.copy(alpha = 0.90f)
 ) {
     var styleIndex by remember { mutableIntStateOf(0) }

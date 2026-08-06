@@ -736,6 +736,120 @@ fun SettingsScreen(
                     }
                 )
 
+                // Recycle Bin (Trash) Toggle
+                val enableTrash by settingsManager.enableTrash.collectAsState(initial = true)
+                SettingsRowItem(
+                    title = "Recycle Bin (Trash)",
+                    subtitle = "Store deleted media files in app trash bin before permanent removal",
+                    control = {
+                        Switch(
+                            checked = enableTrash,
+                            onCheckedChange = { scope.launch { settingsManager.setEnableTrash(it) } },
+                            colors = customSwitchColors
+                        )
+                    }
+                )
+
+                if (enableTrash) {
+                    val trashedCount = remember { com.example.util.TrashManager.getTrashedItems(context).size }
+                    SettingsRowItem(
+                        title = "Manage Recycle Bin ($trashedCount items)",
+                        subtitle = "Restore or permanently delete trashed files",
+                        stackedOnPhone = true,
+                        control = {
+                            Button(
+                                onClick = {
+                                    com.example.util.TrashManager.emptyTrash(context)
+                                    Toast.makeText(context, "Recycle Bin emptied", Toast.LENGTH_SHORT).show()
+                                },
+                                enabled = trashedCount > 0,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0x33EF4444))
+                            ) {
+                                Text("Empty Bin", fontSize = 12.sp, color = Color(0xFFEF4444), fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    )
+                }
+
+                // SECTION: PICTURE MODES & DISPLAY PROFILE
+                SettingsGlassCard(title = "PICTURE MODES & DISPLAY PROFILE") {
+                    val pictureMode by settingsManager.pictureMode.collectAsState(initial = "DEVICE_DEFAULT")
+                    val currentPictureModeLabel = when (pictureMode) {
+                        "DEVICE_DEFAULT" -> "Device Default (Original)"
+                        "BALANCED" -> "Balanced Natural+"
+                        "NATURAL" -> "Natural (Standard sRGB)"
+                        "VIVID" -> "Vivid Punch"
+                        "CINEMATIC" -> "Cinematic Warm"
+                        "CUSTOM" -> "Custom Profile"
+                        else -> "Device Default (Original)"
+                    }
+                    var modeDropdownExpanded by remember { mutableStateOf(false) }
+
+                    SettingsRowItem(
+                        title = "Picture Mode",
+                        subtitle = "Select video & image color processing mode",
+                        stackedOnPhone = true,
+                        control = {
+                            Box {
+                                SettingsDropdownPill(
+                                    label = currentPictureModeLabel,
+                                    onClick = { modeDropdownExpanded = true }
+                                )
+                                DropdownMenu(
+                                    expanded = modeDropdownExpanded,
+                                    onDismissRequest = { modeDropdownExpanded = false },
+                                    containerColor = Color(0xDC141722),
+                                    shape = RoundedCornerShape(16.dp)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Device Default (Original)", color = Color.White) },
+                                        onClick = {
+                                            scope.launch { settingsManager.setPictureMode("DEVICE_DEFAULT") }
+                                            modeDropdownExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Balanced Natural+", color = Color.White) },
+                                        onClick = {
+                                            scope.launch { settingsManager.setPictureMode("BALANCED") }
+                                            modeDropdownExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Natural (Standard sRGB)", color = Color.White) },
+                                        onClick = {
+                                            scope.launch { settingsManager.setPictureMode("NATURAL") }
+                                            modeDropdownExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Vivid Punch", color = Color.White) },
+                                        onClick = {
+                                            scope.launch { settingsManager.setPictureMode("VIVID") }
+                                            modeDropdownExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Cinematic Warm", color = Color.White) },
+                                        onClick = {
+                                            scope.launch { settingsManager.setPictureMode("CINEMATIC") }
+                                            modeDropdownExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Custom Profile", color = Color.White) },
+                                        onClick = {
+                                            scope.launch { settingsManager.setPictureMode("CUSTOM") }
+                                            modeDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    )
+                }
+
                 // Clear All Cache & Thumbs
                 SettingsRowItem(
                     title = "Clean Storage & Rebuild Thumbs",

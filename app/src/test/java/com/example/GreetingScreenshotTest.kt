@@ -1,28 +1,31 @@
 package com.example
 
-import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onRoot
-import com.example.ui.theme.MyApplicationTheme
-import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
-import com.github.takahirom.roborazzi.captureRoboImage
-import org.junit.Rule
+import com.example.data.repository.NetworkRepository
+import org.junit.Assert.assertEquals
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
-import org.robolectric.annotation.GraphicsMode
 
-@RunWith(RobolectricTestRunner::class)
-@GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(qualifiers = RobolectricDeviceQualifiers.Pixel8, sdk = [36])
-class GreetingScreenshotTest {
+class LrcLyricParserTest {
 
-  @get:Rule val composeTestRule = createComposeRule()
+    private val repository = NetworkRepository()
 
-  @Test
-  fun greeting_screenshot() {
-    composeTestRule.setContent { MyApplicationTheme { Greeting("Robolectric") } }
+    @Test
+    fun `parseLrcLyrics correctly parses timestamps and sorts lines`() {
+        val lrcInput = """
+            [01:15.50] Second lyric line
+            [00:05.10] First lyric line
+            [02:00.00] Third lyric line
+        """.trimIndent()
 
-    composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/greeting.png")
-  }
+        val parsed = repository.parseLrcLyrics(lrcInput)
+
+        assertEquals(3, parsed.size)
+        assertEquals("First lyric line", parsed[0].text)
+        assertEquals(5100L, parsed[0].timeMs)
+
+        assertEquals("Second lyric line", parsed[1].text)
+        assertEquals(75500L, parsed[1].timeMs)
+
+        assertEquals("Third lyric line", parsed[2].text)
+        assertEquals(120000L, parsed[2].timeMs)
+    }
 }

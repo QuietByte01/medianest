@@ -103,7 +103,7 @@ class MediaStoreRepository(private val context: Context) {
                         hidden.equals(folderName, ignoreCase = true) ||
                         (bucketName != null && hidden.equals(bucketName, ignoreCase = true)) ||
                         (bucketId != null && hidden.equals(bucketId, ignoreCase = true)) ||
-                        (relativePath != null && (relativePath.split("/").any { part -> part.equals(hidden, ignoreCase = true) } || relativePath.contains(hidden, ignoreCase = true)))
+                        (relativePath != null && relativePath.split("/").any { part -> part.isNotBlank() && part.equals(hidden, ignoreCase = true) })
                     }
                     if (!showHidden && isFolderDisabled) {
                         continue
@@ -248,7 +248,7 @@ class MediaStoreRepository(private val context: Context) {
                         hidden.equals(folderName, ignoreCase = true) ||
                         (bucketName != null && hidden.equals(bucketName, ignoreCase = true)) ||
                         (bucketId != null && hidden.equals(bucketId, ignoreCase = true)) ||
-                        (relativePath != null && (relativePath.split("/").any { part -> part.equals(hidden, ignoreCase = true) } || relativePath.contains(hidden, ignoreCase = true)))
+                        (relativePath != null && relativePath.split("/").any { part -> part.isNotBlank() && part.equals(hidden, ignoreCase = true) })
                     }
                     if (!showHidden && isFolderDisabled) {
                         continue
@@ -402,7 +402,7 @@ class MediaStoreRepository(private val context: Context) {
                         hidden.equals(folderName, ignoreCase = true) ||
                         (bucketName != null && hidden.equals(bucketName, ignoreCase = true)) ||
                         (bucketId != null && hidden.equals(bucketId, ignoreCase = true)) ||
-                        (relativePath != null && (relativePath.split("/").any { part -> part.equals(hidden, ignoreCase = true) } || relativePath.contains(hidden, ignoreCase = true)))
+                        (relativePath != null && relativePath.split("/").any { part -> part.isNotBlank() && part.equals(hidden, ignoreCase = true) })
                     }
                     if (!showHidden && isFolderDisabled) {
                         continue
@@ -652,24 +652,8 @@ class MediaStoreRepository(private val context: Context) {
                             val fileUri = Uri.fromFile(file)
                             val folderName = if (dirName.isNotBlank()) dirName else (file.parentFile?.name ?: "Hidden")
                             val relPath = file.parentFile?.absolutePath?.removePrefix(rootDir.absolutePath)?.trim('/')?.let { "$it/" } ?: "$folderName/"
-                            var itemWidth = 0
-                            var itemHeight = 0
-                            if (mediaType == MediaType.IMAGE) {
-                                try {
-                                    val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                                    android.graphics.BitmapFactory.decodeFile(file.absolutePath, opts)
-                                    itemWidth = opts.outWidth.coerceAtLeast(0)
-                                    itemHeight = opts.outHeight.coerceAtLeast(0)
-                                } catch (e: Exception) {}
-                            } else if (mediaType == MediaType.VIDEO) {
-                                try {
-                                    val mmr = android.media.MediaMetadataRetriever()
-                                    mmr.setDataSource(file.absolutePath)
-                                    itemWidth = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
-                                    itemHeight = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
-                                    mmr.release()
-                                } catch (e: Exception) {}
-                            }
+                            val itemWidth = 0
+                            val itemHeight = 0
 
                             hiddenItems.add(
                                 MediaItem(

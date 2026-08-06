@@ -61,6 +61,7 @@ import coil.request.ImageRequest
 import com.example.data.db.MediaCategory
 import com.example.data.db.MediaType
 import com.example.data.model.MediaItem
+import com.example.ui.components.getFilePathFromUri
 import com.example.ui.components.MediaLoadingAnimation
 import com.example.ui.components.formatDuration
 import com.example.util.ArtistImageUtils
@@ -1585,26 +1586,33 @@ fun FoldersGrid(
 
             // Folder Action Dialog: Folder Info
             if (folderForInfo != null) {
-                val srcFolder = folderForInfo
+                val srcFolder = folderForInfo!!
                 val items = folderMap[srcFolder] ?: emptyList()
                 val totalSize = items.sumOf { it.size }
+                val folderPath = items.firstOrNull()?.let {
+                    val p = getFilePathFromUri(context, it.uri)
+                    if (p.contains('/')) p.substringBeforeLast('/') else it.relativePath ?: srcFolder
+                } ?: srcFolder
+
                 AlertDialog(
                     onDismissRequest = { folderForInfo = null },
                     containerColor = Color(0xDC141722),
-                shape = RoundedCornerShape(24.dp),
-                    title = { Text("Folder Info") },
+                    shape = RoundedCornerShape(24.dp),
+                    title = { Text("Folder Info", color = Color.White, fontWeight = FontWeight.Bold) },
                     text = {
                         Column {
-                            Text("Folder Name: $srcFolder", fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text("Total Tracks: ${items.size}")
+                            Text("Folder Name: ${srcFolder.substringAfterLast('/')}", fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Folder Path: $folderPath", fontSize = 13.sp, color = Color(0xFF9EA3B0))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Total Tracks: ${items.size}", color = Color.White)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text("Total Size: ${android.text.format.Formatter.formatFileSize(context, totalSize)}")
+                            Text("Total Size: ${android.text.format.Formatter.formatFileSize(context, totalSize)}", color = Color.White)
                         }
                     },
                     confirmButton = {
                         TextButton(onClick = { folderForInfo = null }) {
-                            Text("OK")
+                            Text("OK", color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
                 )
@@ -1822,7 +1830,7 @@ fun PlaylistsList(
                         item {
                             QuickAccessCard(
                                 title = "Most Played",
-                                subtitle = "${audioList.size} tracks",
+                                subtitle = "${mostPlayedSongs.size} tracks",
                                 icon = Icons.Default.LocalFireDepartment,
                                 artUri = mostPlayedArtUri,
                                 gradientColors = listOf(Color(0xFF0284C7), Color(0xFF38BDF8)),
@@ -1832,7 +1840,7 @@ fun PlaylistsList(
                         item {
                             QuickAccessCard(
                                 title = "Recently Played",
-                                subtitle = "${audioList.size} tracks",
+                                subtitle = "${recentSongs.size} tracks",
                                 icon = Icons.Default.History,
                                 artUri = recentlyPlayedArtUri,
                                 gradientColors = listOf(Color(0xFFE91E63), Color(0xFFFF4081)),
@@ -1840,9 +1848,10 @@ fun PlaylistsList(
                             )
                         }
                         item {
+                            val recentlyAddedSongs = remember(audioList) { audioList.sortedByDescending { it.dateAdded } }
                             QuickAccessCard(
                                 title = "Recently Added",
-                                subtitle = "${audioList.size} tracks",
+                                subtitle = "${recentlyAddedSongs.size} tracks",
                                 icon = Icons.Default.Schedule,
                                 artUri = recentlyAddedArtUri,
                                 gradientColors = listOf(Color(0xFF00B0FF), Color(0xFF00E5FF)),

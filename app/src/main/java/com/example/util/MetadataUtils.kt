@@ -44,7 +44,7 @@ object MetadataUtils {
         
         // Split by common artist separators: comma, ampersand, feat., ft., featuring, with, x, slash, semicolon
         val rawParts = clean.split(
-            Regex("""\s*(?:,|&|;|\bfeat\.?\b|\bft\.?\b|\bfeaturing\b|\bwith\b|\bx\b|/)\s*""", RegexOption.IGNORE_CASE)
+            Regex("""\s*(?:,|&|;|\bfeat\b\.?|\bft\b\.?|\bfeaturing\b|\bwith\b|\bx\b|/)\s*""", RegexOption.IGNORE_CASE)
         )
         
         return rawParts

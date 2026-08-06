@@ -211,7 +211,7 @@ class NetworkRepository(
             val url = "https://musicbrainz.org/ws/2/recording/?query=$encoded&fmt=json"
             val request = Request.Builder()
                 .url(url)
-                .header("User-Agent", "MediaNestApp/1.0 ( itsmesachin.76@gmail.com )")
+                .header("User-Agent", "MediaNestApp/1.0")
                 .build()
 
             client.newCall(request).execute().use { response ->

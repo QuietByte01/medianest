@@ -78,6 +78,9 @@ class FloatingPlayerService : Service() {
     private var currentArtworkBitmap: Bitmap? = null
     private var mediaSession: MediaSessionCompat? = null
 
+    private val serviceJob = kotlinx.coroutines.Job()
+    private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -212,50 +215,50 @@ class FloatingPlayerService : Service() {
             updateNotification()
             return
         }
-        CoroutineScope(Dispatchers.IO).launch {
+        serviceScope.launch {
             var bitmap: Bitmap? = null
-            try {
-                val uri = Uri.parse(uriString)
-                // 1. Try MediaMetadataRetriever embedded picture for audio
+            withContext(Dispatchers.IO) {
                 try {
-                    val mmr = android.media.MediaMetadataRetriever()
-                    mmr.setDataSource(applicationContext, uri)
-                    val artBytes = mmr.embeddedPicture
-                    if (artBytes != null) {
-                        bitmap = BitmapFactory.decodeByteArray(artBytes, 0, artBytes.size)
-                    }
-                    mmr.release()
-                } catch (e: Exception) {
-                    // ignore
-                }
-
-                // 2. Try loadThumbnail for Q+
-                if (bitmap == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val uri = Uri.parse(uriString)
+                    // 1. Try MediaMetadataRetriever embedded picture for audio
                     try {
-                        bitmap = contentResolver.loadThumbnail(uri, Size(300, 300), null)
-                    } catch (e: Exception) {
-                        // ignore
-                    }
-                }
-
-                // 3. Try openInputStream
-                if (bitmap == null) {
-                    try {
-                        contentResolver.openInputStream(uri)?.use { stream ->
-                            bitmap = BitmapFactory.decodeStream(stream)
+                        val mmr = android.media.MediaMetadataRetriever()
+                        mmr.setDataSource(applicationContext, uri)
+                        val artBytes = mmr.embeddedPicture
+                        if (artBytes != null) {
+                            bitmap = BitmapFactory.decodeByteArray(artBytes, 0, artBytes.size)
                         }
+                        mmr.release()
                     } catch (e: Exception) {
                         // ignore
                     }
+
+                    // 2. Try loadThumbnail for Q+
+                    if (bitmap == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        try {
+                            bitmap = contentResolver.loadThumbnail(uri, Size(300, 300), null)
+                        } catch (e: Exception) {
+                            // ignore
+                        }
+                    }
+
+                    // 3. Try openInputStream
+                    if (bitmap == null) {
+                        try {
+                            contentResolver.openInputStream(uri)?.use { stream ->
+                                bitmap = BitmapFactory.decodeStream(stream)
+                            }
+                        } catch (e: Exception) {
+                            // ignore
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
 
             currentArtworkBitmap = bitmap
-            withContext(Dispatchers.Main) {
-                updateNotification()
-            }
+            updateNotification()
         }
     }
 
@@ -392,6 +395,7 @@ class FloatingPlayerService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        serviceJob.cancel()
         try {
             mediaSession?.isActive = false
             mediaSession?.release()

@@ -43,10 +43,11 @@ class SettingsManager(private val context: Context) {
         val KEY_SHOW_HIDDEN_FILES = booleanPreferencesKey("show_hidden_files")
         val KEY_HIDDEN_FOLDERS = stringSetPreferencesKey("hidden_folders")
         val KEY_ENABLE_ANALYTICS_TAB = booleanPreferencesKey("enable_analytics_tab")
+        val KEY_ENABLE_TRASH = booleanPreferencesKey("enable_trash")
 
         val KEY_PICTURE_MODE_ENABLED = booleanPreferencesKey("picture_mode_enabled")
         val KEY_DECODER_MODE = stringPreferencesKey("decoder_mode") // AUTO, HARDWARE, SOFTWARE
-        val KEY_PICTURE_MODE = stringPreferencesKey("picture_mode") // BALANCED, NATURAL, VIVID, CINEMATIC, CUSTOM
+        val KEY_PICTURE_MODE = stringPreferencesKey("picture_mode") // DEVICE_DEFAULT, BALANCED, NATURAL, VIVID, CINEMATIC, CUSTOM
         val KEY_CUSTOM_SATURATION = floatPreferencesKey("custom_saturation")
         val KEY_CUSTOM_CONTRAST = floatPreferencesKey("custom_contrast")
         val KEY_CUSTOM_WARMTH = floatPreferencesKey("custom_warmth")
@@ -64,7 +65,8 @@ class SettingsManager(private val context: Context) {
 
     val decoderMode: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_DECODER_MODE] ?: "AUTO" }
     val pictureModeEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_PICTURE_MODE_ENABLED] ?: true }
-    val pictureMode: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_PICTURE_MODE] ?: "BALANCED" }
+    val pictureMode: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_PICTURE_MODE] ?: "DEVICE_DEFAULT" }
+    val enableTrash: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_ENABLE_TRASH] ?: true }
     val customSaturation: Flow<Float> = context.dataStore.data.map { prefs -> prefs[KEY_CUSTOM_SATURATION] ?: 1.18f }
     val customContrast: Flow<Float> = context.dataStore.data.map { prefs -> prefs[KEY_CUSTOM_CONTRAST] ?: 1.06f }
     val customWarmth: Flow<Float> = context.dataStore.data.map { prefs -> prefs[KEY_CUSTOM_WARMTH] ?: 0.03f }
@@ -124,6 +126,7 @@ class SettingsManager(private val context: Context) {
     suspend fun setShowHiddenFiles(show: Boolean) = context.dataStore.edit { it[KEY_SHOW_HIDDEN_FILES] = show }
     suspend fun setHiddenFolders(folders: Set<String>) = context.dataStore.edit { it[KEY_HIDDEN_FOLDERS] = folders }
     suspend fun setEnableAnalyticsTab(enabled: Boolean) = context.dataStore.edit { it[KEY_ENABLE_ANALYTICS_TAB] = enabled }
+    suspend fun setEnableTrash(enabled: Boolean) = context.dataStore.edit { it[KEY_ENABLE_TRASH] = enabled }
 
     suspend fun setDecoderMode(mode: String) = context.dataStore.edit { it[KEY_DECODER_MODE] = mode }
     suspend fun setPictureModeEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_PICTURE_MODE_ENABLED] = enabled }

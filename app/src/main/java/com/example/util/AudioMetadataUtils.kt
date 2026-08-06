@@ -17,8 +17,8 @@ object AudioMetadataUtils {
         var durationMs: Long = 0L
         var albumArtUri: Uri? = null
 
+        val retriever = MediaMetadataRetriever()
         try {
-            val retriever = MediaMetadataRetriever()
             retriever.setDataSource(context, uri)
             title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
             artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
@@ -27,7 +27,6 @@ object AudioMetadataUtils {
             durationMs = durationStr?.toLongOrNull() ?: 0L
 
             val artBytes = retriever.embeddedPicture
-            retriever.release()
 
             if (artBytes != null && artBytes.isNotEmpty()) {
                 val cacheFile = File(context.cacheDir, "album_art_${uri.toString().hashCode()}.jpg")
@@ -38,6 +37,12 @@ object AudioMetadataUtils {
             }
         } catch (e: Exception) {
             Log.e("AudioMetadataUtils", "Failed to retrieve metadata for $uri", e)
+        } finally {
+            try {
+                retriever.release()
+            } catch (e: Exception) {
+                // ignore
+            }
         }
 
         val cleanedTitle = resolveTitle(context, uri, title, rawTitleHint)

@@ -12,6 +12,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.data.db.MediaType
@@ -54,36 +56,54 @@ fun MediaLoadingAnimation(
 
     val labelText = customMessage ?: defaultLabel
 
-    Column(
+    // Frosty glow background commented out per request
+    Box(
         modifier = modifier.padding(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.padding(4.dp)
+        /*
+        .clip(androidx.compose.foundation.shape.CircleShape)
+        .background(
+            brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                colors = listOf(
+                    accentGlowColor,
+                    Color.White.copy(alpha = 0.08f),
+                    Color.Transparent
+                )
+            )
+        )
+        */
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(16.dp)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = labelText,
-                tint = Color.White.copy(alpha = 0.9f),
-                modifier = Modifier
-                    .size(iconSize)
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        this.alpha = alpha
-                    }
-            )
-        }
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.padding(4.dp)
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = labelText,
+                    tint = Color.White.copy(alpha = 0.9f),
+                    modifier = Modifier
+                        .size(iconSize)
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                            this.alpha = alpha
+                        }
+                )
+            }
 
-        if (showLabel) {
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = labelText,
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.75f)
-            )
+            if (showLabel) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = labelText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.75f)
+                )
+            }
         }
     }
 }

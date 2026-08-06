@@ -179,31 +179,50 @@ fun MediaGridItem(
                 }
             }
 
-            // Video overlay badge
+            // Video title & duration overlay badge
             if (item.type == MediaType.VIDEO) {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(6.dp)
-                        .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .fillMaxWidth()
+                        .align(Alignment.BottomStart)
+                        .background(
+                            brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.88f))
+                            )
+                        )
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
                 ) {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(12.dp)
-                        )
                         Text(
-                            text = formatDuration(item.durationMs),
+                            text = item.title,
                             color = Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).padding(end = 4.dp)
                         )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(10.dp)
+                            )
+                            Text(
+                                text = formatDuration(item.durationMs),
+                                color = Color.White.copy(alpha = 0.9f),
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
             }

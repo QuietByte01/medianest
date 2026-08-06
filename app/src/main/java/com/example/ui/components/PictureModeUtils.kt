@@ -12,6 +12,12 @@ enum class PictureMode(
     val subtitle: String,
     val description: String
 ) {
+    DEVICE_DEFAULT(
+        key = "DEVICE_DEFAULT",
+        displayName = "Device Default",
+        subtitle = "Hardware original (Unmodified)",
+        description = "Uses the device's native system display profile without applying any custom post-processing color matrix filter."
+    ),
     BALANCED(
         key = "BALANCED",
         displayName = "Balanced Natural+",
@@ -45,7 +51,7 @@ enum class PictureMode(
 
     companion object {
         fun fromKey(key: String): PictureMode =
-            entries.firstOrNull { it.key.equals(key, ignoreCase = true) } ?: BALANCED
+            entries.firstOrNull { it.key.equals(key, ignoreCase = true) } ?: DEVICE_DEFAULT
     }
 }
 
@@ -63,8 +69,8 @@ object PictureModeUtils {
     ): FloatArray {
         return try {
             val (rawSat, rawCon, rawWarmth) = when (mode) {
+                PictureMode.DEVICE_DEFAULT, PictureMode.NATURAL -> Triple(1.0f, 1.0f, 0.0f)
                 PictureMode.BALANCED -> Triple(1.18f, 1.06f, 0.03f)
-                PictureMode.NATURAL -> Triple(1.0f, 1.0f, 0.0f)
                 PictureMode.VIVID -> Triple(1.42f, 1.15f, 0.0f)
                 PictureMode.CINEMATIC -> Triple(1.05f, 1.10f, 0.08f)
                 PictureMode.CUSTOM -> Triple(customSat, customCon, customWarmth)
@@ -135,7 +141,7 @@ object PictureModeUtils {
         if (!enabled) return null
         return try {
             val mode = PictureMode.fromKey(modeKey)
-            if (mode == PictureMode.NATURAL) return null
+            if (mode == PictureMode.NATURAL || mode == PictureMode.DEVICE_DEFAULT) return null
             val matrixValues = createColorMatrixValues(mode, customSat, customCon, customWarmth)
             ColorFilter.colorMatrix(ComposeColorMatrix(matrixValues))
         } catch (e: Throwable) {
@@ -157,7 +163,7 @@ object PictureModeUtils {
         if (!enabled) return null
         return try {
             val mode = PictureMode.fromKey(modeKey)
-            if (mode == PictureMode.NATURAL) return null
+            if (mode == PictureMode.NATURAL || mode == PictureMode.DEVICE_DEFAULT) return null
             val matrixValues = createColorMatrixValues(mode, customSat, customCon, customWarmth)
             AndroidColorMatrixColorFilter(AndroidColorMatrix(matrixValues))
         } catch (e: Throwable) {
@@ -178,8 +184,8 @@ object PictureModeUtils {
         return try {
             val mode = PictureMode.fromKey(modeKey)
             when (mode) {
+                PictureMode.DEVICE_DEFAULT, PictureMode.NATURAL -> Triple(1.0f, 1.0f, 0.0f)
                 PictureMode.BALANCED -> Triple(1.18f, 1.06f, 0.03f)
-                PictureMode.NATURAL -> Triple(1.0f, 1.0f, 0.0f)
                 PictureMode.VIVID -> Triple(1.42f, 1.15f, 0.0f)
                 PictureMode.CINEMATIC -> Triple(1.05f, 1.10f, 0.08f)
                 PictureMode.CUSTOM -> Triple(customSat, customCon, customWarmth)

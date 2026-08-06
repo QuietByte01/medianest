@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -271,11 +272,11 @@ fun AudioVisualizer(
                             bandPulse.coerceIn(0.06f, 1.0f)
                         }
 
-                        // Heavily favor raw audio data if it exists
+                        // Favor raw audio data if present, otherwise use vivid synthetic music movement
                         val targetVal = if (rawVal > 0.005f) {
                             (rawVal * 0.92f + syntheticTarget * 0.08f).coerceIn(0.06f, 1f)
                         } else {
-                            syntheticTarget * 0.6f // Subtle movement when quiet
+                            (syntheticTarget * 0.95f).coerceIn(0.08f, 1.0f)
                         }
 
                         // Fast attack, smooth decay
@@ -318,11 +319,48 @@ fun AudioVisualizer(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            // Read lastNanos at top of Canvas to guarantee 60 FPS invalidation & frame sync
-            val animNanos = lastNanos
-            val artBaseHue = extractedBaseHue ?: ((abs(trackSeed).toFloat() * 137.5f) % 360f)
+        val artBaseHue = extractedBaseHue ?: ((abs(trackSeed).toFloat() * 137.5f) % 360f)
+        val animNanos = lastNanos
 
+        // Layer 1: Diffused/Blurred Background Layer
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .blur(32.dp) // Stronger blur for true base diffusion
+        ) {
+            if (currentStyle == VisualizerStyle.GLOSSY_SPECTRUM_BARS) {
+                val totalBars = state.numBands
+                val spacing = 12.dp.toPx()
+                val totalSpacing = spacing * (totalBars - 1)
+                val barWidth = ((size.width - totalSpacing) / totalBars).coerceAtLeast(4f)
+                val maxHeight = size.height
+
+                for (i in 0 until totalBars) {
+                    val value = state.smoothedBands[i]
+                    val barHeight = (maxHeight * value * 0.95f).coerceAtLeast(4.dp.toPx())
+                    val x = i * (barWidth + spacing)
+                    val top = maxHeight - barHeight
+
+                    // Diffusion layer: Wider and more present at the bottom
+                    drawRoundRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.0f),  // Top: Fades out
+                                Color.White.copy(alpha = 0.65f)  // Bottom: Strong blur spread
+                            ),
+                            startY = top,
+                            endY = maxHeight
+                        ),
+                        topLeft = Offset(x - 8.dp.toPx(), top),
+                        size = Size(barWidth + 16.dp.toPx(), barHeight),
+                        cornerRadius = CornerRadius((barWidth + 16.dp.toPx()) / 2f)
+                    )
+                }
+            }
+        }
+
+        // Layer 2: Sharp Foreground Layer
+        Canvas(modifier = Modifier.fillMaxSize()) {
             when (currentStyle) {
                 VisualizerStyle.GLOSSY_SPECTRUM_BARS -> {
                     drawGlossySpectrumBars(
@@ -398,113 +436,49 @@ private fun DrawScope.drawGlossySpectrumBars(
     timeNanos: Float
 ) {
     val totalBars = state.numBands
-    val spacing = 4.dp.toPx() // Slightly wider spacing for "Neon" look
+    val spacing = 12.dp.toPx() // Increased spacing for more "breathing" room
     val totalSpacing = spacing * (totalBars - 1)
     val barWidth = ((size.width - totalSpacing) / totalBars).coerceAtLeast(4f)
     val maxHeight = size.height
 
-    // Base Hue locked to album art base hue with subtle organic pulse
-    val timeSec = timeNanos / 1_000_000_000f
-    val baseHue = (artBaseHue + sin(timeSec * 0.8f) * 8f + 360f) % 360f
-
-    val colorStart = Color.hsv(baseHue, 0.85f, 0.98f)
-    val colorMid = Color.hsv((baseHue + 15f) % 360f, 0.88f, 0.98f)
-
-    // Background Glowing Dynamic Aura (Subtle Glow behind all bars)
-    if (state.overallAmplitude > 0.05f) {
-        drawRect(
-            brush = Brush.verticalGradient(
-                colors = listOf(
-                    Color.Transparent,
-                    colorMid.copy(alpha = 0.12f * state.overallAmplitude),
-                    colorStart.copy(alpha = 0.22f * state.overallAmplitude)
-                ),
-                startY = 0f,
-                endY = maxHeight
-            ),
-            topLeft = Offset.Zero,
-            size = size
-        )
-    }
-
     for (i in 0 until totalBars) {
-        val norm = i.toFloat() / (totalBars - 1)
         val value = state.smoothedBands[i]
         val barHeight = (maxHeight * value * 0.92f).coerceAtLeast(6.dp.toPx())
 
         val x = i * (barWidth + spacing)
         val top = maxHeight - barHeight
 
-        // Continuously shifting dynamic spectrum color for the glow
-        val barGlowColor = dynamicSpectrumColor(norm, baseHue)
-
-        // 1. ULTRA WIDE DIFFUSED NEON GLOW (Softest layer)
+        // MAIN BAR BODY (Fades to 0 at bottom to let the blur layer take over)
         drawRoundRect(
-            color = barGlowColor.copy(alpha = 0.05f * value),
-            topLeft = Offset(x - 14.dp.toPx(), top - 8.dp.toPx()),
-            size = Size(barWidth + 28.dp.toPx(), barHeight + 16.dp.toPx()),
-            cornerRadius = CornerRadius((barWidth + 28.dp.toPx()) / 2f)
-        )
-
-        // 2. EXTRA WIDE DIFFUSED NEON GLOW
-        drawRoundRect(
-            color = barGlowColor.copy(alpha = 0.10f * value),
-            topLeft = Offset(x - 10.dp.toPx(), top - 6.dp.toPx()),
-            size = Size(barWidth + 20.dp.toPx(), barHeight + 12.dp.toPx()),
-            cornerRadius = CornerRadius((barWidth + 20.dp.toPx()) / 2f)
-        )
-
-        // 3. OUTER SOFT NEON GLOW
-        drawRoundRect(
-            color = barGlowColor.copy(alpha = 0.18f * value),
-            topLeft = Offset(x - 6.dp.toPx(), top - 4.dp.toPx()),
-            size = Size(barWidth + 12.dp.toPx(), barHeight + 8.dp.toPx()),
-            cornerRadius = CornerRadius((barWidth + 12.dp.toPx()) / 2f)
-        )
-
-        // 4. MAIN GLOSSY BAR BODY (High visibility with tube effect)
-        drawRoundRect(
-            brush = Brush.horizontalGradient(
+            brush = Brush.verticalGradient(
                 colors = listOf(
-                    Color.White.copy(alpha = 0.15f), // Edge shadow
-                    Color.White.copy(alpha = 0.75f), // Bright center
-                    Color.White.copy(alpha = 0.75f), // Bright center
-                    Color.White.copy(alpha = 0.15f)  // Edge shadow
+                    Color.White.copy(alpha = 0.90f), // Top: Solid
+                    Color.White.copy(alpha = 0.50f), // Mid
+                    Color.White.copy(alpha = 0.0f)   // Bottom: Completely transparent (diffused)
                 ),
-                startX = x,
-                endX = x + barWidth
+                startY = top,
+                endY = maxHeight
             ),
             topLeft = Offset(x, top),
             size = Size(barWidth, barHeight),
             cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f)
         )
 
-        // 5. SHARP VERTICAL SPECULAR HIGHLIGHT (Glassy look)
-        if (barWidth >= 4f) {
-            val specWidth = barWidth * 0.22f
-            drawRoundRect(
-                color = Color.White.copy(alpha = 0.92f),
-                topLeft = Offset(x + (barWidth * 0.2f), top + (barWidth / 4f)),
-                size = Size(specWidth, barHeight - (barWidth / 2f)),
-                cornerRadius = CornerRadius(specWidth / 2f)
-            )
-        }
-
-        // Faded Inverted Mirror Reflection Below Baseline
-        val reflectionHeight = barHeight * 0.18f
-        if (reflectionHeight > 2.dp.toPx()) {
+        // Subtle Specular highlight for gloss (only at the sharper top half)
+        if (barWidth >= 4f && value > 0.2f) {
+            val specWidth = barWidth * 0.25f
             drawRoundRect(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        barGlowColor.copy(alpha = 0.25f),
+                        Color.White.copy(alpha = 0.4f),
                         Color.Transparent
                     ),
-                    startY = maxHeight,
-                    endY = maxHeight + reflectionHeight
+                    startY = top + (barWidth / 4f),
+                    endY = top + (barHeight * 0.5f)
                 ),
-                topLeft = Offset(x, maxHeight),
-                size = Size(barWidth, reflectionHeight),
-                cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f)
+                topLeft = Offset(x + (barWidth * 0.15f), top + (barWidth / 4f)),
+                size = Size(specWidth, barHeight * 0.4f),
+                cornerRadius = CornerRadius(specWidth / 2f)
             )
         }
     }

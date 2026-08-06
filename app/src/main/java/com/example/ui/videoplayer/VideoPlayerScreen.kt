@@ -362,7 +362,6 @@ fun VideoPlayerScreen(
                                     // Horizontal drag -> Seek
                                     if (!isControlsLocked && playerState.durationMs > 0) {
                                         isHorizontalDragging = true
-                                        showControls = true
                                         val deltaRatio = dragAmount.x / screenWidth.toFloat()
                                         val addedMs = (deltaRatio * 120_000).toLong()
                                         seekDeltaMs += addedMs
@@ -1248,29 +1247,32 @@ fun VideoPlayerScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Samsung Smart View", color = Color.White, fontSize = 14.sp) },
+                            text = { Text("Edit Video", color = Color.White, fontSize = 14.sp) },
+                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp)) },
+                            onClick = {
+                                showOverflowMenu = false
+                                playerState.currentItem?.uri?.let { uri ->
+                                    val editIntent = android.content.Intent(android.content.Intent.ACTION_EDIT).apply {
+                                        setDataAndType(uri, "video/*")
+                                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    val chooser = android.content.Intent.createChooser(editIntent, "Edit Video With")
+                                    runCatching { context.startActivity(chooser) }.onFailure {
+                                        android.widget.Toast.makeText(context, "No video editor app found", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Cast to TV", color = Color.White, fontSize = 14.sp) },
                             leadingIcon = { Icon(Icons.Default.Tv, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp)) },
                             onClick = {
                                 showOverflowMenu = false
-                                
-                                // Try Samsung Smart View specific intent
-                                val smartViewIntent = android.content.Intent().apply {
-                                    action = "com.samsung.wfd.LAUNCH_WFD_PICKER_DLG"
-                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                
-                                runCatching {
-                                    context.startActivity(smartViewIntent)
-                                }.onFailure {
-                                    // Fallback to Wifi Display Settings (Smart View's system page)
+                                val castIntent = android.content.Intent(android.provider.Settings.ACTION_CAST_SETTINGS)
+                                val chooser = android.content.Intent.createChooser(castIntent, "Cast to TV")
+                                runCatching { context.startActivity(chooser) }.onFailure {
                                     val wifiDisplayIntent = android.content.Intent("android.settings.WIFI_DISPLAY_SETTINGS")
-                                    runCatching {
-                                        context.startActivity(wifiDisplayIntent)
-                                    }.onFailure {
-                                        // Final fallback to Cast Settings
-                                        val castIntent = android.content.Intent(android.provider.Settings.ACTION_CAST_SETTINGS)
-                                        runCatching { context.startActivity(castIntent) }
-                                    }
+                                    runCatching { context.startActivity(android.content.Intent.createChooser(wifiDisplayIntent, "Cast to TV")) }
                                 }
                             }
                         )

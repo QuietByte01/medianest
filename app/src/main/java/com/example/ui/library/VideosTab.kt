@@ -188,8 +188,11 @@ fun VideosTab(
         }
     }
 
+    val moviesCount = remember(videosList) { videosList.count { isMovie(it) } }
+    val seriesCount = remember(videosList) { videosList.count { isTVSeries(it) } }
+
     Column(modifier = Modifier.fillMaxSize()) {
-        // Top Filter Tabs (Exact Order: All Videos, Music Videos, Movies & Shows, Clips & Recordings, Shorts, Edited, Downloaded)
+        // Top Filter Tabs (Exact Order: All Videos, Music Videos, Movies, Web Series, Clips & Recordings, Shorts, Edited, Downloaded)
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
@@ -282,30 +285,62 @@ fun VideosTab(
                 }
             }
 
-            // 3. Movies & Shows
-            item {
-                val isSelected = activeFilterTab == "MOVIES"
-                GlassSurface(
-                    shape = RoundedCornerShape(20.dp),
-                    backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
-                    borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
-                    modifier = Modifier
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .clickable {
-                            isFolderViewActive = false
-                            selectedFolder = null
-                            activeFilterTab = "MOVIES"
-                            onCategorySelect(null)
-                        }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+            // 3. Movies
+            if (moviesCount > 0) {
+                item {
+                    val isSelected = activeFilterTab == "MOVIES"
+                    GlassSurface(
+                        shape = RoundedCornerShape(20.dp),
+                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
+                        modifier = Modifier
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable {
+                                isFolderViewActive = false
+                                selectedFolder = null
+                                activeFilterTab = "MOVIES"
+                                onCategorySelect(null)
+                            }
                     ) {
-                        Icon(Icons.Default.Movie, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
-                        Text("Movies & Shows", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.Movie, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
+                            Text("Movies", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                        }
+                    }
+                }
+            }
+
+            // 3b. Web Series
+            if (seriesCount > 0) {
+                item {
+                    val isSelected = activeFilterTab == "SERIES"
+                    GlassSurface(
+                        shape = RoundedCornerShape(20.dp),
+                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
+                        modifier = Modifier
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable {
+                                isFolderViewActive = false
+                                selectedFolder = null
+                                activeFilterTab = "SERIES"
+                                onCategorySelect(null)
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.Tv, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
+                            Text("Web Series", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                        }
                     }
                 }
             }
