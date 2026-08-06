@@ -330,7 +330,7 @@ fun ImagesTab(
                     }
                 }
 
-                // 14. Notes (Moved before GIFs)
+                // 14. Notes (Moved before Screenshots)
                 item {
                     val isSelected = activeFilterTab == "NOTES"
                     GlassSurface(
@@ -354,6 +354,34 @@ fun ImagesTab(
                         ) {
                             Icon(Icons.Default.Note, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFFC0C5D0), modifier = Modifier.size(16.dp))
                             Text("Notes & Studies", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFFC0C5D0))
+                        }
+                    }
+                }
+
+                // 13. Screenshots (Moved before GIFs)
+                item {
+                    val isSelected = activeFilterTab == "SCREENSHOTS"
+                    GlassSurface(
+                        shape = RoundedCornerShape(20.dp),
+                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
+                        modifier = Modifier
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable {
+                                activeFilterTab = "SCREENSHOTS"
+                                viewMode = 0
+                                selectedFolder = null
+                                selectedCategory = null
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.Screenshot, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFFC0C5D0), modifier = Modifier.size(16.dp))
+                            Text("Screenshots", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFFC0C5D0))
                         }
                     }
                 }
@@ -382,34 +410,6 @@ fun ImagesTab(
                         ) {
                             Icon(Icons.Default.Animation, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFFC0C5D0), modifier = Modifier.size(16.dp))
                             Text("GIFs", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFFC0C5D0))
-                        }
-                    }
-                }
-
-                // 13. Screenshots (Moved after GIFs)
-                item {
-                    val isSelected = activeFilterTab == "SCREENSHOTS"
-                    GlassSurface(
-                        shape = RoundedCornerShape(20.dp),
-                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
-                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
-                        modifier = Modifier
-                            .height(38.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .clickable {
-                                activeFilterTab = "SCREENSHOTS"
-                                viewMode = 0
-                                selectedFolder = null
-                                selectedCategory = null
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(Icons.Default.Screenshot, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFFC0C5D0), modifier = Modifier.size(16.dp))
-                            Text("Screenshots", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFFC0C5D0))
                         }
                     }
                 }
@@ -1386,7 +1386,15 @@ fun ImagesTab(
                                 full.contains("screenshot") || full.contains("screenshots")
                             }
                             "NOTES" -> imagesList.filter { item ->
-                                val full = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
+                                val path = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "")).lowercase()
+
+                                // Explicitly skip WhatsApp specific folders that aren't for personal notes
+                                if (path.contains("whatsapp documents") || path.contains("whatsapp video notes")) {
+                                    return@filter false
+                                }
+
+                                // Use only path and title for matching, excluding URI noise
+                                val full = (path + "/" + item.title).lowercase()
                                 val notesKeywords = listOf(
                                     // Core notes, docs & receipts
                                     "note", "notes", "document", "documents", "doc", "scan", "scanner", "receipt", "whiteboard",
@@ -1407,7 +1415,11 @@ fun ImagesTab(
                                     "chemistry", "biology", "math", "mathematics", "geography", "economics", "civics", "study",
                                     "education", "tutorial", "exam", "syllabus", "lecture", "assignment", "homework", "formula"
                                 )
-                                notesKeywords.any { full.contains(it) }
+                                // Ensure whole word matching using regex word boundaries (\b)
+                                notesKeywords.any { kw -> 
+                                    val regex = Regex("\\b${Regex.escape(kw)}\\b", RegexOption.IGNORE_CASE)
+                                    regex.containsMatchIn(full)
+                                }
                             }
                             else -> imagesList
                         }
