@@ -225,6 +225,62 @@ fun VideosTab(
                 }
             }
 
+            // 10. Folders Tab (Moved here after All Videos)
+            item {
+                val isSelected = isFolderViewActive
+                GlassSurface(
+                    shape = RoundedCornerShape(20.dp),
+                    backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                    borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
+                    modifier = Modifier
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .clickable {
+                            isFolderViewActive = true
+                            selectedFolder = null
+                            activeFilterTab = "FOLDERS"
+                            onCategorySelect(null)
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(Icons.Default.Folder, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
+                        Text("Folders", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                    }
+                }
+            }
+
+            // 10. Folders Tab (Moved here after All Videos)
+            item {
+                val isSelected = isFolderViewActive
+                GlassSurface(
+                    shape = RoundedCornerShape(20.dp),
+                    backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                    borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
+                    modifier = Modifier
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .clickable {
+                            isFolderViewActive = true
+                            selectedFolder = null
+                            activeFilterTab = "FOLDERS"
+                            onCategorySelect(null)
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(Icons.Default.Folder, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
+                        Text("Folders", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                    }
+                }
+            }
+
             // 2. Music Videos
             item {
                 val isSelected = activeFilterTab == "MUSIC"
@@ -337,6 +393,34 @@ fun VideosTab(
                 }
             }
 
+            // 8. Social Media (Moved before Edited)
+            item {
+                val isSelected = activeFilterTab == "SOCIAL"
+                GlassSurface(
+                    shape = RoundedCornerShape(20.dp),
+                    backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                    borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
+                    modifier = Modifier
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .clickable {
+                            isFolderViewActive = false
+                            selectedFolder = null
+                            activeFilterTab = "SOCIAL"
+                            onCategorySelect(null)
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
+                        Text("Social Media", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                    }
+                }
+            }
+
             // 6. Edited
             item {
                 val isSelected = activeFilterTab == "EDITED"
@@ -393,34 +477,6 @@ fun VideosTab(
                 }
             }
 
-            // 8. Social Media
-            item {
-                val isSelected = activeFilterTab == "SOCIAL"
-                GlassSurface(
-                    shape = RoundedCornerShape(20.dp),
-                    backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
-                    borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
-                    modifier = Modifier
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .clickable {
-                            isFolderViewActive = false
-                            selectedFolder = null
-                            activeFilterTab = "SOCIAL"
-                            onCategorySelect(null)
-                        }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(Icons.Default.Share, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
-                        Text("Social Media", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
-                    }
-                }
-            }
-
             // 9. Category Tab
             item {
                 val isSelected = !isFolderViewActive && activeFilterTab == "CATEGORY"
@@ -444,34 +500,6 @@ fun VideosTab(
                     ) {
                         Icon(Icons.Default.Category, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
                         Text("Category", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
-                    }
-                }
-            }
-
-            // Folders Tab
-            item {
-                val isSelected = isFolderViewActive
-                GlassSurface(
-                    shape = RoundedCornerShape(20.dp),
-                    backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
-                    borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
-                    modifier = Modifier
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .clickable {
-                            isFolderViewActive = true
-                            selectedFolder = null
-                            activeFilterTab = "FOLDERS"
-                            onCategorySelect(null)
-                        }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(Icons.Default.Folder, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
-                        Text("Folders", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
                     }
                 }
             }
