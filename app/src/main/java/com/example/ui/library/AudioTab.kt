@@ -127,6 +127,21 @@ fun AudioTab(
         )
     }
 
+    val visibleCategories = remember(categories, audioList, recentSongs, mostPlayedSongs, playlists, subTabState) {
+        categories.filter { cat ->
+            when (cat.index) {
+                0 -> true
+                1 -> recentSongs.isNotEmpty() || subTabState == 1
+                2 -> mostPlayedSongs.isNotEmpty() || subTabState == 2
+                3 -> audioList.any { !it.album.isNullOrBlank() } || subTabState == 3
+                4 -> audioList.any { !it.artist.isNullOrBlank() } || subTabState == 4
+                5 -> audioList.any { !it.relativePath.isNullOrBlank() || it.bucketName != null } || subTabState == 5
+                6 -> playlists.isNotEmpty() || subTabState == 6
+                else -> true
+            }
+        }
+    }
+
     val contentBlock: @Composable () -> Unit = {
         when (subTabState) {
             0 -> SongsList(
@@ -223,7 +238,7 @@ fun AudioTab(
                         .padding(10.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    categories.forEach { item ->
+                    visibleCategories.forEach { item ->
                         val isSelected = subTabState == item.index
                         Surface(
                             modifier = Modifier
@@ -274,7 +289,7 @@ fun AudioTab(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                items(categories, key = { it.index }) { item ->
+                items(visibleCategories, key = { it.index }) { item ->
                     val isSelected = subTabState == item.index
                     GlassSurface(
                         modifier = Modifier

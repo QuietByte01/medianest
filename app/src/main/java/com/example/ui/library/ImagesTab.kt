@@ -220,14 +220,20 @@ fun ImagesTab(
         Column(modifier = Modifier.fillMaxSize()) {
             // Mode & Collections Filter Chips Bar (Exact order matching images.tablets.png)
             // Mode & Collections Filter Chips Bar
-            LazyRow(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 6.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(end = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                LazyRow(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 6.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                 // 1. All Photos
                 item {
                     val isSelected = activeFilterTab == "ALL" && viewMode == 0 && selectedCategory == null
@@ -646,6 +652,56 @@ fun ImagesTab(
                             Icon(Icons.Default.Delete, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFFC0C5D0), modifier = Modifier.size(16.dp))
                             Text("Trash", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFFC0C5D0))
                         }
+                    }
+                }
+            }
+
+            Box {
+                    IconButton(
+                        onClick = { showSortMenu = true },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(Color(0x221C1F2B))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Sort,
+                            contentDescription = "Sort Images",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showSortMenu,
+                        onDismissRequest = { showSortMenu = false },
+                        containerColor = Color(0xEF12151F),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Date (Newest First)", color = if (sortOption == "DATE_DESC") Color(0xFF6366F1) else Color.White) },
+                            onClick = { sortOption = "DATE_DESC"; showSortMenu = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Date (Oldest First)", color = if (sortOption == "DATE_ASC") Color(0xFF6366F1) else Color.White) },
+                            onClick = { sortOption = "DATE_ASC"; showSortMenu = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Name (A to Z)", color = if (sortOption == "NAME_ASC") Color(0xFF6366F1) else Color.White) },
+                            onClick = { sortOption = "NAME_ASC"; showSortMenu = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Name (Z to A)", color = if (sortOption == "NAME_DESC") Color(0xFF6366F1) else Color.White) },
+                            onClick = { sortOption = "NAME_DESC"; showSortMenu = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Size (Largest First)", color = if (sortOption == "SIZE_DESC") Color(0xFF6366F1) else Color.White) },
+                            onClick = { sortOption = "SIZE_DESC"; showSortMenu = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Size (Smallest First)", color = if (sortOption == "SIZE_ASC") Color(0xFF6366F1) else Color.White) },
+                            onClick = { sortOption = "SIZE_ASC"; showSortMenu = false }
+                        )
                     }
                 }
             }
@@ -1545,6 +1601,16 @@ fun ImagesTab(
                             }
                         }
                     } else {
+                        val sortedDisplayList = remember(displayList, sortOption) {
+                            when (sortOption) {
+                                "DATE_ASC" -> displayList.sortedBy { it.dateAdded }
+                                "NAME_ASC" -> displayList.sortedBy { it.title.lowercase() }
+                                "NAME_DESC" -> displayList.sortedByDescending { it.title.lowercase() }
+                                "SIZE_DESC" -> displayList.sortedByDescending { it.size }
+                                "SIZE_ASC" -> displayList.sortedBy { it.size }
+                                else -> displayList.sortedByDescending { it.dateAdded }
+                            }
+                        }
                         val imageGridState = rememberLazyStaggeredGridState()
                         LazyVerticalStaggeredGrid(
                             state = imageGridState,
@@ -1556,14 +1622,14 @@ fun ImagesTab(
                             horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
                             verticalItemSpacing = Dp(gridGapDp.toFloat())
                         ) {
-                            items(displayList, key = { it.id }) { item ->
+                            items(sortedDisplayList, key = { it.id }) { item ->
                                 MediaGridItem(
                                     item = item,
                                     isSelected = selectedUris.contains(item.uri.toString()),
                                     isSelectionMode = isSelectionMode,
                                     cornerRadiusDp = cornerRadiusDp,
                                     roundedCornersEnabled = roundedCornersEnabled,
-                                    onClick = { onImageClick(item, displayList) },
+                                    onClick = { onImageClick(item, sortedDisplayList) },
                                     onLongClick = { onImageLongClick(item) },
                                     onInfo = { infoItem = item },
                                     onDelete = { imageToDelete = item },
@@ -1578,7 +1644,6 @@ fun ImagesTab(
                                         selectedFolder = folderName
                                     }
                                 )
-                            }
                         }
                     }
                 }
@@ -1586,12 +1651,12 @@ fun ImagesTab(
         }
 
         // Contextual Floating Action Bar for Folder Grouping
-        AnimatedVisibility(
+        androidx.compose.animation.AnimatedVisibility(
             visible = isFolderSelectionActive && viewMode == 1 && selectedFolder == null,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
                 .padding(16.dp)
         ) {
             Surface(
@@ -2087,4 +2152,5 @@ fun ImagesTab(
             )
         }
     }
+}
 }

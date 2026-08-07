@@ -40,6 +40,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -90,6 +91,9 @@ fun VideosTab(
     var selectedFolder by remember(initialFolder) { mutableStateOf(initialFolder) }
     var infoItem by remember { mutableStateOf<MediaItem?>(null) }
     var videoToDelete by remember { mutableStateOf<MediaItem?>(null) }
+
+    var selectedSeriesName by remember { mutableStateOf<String?>(null) }
+    var selectedSeasonName by remember { mutableStateOf<String?>(null) }
 
     // Folder Actions State
     var folderToMove by remember { mutableStateOf<String?>(null) }
@@ -180,8 +184,10 @@ fun VideosTab(
         videosList.groupBy { it.bucketName ?: "Movies" }
     }
 
-    BackHandler(enabled = selectedFolder != null || selectedCategory != null || isFolderViewActive || activeFilterTab != "ALL") {
+    BackHandler(enabled = selectedSeasonName != null || selectedSeriesName != null || selectedFolder != null || selectedCategory != null || isFolderViewActive || activeFilterTab != "ALL") {
         when {
+            selectedSeasonName != null -> selectedSeasonName = null
+            selectedSeriesName != null -> selectedSeriesName = null
             selectedFolder != null -> selectedFolder = null
             selectedCategory != null -> onCategorySelect(null)
             isFolderViewActive -> {
@@ -192,8 +198,14 @@ fun VideosTab(
         }
     }
 
+    val musicCount = remember(videosList) { videosList.count { isMusicVideo(it) } }
     val moviesCount = remember(videosList) { videosList.count { isMovie(it) } }
     val seriesCount = remember(videosList) { videosList.count { isTVSeries(it) } }
+    val clipsCount = remember(videosList) { videosList.count { isClipsAndRecordings(it) } }
+    val shortsCount = remember(videosList) { videosList.count { isShorts(it) } }
+    val socialCount = remember(videosList) { videosList.count { isSocialMediaVideo(it) } }
+    val editedCount = remember(videosList) { videosList.count { isEditedVideo(it) } }
+    val downloadedCount = remember(videosList) { videosList.count { isDownloaded(it) } }
     val trashedVideoItems = remember(activeFilterTab) {
         com.example.util.TrashManager.getTrashedItems(currentContext)
             .filter { it.mimeType.startsWith("video") }
@@ -266,35 +278,37 @@ fun VideosTab(
 
 
             // 2. Music Videos
-            item {
-                val isSelected = activeFilterTab == "MUSIC"
-                GlassSurface(
-                    shape = RoundedCornerShape(20.dp),
-                    backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
-                    borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
-                    modifier = Modifier
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .clickable {
-                            isFolderViewActive = false
-                            selectedFolder = null
-                            activeFilterTab = "MUSIC"
-                            onCategorySelect(null)
-                        }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+            if (musicCount > 0 || activeFilterTab == "MUSIC") {
+                item {
+                    val isSelected = activeFilterTab == "MUSIC"
+                    GlassSurface(
+                        shape = RoundedCornerShape(20.dp),
+                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
+                        modifier = Modifier
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable {
+                                isFolderViewActive = false
+                                selectedFolder = null
+                                activeFilterTab = "MUSIC"
+                                onCategorySelect(null)
+                            }
                     ) {
-                        Icon(Icons.Default.MusicNote, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
-                        Text("Music Videos", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.MusicNote, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
+                            Text("Music Videos", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                        }
                     }
                 }
             }
 
             // 3. Movies
-            if (moviesCount > 0) {
+            if (moviesCount > 0 || activeFilterTab == "MOVIES") {
                 item {
                     val isSelected = activeFilterTab == "MOVIES"
                     GlassSurface(
@@ -324,7 +338,7 @@ fun VideosTab(
             }
 
             // 3b. Web Series
-            if (seriesCount > 0) {
+            if (seriesCount > 0 || activeFilterTab == "SERIES") {
                 item {
                     val isSelected = activeFilterTab == "SERIES"
                     GlassSurface(
@@ -354,141 +368,151 @@ fun VideosTab(
             }
 
             // 4. Clips & Recordings
-            item {
-                val isSelected = activeFilterTab == "CLIPS"
-                GlassSurface(
-                    shape = RoundedCornerShape(20.dp),
-                    backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
-                    borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
-                    modifier = Modifier
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .clickable {
-                            isFolderViewActive = false
-                            selectedFolder = null
-                            activeFilterTab = "CLIPS"
-                            onCategorySelect(null)
-                        }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+            if (clipsCount > 0 || activeFilterTab == "CLIPS") {
+                item {
+                    val isSelected = activeFilterTab == "CLIPS"
+                    GlassSurface(
+                        shape = RoundedCornerShape(20.dp),
+                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
+                        modifier = Modifier
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable {
+                                isFolderViewActive = false
+                                selectedFolder = null
+                                activeFilterTab = "CLIPS"
+                                onCategorySelect(null)
+                            }
                     ) {
-                        Icon(Icons.Default.Videocam, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
-                        Text("Clips & Recordings", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.Videocam, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
+                            Text("Clips & Recordings", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                        }
                     }
                 }
             }
 
             // 5. Shorts
-            item {
-                val isSelected = activeFilterTab == "SHORTS"
-                GlassSurface(
-                    shape = RoundedCornerShape(20.dp),
-                    backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
-                    borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
-                    modifier = Modifier
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .clickable {
-                            isFolderViewActive = false
-                            selectedFolder = null
-                            activeFilterTab = "SHORTS"
-                            onCategorySelect(null)
-                        }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+            if (shortsCount > 0 || activeFilterTab == "SHORTS") {
+                item {
+                    val isSelected = activeFilterTab == "SHORTS"
+                    GlassSurface(
+                        shape = RoundedCornerShape(20.dp),
+                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
+                        modifier = Modifier
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable {
+                                isFolderViewActive = false
+                                selectedFolder = null
+                                activeFilterTab = "SHORTS"
+                                onCategorySelect(null)
+                            }
                     ) {
-                        Icon(Icons.Default.FlashOn, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
-                        Text("Shorts", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.FlashOn, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
+                            Text("Shorts", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                        }
                     }
                 }
             }
 
             // 8. Social Media (Moved before Edited)
-            item {
-                val isSelected = activeFilterTab == "SOCIAL"
-                GlassSurface(
-                    shape = RoundedCornerShape(20.dp),
-                    backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
-                    borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
-                    modifier = Modifier
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .clickable {
-                            isFolderViewActive = false
-                            selectedFolder = null
-                            activeFilterTab = "SOCIAL"
-                            onCategorySelect(null)
-                        }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+            if (socialCount > 0 || activeFilterTab == "SOCIAL") {
+                item {
+                    val isSelected = activeFilterTab == "SOCIAL"
+                    GlassSurface(
+                        shape = RoundedCornerShape(20.dp),
+                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
+                        modifier = Modifier
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable {
+                                isFolderViewActive = false
+                                selectedFolder = null
+                                activeFilterTab = "SOCIAL"
+                                onCategorySelect(null)
+                            }
                     ) {
-                        Icon(Icons.Default.Share, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
-                        Text("Social Media", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
+                            Text("Social Media", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                        }
                     }
                 }
             }
 
             // 6. Edited
-            item {
-                val isSelected = activeFilterTab == "EDITED"
-                GlassSurface(
-                    shape = RoundedCornerShape(20.dp),
-                    backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
-                    borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
-                    modifier = Modifier
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .clickable {
-                            isFolderViewActive = false
-                            selectedFolder = null
-                            activeFilterTab = "EDITED"
-                            onCategorySelect(null)
-                        }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+            if (editedCount > 0 || activeFilterTab == "EDITED") {
+                item {
+                    val isSelected = activeFilterTab == "EDITED"
+                    GlassSurface(
+                        shape = RoundedCornerShape(20.dp),
+                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
+                        modifier = Modifier
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable {
+                                isFolderViewActive = false
+                                selectedFolder = null
+                                activeFilterTab = "EDITED"
+                                onCategorySelect(null)
+                            }
                     ) {
-                        Icon(Icons.Default.ContentCut, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
-                        Text("Edited", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.ContentCut, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
+                            Text("Edited", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                        }
                     }
                 }
             }
 
             // 7. Downloaded
-            item {
-                val isSelected = activeFilterTab == "DOWNLOADED"
-                GlassSurface(
-                    shape = RoundedCornerShape(20.dp),
-                    backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
-                    borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
-                    modifier = Modifier
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .clickable {
-                            isFolderViewActive = false
-                            selectedFolder = null
-                            activeFilterTab = "DOWNLOADED"
-                            onCategorySelect(null)
-                        }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+            if (downloadedCount > 0 || activeFilterTab == "DOWNLOADED") {
+                item {
+                    val isSelected = activeFilterTab == "DOWNLOADED"
+                    GlassSurface(
+                        shape = RoundedCornerShape(20.dp),
+                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF),
+                        modifier = Modifier
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable {
+                                isFolderViewActive = false
+                                selectedFolder = null
+                                activeFilterTab = "DOWNLOADED"
+                                onCategorySelect(null)
+                            }
                     ) {
-                        Icon(Icons.Default.Download, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
-                        Text("Downloaded", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF9EA3B0), modifier = Modifier.size(16.dp))
+                            Text("Downloaded", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.White else Color(0xFF9EA3B0))
+                        }
                     }
                 }
             }
@@ -1096,6 +1120,209 @@ fun VideosTab(
                     }
                 }
             }
+        } else if (activeFilterTab == "SERIES") {
+            val seriesVideos = remember(videosList) { videosList.filter { isTVSeries(it) } }
+            val seriesFolderGroups = remember(seriesVideos) {
+                seriesVideos.groupBy { extractSeriesName(it) }
+            }
+
+            if (selectedSeriesName == null) {
+                // Level 1: Series Folders
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Web Series (${seriesFolderGroups.size} Series)", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 220.dp),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        items(seriesFolderGroups.keys.toList(), key = { "series_$it" }) { sName ->
+                            val sItems = seriesFolderGroups[sName] ?: emptyList()
+                            val seasonsCount = remember(sItems) { sItems.map { extractSeasonName(it) }.toSet().size }
+                            val coverUri = sItems.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: sItems.firstOrNull()?.uri
+
+                            GlassSurface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable { selectedSeriesName = sName },
+                                shape = RoundedCornerShape(16.dp),
+                                backgroundColor = Color(0x28181C2B),
+                                borderColor = Color(0x28FFFFFF)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(54.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Color(0x33FFFFFF)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (coverUri != null) {
+                                            AsyncImage(
+                                                model = coverUri,
+                                                contentDescription = null,
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        } else {
+                                            Icon(Icons.Default.Tv, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
+                                        }
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(sName, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text("$seasonsCount Seasons • ${sItems.size} Episodes", fontSize = 12.sp, color = Color(0xFF9EA3B0))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (selectedSeasonName == null) {
+                // Level 2: Seasons Folders for selectedSeriesName
+                val currentSeriesItems = remember(seriesFolderGroups, selectedSeriesName) {
+                    seriesFolderGroups[selectedSeriesName] ?: emptyList()
+                }
+                val seasonFolderGroups = remember(currentSeriesItems) {
+                    currentSeriesItems.groupBy { extractSeasonName(it) }
+                }
+
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        IconButton(onClick = { selectedSeriesName = null }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        }
+                        Column {
+                            Text(selectedSeriesName!!, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+                            Text("${seasonFolderGroups.size} Seasons • ${currentSeriesItems.size} Episodes", fontSize = 12.sp, color = Color(0xFF9EA3B0))
+                        }
+                    }
+
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 200.dp),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        items(seasonFolderGroups.keys.sorted(), key = { "season_$it" }) { seasonName ->
+                            val seasonItems = seasonFolderGroups[seasonName] ?: emptyList()
+                            val coverUri = seasonItems.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: seasonItems.firstOrNull()?.uri
+
+                            GlassSurface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable { selectedSeasonName = seasonName },
+                                shape = RoundedCornerShape(16.dp),
+                                backgroundColor = Color(0x28181C2B),
+                                borderColor = Color(0x28FFFFFF)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(Color(0x33FFFFFF)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (coverUri != null) {
+                                            AsyncImage(
+                                                model = coverUri,
+                                                contentDescription = null,
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        } else {
+                                            Icon(Icons.Default.Folder, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                                        }
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(seasonName, fontWeight = FontWeight.Bold, fontSize = 14.5.sp, color = Color.White)
+                                        Text("${seasonItems.size} Episodes", fontSize = 12.sp, color = Color(0xFF9EA3B0))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Level 3: Episodes list for selectedSeriesName & selectedSeasonName
+                val currentSeasonItems = remember(seriesFolderGroups, selectedSeriesName, selectedSeasonName) {
+                    val seriesItems = seriesFolderGroups[selectedSeriesName] ?: emptyList()
+                    seriesItems.filter { extractSeasonName(it) == selectedSeasonName }
+                }
+
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        IconButton(onClick = { selectedSeasonName = null }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        }
+                        Column {
+                            Text("$selectedSeriesName > $selectedSeasonName", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("${currentSeasonItems.size} Episodes", fontSize = 12.sp, color = Color(0xFF9EA3B0))
+                        }
+                    }
+
+                    val videoMinSize = when (gridSizeLevel) {
+                        0 -> 100.dp
+                        2 -> 180.dp
+                        3 -> 220.dp
+                        else -> 135.dp
+                    }
+                    LazyVerticalStaggeredGrid(
+                        columns = StaggeredGridCells.Adaptive(minSize = videoMinSize),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(Dp(gridGapDp.toFloat())),
+                        horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
+                        verticalItemSpacing = Dp(gridGapDp.toFloat())
+                    ) {
+                        items(currentSeasonItems, key = { it.id }) { item ->
+                            MediaGridItem(
+                                item = item,
+                                isSelected = selectedUris.contains(item.uri.toString()),
+                                isSelectionMode = isSelectionMode,
+                                cornerRadiusDp = cornerRadiusDp,
+                                roundedCornersEnabled = roundedCornersEnabled,
+                                onClick = { onVideoClick(item) },
+                                onLongClick = { onVideoLongClick(item) },
+                                onInfo = { infoItem = item },
+                                onDelete = { videoToDelete = item },
+                                showRemoveOption = selectedCategory != null
+                            )
+                        }
+                    }
+                }
+            }
         } else {
             val videoMinSize = when (gridSizeLevel) {
                 0 -> 100.dp
@@ -1663,6 +1890,32 @@ private fun isShorts(item: MediaItem): Boolean {
     return (isVerticalOrSquare && isUnder90s) || hasKeyword
 }
 
+private fun extractSeriesName(item: MediaItem): String {
+    val relPath = item.relativePath?.trim('/') ?: ""
+    val bucket = item.bucketName ?: "Web Series"
+    val parts = relPath.split('/').filter { it.isNotBlank() }
+    for (i in parts.indices) {
+        val p = parts[i]
+        if (p.contains("season", ignoreCase = true) || p.contains("s0", ignoreCase = true) || p.contains("s1", ignoreCase = true) || p.contains("s2", ignoreCase = true)) {
+            if (i > 0) return parts[i - 1]
+        }
+        if (p.equals("Web Series", ignoreCase = true) || p.equals("Series", ignoreCase = true) || p.equals("TV", ignoreCase = true) || p.equals("TV Shows", ignoreCase = true)) {
+            if (i + 1 < parts.size) return parts[i + 1]
+        }
+    }
+    return bucket
+}
+
+private fun extractSeasonName(item: MediaItem): String {
+    val path = ((item.relativePath ?: "") + "/" + item.title).lowercase()
+    val match = Regex("(?i)(season\\s*\\d{1,2}|s\\d{1,2})").find(path)
+    if (match != null) {
+        val num = Regex("\\d+").find(match.value)?.value?.toIntOrNull() ?: 1
+        return "Season %02d".format(num)
+    }
+    return "Season 01"
+}
+
 private fun isTVSeries(item: MediaItem): Boolean {
     val path = ((item.relativePath ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
     val patternSeasonEpisode = Regex("(?i)s\\d{1,2}e\\d{1,2}")
@@ -1673,28 +1926,15 @@ private fun isTVSeries(item: MediaItem): Boolean {
 }
 
 private fun isMovie(item: MediaItem): Boolean {
-    // 1. Exclude TV series and clips/recordings first
-    if (isTVSeries(item) || isClipsAndRecordings(item) || isShorts(item)) return false
+    if (isTVSeries(item) || isShorts(item)) return false
 
-    val path = ((item.relativePath ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
+    val path = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title).lowercase()
 
-    // 2. Duration check (> 40 mins)
-    val isLong = item.durationMs >= 2_400_000L
+    val isLong = item.durationMs >= 600_000L
+    val inMovieFolder = path.contains("movie") || path.contains("cinema") || path.contains("film")
+    val hasMovieQualityTag = path.contains("1080p") || path.contains("720p") || path.contains("bluray") || path.contains("webrip") || path.contains("x264") || path.contains("x265") || path.contains("hdrip")
 
-    // 3. Dedicated movie folders (can be movies even if length is slightly ambiguous)
-    val inDedicatedMovieFolder = path.contains("/movies/") ||
-            path.contains("/movie/") ||
-            path.contains("/cinema/")
-
-    // 4. General folders/paths (download, downloads, videos) - these REQUIRE the video to be long (> 40 mins)
-    val inGeneralFolder = path.contains("/videos/") ||
-            path.contains("/download/") ||
-            path.contains("/downloads/")
-
-    // A video is a movie if:
-    // - It's explicitly in a movie/cinema folder, OR
-    // - It's in a general folder (download/videos) AND is actually long enough to be a movie (>= 40 mins)
-    return inDedicatedMovieFolder || (inGeneralFolder && isLong)
+    return inMovieFolder || hasMovieQualityTag || isLong
 }
 
 private fun isMovieOrShow(item: MediaItem): Boolean {

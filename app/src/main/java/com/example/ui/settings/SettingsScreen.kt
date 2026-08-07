@@ -757,24 +757,18 @@ fun SettingsScreen(
                 }
 
                 // SECTION: PICTURE MODE
-                SettingsGlassCard(title = "PICTURE MODE") {
-                    val pictureModeEnabled by settingsManager.pictureModeEnabled.collectAsState(initial = true)
-                    SettingsRowItem(
-                        title = "Enable Picture Mode",
-                        subtitle = "Enhance photo & video display colors",
-                        control = {
-                            Switch(
-                                checked = pictureModeEnabled,
-                                onCheckedChange = { scope.launch { settingsManager.setPictureModeEnabled(it) } },
-                                colors = customSwitchColors
-                            )
-                        }
-                    )
-                    /* Picture mode selection dropdown & sliders commented out per user request:
-                    val pictureMode by settingsManager.pictureMode.collectAsState(initial = "DEVICE_DEFAULT")
-                    ...
-                    */
-                }
+                val pictureModeEnabled by settingsManager.pictureModeEnabled.collectAsState(initial = true)
+                SettingsRowItem(
+                    title = "Enable Picture Mode",
+                    subtitle = "Enhance photo & video display colors",
+                    control = {
+                        Switch(
+                            checked = pictureModeEnabled,
+                            onCheckedChange = { scope.launch { settingsManager.setPictureModeEnabled(it) } },
+                            colors = customSwitchColors
+                        )
+                    }
+                )
 
                 // Clear All Cache & Playback History
                 SettingsRowItem(

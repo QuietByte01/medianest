@@ -169,7 +169,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
         // 4. Custom Renderer Factory with MediaCodecSelector & Decoder Fallback
         val renderersFactory = DefaultRenderersFactory(context)
             .setEnableDecoderFallback(true)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             .setMediaCodecSelector(customMediaCodecSelector)
 
         ExoPlayer.Builder(context, renderersFactory)
@@ -265,6 +265,13 @@ class ExoPlayerManager private constructor(private val context: Context) {
                     currentPositionMs = exoPlayer.currentPosition.coerceAtLeast(0L),
                     audioSessionId = exoPlayer.audioSessionId
                 )
+            } else if (playbackState == Player.STATE_ENDED) {
+                val currentRepeatMode = exoPlayer.repeatMode
+                if (currentRepeatMode == Player.REPEAT_MODE_ONE || currentRepeatMode == Player.REPEAT_MODE_ALL) {
+                    exoPlayer.seekTo(0L)
+                    exoPlayer.prepare()
+                    exoPlayer.play()
+                }
             }
         }
 

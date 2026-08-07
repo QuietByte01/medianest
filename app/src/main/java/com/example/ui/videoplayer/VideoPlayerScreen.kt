@@ -538,7 +538,7 @@ fun VideoPlayerScreen(
 
         // Center Overlay Floating Controls (Previous, Play/Pause, Next) matching user reference image
         AnimatedVisibility(
-            visible = showControls && !isControlsLocked,
+            visible = showControls && !isControlsLocked && !isHorizontalDragging,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.Center)
@@ -775,7 +775,7 @@ fun VideoPlayerScreen(
 
         // Top Glass / Pill Controls
         AnimatedVisibility(
-            visible = (showControls || showOverflowMenu) && !showDrawer,
+            visible = (showControls || showOverflowMenu) && !showDrawer && !isHorizontalDragging,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.TopCenter)
@@ -988,12 +988,13 @@ fun VideoPlayerScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                // Bottom Floating Pill Bar with 5 icons (Lock, Rotate, Speed, PiP, Aspect Ratio)
-                Surface(
-                    shape = RoundedCornerShape(28.dp),
-                    color = Color.Transparent,
-                    contentColor = Color.White
-                ) {
+                if (!isHorizontalDragging) {
+                    // Bottom Floating Pill Bar with 5 icons (Lock, Rotate, Speed, PiP, Aspect Ratio)
+                    Surface(
+                        shape = RoundedCornerShape(28.dp),
+                        color = Color.Transparent,
+                        contentColor = Color.White
+                    ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -2427,6 +2428,7 @@ fun VideoPlayerScreen(
             }
         }
     }
+}
 }
 
 private fun safeFormatDuration(context: android.content.Context, item: MediaItem): String {
