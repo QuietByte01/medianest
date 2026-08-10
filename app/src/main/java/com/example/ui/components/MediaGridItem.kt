@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -37,7 +38,9 @@ import coil.request.videoFrameMicros
 import coil.decode.VideoFrameDecoder
 import com.example.data.db.MediaType
 import com.example.data.model.MediaItem
+import androidx.compose.material.icons.filled.Edit
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.launch
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -55,11 +58,14 @@ fun MediaGridItem(
     onDelete: (() -> Unit)? = null,
     onRemoveFromCategory: (() -> Unit)? = null,
     showRemoveOption: Boolean = false,
-    onOpenFolder: ((String) -> Unit)? = null
+    onOpenFolder: ((String) -> Unit)? = null,
+    onRename: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
-    val calculatedRatio = item.aspectRatio.coerceIn(0.45f, 2.2f)
+    var dynamicRatio by remember(item.id, item.width, item.height) {
+        mutableFloatStateOf(item.aspectRatio.coerceIn(0.45f, 2.2f))
+    }
     val itemShape = if (roundedCornersEnabled) RoundedCornerShape(cornerRadiusDp.dp) else RoundedCornerShape(0.dp)
 
     val settingsManager = com.example.MediaNestApp.instance.settingsManager
@@ -108,7 +114,7 @@ fun MediaGridItem(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(calculatedRatio)
+                .aspectRatio(dynamicRatio)
         ) {
             if (fallbackBitmap != null) {
                 androidx.compose.foundation.Image(
@@ -119,98 +125,54 @@ fun MediaGridItem(
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
-                SubcomposeAsyncImage(
+                coil.compose.AsyncImage(
                     model = imageRequest,
                     contentDescription = item.title,
                     contentScale = ContentScale.Crop,
                     colorFilter = colorFilter,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    val state = painter.state
-                    if (state is AsyncImagePainter.State.Loading) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            MediaLoadingAnimation(
-                                mediaType = item.type,
-                                iconSize = 26.dp,
-                                showLabel = false
-                            )
-                        }
-                    } else if (state is AsyncImagePainter.State.Error) {
-                        if (item.type == MediaType.VIDEO) {
-                            LaunchedEffect(item.uri) {
-                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                    try {
-                                        val retriever = android.media.MediaMetadataRetriever()
-                                        retriever.setDataSource(context, item.uri)
-                                        val frame = retriever.getFrameAtTime(1_000_000L, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                                            ?: retriever.getFrameAtTime(0L, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                                        retriever.release()
-                                        fallbackBitmap = frame
-                                    } catch (e: Exception) {
-                                        // Ignore
-                                    }
-                                }
+                    modifier = Modifier.fillMaxSize(),
+                    onSuccess = { success ->
+                        val intrinsicSize = success.painter.intrinsicSize
+                        if (intrinsicSize.width > 0 && intrinsicSize.height > 0) {
+                            val loadedRatio = (intrinsicSize.width / intrinsicSize.height).coerceIn(0.45f, 2.2f)
+                            if (kotlin.math.abs(loadedRatio - dynamicRatio) > 0.04f) {
+                                dynamicRatio = loadedRatio
                             }
                         }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            val errorIcon = when (item.type) {
-                                MediaType.AUDIO -> Icons.Default.Audiotrack
-                                MediaType.VIDEO -> Icons.Default.Movie
-                                else -> Icons.Default.Image
+                    },
+                    onError = {
+                        if (item.type == MediaType.VIDEO && fallbackBitmap == null) {
+                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                                try {
+                                    val retriever = android.media.MediaMetadataRetriever()
+                                    retriever.setDataSource(context, item.uri)
+                                    val frame = retriever.getFrameAtTime(1_000_000L, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                                        ?: retriever.getFrameAtTime(0L, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                                    retriever.release()
+                                    fallbackBitmap = frame
+                                } catch (_: Exception) {}
                             }
-                            Icon(
-                                imageVector = errorIcon,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier.size(32.dp)
-                            )
                         }
-                    } else {
-                        SubcomposeAsyncImageContent()
                     }
-                }
+                )
             }
 
-            // Video title & duration overlay badge
+            // Video duration overlay badge (Title hidden for regular videos as requested)
             if (item.type == MediaType.VIDEO) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .align(Alignment.BottomStart)
-                        .background(
-                            brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.88f))
-                            )
-                        )
-                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                        .align(Alignment.BottomEnd)
+                        .padding(6.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.Black.copy(alpha = 0.75f)
                     ) {
-                        Text(
-                            text = item.title,
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f).padding(end = 4.dp)
-                        )
                         Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.PlayArrow,
@@ -220,21 +182,26 @@ fun MediaGridItem(
                             )
                             Text(
                                 text = formatDuration(item.durationMs),
-                                color = Color.White.copy(alpha = 0.9f),
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.Medium
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
                 }
             }
+//                            )
+//                        }
+//                    }
+//                }
+//            }
 
             // Selection checkbox overlay
             if (isSelectionMode) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(if (isSelected) Color.Black.copy(alpha = 0.4f) else Color.Transparent)
+                        .background(if (isSelected) Color.Black.copy(alpha = 0.3f) else Color.Transparent)
                 ) {
                     Box(
                         modifier = Modifier
@@ -242,9 +209,14 @@ fun MediaGridItem(
                             .padding(8.dp)
                             .size(24.dp)
                             .clip(CircleShape)
+                            .border(
+                                width = 1.5.dp,
+                                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
+                                shape = CircleShape
+                            )
                             .background(
-                                if (isSelected) MaterialTheme.colorScheme.primary
-                                else Color.Black.copy(alpha = 0.5f)
+                                if (isSelected) Color.White.copy(alpha = 0.2f)
+                                else Color.Black.copy(alpha = 0.2f)
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -273,7 +245,7 @@ fun MediaGridItem(
                     }
 
                     val isDark = com.example.ui.theme.LocalDarkTheme.current
-                    val menuBg = if (isDark) Color(0xBF0F1015) else Color(0xA6FFFFFF)
+                    val menuBg = if (com.example.ui.theme.LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF)
 
                     DropdownMenu(
                         expanded = showMenu,
@@ -282,14 +254,6 @@ fun MediaGridItem(
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.width(180.dp)
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("Play / View", color = if (isDark) Color.White else Color.Black) },
-                            leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                            onClick = {
-                                showMenu = false
-                                onClick()
-                            }
-                        )
                         if (onInfo != null) {
                             DropdownMenuItem(
                                 text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
@@ -306,18 +270,21 @@ fun MediaGridItem(
                                 leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                                 onClick = {
                                     showMenu = false
-                                    onOpenFolder(item.bucketName ?: "Folder")
+                                    val folderKey = item.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (item.bucketName ?: "Folder")
+                                    onOpenFolder(folderKey)
                                 }
                             )
                         }
-                        DropdownMenuItem(
-                            text = { Text("Select", color = if (isDark) Color.White else Color.Black) },
-                            leadingIcon = { Icon(Icons.Default.Check, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                            onClick = {
-                                showMenu = false
-                                onLongClick()
-                            }
-                        )
+                        if (onRename != null) {
+                            DropdownMenuItem(
+                                text = { Text("Rename", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                onClick = {
+                                    showMenu = false
+                                    onRename()
+                                }
+                            )
+                        }
                         if (showRemoveOption && onRemoveFromCategory != null) {
                             DropdownMenuItem(
                                 text = { Text("Remove", color = MaterialTheme.colorScheme.error) },

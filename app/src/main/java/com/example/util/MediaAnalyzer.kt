@@ -6,6 +6,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.Build
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -13,7 +14,7 @@ import java.io.File
 import java.util.Locale
 
 /**
- * MediaAnalyzer — Production-ready deep media analysis & diagnostic engine.
+ * MediaAnalyzer — Deep media analysis & diagnostic engine.
  *
  * Extracts stream-level codec specs, container details, color profiles, audio layouts,
  * and performs stream header & timestamp integrity validation pass natively.
@@ -28,9 +29,12 @@ object MediaAnalyzer {
         context: Context? = null
     ): MediaDiagnosticsReport = withContext(Dispatchers.IO) {
         val startMs = System.currentTimeMillis()
-        val file = File(filePath)
-        val fileName = if (file.exists()) file.name else filePath.substringAfterLast('/')
-        val fileSize = if (file.exists()) file.length() else 0L
+        val uri = Uri.parse(filePath)
+        val isContentUri = filePath.startsWith("content://") && context != null
+
+        val file = if (!isContentUri) File(filePath) else null
+        val fileName = file?.name ?: uri.lastPathSegment ?: "unknown_media"
+        val fileSize = file?.length() ?: 0L
 
         val errors = mutableListOf<String>()
         val warnings = mutableListOf<String>()
@@ -46,10 +50,12 @@ object MediaAnalyzer {
 
         val retriever = MediaMetadataRetriever()
         try {
-            if (file.exists()) {
+            if (isContentUri) {
+                retriever.setDataSource(context!!, uri)
+            } else if (file?.exists() == true) {
                 retriever.setDataSource(file.absolutePath)
-            } else if (context != null && filePath.startsWith("content://")) {
-                retriever.setDataSource(context, Uri.parse(filePath))
+            } else {
+                errors.add("Source file or Uri does not exist: $filePath")
             }
 
             val mime = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE) ?: ""
@@ -75,13 +81,15 @@ object MediaAnalyzer {
                 val rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_IMAGE_ROTATION)?.toIntOrNull() ?: 0
 
                 var exifOrientation: Int? = rotation
-                var hasAlphaChannel = mime.contains("png", true) || mime.contains("webp", true) || mime.contains("svg", true)
+                val hasAlphaChannel = mime.contains("png", true) || mime.contains("webp", true) || mime.contains("svg", true)
 
-                if (file.exists()) {
+                if (file?.exists() == true) {
                     try {
                         val exif = ExifInterface(file.absolutePath)
                         exifOrientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
-                    } catch (_: Exception) {}
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Exif parsing warning: ${e.message}")
+                    }
                 }
 
                 imageInfo = ImageAnalysisInfo(
@@ -95,7 +103,7 @@ object MediaAnalyzer {
                     hasAlpha = hasAlphaChannel
                 )
             } else {
-                // Video & Audio
+                // Video & Audio metadata path
                 val vWidth = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
                 val vHeight = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
                 val rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
@@ -103,7 +111,10 @@ object MediaAnalyzer {
                 if (vWidth > 0 && vHeight > 0) {
                     val colorStandard = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COLOR_STANDARD)
                     val colorTransfer = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COLOR_TRANSFER)
-                    val frameRateStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CAPTURE_FRAMERATE) ?: "30.0"
+
+                    // Fallback to media format metadata extraction for frame rate
+                    val captureFps = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CAPTURE_FRAMERATE)?.toDoubleOrNull()
+                    val fps = captureFps ?: 30.0
 
                     videoStream = VideoStreamInfo(
                         index = 0,
@@ -118,9 +129,9 @@ object MediaAnalyzer {
                         colorPrimaries = colorStandard ?: "bt709",
                         colorTransfer = colorTransfer ?: "smpte170m",
                         colorRange = "tv",
-                        frameRate = "$frameRateStr/1",
-                        avgFrameRate = frameRateStr,
-                        avgFpsDecimal = frameRateStr.toDoubleOrNull() ?: 30.0,
+                        frameRate = "$fps/1",
+                        avgFrameRate = fps.toString(),
+                        avgFpsDecimal = fps,
                         aspectRatio = "${vWidth}:${vHeight}",
                         bitrate = overallBitrate,
                         duration = durationSec,
@@ -143,7 +154,7 @@ object MediaAnalyzer {
                             channelLayout = "Stereo (2.0)",
                             sampleFormat = "s16p",
                             bitsPerSample = 16,
-                            bitrate = overallBitrate.takeIf { videoStream == null } ?: 192000L,
+                            bitrate = if (videoStream == null) overallBitrate else 192000L,
                             duration = durationSec,
                             isDefault = true,
                             language = "und"
@@ -151,17 +162,24 @@ object MediaAnalyzer {
                     )
                 }
             }
-
-            retriever.release()
         } catch (e: Exception) {
             errors.add("Metadata extraction error: ${e.message}")
+        } finally {
+            runCatching { retriever.release() }
         }
 
-        // Deep MediaExtractor Pass — Check stream tracks & timestamp continuity
-        if (file.exists() && mediaType != "IMAGE") {
+        // Deep MediaExtractor Pass — Stream tracks & frame rate/timestamp analysis
+        if (mediaType != "IMAGE" && (file?.exists() == true || isContentUri)) {
             val extractor = MediaExtractor()
             try {
-                extractor.setDataSource(file.absolutePath)
+                if (isContentUri) {
+                    context!!.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                        extractor.setDataSource(pfd.fileDescriptor)
+                    }
+                } else if (file != null) {
+                    extractor.setDataSource(file.absolutePath)
+                }
+
                 val trackCount = extractor.trackCount
                 if (trackCount == 0) {
                     missingStreams = true
@@ -170,20 +188,30 @@ object MediaAnalyzer {
 
                 for (i in 0 until trackCount) {
                     val format = extractor.getTrackFormat(i)
-                    val mime = format.getString(MediaFormat.KEY_MIME) ?: ""
+                    val trackMime = format.getString(MediaFormat.KEY_MIME) ?: ""
 
-                    if (mime.startsWith("subtitle") || mime.contains("vtt") || mime.contains("ass")) {
-                        subtitleStreams.add(SubtitleStreamInfo(index = i, codecName = mime.substringAfterLast('/'), language = "und"))
+                    // Extract actual frame rate from video track format if present
+                    if (trackMime.startsWith("video/") && format.containsKey(MediaFormat.KEY_FRAME_RATE)) {
+                        val parsedFps = format.getInteger(MediaFormat.KEY_FRAME_RATE).toDouble()
+                        videoStream = videoStream?.copy(
+                            frameRate = "$parsedFps/1",
+                            avgFrameRate = parsedFps.toString(),
+                            avgFpsDecimal = parsedFps
+                        )
                     }
 
-                    if (mime.startsWith("audio/") && audioStreams.isEmpty()) {
+                    if (trackMime.startsWith("subtitle") || trackMime.contains("vtt") || trackMime.contains("ass")) {
+                        subtitleStreams.add(SubtitleStreamInfo(index = i, codecName = trackMime.substringAfterLast('/'), language = "und"))
+                    }
+
+                    if (trackMime.startsWith("audio/") && audioStreams.isEmpty()) {
                         val sr = if (format.containsKey(MediaFormat.KEY_SAMPLE_RATE)) format.getInteger(MediaFormat.KEY_SAMPLE_RATE) else 44100
                         val ch = if (format.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) else 2
                         audioStreams.add(
                             AudioStreamInfo(
                                 index = i,
-                                codecName = mime.substringAfterLast('/').uppercase(Locale.US),
-                                codecLongName = mime,
+                                codecName = trackMime.substringAfterLast('/').uppercase(Locale.US),
+                                codecLongName = trackMime,
                                 profile = "Standard",
                                 sampleRate = sr,
                                 channels = ch,
@@ -199,27 +227,35 @@ object MediaAnalyzer {
                     }
                 }
 
-                // Check timestamp sample continuity
-                var lastSampleTime = -1L
-                var outOfOrderCount = 0
-                for (s in 0 until 20) {
-                    val sampleTime = extractor.sampleTime
-                    if (sampleTime < 0) break
-                    if (lastSampleTime > 0 && sampleTime < lastSampleTime) {
-                        outOfOrderCount++
+                // Check sample timing continuity
+                if (trackCount > 0) {
+                    extractor.selectTrack(0)
+                    var sampleCount = 0
+                    var negativeDeltaCount = 0
+                    var lastSampleTime = -1L
+
+                    while (sampleCount < 30) {
+                        val sampleTime = extractor.sampleTime
+                        if (sampleTime < 0) break
+
+                        if (lastSampleTime >= 0 && sampleTime < lastSampleTime) {
+                            negativeDeltaCount++
+                        }
+                        lastSampleTime = sampleTime
+                        sampleCount++
+                        extractor.advance()
                     }
-                    lastSampleTime = sampleTime
-                    extractor.advance()
-                }
 
-                if (outOfOrderCount > 0) {
-                    timestampIssues = true
-                    warnings.add("Non-monotonically increasing timestamps detected ($outOfOrderCount sample resets)")
+                    // Large negative timestamp jumps often signal stream header corruptions
+                    if (negativeDeltaCount > 3) {
+                        timestampIssues = true
+                        warnings.add("Multiple stream timestamp discontinuities detected ($negativeDeltaCount reorders in first 30 frames)")
+                    }
                 }
-
-                extractor.release()
             } catch (e: Exception) {
                 warnings.add("MediaExtractor pass warning: ${e.message}")
+            } finally {
+                runCatching { extractor.release() }
             }
         }
 

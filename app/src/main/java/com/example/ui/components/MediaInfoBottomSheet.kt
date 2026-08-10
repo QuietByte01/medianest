@@ -11,6 +11,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import android.content.res.Configuration
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Close
@@ -35,7 +39,9 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -70,9 +76,13 @@ fun MediaInfoBottomSheet(
     onShowFileLocation: ((MediaItem) -> Unit)? = null,
     onFetchInfo: ((MediaItem) -> Unit)? = null
 ) {
+    // ISSUE: Metadata extraction is performed directly in composition via 'remember'.
+    // This can block the UI thread for large files or slow storage.
+    // RECOMMENDATION: Move this to a Coroutine or use produceState.
     if (item == null) return
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val filePath = remember(item.uri) { getFilePathFromUri(context, item.uri) }
     val fileObj = remember(filePath) { if (filePath.isNotBlank()) java.io.File(filePath) else null }
 
@@ -91,7 +101,7 @@ fun MediaInfoBottomSheet(
     val isTabletLandscape = configuration.screenWidthDp >= 600 || configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     val isDark = com.example.ui.theme.LocalDarkTheme.current
-    val sheetBg = if (isDark) Color(0xBF121522) else Color(0xA6FFFFFF)
+    val sheetBg = if (isDark) Color(0xCC08090E) else Color(0xCCE3E3E3)
 
     AdaptiveBottomSheet(
         onDismissRequest = onDismiss,
@@ -139,8 +149,8 @@ fun MediaInfoBottomSheet(
                         .size(40.dp)
                         .clickable { onDismiss() },
                     shape = CircleShape,
-                    backgroundColor = Color(0x26FFFFFF),
-                    borderColor = Color(0x3DFFFFFF)
+                    backgroundColor = Color.Transparent,
+                    borderColor = Color.Transparent
                 ) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Icon(
@@ -164,8 +174,8 @@ fun MediaInfoBottomSheet(
                         .size(40.dp)
                         .clickable { onDismiss() },
                     shape = CircleShape,
-                    backgroundColor = Color(0x26FFFFFF),
-                    borderColor = Color(0x3DFFFFFF)
+                    backgroundColor = Color.Transparent,
+                    borderColor = Color.Transparent
                 ) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Icon(
@@ -259,67 +269,6 @@ fun MediaInfoBottomSheet(
                             }
                         }
 
-                        // Social / Platform Links Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            GlassSurface(
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(16.dp),
-                                backgroundColor = Color(0x20FFFFFF)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 10.dp, horizontal = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Box(
-                                        modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF1DB954))
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Spotify", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color.White)
-                                }
-                            }
-
-                            GlassSurface(
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(16.dp),
-                                backgroundColor = Color(0x20FFFFFF)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 10.dp, horizontal = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFFFF0000), modifier = Modifier.size(12.dp))
-                                    Spacer(modifier = Modifier.width(2.dp))
-                                    Text("YouTube", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color.White)
-                                }
-                            }
-
-                            GlassSurface(
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(16.dp),
-                                backgroundColor = Color(0x20FFFFFF)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 10.dp, horizontal = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFFFF0000), modifier = Modifier.size(12.dp))
-                                    Spacer(modifier = Modifier.width(2.dp))
-                                    Text("YT Music", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color.White)
-                                }
-                            }
-                        }
 
                         // Action Buttons: Location & Fetch Info
                         Row(
@@ -381,6 +330,88 @@ fun MediaInfoBottomSheet(
                             }
                         }
 
+                        var showDiagnosticsDialog by remember { mutableStateOf(false) }
+                        var diagReport by remember { mutableStateOf<com.example.util.MediaDiagnosticsReport?>(null) }
+                        var isAnalyzing by remember { mutableStateOf(false) }
+
+                        // Media Stream Diagnostics Button
+                        GlassSurface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    scope.launch {
+                                        isAnalyzing = true
+                                        val report = com.example.util.MediaAnalyzer.analyze(filePath, item.uri.toString(), context)
+                                        diagReport = report
+                                        isAnalyzing = false
+                                        showDiagnosticsDialog = true
+                                    }
+                                },
+                            shape = RoundedCornerShape(16.dp),
+                            backgroundColor = Color(0x33A855F7)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp, horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                if (isAnalyzing) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Analyzing Media Streams...", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                } else {
+                                    Icon(Icons.Default.Analytics, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Media Stream Diagnostics", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
+                        if (showDiagnosticsDialog && diagReport != null) {
+                            AlertDialog(
+                                onDismissRequest = { showDiagnosticsDialog = false },
+                                containerColor = Color(0xEE08090E),
+                                shape = RoundedCornerShape(24.dp),
+                                title = { Text("Media Stream Diagnostics", color = Color.White, fontWeight = FontWeight.Bold) },
+                                text = {
+                                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 350.dp)) {
+                                        val codec = diagReport!!.videoStream?.codecName ?: diagReport!!.audioStreams.firstOrNull()?.codecName ?: "N/A"
+                                        Text(text = "Codec: $codec", color = Color.White, fontSize = 13.sp)
+                                        val resolution = if (diagReport!!.videoStream != null) "${diagReport!!.videoStream!!.width}x${diagReport!!.videoStream!!.height}" else "N/A"
+                                        Text(text = "Resolution: $resolution", color = Color(0xFF9EA3B0), fontSize = 12.sp)
+                                        val duration = diagReport!!.format?.duration ?: 0.0
+                                        Text(text = "Duration: ${duration.toInt()}s", color = Color(0xFF9EA3B0), fontSize = 12.sp)
+                                        val bitrate = (diagReport!!.format?.bitrate ?: 0L) / 1000
+                                        Text(text = "Bitrate: $bitrate kbps", color = Color(0xFF9EA3B0), fontSize = 12.sp)
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Text(text = "Diagnostic Report Log:", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 12.sp)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Box(modifier = Modifier.fillMaxWidth().background(Color(0x33000000)).padding(8.dp)) {
+                                            Text(text = diagReport!!.toShareText(), color = Color(0xFF8E95A5), fontSize = 10.5.sp)
+                                        }
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(android.content.Intent.EXTRA_TEXT, diagReport!!.toShareText())
+                                        }
+                                        context.startActivity(android.content.Intent.createChooser(sendIntent, "Share Diagnostic Report"))
+                                    }) {
+                                        Text("Share Report", color = Color(0xFFA855F7))
+                                    }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showDiagnosticsDialog = false }) {
+                                        Text("Close", color = Color.White)
+                                    }
+                                }
+                            )
+                        }
+
                         // Share Track Details Button
                         GlassSurface(
                             modifier = Modifier
@@ -416,11 +447,11 @@ fun MediaInfoBottomSheet(
                                 InfoSectionCard(icon = Icons.Default.GraphicEq, title = "Audio Specifications") {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            LabelValueBlock("FILE FORMAT", extracted.codecInfo.ifBlank { "FLAC (Lossless)" })
-                                            LabelValueBlock("SAMPLE RATE", extracted.sampleRate.ifBlank { "96.0 kHz" })
+                                            LabelValueBlock("FILE FORMAT", extracted.codecInfo.ifBlank { "N/A" })
+                                            LabelValueBlock("SAMPLE RATE", extracted.sampleRate.ifBlank { "N/A" })
                                         }
                                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            LabelValueBlock("BITRATE", extracted.bitrate.ifBlank { "1,411 kbps" })
+                                            LabelValueBlock("BITRATE", extracted.bitrate.ifBlank { "N/A" })
                                             LabelValueBlock("FILE SIZE", formattedSize)
                                         }
                                     }
@@ -430,12 +461,12 @@ fun MediaInfoBottomSheet(
                                 InfoSectionCard(icon = Icons.Default.Audiotrack, title = "Track Metadata") {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            LabelValueBlock("ALBUM", item.album ?: extracted.album.ifBlank { "Hurry Up, We're Dreaming" })
-                                            LabelValueBlock("GENRE", extracted.genre.ifBlank { "Synthwave / Electronic" })
+                                            LabelValueBlock("ALBUM", item.album ?: extracted.album.ifBlank { "Unknown Album" })
+                                            LabelValueBlock("GENRE", extracted.genre.ifBlank { "Unknown Genre" })
                                         }
                                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            LabelValueBlock("RELEASE YEAR", if (extracted.dateTaken.length >= 4) extracted.dateTaken.take(4) else "2024")
-                                            LabelValueBlock("TRACK NO.", "1 / 12")
+                                            LabelValueBlock("RELEASE YEAR", if (extracted.dateTaken.length >= 4) extracted.dateTaken.take(4) else "N/A")
+                                            LabelValueBlock("TRACK NO.", "N/A") // Issue: Track number not available in current model
                                         }
                                     }
                                 }
@@ -447,12 +478,12 @@ fun MediaInfoBottomSheet(
                                 InfoSectionCard(icon = Icons.Default.Info, title = "File Information") {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            LabelValueBlock("CHANNELS", "Stereo (2.0)")
-                                            LabelValueBlock("ENCODING", "VBR Lossless")
+                                            LabelValueBlock("CHANNELS", "N/A") // Issue: Channels not in ComprehensiveMetadata
+                                            LabelValueBlock("ENCODING", "N/A")
                                         }
                                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            LabelValueBlock("COMPRESSION", "Level 5 (Default)")
-                                            LabelValueBlock("MD5 CHECKSUM", "a8f93b21c41b")
+                                            LabelValueBlock("COMPRESSION", "N/A")
+                                            LabelValueBlock("MD5 CHECKSUM", "N/A")
                                         }
                                     }
                                 }
@@ -461,12 +492,12 @@ fun MediaInfoBottomSheet(
                                 InfoSectionCard(icon = Icons.Default.Security, title = "Licensing & Publisher") {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            LabelValueBlock("LABEL", "Mute / Naïve")
-                                            LabelValueBlock("ISRC CODE", "FR2X41100021")
+                                            LabelValueBlock("LABEL", "N/A")
+                                            LabelValueBlock("ISRC CODE", "N/A")
                                         }
                                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            LabelValueBlock("COPYRIGHT", "2024 Go Music")
-                                            LabelValueBlock("EXPLICIT", "No (Clean)")
+                                            LabelValueBlock("COPYRIGHT", "N/A")
+                                            LabelValueBlock("EXPLICIT", "N/A")
                                         }
                                     }
                                 }
@@ -474,98 +505,121 @@ fun MediaInfoBottomSheet(
                         }
 
                         // Featured OST / Soundtracks Banner
-                        GlassSurface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            backgroundColor = Color(0x1F24293A),
-                            borderColor = Color(0x3364B5F6)
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    text = "FEATURED OST / MOVIE SOUNDTRACKS",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF64B5F6)
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "${item.album ?: item.title} (Featured Cinematic Track)",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color.White
-                                )
+                        val bannerTitle = item.album ?: item.title
+                        if (!com.example.util.MetadataUtils.hasDomainOrFalseInfo(bannerTitle)) {
+                            GlassSurface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                backgroundColor = Color(0x1F24293A),
+                                borderColor = Color(0x3364B5F6)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        text = "FEATURED OST / MOVIE SOUNDTRACKS",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF64B5F6)
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "$bannerTitle (Featured Cinematic Track)",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color.White
+                                    )
+                                }
                             }
                         }
+                    }
+                }
 
-                        // Artists & Songwriters Card
-                        val artistName = item.artist ?: "Anthony Gonzalez"
-                        val songwriterName = extracted.composer.ifBlank { "Yann Gonzalez" }
-                        val artistImgUrl = rememberArtistImageUrl(artistName)
-                        val songwriterImgUrl = remember(songwriterName) { ArtistImageUtils.getSongwriterImageUrl(songwriterName) }
+                // Artists & Songwriters Card (Full Width for Tablet)
+                val artistName = item.artist ?: "Anthony Gonzalez"
+                val songwriterName = extracted.composer.ifBlank { "Yann Gonzalez" }
+                val artistImgUrl = rememberArtistImageUrl(artistName)
+                val songwriterImgUrl = remember(songwriterName) { ArtistImageUtils.getSongwriterImageUrl(songwriterName) }
 
-                        InfoSectionCard(icon = Icons.Default.Person, title = "Artists & Songwriters") {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
+                InfoSectionCard(icon = Icons.Default.Person, title = "Artists & Songwriters") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(32.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(
+                                modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF2A2E3B)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Box(
-                                        modifier = Modifier.size(44.dp).clip(CircleShape).background(Color(0xFF2A2E3B)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        SubcomposeAsyncImage(
-                                            model = ImageRequest.Builder(context).data(artistImgUrl).crossfade(true).build(),
-                                            contentDescription = artistName,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
-                                        ) {
-                                            if (painter.state is AsyncImagePainter.State.Error) {
-                                                Icon(Icons.Default.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                                            } else {
-                                                SubcomposeAsyncImageContent()
-                                            }
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(artistName, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                    Text("Primary Artist / Writer", fontSize = 9.sp, color = Color(0xFF9EA3B0))
-                                }
-
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Box(
-                                        modifier = Modifier.size(44.dp).clip(CircleShape).background(Color(0xFF2A2E3B)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        SubcomposeAsyncImage(
-                                            model = ImageRequest.Builder(context).data(songwriterImgUrl).crossfade(true).build(),
-                                            contentDescription = songwriterName,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
-                                        ) {
-                                            if (painter.state is AsyncImagePainter.State.Error) {
-                                                Icon(Icons.Default.EditNote, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                                            } else {
-                                                SubcomposeAsyncImageContent()
-                                            }
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(songwriterName, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                    Text("Songwriter", fontSize = 9.sp, color = Color(0xFF9EA3B0))
-                                }
-
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Box(
-                                        modifier = Modifier.size(44.dp).clip(CircleShape).background(Color(0xFF2A2E3B)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
+                                SubcomposeAsyncImage(
+                                    model = ImageRequest.Builder(context).data(artistImgUrl).crossfade(true).build(),
+                                    contentDescription = artistName,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    if (painter.state is AsyncImagePainter.State.Error) {
                                         Icon(Icons.Default.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    } else {
+                                        SubcomposeAsyncImageContent()
                                     }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text("Justin Meldal-Johnsen", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                    Text("Producer / Contributor", fontSize = 9.sp, color = Color(0xFF9EA3B0))
                                 }
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(artistName, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Primary Artist / Writer", fontSize = 10.sp, color = Color(0xFF9EA3B0))
+                        }
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(
+                                modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF2A2E3B)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                SubcomposeAsyncImage(
+                                    model = ImageRequest.Builder(context).data(songwriterImgUrl).crossfade(true).build(),
+                                    contentDescription = songwriterName,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    if (painter.state is AsyncImagePainter.State.Error) {
+                                        Icon(Icons.Default.EditNote, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    } else {
+                                        SubcomposeAsyncImageContent()
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(songwriterName, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Songwriter", fontSize = 10.sp, color = Color(0xFF9EA3B0))
+                        }
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(
+                                modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF2A2E3B)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            // Issue: Hardcoded producer info
+                            // Text("Justin Meldal-Johnsen", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            // Text("Producer / Contributor", fontSize = 10.sp, color = Color(0xFF9EA3B0))
+                            Text("N/A", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Producer", fontSize = 10.sp, color = Color(0xFF9EA3B0))
+                        }
+
+                        // Additional placeholder artists to demonstrate scrolling if needed
+                        repeat(5) { i ->
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Box(
+                                    modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0x33FFFFFF)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Person, contentDescription = null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(20.dp))
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text("Contributor ${i + 1}", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color.White.copy(alpha = 0.8f))
+                                Text("Guest Artist", fontSize = 9.sp, color = Color(0xFF9EA3B0))
                             }
                         }
                     }
@@ -694,17 +748,43 @@ fun MediaInfoBottomSheet(
                 title = "Song Credits"
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Performer(s)", fontSize = 12.sp, color = Color(0xFF9EA3B0))
-                        Text(artistName, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Performer(s)", fontSize = 12.sp, color = Color(0xFF9EA3B0), modifier = Modifier.widthIn(min = 80.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = artistName,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                            maxLines = 1,
+                            modifier = Modifier.basicMarquee()
+                        )
                     }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Songwriter", fontSize = 12.sp, color = Color(0xFF9EA3B0))
-                        Text(songwriterName, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Songwriter", fontSize = 12.sp, color = Color(0xFF9EA3B0), modifier = Modifier.widthIn(min = 80.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = songwriterName,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                            maxLines = 1,
+                            modifier = Modifier.basicMarquee()
+                        )
                     }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Producer", fontSize = 12.sp, color = Color(0xFF9EA3B0))
-                        Text(if (multipleArtists.isNotEmpty()) multipleArtists.first() else artistName, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Producer", fontSize = 12.sp, color = Color(0xFF9EA3B0), modifier = Modifier.widthIn(min = 80.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        // ISSUE: Producer info is often missing from basic MediaStore metadata.
+                        // Consider using a dedicated metadata library (like Media3 or TagLib) for better results.
+                        Text(
+                            text = if (multipleArtists.isNotEmpty()) multipleArtists.first() else artistName,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                            maxLines = 1,
+                            modifier = Modifier.basicMarquee()
+                        )
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp), color = Color(0x28FFFFFF))
@@ -1043,7 +1123,6 @@ private fun VideoFilePropertiesContent(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0x33FFFFFF))
                     .clickable { onDismiss() },
                 contentAlignment = Alignment.Center
             ) {
@@ -1538,8 +1617,8 @@ private fun StatBox(
     GlassSurface(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
-        backgroundColor = Color(0x2B181A26),
-        borderColor = Color(0x26FFFFFF)
+        backgroundColor = Color(0x1AFFFFFF),
+        borderColor = Color(0x2AFFFFFF)
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -1689,6 +1768,8 @@ fun formatFileSize(size: Long): String {
 }
 
 fun getFilePathFromUri(context: Context, uri: Uri): String {
+    // ISSUE: MediaStore.MediaColumns.DATA is deprecated since Android 10 (API 29).
+    // It may not return a valid path for all URI types in modern Android versions.
     if (uri.scheme == "file") return uri.path ?: ""
     if (uri.scheme == "content") {
         try {

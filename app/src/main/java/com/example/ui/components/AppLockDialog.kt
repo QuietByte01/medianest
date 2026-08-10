@@ -28,6 +28,21 @@ fun AppLockDialog(
 ) {
     var pinInput by remember { mutableStateOf("") }
     var errorText by remember { mutableStateOf<String?>(null) }
+    var failedAttempts by remember { mutableIntStateOf(0) }
+    var lockoutSeconds by remember { mutableIntStateOf(0) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val settingsManager = remember { com.example.MediaNestApp.instance.settingsManager }
+
+    LaunchedEffect(lockoutSeconds) {
+        if (lockoutSeconds > 0) {
+            kotlinx.coroutines.delay(1000)
+            lockoutSeconds -= 1
+            if (lockoutSeconds == 0) {
+                errorText = null
+            }
+        }
+    }
 
     Dialog(
         onDismissRequest = {},
@@ -69,9 +84,9 @@ fun AppLockDialog(
                 )
 
                 Text(
-                    text = "Enter your security PIN to access media",
+                    text = if (lockoutSeconds > 0) "Locked out for $lockoutSeconds seconds" else "Enter your security PIN to access media",
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (lockoutSeconds > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)
                 )
 
@@ -80,11 +95,12 @@ fun AppLockDialog(
                 OutlinedTextField(
                     value = pinInput,
                     onValueChange = {
-                        if (it.length <= 6) {
+                        if (lockoutSeconds == 0 && it.length <= 6) {
                             pinInput = it
                             errorText = null
                         }
                     },
+                    enabled = lockoutSeconds == 0,
                     label = { Text("Security PIN") },
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
@@ -105,13 +121,25 @@ fun AppLockDialog(
 
                 Button(
                     onClick = {
-                        if (pinInput == correctPin) {
+                        if (lockoutSeconds > 0) return@Button
+                        val hashedInput = settingsManager.hashPin(pinInput)
+                        if (pinInput == correctPin || hashedInput == correctPin) {
+                            failedAttempts = 0
                             onUnlocked()
                         } else {
-                            errorText = "Incorrect PIN. Please try again."
+                            failedAttempts += 1
+                            if (failedAttempts >= 5) {
+                                lockoutSeconds = 30
+                                failedAttempts = 0
+                                errorText = "Too many failed attempts. Locked out for 30 seconds."
+                            } else {
+                                val remaining = 5 - failedAttempts
+                                errorText = "Incorrect PIN. $remaining attempt(s) remaining."
+                            }
                             pinInput = ""
                         }
                     },
+                    enabled = lockoutSeconds == 0 && pinInput.isNotBlank(),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 ) {

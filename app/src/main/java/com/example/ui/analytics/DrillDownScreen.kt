@@ -8,6 +8,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -37,6 +38,7 @@ import coil.request.ImageRequest
 import com.example.data.model.MediaItem
 
 import com.example.ui.components.GlassSurface
+import com.example.ui.theme.LocalDarkTheme
 
 enum class AnalyticsSortType {
     DATE_DESC, DATE_ASC, SIZE_DESC, SIZE_ASC, NAME_ASC
@@ -237,7 +239,7 @@ fun DrillDownScreen(
                             DropdownMenu(
                                 expanded = showSortMenu,
                                 onDismissRequest = { showSortMenu = false },
-                                containerColor = Color(0xDC141722),
+                                containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
                                 shape = RoundedCornerShape(16.dp)
                             ) {
                                 DropdownMenuItem(
@@ -332,15 +334,39 @@ fun DrillDownScreen(
                                     modifier = Modifier.fillMaxSize()
                                 )
 
-                                // Checkbox overlay if selected
-                                if (isSelected) {
+                                // Selection checkbox overlay
+                                if (isSelectionMode) {
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .background(Color.Black.copy(alpha = 0.4f)),
-                                        contentAlignment = Alignment.Center
+                                            .background(if (isSelected) Color.Black.copy(alpha = 0.3f) else Color.Transparent)
                                     ) {
-                                        Icon(Icons.Default.CheckCircle, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(8.dp)
+                                                .size(22.dp)
+                                                .clip(CircleShape)
+                                                .border(
+                                                    width = 1.5.dp,
+                                                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
+                                                    shape = CircleShape
+                                                )
+                                                .background(
+                                                    if (isSelected) Color.White.copy(alpha = 0.2f)
+                                                    else Color.Black.copy(alpha = 0.2f)
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (isSelected) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = "Selected",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
 
@@ -428,8 +454,31 @@ fun DrillDownScreen(
                                 }
                             },
                             trailingContent = {
-                                if (isSelected) {
-                                    Icon(Icons.Default.CheckCircle, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
+                                if (isSelectionMode) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(22.dp)
+                                            .clip(CircleShape)
+                                            .border(
+                                                width = 1.5.dp,
+                                                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
+                                                shape = CircleShape
+                                            )
+                                            .background(
+                                                if (isSelected) Color.White.copy(alpha = 0.2f)
+                                                else Color.Transparent
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = "Selected",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             },
                             modifier = Modifier.clickable {

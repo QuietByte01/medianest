@@ -1,7 +1,9 @@
 package com.example
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
+
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -392,16 +394,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestMediaPermissions() {
+        val prefs = getSharedPreferences("medianest_perms", Context.MODE_PRIVATE)
+        val hasAskedOptional = prefs.getBoolean("has_asked_optional_perms", false)
+
         val permissions = mutableListOf<String>()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.READ_MEDIA_IMAGES)
             permissions.add(Manifest.permission.READ_MEDIA_VIDEO)
             permissions.add(Manifest.permission.READ_MEDIA_AUDIO)
-            permissions.add(Manifest.permission.RECORD_AUDIO)
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+            if (!hasAskedOptional) {
+                permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
         } else {
             permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
-            permissions.add(Manifest.permission.RECORD_AUDIO)
         }
 
         val ungranted = permissions.filter {
@@ -409,9 +414,13 @@ class MainActivity : ComponentActivity() {
         }
 
         if (ungranted.isNotEmpty()) {
+            if (!hasAskedOptional) {
+                prefs.edit().putBoolean("has_asked_optional_perms", true).apply()
+            }
             ActivityCompat.requestPermissions(this, ungranted.toTypedArray(), 100)
         }
     }
+
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)

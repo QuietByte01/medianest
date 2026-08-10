@@ -1,0 +1,81 @@
+package com.example.ui.library.video
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import com.example.data.db.MediaCategory
+import com.example.data.model.MediaItem
+import com.example.ui.components.MediaGridItem
+import com.example.ui.components.translucentScrollBarStaggeredGrid
+
+@Composable
+fun VideosMainGrid(
+    sortedDisplayList: List<MediaItem>,
+    videoFolderGroups: Map<String, List<MediaItem>>,
+    selectedUris: Set<String>,
+    isSelectionMode: Boolean,
+    gridSizeLevel: Int,
+    gridGapDp: Int,
+    cornerRadiusDp: Int,
+    roundedCornersEnabled: Boolean,
+    selectedCategory: MediaCategory?,
+    onVideoClick: (MediaItem) -> Unit,
+    onVideoLongClick: (MediaItem) -> Unit,
+    onInfoItem: (MediaItem) -> Unit,
+    onVideoDelete: (MediaItem) -> Unit,
+    onRemoveFromCategory: (MediaItem) -> Unit,
+    onOpenFolder: (String) -> Unit,
+    onRename: (MediaItem) -> Unit
+) {
+    val videoMinSize = when (gridSizeLevel) {
+        0 -> 100.dp
+        2 -> 180.dp
+        3 -> 220.dp
+        else -> 135.dp
+    }
+    val videoGridState = rememberLazyStaggeredGridState()
+    LazyVerticalStaggeredGrid(
+        state = videoGridState,
+        columns = StaggeredGridCells.Adaptive(minSize = videoMinSize),
+        modifier = Modifier
+            .fillMaxSize()
+            .translucentScrollBarStaggeredGrid(videoGridState),
+        contentPadding = PaddingValues(Dp(gridGapDp.toFloat())),
+        horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
+        verticalItemSpacing = Dp(gridGapDp.toFloat())
+    ) {
+        items(sortedDisplayList, key = { it.id }) { item ->
+            MediaGridItem(
+                item = item,
+                isSelected = selectedUris.contains(item.uri.toString()),
+                isSelectionMode = isSelectionMode,
+                cornerRadiusDp = cornerRadiusDp,
+                roundedCornersEnabled = roundedCornersEnabled,
+                onClick = { onVideoClick(item) },
+                onLongClick = { onVideoLongClick(item) },
+                onInfo = { onInfoItem(item) },
+                onDelete = { onVideoDelete(item) },
+                showRemoveOption = selectedCategory != null,
+                onRemoveFromCategory = { onRemoveFromCategory(item) },
+                onOpenFolder = { targetFolder ->
+                    val matchedKey = videoFolderGroups.keys.firstOrNull { key ->
+                        key.equals(targetFolder, ignoreCase = true) ||
+                                key.lowercase().endsWith(targetFolder.lowercase()) ||
+                                targetFolder.lowercase().endsWith(key.lowercase()) ||
+                                key.substringAfterLast('/').equals(targetFolder.substringAfterLast('/'), ignoreCase = true)
+                    } ?: targetFolder
+                    onOpenFolder(matchedKey)
+                },
+                onRename = { onRename(item) }
+            )
+        }
+    }
+}

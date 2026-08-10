@@ -145,25 +145,41 @@ class ExoPlayerManager private constructor(private val context: Context) {
     }
 
     val exoPlayer: ExoPlayer by lazy {
-        // 1. Configure Extractors with optimized flags for local media compatibility (MKV, AVI, FLV, MP4)
+        // 1. Configure Extractors for maximum format compatibility
+        //    AVI has no native Media3 extractor — falls through to platform MediaCodec.
+        //    FLV, MKV, MP4 are handled natively. Flags below maximise seek accuracy & resilience.
         val extractorsFactory = DefaultExtractorsFactory()
             .setConstantBitrateSeekingEnabled(true)
-            .setAdtsExtractorFlags(androidx.media3.extractor.ts.AdtsExtractor.FLAG_ENABLE_CONSTANT_BITRATE_SEEKING)
-            .setAmrExtractorFlags(androidx.media3.extractor.amr.AmrExtractor.FLAG_ENABLE_CONSTANT_BITRATE_SEEKING)
-            .setMatroskaExtractorFlags(0) // Default flags for MKV
+            .setConstantBitrateSeekingAlwaysEnabled(true)           // Allow CBR seeking even without seek table
+            .setAdtsExtractorFlags(
+                androidx.media3.extractor.ts.AdtsExtractor.FLAG_ENABLE_CONSTANT_BITRATE_SEEKING
+            )
+            .setAmrExtractorFlags(
+                androidx.media3.extractor.amr.AmrExtractor.FLAG_ENABLE_CONSTANT_BITRATE_SEEKING
+            )
+            .setMp3ExtractorFlags(
+                androidx.media3.extractor.mp3.Mp3Extractor.FLAG_ENABLE_CONSTANT_BITRATE_SEEKING or
+                androidx.media3.extractor.mp3.Mp3Extractor.FLAG_ENABLE_INDEX_SEEKING
+            )
+            .setMatroskaExtractorFlags(0) // Use defaults — FLAG_EMIT_CUES_AS_METADATA not in Media3 1.5.1
+            .setMp4ExtractorFlags(
+                androidx.media3.extractor.mp4.Mp4Extractor.FLAG_WORKAROUND_IGNORE_EDIT_LISTS
+            )
 
         // 2. Configure MediaSourceFactory with optimized Extractors
         val mediaSourceFactory = DefaultMediaSourceFactory(context, extractorsFactory)
 
-        // 3. Customize LoadControl for instant playback initiation (<250ms buffer required before first frame)
+        // 3. Tune LoadControl for smooth high-bitrate AVI / FLV / MKV playback.
+        //    AVI (via platform MediaCodec) benefits from a larger pre-roll buffer.
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                /* minBufferMs = */ 1000,                            // 1 sec min buffer
-                /* maxBufferMs = */ 10000,                           // 10 sec max buffer for local files
-                /* bufferForPlaybackMs = */ 250,                     // 250ms buffer threshold for INSTANT playback start!
-                /* bufferForPlaybackAfterRebufferMs = */ 500         // 500ms after rebuffer
+                /* minBufferMs = */                    2_000,   // 2 s  — enough for legacy AVI codec init
+                /* maxBufferMs = */                   30_000,   // 30 s — big enough for high-bitrate AVI
+                /* bufferForPlaybackMs = */              250,   // Start playing after just 250 ms
+                /* bufferForPlaybackAfterRebufferMs = */ 1_500  // 1.5 s re-buffer threshold
             )
             .setPrioritizeTimeOverSizeThresholds(true)
+            .setTargetBufferBytes(DefaultLoadControl.DEFAULT_TARGET_BUFFER_BYTES)
             .build()
 
         // 4. Custom Renderer Factory with MediaCodecSelector & Decoder Fallback
@@ -452,6 +468,23 @@ class ExoPlayerManager private constructor(private val context: Context) {
 
     fun setBackgroundPlayEnabled(enabled: Boolean) {
         _playerState.value = _playerState.value.copy(isBackgroundPlayEnabled = enabled)
+        if (enabled) {
+            // Keep audio focus and allow playback to continue when app goes to background.
+            // ExoPlayer already handles AudioAttributes with handleAudioBecomingNoisy=true by default.
+            // Ensure the foreground notification service is started so the OS does not kill playback.
+            val currentItem = _playerState.value.currentItem
+            if (currentItem != null) {
+                FloatingPlayerService.startOrUpdateService(
+                    context = context,
+                    title = currentItem.title,
+                    artist = currentItem.artist ?: currentItem.album ?: currentItem.bucketName ?: "MediaNest",
+                    isPlaying = _playerState.value.isPlaying,
+                    artworkUri = currentItem.albumArtUri?.toString() ?: currentItem.uri.toString()
+                )
+            }
+        }
+        // When disabled, the notification service lifecycle is managed by the existing
+        // combine collector (lines 97-123) which stops the service when !isPlaying.
     }
 
     fun setShuffleMode(shuffleMode: Boolean) {

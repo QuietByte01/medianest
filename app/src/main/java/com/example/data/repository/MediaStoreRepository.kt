@@ -148,16 +148,11 @@ class MediaStoreRepository(private val context: Context) {
         if (showHidden) {
             val hiddenFromFileSystem = scanFileSystemHiddenMedia(MediaType.IMAGE, hiddenFolders, showHidden = true)
             val existingUris = imagesList.map { it.uri.toString() }.toSet()
-            val existingFilePaths = imagesList.mapNotNull { getFilePathFromUri(context, it.uri) }.filter { it.isNotBlank() }.toSet()
             val existingNameSize = imagesList.map { "${it.title.substringAfterLast('/')}_${it.size}" }.toSet()
 
             hiddenFromFileSystem.forEach { item ->
-                val filePath = item.uri.path ?: ""
                 val nameSizeKey = "${item.title.substringAfterLast('/')}_${item.size}"
-                if (!existingUris.contains(item.uri.toString()) &&
-                    !existingFilePaths.contains(filePath) &&
-                    !existingNameSize.contains(nameSizeKey)
-                ) {
+                if (!existingUris.contains(item.uri.toString()) && !existingNameSize.contains(nameSizeKey)) {
                     imagesList.add(item)
                 }
             }
@@ -300,16 +295,11 @@ class MediaStoreRepository(private val context: Context) {
         if (showHidden) {
             val hiddenFromFileSystem = scanFileSystemHiddenMedia(MediaType.VIDEO, hiddenFolders, showHidden = true)
             val existingUris = videosList.map { it.uri.toString() }.toSet()
-            val existingFilePaths = videosList.mapNotNull { getFilePathFromUri(context, it.uri) }.filter { it.isNotBlank() }.toSet()
             val existingNameSize = videosList.map { "${it.title.substringAfterLast('/')}_${it.size}" }.toSet()
 
             hiddenFromFileSystem.forEach { item ->
-                val filePath = item.uri.path ?: ""
                 val nameSizeKey = "${item.title.substringAfterLast('/')}_${item.size}"
-                if (!existingUris.contains(item.uri.toString()) &&
-                    !existingFilePaths.contains(filePath) &&
-                    !existingNameSize.contains(nameSizeKey)
-                ) {
+                if (!existingUris.contains(item.uri.toString()) && !existingNameSize.contains(nameSizeKey)) {
                     videosList.add(item)
                 }
             }
@@ -626,18 +616,6 @@ class MediaStoreRepository(private val context: Context) {
                 }
 
                 val filesList = (rawFiles ?: emptyArray()).toMutableList()
-
-                // Explicitly probe common dot directories in case OS/ScopedStorage suppressed them from listFiles()
-                for (dotName in commonDotFolders) {
-                    try {
-                        val dotDir = java.io.File(dir, dotName)
-                        if (dotDir.exists() && dotDir.isDirectory && filesList.none { it.absolutePath == dotDir.absolutePath }) {
-                            filesList.add(dotDir)
-                        }
-                    } catch (e: Exception) {
-                        // ignore
-                    }
-                }
 
                 val hasNoMedia = filesList.any { it.name.equals(".nomedia", ignoreCase = true) }
                 val isHiddenFolder = parentIsHidden || dirName.startsWith(".") || dir.absolutePath.contains("/.") || hasNoMedia || isSelectivelyDisabledFolder

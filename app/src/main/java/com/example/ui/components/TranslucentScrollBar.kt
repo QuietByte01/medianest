@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
@@ -10,6 +9,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -17,25 +17,63 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+// Helper — detect touch + drag on the scrollbar track and translate to list-scroll commands.
+// Uses awaitPointerEventScope so we control hit-testing explicitly (the old detectVerticalDragGestures
+// approach missed the initial touch-down in the scrollbar zone on many devices).
+private fun Modifier.scrollBarDrag(
+    scrollBarWidthPx: () -> Float,      // Width of the visible scrollbar pill
+    touchZoneWidthPx: () -> Float,      // Extra horizontal touch zone to the left of pill
+    totalItems: () -> Int,
+    onScroll: (fraction: Float) -> Unit // 0f = top, 1f = bottom
+): Modifier = this.pointerInput(Unit) {
+    awaitPointerEventScope {
+        while (true) {
+            // Wait for any pointer event on the initial pass
+            val down = awaitPointerEvent(PointerEventPass.Initial)
+            val touch = down.changes.firstOrNull() ?: continue
+            val xThreshold = size.width - touchZoneWidthPx()
+            if (touch.position.x < xThreshold) continue   // Not in scrollbar zone — ignore
+
+            touch.consume()
+            var lastY = touch.position.y
+
+            // Track pointer while it's held down
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                val change = event.changes.firstOrNull() ?: break
+                if (!change.pressed) break
+                change.consume()
+
+                val deltaY = change.position.y - lastY
+                lastY = change.position.y
+
+                val total = totalItems()
+                if (total > 0 && size.height > 0) {
+                    val fraction = (change.position.y / size.height.toFloat()).coerceIn(0f, 1f)
+                    onScroll(fraction)
+                }
+            }
+        }
+    }
+}
+
 fun Modifier.translucentScrollBar(
     listState: LazyListState,
     color: Color = Color(0xAAFFFFFF),
     width: Dp = 6.dp
 ): Modifier = this
-    .pointerInput(listState) {
-        detectVerticalDragGestures { change, dragAmount ->
-            if (change.position.x >= size.width - 48.dp.toPx()) {
-                change.consume()
-                val totalItemsCount = listState.layoutInfo.totalItemsCount
-                if (totalItemsCount > 0 && size.height > 0) {
-                    val targetIndex = (listState.firstVisibleItemIndex + (dragAmount / size.height * totalItemsCount).toInt()).coerceIn(0, totalItemsCount - 1)
-                    CoroutineScope(Dispatchers.Main).launch {
-                        listState.scrollToItem(targetIndex)
-                    }
-                }
+    .scrollBarDrag(
+        scrollBarWidthPx = { width.value * 3 },
+        touchZoneWidthPx = { 56f },
+        totalItems = { listState.layoutInfo.totalItemsCount },
+        onScroll = { fraction ->
+            val total = listState.layoutInfo.totalItemsCount
+            val target = (fraction * total).toInt().coerceIn(0, (total - 1).coerceAtLeast(0))
+            CoroutineScope(Dispatchers.Main).launch {
+                listState.scrollToItem(target)
             }
         }
-    }
+    )
     .drawWithContent {
         drawContent()
         val visibleItems = listState.layoutInfo.visibleItemsInfo
@@ -62,20 +100,18 @@ fun Modifier.translucentScrollBarGrid(
     color: Color = Color(0xAAFFFFFF),
     width: Dp = 6.dp
 ): Modifier = this
-    .pointerInput(gridState) {
-        detectVerticalDragGestures { change, dragAmount ->
-            if (change.position.x >= size.width - 48.dp.toPx()) {
-                change.consume()
-                val totalItemsCount = gridState.layoutInfo.totalItemsCount
-                if (totalItemsCount > 0 && size.height > 0) {
-                    val targetIndex = (gridState.firstVisibleItemIndex + (dragAmount / size.height * totalItemsCount).toInt()).coerceIn(0, totalItemsCount - 1)
-                    CoroutineScope(Dispatchers.Main).launch {
-                        gridState.scrollToItem(targetIndex)
-                    }
-                }
+    .scrollBarDrag(
+        scrollBarWidthPx = { width.value * 3 },
+        touchZoneWidthPx = { 56f },
+        totalItems = { gridState.layoutInfo.totalItemsCount },
+        onScroll = { fraction ->
+            val total = gridState.layoutInfo.totalItemsCount
+            val target = (fraction * total).toInt().coerceIn(0, (total - 1).coerceAtLeast(0))
+            CoroutineScope(Dispatchers.Main).launch {
+                gridState.scrollToItem(target)
             }
         }
-    }
+    )
     .drawWithContent {
         drawContent()
         val visibleItems = gridState.layoutInfo.visibleItemsInfo
@@ -102,20 +138,18 @@ fun Modifier.translucentScrollBarStaggeredGrid(
     color: Color = Color(0xAAFFFFFF),
     width: Dp = 6.dp
 ): Modifier = this
-    .pointerInput(staggeredGridState) {
-        detectVerticalDragGestures { change, dragAmount ->
-            if (change.position.x >= size.width - 48.dp.toPx()) {
-                change.consume()
-                val totalItemsCount = staggeredGridState.layoutInfo.totalItemsCount
-                if (totalItemsCount > 0 && size.height > 0) {
-                    val targetIndex = (staggeredGridState.firstVisibleItemIndex + (dragAmount / size.height * totalItemsCount).toInt()).coerceIn(0, totalItemsCount - 1)
-                    CoroutineScope(Dispatchers.Main).launch {
-                        staggeredGridState.scrollToItem(targetIndex)
-                    }
-                }
+    .scrollBarDrag(
+        scrollBarWidthPx = { width.value * 3 },
+        touchZoneWidthPx = { 56f },
+        totalItems = { staggeredGridState.layoutInfo.totalItemsCount },
+        onScroll = { fraction ->
+            val total = staggeredGridState.layoutInfo.totalItemsCount
+            val target = (fraction * total).toInt().coerceIn(0, (total - 1).coerceAtLeast(0))
+            CoroutineScope(Dispatchers.Main).launch {
+                staggeredGridState.scrollToItem(target)
             }
         }
-    }
+    )
     .drawWithContent {
         drawContent()
         val visibleItems = staggeredGridState.layoutInfo.visibleItemsInfo

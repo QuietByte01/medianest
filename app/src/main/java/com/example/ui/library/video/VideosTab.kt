@@ -1,0 +1,738 @@
+package com.example.ui.library.video
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Cake
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.Flight
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.example.MediaNestApp
+import com.example.data.db.MediaCategory
+import com.example.data.db.MediaType
+import com.example.data.db.SelectiveHiddenFolder
+import com.example.data.model.MediaItem
+import com.example.data.settings.SettingsManager
+import com.example.ui.components.GlassSurface
+import com.example.ui.components.MediaGridItem
+import com.example.ui.components.MediaInfoBottomSheet
+import com.example.ui.components.MediaLoadingAnimation
+import com.example.ui.components.RenameFileDialog
+import com.example.ui.components.translucentScrollBarGrid
+import com.example.ui.components.translucentScrollBarStaggeredGrid
+import com.example.ui.theme.LocalDarkTheme
+import com.example.util.CategoryIconUtils
+import com.example.util.FolderHiddenUtils
+import com.example.util.TrashManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun VideosTab(
+    videosList: List<MediaItem>,
+    categories: List<MediaCategory>,
+    selectedCategory: MediaCategory?,
+    selectedUris: Set<String>,
+    isSelectionMode: Boolean,
+    gridGapDp: Int,
+    gridSizeLevel: Int = 1,
+    cornerRadiusDp: Int = 8,
+    roundedCornersEnabled: Boolean = true,
+    isLoading: Boolean = false,
+    onCategorySelect: (MediaCategory?) -> Unit,
+    onCreateCategoryClick: () -> Unit,
+    onVideoClick: (MediaItem) -> Unit,
+    onVideoLongClick: (MediaItem) -> Unit,
+    showAddVideosDialog: Boolean = false,
+    onDismissAddVideosDialog: () -> Unit = {},
+    onClearSelection: () -> Unit = {},
+    initialFolder: String? = null
+) {
+    var sortField by remember { mutableStateOf("Date") }
+    var isAscending by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
+    var activeFilterTab by remember(initialFolder) { mutableStateOf(if (initialFolder != null) "FOLDERS" else "ALL") }
+    var isFolderViewActive by remember(initialFolder) { mutableStateOf(initialFolder != null) }
+    var selectedFolder by remember(initialFolder) { mutableStateOf(initialFolder) }
+    var infoItem by remember { mutableStateOf<MediaItem?>(null) }
+    var videoToDelete by remember { mutableStateOf<MediaItem?>(null) }
+
+    var selectedSeriesName by remember { mutableStateOf<String?>(null) }
+    var selectedSeasonName by remember { mutableStateOf<String?>(null) }
+
+    // Folder Actions State
+    var folderToMove by remember { mutableStateOf<String?>(null) }
+    var folderToDelete by remember { mutableStateOf<String?>(null) }
+    var folderForInfo by remember { mutableStateOf<String?>(null) }
+    var showAddVideosToCategoryDialog by remember { mutableStateOf(false) }
+    var itemToRename by remember { mutableStateOf<MediaItem?>(null) }
+
+    // Category options state
+    var categoryForOptions by remember { mutableStateOf<MediaCategory?>(null) }
+    var showCategoryInfoDialog by remember { mutableStateOf(false) }
+    var showCategoryDeleteConfirm by remember { mutableStateOf(false) }
+
+    val currentContext = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val settingsManager = remember { SettingsManager(currentContext) }
+
+    val db = remember { MediaNestApp.instance.database }
+    val allCrossRefs by db.categoryDao().getAllCrossRefs().collectAsState(initial = emptyList())
+
+    val defaultVideoCategories = remember {
+        listOf(
+            MediaCategory(id = -101, name = "Travel & Vlogs", type = "VIDEO", iconName = "flight"),
+            MediaCategory(id = -102, name = "Birthday Parties", type = "VIDEO", iconName = "cake"),
+            MediaCategory(id = -103, name = "Training Videos", type = "VIDEO", iconName = "school"),
+            MediaCategory(id = -104, name = "Workout", type = "VIDEO", iconName = "fitness")
+        )
+    }
+
+    val allVideoCategories = remember(categories, defaultVideoCategories) {
+        val userNames = categories.map { it.name.lowercase() }.toSet()
+        val filteredDefaults = defaultVideoCategories.filter { it.name.lowercase() !in userNames }
+        categories + filteredDefaults
+    }
+
+    val showHiddenSetting by settingsManager.showHiddenFiles.collectAsState(initial = false)
+
+    val videoFolderGroups = remember(videosList, showHiddenSetting) {
+        val filteredList = if (showHiddenSetting) {
+            videosList
+        } else {
+            videosList.filter { item ->
+                val relPath = item.relativePath?.trim('/') ?: ""
+                !relPath.split('/').any { it.startsWith(".") && it.length > 1 }
+            }
+        }
+
+        filteredList.groupBy { item ->
+            val relPath = item.relativePath?.trim('/')
+            if (!relPath.isNullOrBlank()) relPath else item.bucketName ?: "Videos"
+        }
+    }
+
+    val categoryUris = remember(allCrossRefs, selectedCategory, videosList) {
+        if (selectedCategory != null) {
+            val crossRefUris = allCrossRefs.filter { it.categoryId == selectedCategory.id }.map { it.mediaUri }.toSet()
+            val filterKeywords = when (selectedCategory.name.lowercase()) {
+                "workout" -> listOf("workout", "gym", "fitness", "exercise", "cardio", "lifting", "abs", "squat")
+                "training videos" -> listOf("train", "tutorial", "learn", "course", "coaching", "drills", "practice")
+                "birthday parties" -> listOf("birthday", "bday", "party", "celebration", "cake")
+                "travel & vlogs" -> listOf("travel", "vlog", "trip", "tour", "vacation", "journey", "holiday")
+                else -> emptyList()
+            }
+            videosList.filter { item ->
+                crossRefUris.contains(item.uri.toString()) ||
+                        (filterKeywords.isNotEmpty() && filterKeywords.any { kw ->
+                            item.title.lowercase().contains(kw) ||
+                                    (item.relativePath ?: "").lowercase().contains(kw) ||
+                                    (item.bucketName ?: "").lowercase().contains(kw)
+                        })
+            }.map { it.uri.toString() }.toSet()
+        } else emptySet()
+    }
+
+    val folderGroups = remember(videosList) {
+        videosList.groupBy { it.bucketName ?: "Movies" }
+    }
+
+    BackHandler(enabled = selectedSeasonName != null || selectedSeriesName != null || selectedFolder != null || selectedCategory != null || isFolderViewActive || activeFilterTab != "ALL") {
+        when {
+            selectedSeasonName != null -> selectedSeasonName = null
+            selectedSeriesName != null -> selectedSeriesName = null
+            selectedFolder != null -> selectedFolder = null
+            selectedCategory != null -> onCategorySelect(null)
+            isFolderViewActive -> {
+                isFolderViewActive = false
+                activeFilterTab = "ALL"
+            }
+            activeFilterTab != "ALL" -> activeFilterTab = "ALL"
+        }
+    }
+
+    val musicCount = remember(videosList) { videosList.count { isMusicVideo(it) } }
+    val moviesCount = remember(videosList) { videosList.count { isMovie(it) } }
+    val seriesCount = remember(videosList) { videosList.count { isTVSeries(it) } }
+    val clipsCount = remember(videosList) { videosList.count { isClipsAndRecordings(it) } }
+    val shortsCount = remember(videosList) { videosList.count { isShorts(it) } }
+    val socialCount = remember(videosList) { videosList.count { isSocialMediaVideo(it) } }
+    val editedCount = remember(videosList) { videosList.count { isEditedVideo(it) } }
+    val downloadedCount = remember(videosList) { videosList.count { isDownloaded(it) } }
+    val trashedVideoItems = remember(activeFilterTab) {
+        TrashManager.getTrashedItems(currentContext)
+            .filter { it.mimeType.startsWith("video") }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Top Filter Tabs
+        VideoFilterRow(
+            isFolderViewActive = isFolderViewActive,
+            selectedCategory = selectedCategory,
+            activeFilterTab = activeFilterTab,
+            musicCount = musicCount,
+            moviesCount = moviesCount,
+            seriesCount = seriesCount,
+            clipsCount = clipsCount,
+            shortsCount = shortsCount,
+            socialCount = socialCount,
+            editedCount = editedCount,
+            downloadedCount = downloadedCount,
+            trashedCount = trashedVideoItems.size,
+            onFilterSelect = { tab ->
+                when (tab) {
+                    "FOLDERS" -> {
+                        isFolderViewActive = true
+                        selectedFolder = null
+                        activeFilterTab = "FOLDERS"
+                        onCategorySelect(null)
+                    }
+                    "ALL" -> {
+                        isFolderViewActive = false
+                        selectedFolder = null
+                        activeFilterTab = "ALL"
+                        onCategorySelect(null)
+                    }
+                    else -> {
+                        isFolderViewActive = false
+                        selectedFolder = null
+                        activeFilterTab = tab
+                        onCategorySelect(null)
+                    }
+                }
+            }
+        )
+
+        // Bottom chips row: Categories shown on ALL or CATEGORIES tabs
+        if (!isFolderViewActive && (activeFilterTab == "ALL" || activeFilterTab == "CATEGORIES")) {
+            VideoCategoryRow(
+                allVideoCategories = allVideoCategories,
+                selectedCategory = selectedCategory,
+                isFolderViewActive = isFolderViewActive,
+                allCrossRefs = allCrossRefs,
+                videosList = videosList,
+                onCategorySelect = onCategorySelect,
+                onCreateCategoryClick = onCreateCategoryClick,
+                onCategoryInfoClick = {
+                    categoryForOptions = it
+                    showCategoryInfoDialog = true
+                },
+                onCategoryDeleteClick = {
+                    categoryForOptions = it
+                    showCategoryDeleteConfirm = true
+                }
+            )
+        }
+
+        if (isFolderViewActive && selectedFolder != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { selectedFolder = null }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to folders", tint = Color.White)
+                }
+                Text(
+                    text = selectedFolder!!.substringAfterLast('/'),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = Color.White
+                )
+            }
+        }
+
+        val displayList = remember(videosList, videoFolderGroups, activeFilterTab, isFolderViewActive, selectedFolder, selectedCategory, categoryUris) {
+            if (isFolderViewActive) {
+                if (selectedFolder != null) {
+                    videoFolderGroups[selectedFolder] ?: emptyList()
+                } else {
+                    videosList
+                }
+            } else if (selectedCategory != null) {
+                videosList.filter { categoryUris.contains(it.uri.toString()) }
+            } else if (activeFilterTab == "CATEGORIES") {
+                emptyList()
+            } else {
+                filterVideoList(videosList, activeFilterTab)
+            }
+        }
+
+        val sortedDisplayList = remember(displayList, sortField, isAscending) {
+            val comp = when (sortField) {
+                "Name" -> compareBy<MediaItem> { it.title.lowercase() }
+                "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
+                "Size" -> compareBy<MediaItem> { it.size }
+                else -> compareBy<MediaItem> { it.dateAdded }
+            }
+            if (isAscending) displayList.sortedWith(comp) else displayList.sortedWith(comp).reversed()
+        }
+
+        if (isLoading && (videosList.isEmpty() || (displayList.isEmpty() && activeFilterTab != "CATEGORIES"))) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                MediaLoadingAnimation(
+                    mediaType = MediaType.VIDEO,
+                    iconSize = 52.dp,
+                    showLabel = true
+                )
+            }
+        } else if (videosList.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (selectedCategory != null) "No videos in ${selectedCategory.name}" else "No Videos Found",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else if (selectedCategory != null) {
+            val categoryVideos = remember(videosList, categoryUris, selectedCategory) {
+                val crossRefUris = categoryUris.toSet()
+                val filterKeywords = when (selectedCategory.name.lowercase()) {
+                    "workout" -> listOf("workout", "gym", "fitness", "exercise", "cardio", "lifting", "abs", "squat")
+                    "training videos" -> listOf("train", "tutorial", "learn", "course", "coaching", "drills", "practice")
+                    "birthday parties", "birthday" -> listOf("birthday", "bday", "party", "celebration", "cake")
+                    "travel & vlogs", "travel" -> listOf("travel", "vlog", "trip", "tour", "vacation", "journey", "holiday")
+                    "events & birthdays", "events" -> listOf("event", "festival", "party", "gala", "gathering", "celebration")
+                    else -> emptyList()
+                }
+                videosList.filter { item ->
+                    crossRefUris.contains(item.uri.toString()) ||
+                            crossRefUris.any { ref -> ref == item.uri.toString() || ref == item.uri.path } ||
+                            (filterKeywords.isNotEmpty() && filterKeywords.any { kw ->
+                                item.title.lowercase().contains(kw) ||
+                                        (item.relativePath ?: "").lowercase().contains(kw) ||
+                                        (item.bucketName ?: "").lowercase().contains(kw)
+                            })
+                }
+            }
+
+            ChronologicalCategoryVideoGrid(
+                category = selectedCategory,
+                videos = categoryVideos,
+                onVideoClick = onVideoClick,
+                onVideoLongClick = onVideoLongClick,
+                onBack = { onCategorySelect(null) },
+                selectedUris = selectedUris,
+                isSelectionMode = isSelectionMode,
+                onDelete = { videoToDelete = it },
+                onRemoveFromCategory = { item ->
+                    scope.launch(Dispatchers.IO) {
+                        db.categoryDao().removeMediaFromCategory(selectedCategory.id, item.uri.toString())
+                    }
+                }
+            )
+        } else if (activeFilterTab == "CATEGORIES" && selectedCategory == null) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Category,
+                        contentDescription = null,
+                        tint = Color(0xFFC0C5D0),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "ALL VIDEO CATEGORIES",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp,
+                        color = Color(0xFFC0C5D0)
+                    )
+                }
+
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 160.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    items(allVideoCategories, key = { "cat_${it.id}" }) { cat ->
+                        val count = remember(allCrossRefs, cat, videosList) {
+                            val crossRefUris = allCrossRefs.filter { it.categoryId == cat.id }.map { it.mediaUri }.toSet()
+                            val filterKeywords = when (cat.name.lowercase()) {
+                                "workout" -> listOf("workout", "gym", "fitness", "exercise", "cardio", "lifting", "abs", "squat")
+                                "training videos" -> listOf("train", "tutorial", "learn", "course", "coaching", "drills", "practice")
+                                "birthday parties" -> listOf("birthday", "bday", "party", "celebration", "cake")
+                                "travel & vlogs" -> listOf("travel", "vlog", "trip", "tour", "vacation", "journey", "holiday")
+                                else -> emptyList()
+                            }
+                            videosList.count { item ->
+                                crossRefUris.contains(item.uri.toString()) ||
+                                        crossRefUris.any { ref -> ref == item.uri.toString() || ref == item.uri.path } ||
+                                        (filterKeywords.isNotEmpty() && filterKeywords.any { kw ->
+                                            item.title.lowercase().contains(kw) ||
+                                                    (item.relativePath ?: "").lowercase().contains(kw) ||
+                                                    (item.bucketName ?: "").lowercase().contains(kw)
+                                        })
+                            }
+                        }
+
+                        GlassSurface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable { onCategorySelect(cat) },
+                            shape = RoundedCornerShape(16.dp),
+                            backgroundColor = Color(0x28181C2B),
+                            borderColor = Color(0x28FFFFFF)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = CategoryIconUtils.getCategoryIcon(cat.iconName),
+                                    contentDescription = null,
+                                    tint = Color(0xFF6366F1),
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Text(
+                                    text = cat.name,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "$count Videos",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF9EA3B0)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } else if (isFolderViewActive && selectedFolder == null) {
+            VideoFoldersGrid(
+                videoFolderGroups = videoFolderGroups,
+                activeFilterTab = activeFilterTab,
+                settingsManager = settingsManager,
+                db = db,
+                roundedCornersEnabled = roundedCornersEnabled,
+                cornerRadiusDp = cornerRadiusDp,
+                onFolderClick = { selectedFolder = it },
+                onFolderDelete = { folderToDelete = it },
+                onFolderInfo = { folderForInfo = it },
+                onCreateCategoryClick = onCreateCategoryClick
+            )
+        } else if (activeFilterTab == "SERIES") {
+            VideoSeriesView(
+                videosList = videosList,
+                selectedSeriesName = selectedSeriesName,
+                selectedSeasonName = selectedSeasonName,
+                onSeriesClick = { selectedSeriesName = it },
+                onSeasonClick = { selectedSeasonName = it },
+                onBackFromSeason = { selectedSeasonName = null },
+                onBackFromSeries = { selectedSeriesName = null },
+                onVideoClick = onVideoClick,
+                onVideoLongClick = onVideoLongClick,
+                selectedUris = selectedUris,
+                isSelectionMode = isSelectionMode,
+                cornerRadiusDp = cornerRadiusDp,
+                roundedCornersEnabled = roundedCornersEnabled,
+                gridSizeLevel = gridSizeLevel,
+                gridGapDp = gridGapDp,
+                onInfoItem = { infoItem = it },
+                onVideoDelete = { videoToDelete = it },
+                onRename = { itemToRename = it }
+            )
+        } else {
+            VideosMainGrid(
+                sortedDisplayList = sortedDisplayList,
+                videoFolderGroups = videoFolderGroups,
+                selectedUris = selectedUris,
+                isSelectionMode = isSelectionMode,
+                gridSizeLevel = gridSizeLevel,
+                gridGapDp = gridGapDp,
+                cornerRadiusDp = cornerRadiusDp,
+                roundedCornersEnabled = roundedCornersEnabled,
+                selectedCategory = selectedCategory,
+                onVideoClick = onVideoClick,
+                onVideoLongClick = onVideoLongClick,
+                onInfoItem = { infoItem = it },
+                onVideoDelete = { videoToDelete = it },
+                onRemoveFromCategory = { item ->
+                    scope.launch(Dispatchers.IO) {
+                        db.categoryDao().removeMediaFromCategory(selectedCategory!!.id, item.uri.toString())
+                    }
+                },
+                onOpenFolder = { matchedKey ->
+                    isFolderViewActive = true
+                    selectedFolder = matchedKey
+                },
+                onRename = { itemToRename = it }
+            )
+        }
+
+
+        if (itemToRename != null) {
+            RenameFileDialog(
+                item = itemToRename!!,
+                onDismiss = { itemToRename = null },
+                onRenameSuccess = { itemToRename = null }
+            )
+        }
+
+        if (videoToDelete != null) {
+            val target = videoToDelete!!
+            AlertDialog(
+                onDismissRequest = { videoToDelete = null },
+                title = { Text("Delete Video File") },
+                text = { Text("Are you sure you want to delete '${target.title}'? This will permanently remove the video file from your device storage.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            videoToDelete = null
+                            scope.launch(Dispatchers.IO) {
+                                try {
+                                    FolderHiddenUtils.deleteMediaUri(currentContext, target.uri)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { videoToDelete = null }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (infoItem != null) {
+            MediaInfoBottomSheet(
+                item = infoItem!!,
+                onDismiss = { infoItem = null },
+                onShowFileLocation = { item ->
+                    infoItem = null
+                    isFolderViewActive = true
+                    activeFilterTab = "FOLDERS"
+                    onCategorySelect(null)
+                    val relPath = item.relativePath?.trim('/')
+                    val folderKey = if (!relPath.isNullOrBlank()) relPath else (item.bucketName ?: "Movies")
+                    selectedFolder = videoFolderGroups.keys.firstOrNull { key ->
+                        key.equals(folderKey, ignoreCase = true) || key.lowercase().endsWith(folderKey.lowercase()) || folderKey.lowercase().endsWith(key.lowercase())
+                    } ?: folderKey
+                }
+            )
+        }
+
+        if (showAddVideosToCategoryDialog || showAddVideosDialog) {
+            AddVideosToCategoryDialog(
+                allVideoCategories = allVideoCategories,
+                selectedUris = selectedUris,
+                db = db,
+                scope = scope,
+                onDismiss = {
+                    showAddVideosToCategoryDialog = false
+                    onDismissAddVideosDialog()
+                },
+                onClearSelection = onClearSelection
+            )
+        }
+
+        if (folderToMove != null) {
+            MoveFolderDialog(
+                folderName = folderToMove!!,
+                folderGroups = folderGroups,
+                scope = scope,
+                onDismiss = { folderToMove = null }
+            )
+        }
+
+        if (folderToDelete != null) {
+            val srcFolder = folderToDelete!!
+            val itemsToDelete = videoFolderGroups[srcFolder] ?: emptyList()
+            DeleteFolderDialog(
+                folderName = srcFolder,
+                itemsToDelete = itemsToDelete,
+                context = currentContext,
+                scope = scope,
+                onDismiss = { folderToDelete = null }
+            )
+        }
+
+        if (folderForInfo != null) {
+            FolderInfoDialog(
+                srcFolder = folderForInfo!!,
+                videoFolderGroups = videoFolderGroups,
+                videosList = videosList,
+                context = currentContext,
+                onDismiss = { folderForInfo = null }
+            )
+        }
+
+        if (showCategoryInfoDialog && categoryForOptions != null) {
+            val cat = categoryForOptions!!
+            val itemCount = remember(allCrossRefs, cat, videosList) {
+                val crossRefUris = allCrossRefs.filter { it.categoryId == cat.id }.map { it.mediaUri }.toSet()
+                val filterKeywords = when (cat.name.trim().lowercase()) {
+                    "workout" -> listOf("workout", "gym", "fitness", "exercise", "cardio", "lifting", "abs", "squat")
+                    "training videos" -> listOf("train", "tutorial", "learn", "course", "coaching", "drills", "practice")
+                    "birthday parties" -> listOf("birthday", "bday", "party", "celebration", "cake")
+                    "travel & vlogs" -> listOf("travel", "vlog", "trip", "tour", "vacation", "journey", "holiday")
+                    else -> emptyList()
+                }
+                videosList.count { item ->
+                    crossRefUris.contains(item.uri.toString()) ||
+                            crossRefUris.any { ref -> ref == item.uri.toString() || ref == item.uri.path } ||
+                            (filterKeywords.isNotEmpty() && filterKeywords.any { kw ->
+                                item.title.lowercase().contains(kw) ||
+                                        (item.relativePath ?: "").lowercase().contains(kw) ||
+                                        (item.bucketName ?: "").lowercase().contains(kw)
+                            })
+                }
+            }
+            AlertDialog(
+                onDismissRequest = {
+                    showCategoryInfoDialog = false
+                    categoryForOptions = null
+                },
+                shape = RoundedCornerShape(16.dp),
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Text("Category Details", fontWeight = FontWeight.Bold)
+                    }
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Category Name", color = Color(0xFF9EA3B0), fontSize = 13.sp)
+                            Text(cat.name, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Category Type", color = Color(0xFF9EA3B0), fontSize = 13.sp)
+                            Text(cat.type, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Total Items", color = Color(0xFF9EA3B0), fontSize = 13.sp)
+                            Text("$itemCount items", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showCategoryInfoDialog = false
+                        categoryForOptions = null
+                    }) {
+                        Text("Close")
+                    }
+                }
+            )
+        }
+
+        if (showCategoryDeleteConfirm && categoryForOptions != null) {
+            val cat = categoryForOptions!!
+            AlertDialog(
+                onDismissRequest = {
+                    showCategoryDeleteConfirm = false
+                    categoryForOptions = null
+                },
+                shape = RoundedCornerShape(16.dp),
+                title = { Text("Delete Category") },
+                text = { Text("Are you sure you want to delete category '${cat.name}'? The videos in this category will not be deleted.") },
+                confirmButton = {
+                    Button(
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        onClick = {
+                            scope.launch(Dispatchers.IO) {
+                                db.categoryDao().deleteCategory(cat)
+                            }
+                            if (selectedCategory?.id == cat.id) {
+                                onCategorySelect(null)
+                            }
+                            showCategoryDeleteConfirm = false
+                            categoryForOptions = null
+                        }
+                    ) {
+                        Text("Delete", color = MaterialTheme.colorScheme.onError)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showCategoryDeleteConfirm = false
+                        categoryForOptions = null
+                    }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+    }
+}

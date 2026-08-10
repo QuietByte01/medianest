@@ -237,13 +237,13 @@ fun AudioVisualizer(
 
     LaunchedEffect(isPlaying) {
         var prevNanos = System.nanoTime()
-        while (true) {
-            withFrameNanos { frameNanos ->
-                val dt = ((frameNanos - prevNanos) / 1_000_000_000f).coerceIn(0.001f, 0.050f)
-                prevNanos = frameNanos
-                lastNanos = frameNanos.toFloat() // Triggers Compose Canvas invalidation on every frame!
+        if (isPlaying) {
+            while (isPlaying) {
+                withFrameNanos { frameNanos ->
+                    val dt = ((frameNanos - prevNanos) / 1_000_000_000f).coerceIn(0.001f, 0.050f)
+                    prevNanos = frameNanos
+                    lastNanos = frameNanos.toFloat()
 
-                if (isPlaying) {
                     val absSeed = abs(trackSeed).toFloat()
                     val tempo = 0.85f + (absSeed % 35) / 100f
                     val timeSec = (currentPosMs / 1000f) * tempo + (frameNanos / 1_000_000_000f % 1000f)
@@ -259,7 +259,6 @@ fun AudioVisualizer(
 
                         val rawVal = state.rawFFT[i]
                         val syntheticTarget = run {
-                            // Much slower frequencies for natural breathing
                             val f1 = sin((timeSec * (1.2f + i * 0.12f) + i * 0.45f).toDouble()).toFloat()
                             val f2 = cos((timeSec * (2.1f - i * 0.08f) + i * 0.7f).toDouble()).toFloat()
                             val f3 = sin((timeSec * (3.8f + i * 0.15f)).toDouble()).toFloat()
@@ -272,20 +271,17 @@ fun AudioVisualizer(
                             bandPulse.coerceIn(0.06f, 1.0f)
                         }
 
-                        // Favor raw audio data if present, otherwise use vivid synthetic music movement
                         val targetVal = if (rawVal > 0.005f) {
                             (rawVal * 0.92f + syntheticTarget * 0.08f).coerceIn(0.06f, 1f)
                         } else {
                             (syntheticTarget * 0.95f).coerceIn(0.08f, 1.0f)
                         }
 
-                        // Fast attack, smooth decay
                         val prev = state.smoothedBands[i]
                         val alpha = if (targetVal > prev) 0.48f else 0.16f
                         val smoothed = prev + (targetVal - prev) * alpha
                         state.smoothedBands[i] = smoothed
 
-                        // Peak cap mechanics
                         val gravity = 3.2f * dt
                         if (smoothed > state.peakCaps[i]) {
                             state.peakCaps[i] = smoothed
@@ -301,17 +297,18 @@ fun AudioVisualizer(
 
                     state.bassEnergy = (bassSum / (state.numBands * 0.25f)).coerceIn(0f, 1f)
                     state.overallAmplitude = (totalSum / state.numBands).coerceIn(0f, 1f)
-                } else {
-                    // Decay when paused
-                    for (i in 0 until state.numBands) {
-                        state.smoothedBands[i] *= 0.85f
-                        state.peakCaps[i] *= 0.85f
-                        state.rawFFT[i] = 0f
-                    }
-                    state.bassEnergy *= 0.80f
-                    state.overallAmplitude *= 0.80f
                 }
             }
+        } else {
+            // Perform quick decay pass when paused and then stop loop
+            for (i in 0 until state.numBands) {
+                state.smoothedBands[i] = 0f
+                state.peakCaps[i] = 0f
+                state.rawFFT[i] = 0f
+            }
+            state.bassEnergy = 0f
+            state.overallAmplitude = 0f
+            lastNanos = System.nanoTime().toFloat()
         }
     }
 

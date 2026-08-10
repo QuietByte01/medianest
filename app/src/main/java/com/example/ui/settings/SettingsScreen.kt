@@ -572,7 +572,7 @@ fun SettingsScreen(
                             DropdownMenu(
                                 expanded = hwDropdownExpanded,
                                 onDismissRequest = { hwDropdownExpanded = false },
-                                containerColor = Color(0xDC141722),
+                                containerColor = if (com.example.ui.theme.LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
                                 shape = RoundedCornerShape(16.dp),
                                 modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
                             ) {

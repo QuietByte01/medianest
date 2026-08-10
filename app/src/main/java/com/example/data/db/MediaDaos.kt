@@ -46,6 +46,14 @@ interface MediaCategoryDao {
 
     @Query("SELECT COUNT(*) FROM category_media_cross_ref WHERE categoryId = :categoryId AND mediaUri = :mediaUri")
     suspend fun countCategoryMediaCrossRef(categoryId: Long, mediaUri: String): Int
+
+    /** Find an existing playlist by exact name + type — used to avoid creating duplicates on re-import */
+    @Query("SELECT * FROM media_categories WHERE name = :name AND type = :type LIMIT 1")
+    suspend fun getCategoryByNameAndType(name: String, type: String): MediaCategory?
+
+    /** Synchronous version of getMediaUrisForCategory — used for duplicate-song check */
+    @Query("SELECT mediaUri FROM category_media_cross_ref WHERE categoryId = :categoryId")
+    suspend fun getMediaUrisForCategorySync(categoryId: Long): List<String>
 }
 
 @Dao
@@ -76,6 +84,9 @@ interface AudioMetadataCacheDao {
 
     @Query("SELECT * FROM audio_metadata_cache")
     suspend fun getAllCache(): List<AudioMetadataCache>
+
+    @Query("SELECT * FROM audio_metadata_cache")
+    fun getAllCacheFlow(): Flow<List<AudioMetadataCache>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveCache(cache: AudioMetadataCache)

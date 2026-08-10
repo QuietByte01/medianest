@@ -84,7 +84,7 @@ class SettingsManager(private val context: Context) {
     val forceLandscape: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_FORCE_LANDSCAPE] ?: false }
 
     val autoFetchLyrics: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUTO_FETCH_LYRICS] ?: true }
-    val showAudioVisualizer: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_SHOW_AUDIO_VISUALIZER] ?: true }
+    val showAudioVisualizer: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_SHOW_AUDIO_VISUALIZER] ?: false }
     val subtitleLang: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_SUBTITLE_LANG] ?: "en" }
 
     val offlineMode: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_OFFLINE_MODE] ?: false }
@@ -121,8 +121,19 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setOfflineMode(offline: Boolean) = context.dataStore.edit { it[KEY_OFFLINE_MODE] = offline }
     suspend fun setAppLockEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_APP_LOCK_ENABLED] = enabled }
-    suspend fun setAppLockPin(pin: String) = context.dataStore.edit { it[KEY_APP_LOCK_PIN] = pin }
+    suspend fun setAppLockPin(pin: String) = context.dataStore.edit { it[KEY_APP_LOCK_PIN] = hashPin(pin) }
     suspend fun setHideFromRecents(hide: Boolean) = context.dataStore.edit { it[KEY_HIDE_FROM_RECENTS] = hide }
+
+    fun hashPin(pin: String): String {
+        if (pin.isBlank()) return ""
+        return try {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            val bytes = digest.digest("Medianest_Salt_2026_$pin".toByteArray(Charsets.UTF_8))
+            bytes.joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            pin
+        }
+    }
     suspend fun setShowHiddenFiles(show: Boolean) = context.dataStore.edit { it[KEY_SHOW_HIDDEN_FILES] = show }
     suspend fun setHiddenFolders(folders: Set<String>) = context.dataStore.edit { it[KEY_HIDDEN_FOLDERS] = folders }
     suspend fun setEnableAnalyticsTab(enabled: Boolean) = context.dataStore.edit { it[KEY_ENABLE_ANALYTICS_TAB] = enabled }

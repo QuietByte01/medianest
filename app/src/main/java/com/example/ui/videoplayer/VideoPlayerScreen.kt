@@ -167,7 +167,12 @@ fun VideoPlayerScreen(
 
     var isControlsLocked by remember { mutableStateOf(false) }
 
-    BackHandler(enabled = true) {
+    // Compute overlay state early so BackHandler can use it
+    val anyOverlayOpen = showOverflowMenu || showDetailsSheet || showDrawer || showSubtitleSheet ||
+                         showSubtitleCustomizationSheet || showSettingsSheet || showAudioTrackSheet ||
+                         showAspectRatioMenu || showSpeedMenu
+
+    BackHandler(enabled = anyOverlayOpen || isControlsLocked) {
         when {
             showOverflowMenu -> showOverflowMenu = false
             showDetailsSheet -> showDetailsSheet = false
@@ -294,6 +299,12 @@ fun VideoPlayerScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null
+                ) {
+                    showControls = !showControls
+                }
                 .pointerInput(Unit) {
                     awaitEachGesture {
                         var isZooming = false
@@ -383,6 +394,12 @@ fun VideoPlayerScreen(
                         // Drag end
                         if (isHorizontalDragging) {
                             playerManager.seekTo(seekTargetPositionMs)
+                        } else if (totalDragX < 15f && totalDragY < 15f && !isZooming) {
+                            if (showDrawer) {
+                                showDrawer = false
+                            } else {
+                                showControls = !showControls
+                            }
                         }
                         isDraggingBrightness = false
                         isDraggingVolume = false
@@ -468,17 +485,19 @@ fun VideoPlayerScreen(
                     .graphicsLayer(scaleX = scale, scaleY = scale)
             )
 
-            // Video Zoom Percentage Pill - Relocated to Bottom-Right
+            // Video Zoom Percentage Pill - Relocated to Bottom-Right, above controls bar
             if (scale > 1.05f) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(bottom = 120.dp, end = 24.dp)
+                        .padding(bottom = 160.dp, end = 24.dp)
                 ) {
                     GlassSurface(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .clickable { scale = 1f },
+                            .pointerInput(Unit) {
+                                detectTapGestures(onTap = { scale = 1f })
+                            },
                         shape = RoundedCornerShape(12.dp),
                         backgroundColor = Color(0x33000000),
                         borderColor = Color(0x1AFFFFFF)
@@ -775,7 +794,7 @@ fun VideoPlayerScreen(
 
         // Top Glass / Pill Controls
         AnimatedVisibility(
-            visible = (showControls || showOverflowMenu) && !showDrawer && !isHorizontalDragging,
+            visible = (showControls || showOverflowMenu || showDetailsSheet || showSubtitleSheet) && !isHorizontalDragging && !showDrawer,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.TopCenter)
@@ -933,7 +952,8 @@ fun VideoPlayerScreen(
 
         // Bottom Glass / Pill Transport Bar matching reference image 2
         AnimatedVisibility(
-            visible = (showControls || isHorizontalDragging) && !showDrawer,
+            visible = (showControls || isHorizontalDragging) && !showDrawer &&
+                      !showSubtitleSheet && !showDetailsSheet && !showSettingsSheet && !showAudioTrackSheet,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter)
@@ -1133,7 +1153,9 @@ fun VideoPlayerScreen(
                                         addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
                                     runCatching {
-                                        context.startActivity(android.content.Intent.createChooser(openIntent, "Open video with"))
+                                        // Use startActivity directly (without createChooser) so Android
+                                        // shows the "Just Once / Always" default-app dialog
+                                        context.startActivity(openIntent)
                                     }.onFailure {
                                         android.widget.Toast.makeText(context, "No app available to open video", android.widget.Toast.LENGTH_SHORT).show()
                                     }
@@ -1246,9 +1268,10 @@ fun VideoPlayerScreen(
                             text = { Text("Background Play: ${if (playerState.isBackgroundPlayEnabled) "On" else "Off"}", color = Color.White, fontSize = 14.sp) },
                             leadingIcon = { Icon(Icons.Default.MusicNote, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp)) },
                             onClick = {
-                                playerManager.setBackgroundPlayEnabled(!playerState.isBackgroundPlayEnabled)
+                                val newEnabled = !playerState.isBackgroundPlayEnabled
+                                playerManager.setBackgroundPlayEnabled(newEnabled)
                                 showOverflowMenu = false
-                                android.widget.Toast.makeText(context, "Background Play ${if (playerState.isBackgroundPlayEnabled) "Enabled" else "Disabled"}", android.widget.Toast.LENGTH_SHORT).show()
+                                android.widget.Toast.makeText(context, "Background Play ${if (newEnabled) "Enabled" else "Disabled"}", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         )
                         DropdownMenuItem(
@@ -1362,8 +1385,11 @@ fun VideoPlayerScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .clickable { showDrawer = false }
+                    .background(Color.Black.copy(alpha = 0.35f))
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) { showDrawer = false }
             )
         }
 

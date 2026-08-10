@@ -114,10 +114,38 @@ object TrashManager {
                 saveManifest(context, current)
                 true
             } else {
-                // Fallback direct delete
-                sourceFile.delete()
-                try { context.contentResolver.delete(item.uri, null, null) } catch (_: Exception) {}
-                true
+                // Safe copy fallback without deleting original unless copy succeeds
+                var copySuccess = false
+                try {
+                    sourceFile.inputStream().use { input ->
+                        trashedFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    copySuccess = sourceFile.delete()
+                } catch (e: Exception) {
+                    trashedFile.delete()
+                }
+
+                if (copySuccess) {
+                    try { context.contentResolver.delete(item.uri, null, null) } catch (_: Exception) {}
+
+                    val current = getTrashedItems(context).toMutableList()
+                    val trashedItem = TrashedMediaItem(
+                        id = System.currentTimeMillis().toString(),
+                        originalPath = sourceFile.absolutePath,
+                        trashedPath = trashedFile.absolutePath,
+                        title = item.title,
+                        mimeType = item.mimeType,
+                        size = item.size,
+                        trashedTimestamp = System.currentTimeMillis()
+                    )
+                    current.add(0, trashedItem)
+                    saveManifest(context, current)
+                    true
+                } else {
+                    false
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to move file to trash", e)

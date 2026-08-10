@@ -93,35 +93,37 @@ class FloatingPlayerService : Service() {
         try {
             mediaSession = MediaSessionCompat(this, "MediaNestSession").apply {
                 setCallback(object : MediaSessionCompat.Callback() {
+                    private fun mgr() = ExoPlayerManager.activeManager
+                        ?: ExoPlayerManager.getInstance(applicationContext)
+
                     override fun onPlay() {
-                        ExoPlayerManager.activeManager?.exoPlayer?.play()
+                        mgr().exoPlayer.play()
                         updateNotification()
                     }
 
                     override fun onPause() {
-                        ExoPlayerManager.activeManager?.exoPlayer?.pause()
+                        mgr().exoPlayer.pause()
                         updateNotification()
                     }
 
                     override fun onSkipToNext() {
-                        ExoPlayerManager.activeManager?.next()
+                        mgr().next()
                         updateNotification()
                     }
 
                     override fun onSkipToPrevious() {
-                        ExoPlayerManager.activeManager?.previous()
+                        mgr().previous()
                         updateNotification()
                     }
 
                     override fun onSeekTo(pos: Long) {
-                        ExoPlayerManager.activeManager?.seekTo(pos)
+                        mgr().seekTo(pos)
                         updateNotification()
                     }
 
                     override fun onSetShuffleMode(shuffleMode: Int) {
-                        ExoPlayerManager.activeManager?.let { mgr ->
-                            mgr.setShuffleMode(shuffleMode != PlaybackStateCompat.SHUFFLE_MODE_NONE)
-                        }
+                        val m = mgr()
+                        m.setShuffleMode(shuffleMode != PlaybackStateCompat.SHUFFLE_MODE_NONE)
                         updateNotification()
                     }
                 })
@@ -173,10 +175,9 @@ class FloatingPlayerService : Service() {
                 updateNotification()
             }
             ACTION_PLAY_PAUSE -> {
-                val manager = ExoPlayerManager.activeManager
-                if (manager != null) {
-                    manager.togglePlayPause()
-                    isPlayingState = manager.exoPlayer.playWhenReady
+                if (activeManager != null) {
+                    activeManager.togglePlayPause()
+                    isPlayingState = activeManager.exoPlayer.playWhenReady
                 } else {
                     isPlayingState = !isPlayingState
                 }
@@ -187,9 +188,7 @@ class FloatingPlayerService : Service() {
                 updateNotification()
             }
             ACTION_SHUFFLE -> {
-                activeManager?.let { mgr ->
-                    mgr.setShuffleMode(!mgr.playerState.value.isShuffle)
-                }
+                activeManager?.setShuffleMode(!activeManager.playerState.value.isShuffle)
                 updateNotification()
             }
             ACTION_STOP -> {
@@ -206,7 +205,9 @@ class FloatingPlayerService : Service() {
                 updateNotification()
             }
         }
-        return START_NOT_STICKY
+        return START_STICKY
+
+
     }
 
     private fun loadArtworkBitmap(uriString: String?) {

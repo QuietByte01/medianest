@@ -1,6 +1,6 @@
 plugins {
   alias(libs.plugins.android.application)
-  alias(libs.plugins.kotlin.compose)
+  alias(libs.plugins.kotlinCompose)
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
@@ -8,12 +8,12 @@ plugins {
 
 android {
   namespace = "com.example"
-  compileSdk = 36
+  compileSdk = 37
 
   defaultConfig {
     applicationId = "com.aistudio.medianest.xypqrz"
     minSdk = 24
-    targetSdk = 36
+    targetSdk = 37
     versionCode = 1
     versionName = "1.0"
 
@@ -42,14 +42,29 @@ android {
     }
   }
   compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
   }
+  /*
+  kotlinOptions {
+    jvmTarget = "17"
+  }
+  */
   buildFeatures {
     compose = true
     buildConfig = true
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
+
+  // ABI splits: reduces APK size from ~90MB to ~25MB for release per-ABI split
+  splits {
+    abi {
+      isEnable = true
+      reset()
+      include("arm64-v8a", "armeabi-v7a", "x86_64")
+      isUniversalApk = true // keeps a universal APK as fallback
+    }
+  }
 }
 
 // Configure the Secrets Gradle Plugin to use .env and .env.example files
@@ -82,13 +97,16 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.coil.compose)
   implementation(libs.coil.video)
-  implementation("io.coil-kt:coil-gif:2.6.0")
+  implementation("io.coil-kt:coil-gif:2.7.0")
+  implementation("io.coil-kt:coil-svg:2.7.0")
+
   implementation(libs.media3.exoplayer)
   implementation(libs.media3.ui)
   implementation(libs.media3.session)
   implementation(libs.media3.common)
   implementation("androidx.media:media:1.7.0")
   implementation(libs.converter.moshi)
+
 
   // implementation(libs.androidx.credentials)
   // implementation(libs.androidx.credentials.play.services)

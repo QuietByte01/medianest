@@ -3,6 +3,7 @@ package com.example
 import android.app.Application
 import coil.Coil
 import coil.ImageLoader
+import coil.decode.SvgDecoder
 import coil.decode.VideoFrameDecoder
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
@@ -33,6 +34,7 @@ class MediaNestApp : Application() {
             .allowHardware(true) // Enable Hardware Bitmaps stored in VRAM for zero-copy UI rendering
             .components {
                 add(VideoFrameDecoder.Factory())
+                add(SvgDecoder.Factory())      // SVG image rendering support
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                     add(coil.decode.ImageDecoderDecoder.Factory())
                 } else {

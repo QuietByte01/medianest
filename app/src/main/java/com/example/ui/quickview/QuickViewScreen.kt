@@ -57,6 +57,7 @@ import coil.request.ImageRequest
 import com.example.data.db.MediaType
 import com.example.data.model.MediaItem
 import com.example.ui.components.GlassSurface
+import com.example.ui.theme.LocalDarkTheme
 import com.example.ui.components.formatDuration
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -74,6 +75,7 @@ fun QuickViewScreen(
 
     var mutableMediaList by remember(mediaList) { mutableStateOf(mediaList) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var viewerBgColor by remember { mutableStateOf<Color?>(null) }
 
     var showControls by remember { mutableStateOf(true) }
     var showInfoBottomSheet by remember { mutableStateOf(false) }
@@ -175,9 +177,11 @@ fun QuickViewScreen(
                         customSat = customSat,
                         customCon = customCon,
                         customWarmth = customWarmth,
+                        viewerBgColor = viewerBgColor,
                         onToggleControls = { showControls = !showControls },
                         onSwipeUpForInfo = { showInfoBottomSheet = true }
                     )
+
                     MediaType.VIDEO -> QuickVideoPreview(item = item, onOpenFullPlayer = { onOpenFullPlayer(item) })
                     MediaType.AUDIO -> QuickAudioPreview(
                         item = item,
@@ -231,33 +235,60 @@ fun QuickViewScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (pictureModeEnabled) {
+                    var showBgColorPicker by remember { mutableStateOf(false) }
+                    val colorOptions = listOf(
+                        Color.Transparent,
+                        Color.White,
+                        Color.Black,
+                        Color(0xFF1E1E1E),
+                        Color(0xFFE0E0E0),
+                        Color(0xFFFDF6E3)
+                    )
+
+                    // Inline Expanding Background Color Bar (No Circular Border, Text Label)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         Box(
                             modifier = Modifier
-                                .height(44.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.5f))
-                                .clickable { showPictureModeDialog = true }
-                                .padding(horizontal = 12.dp),
+                                .height(40.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color.Black.copy(alpha = 0.55f))
+                                .clickable { showBgColorPicker = !showBgColorPicker }
+                                .padding(horizontal = 14.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Palette,
-                                    contentDescription = "Picture Mode",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                val modeLabel = com.example.ui.components.PictureMode.fromKey(pictureMode).displayName
-                                Text(
-                                    text = modeLabel,
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                Icon(Icons.Default.Palette, contentDescription = "Background", tint = Color.White, modifier = Modifier.size(16.dp))
+                                Text("Background", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+
+                        androidx.compose.animation.AnimatedVisibility(visible = showBgColorPicker) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(Color.Black.copy(alpha = 0.65f))
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                colorOptions.forEach { color ->
+                                    Box(
+                                        modifier = Modifier
+                                            .size(26.dp)
+                                            .clip(CircleShape)
+                                            .background(if (color == Color.Transparent) Color(0x55FFFFFF) else color)
+                                            .clickable {
+                                                viewerBgColor = color
+                                                showBgColorPicker = false
+                                            }
+                                    )
+                                }
                             }
                         }
                     }
@@ -282,9 +313,19 @@ fun QuickViewScreen(
                         DropdownMenu(
                             expanded = showOverflowMenu,
                             onDismissRequest = { showOverflowMenu = false },
-                            containerColor = Color(0xDC141722),
+                            containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
                             shape = RoundedCornerShape(16.dp)
                         ) {
+                            if (pictureModeEnabled) {
+                                DropdownMenuItem(
+                                    text = { Text("Picture Mode", color = Color.White) },
+                                    leadingIcon = { Icon(Icons.Default.Palette, contentDescription = null, tint = Color.White) },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        showPictureModeDialog = true
+                                    }
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text("Open with", color = Color.White) },
                                 leadingIcon = { Icon(Icons.Default.OpenInNew, contentDescription = null, tint = Color.White) },
@@ -555,7 +596,7 @@ fun QuickViewScreen(
         if (showDeleteDialog && currentItem != null) {
             AlertDialog(
                 onDismissRequest = { showDeleteDialog = false },
-                containerColor = Color(0xDC141722),
+                containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
                 shape = RoundedCornerShape(24.dp),
                 title = { Text("Delete File?") },
                 text = { Text("Are you sure you want to delete '${currentItem.title}'?") },
@@ -589,7 +630,7 @@ fun QuickViewScreen(
         if (showPictureModeDialog) {
             AlertDialog(
                 onDismissRequest = { showPictureModeDialog = false },
-                containerColor = Color(0xDC141722),
+                containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
                 shape = RoundedCornerShape(24.dp),
                 title = {
                     Row(
@@ -880,6 +921,7 @@ fun ZoomableImageView(
     customSat: Float = 1.18f,
     customCon: Float = 1.06f,
     customWarmth: Float = 0.03f,
+    viewerBgColor: Color? = null,
     onToggleControls: () -> Unit = {},
     onSwipeUpForInfo: () -> Unit = {}
 ) {
@@ -911,8 +953,9 @@ fun ZoomableImageView(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(if (isPng) Color.White else Color.Black)
+            .background(viewerBgColor ?: if (isPng) Color.White else Color.Black)
     ) {
+
         var imageIntrinsicSize by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
 
         AsyncImage(

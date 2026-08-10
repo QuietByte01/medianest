@@ -1,12 +1,11 @@
 package com.example.ui.components
 
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -14,14 +13,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.ui.theme.LocalDarkTheme
 
 /**
  * Adaptive bottom sheet component that renders as a translucent glass bottom sheet on phones
  * and as a floating glass dialog on tablets.
+ *
+ * Dark mode  → Obsidian tint (0xCC08090E) + frosted blur
+ * Light mode → Frosted white glass (0xBFFFFFFF)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,13 +34,22 @@ fun AdaptiveBottomSheet(
     modifier: Modifier = Modifier,
     sheetState: SheetState = rememberModalBottomSheetState(),
     shape: Shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-    containerColor: Color = Color(0xCC0F121C),
+    containerColor: Color = Color.Unspecified,   // Unspecified → auto dark/light
     contentColor: Color = Color.White,
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val isDark = LocalDarkTheme.current
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
+
+    // Obsidian for dark, frosted white for light
+    val resolvedColor = when {
+        containerColor != Color.Unspecified -> containerColor
+        isDark -> Color(0xCC08090E)
+        else   -> Color(0xCCE3E3E3)
+    }
+
 
     if (isTablet) {
         Dialog(
@@ -49,7 +62,7 @@ fun AdaptiveBottomSheet(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.5f))
+                    .background(Color.Black.copy(alpha = 0.45f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -64,11 +77,10 @@ fun AdaptiveBottomSheet(
                             indication = null,
                             enabled = false
                         ) {}
-                        .widthIn(max = 760.dp)
-                        .fillMaxWidth(0.90f),
+                        .fillMaxWidth(0.70f),
                     shape = RoundedCornerShape(24.dp),
-                    backgroundColor = if (containerColor == Color.Transparent) Color(0xF20E111A) else containerColor,
-                    borderColor = Color.White.copy(alpha = 0.16f),
+                    backgroundColor = if (containerColor == Color.Transparent) resolvedColor else resolvedColor,
+                    borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
                     enableBlur = true
                 ) {
                     Column(
@@ -86,9 +98,9 @@ fun AdaptiveBottomSheet(
             onDismissRequest = onDismissRequest,
             sheetState = sheetState,
             shape = shape,
-            containerColor = containerColor,
+            containerColor = resolvedColor,
             contentColor = contentColor,
-            scrimColor = Color.Black.copy(alpha = 0.5f),
+            scrimColor = Color.Black.copy(alpha = 0.45f),
             dragHandle = dragHandle,
             content = content
         )
