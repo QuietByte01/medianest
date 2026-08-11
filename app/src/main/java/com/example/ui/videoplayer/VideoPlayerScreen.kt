@@ -403,7 +403,48 @@ fun VideoPlayerScreen(
         }
         
         if (showSubtitleSheet) Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).clickable { showSubtitleSheet = false }, contentAlignment = Alignment.Center) {
-            SubtitleOptionsDialog(playerState = playerState, embeddedTracks = embeddedTracks, selectedTrackIndex = selectedSubtitleTrackIndex, onTrackSelect = { selectedSubtitleTrackIndex = it; playerManager.selectTextTrack(it) }, onCustomizeClick = { showSubtitleSheet = false; showSubtitleCustomizationSheet = true }, onSearchOnline = { scope.launch { isSearchingSubtitles = true; subtitleList = networkRepository.searchOnlineSubtitles(playerState.currentItem?.title ?: "", "en", offlineMode); isSearchingSubtitles = false } }, isSearching = isSearchingSubtitles, onlineSubtitles = subtitleList, onOnlineSubClick = { activeSubtitleText = it.name; showSubtitleSheet = false }, statusMessage = subtitleStatusMessage, onClose = { showSubtitleSheet = false }, modifier = Modifier.width(420.dp).padding(20.dp))
+            SubtitleOptionsDialog(
+                playerState = playerState,
+                embeddedTracks = embeddedTracks,
+                selectedTrackIndex = selectedSubtitleTrackIndex,
+                onTrackSelect = { selectedSubtitleTrackIndex = it; playerManager.selectTextTrack(it) },
+                onCustomizeClick = { showSubtitleSheet = false; showSubtitleCustomizationSheet = true },
+                onSearchOnline = { provider ->
+                    scope.launch {
+                        isSearchingSubtitles = true
+                        subtitleStatusMessage = null
+                        subtitleList = networkRepository.searchOnlineSubtitles(
+                            playerState.currentItem?.title ?: "", 
+                            "en", 
+                            offlineMode,
+                            provider
+                        )
+                        isSearchingSubtitles = false
+                        if (subtitleList.isEmpty()) {
+                            subtitleStatusMessage = "No subtitles found for this video."
+                        }
+                    }
+                },
+                isSearching = isSearchingSubtitles,
+                onlineSubtitles = subtitleList,
+                onOnlineSubClick = { subItem ->
+                    scope.launch {
+                        subtitleStatusMessage = "Downloading subtitle..."
+                        val subUri = networkRepository.downloadSubtitleFile(context, subItem)
+                        if (subUri != null) {
+                            playerManager.addExternalSubtitle(subUri, subItem.name)
+                            subtitleStatusMessage = "Subtitle applied successfully!"
+                            delay(1500)
+                            showSubtitleSheet = false
+                        } else {
+                            subtitleStatusMessage = "Failed to download subtitle file."
+                        }
+                    }
+                },
+                statusMessage = subtitleStatusMessage,
+                onClose = { showSubtitleSheet = false },
+                modifier = Modifier.width(420.dp).padding(20.dp)
+            )
         }
 
         if (showSubtitleCustomizationSheet) SubtitleCustomizationSheet(onDismiss = { showSubtitleCustomizationSheet = false }, activeSubtitleText = activeSubtitleText, fontSizeSp = subtitleFontSizeSp, onFontSizeChange = { subtitleFontSizeSp = it }, textColor = subtitleTextColor, onTextColorChange = { subtitleTextColor = it }, bgColor = subtitleBgColor, onBgColorChange = { subtitleBgColor = it }, hasShadow = subtitleHasShadow, onHasShadowChange = { subtitleHasShadow = it })

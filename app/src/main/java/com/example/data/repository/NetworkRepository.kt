@@ -1,19 +1,41 @@
 package com.example.data.repository
 
+import android.net.Uri
+import android.util.Log
+import com.example.data.db.SubtitleCache
+import com.example.data.db.SubtitleCacheDao
 import com.example.data.model.AudioTagInfo
 import com.example.data.model.LyricLine
 import com.example.data.model.SubtitleItem
+import com.example.data.settings.SettingsManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+enum class SubtitleProvider {
+    OPEN_SUBTITLES,
+    YTS,
+    ALL
+}
 
 class NetworkRepository(
-    private val client: OkHttpClient = OkHttpClient()
+    private val client: OkHttpClient = OkHttpClient(),
+    private val subtitleCacheDao: SubtitleCacheDao? = null
 ) {
+
+    private val userAgent = "MediaNestApp/1.0"
+    // Use the key provided by the user. Daily limit: 5 requests.
+    private val openSubKey = "HqVKTULS5Y6bmKeJWYMZZt1oAvlxx6F0"
 
     suspend fun fetchSyncedLyrics(
         title: String,
@@ -40,7 +62,10 @@ class NetworkRepository(
                 } else {
                     "https://lrclib.net/api/get?track_name=$encodedTitle"
                 }
-                val request = Request.Builder().url(url).build()
+                val request = Request.Builder()
+                    .url(url)
+                    .header("User-Agent", userAgent)
+                    .build()
 
                 client.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
@@ -63,7 +88,10 @@ class NetworkRepository(
                 val query = if (cleanArtist.isNotEmpty()) "$cleanTitle $cleanArtist" else cleanTitle
                 val encodedQuery = URLEncoder.encode(query, "UTF-8")
                 val searchUrl = "https://lrclib.net/api/search?q=$encodedQuery"
-                val request = Request.Builder().url(searchUrl).build()
+                val request = Request.Builder()
+                    .url(searchUrl)
+                    .header("User-Agent", userAgent)
+                    .build()
 
                 client.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
@@ -103,7 +131,8 @@ class NetworkRepository(
     suspend fun searchOnlineSubtitles(
         videoTitle: String,
         lang: String,
-        offlineMode: Boolean
+        offlineMode: Boolean,
+        provider: SubtitleProvider = SubtitleProvider.ALL
     ): List<SubtitleItem> = withContext(Dispatchers.IO) {
         if (offlineMode) return@withContext emptyList()
 
@@ -113,45 +142,199 @@ class NetworkRepository(
             .replace(Regex("[\\[\\(](1080p|720p|4k|bluray|web-dl|x264|x265|hevc|hd)[\\]\\)]", RegexOption.IGNORE_CASE), "")
             .trim()
 
-        val list = mutableListOf<SubtitleItem>()
+        val results = mutableListOf<SubtitleItem>()
+        val settings = com.example.MediaNestApp.instance.settingsManager
 
-        try {
-            val encoded = URLEncoder.encode(cleanTitle, "UTF-8")
-            val searchUrl = "https://sub.wyzie.ru/search?title=$encoded"
+        if (provider == SubtitleProvider.OPEN_SUBTITLES || provider == SubtitleProvider.ALL) {
+            results.addAll(fetchFromOpenSubtitles(cleanTitle, lang, settings))
+        }
+
+        if (provider == SubtitleProvider.YTS || (provider == SubtitleProvider.ALL && results.isEmpty())) {
+            results.addAll(fetchFromYts(cleanTitle))
+        }
+
+        if (results.isEmpty() && provider == SubtitleProvider.ALL) {
+            val canUseOpenSubs = checkAndIncrementSubtitleQuota(settings, dryRun = true)
+            if (!canUseOpenSubs) {
+                results.add(SubtitleItem(
+                    id = "quota_limit",
+                    name = "Daily search limit reached (OpenSubtitles)",
+                    language = "Info",
+                    isLocal = false
+                ))
+            }
+        }
+
+        results
+    }
+
+    private suspend fun fetchFromOpenSubtitles(
+        query: String,
+        lang: String,
+        settings: SettingsManager
+    ): List<SubtitleItem> {
+        // Check Cache first
+        subtitleCacheDao?.getCachedResults(query, "opensubtitles")?.let { cached ->
+            if (System.currentTimeMillis() - cached.timestamp < 24 * 60 * 60 * 1000) {
+                return parseOpenSubtitlesJson(cached.jsonResults)
+            }
+        }
+
+        if (!checkAndIncrementSubtitleQuota(settings)) return emptyList()
+
+        return try {
+            val encoded = URLEncoder.encode(query, "UTF-8")
+            val searchUrl = "https://api.opensubtitles.com/api/v1/subtitles?query=$encoded&languages=${lang.ifBlank { "en" }}"
             val request = Request.Builder()
                 .url(searchUrl)
-                .header("User-Agent", "MediaNestApp/1.0")
+                .header("Api-Key", openSubKey)
+                .header("User-Agent", "MediaNest v1.0")
                 .build()
 
             client.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
                     val bodyStr = response.body?.string() ?: ""
-                    if (bodyStr.startsWith("[")) {
-                        val array = JSONArray(bodyStr)
-                        for (i in 0 until array.length().coerceAtMost(10)) {
-                            val obj = array.getJSONObject(i)
-                            val id = obj.optString("id", "sub_$i")
-                            val display = obj.optString("display_name", "$cleanTitle Subtitle ${i + 1}")
-                            val language = obj.optString("language", if (lang.isNotBlank()) lang else "English")
-                            val url = obj.optString("url", "")
-                            list.add(
-                                SubtitleItem(
-                                    id = id,
-                                    name = display,
-                                    language = language,
-                                    downloadUrl = if (url.isNotBlank()) url else null,
-                                    isLocal = false
-                                )
-                            )
-                        }
+                    subtitleCacheDao?.insertCache(SubtitleCache(query, "opensubtitles", bodyStr))
+                    parseOpenSubtitlesJson(bodyStr)
+                } else emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e("NetworkRepository", "OpenSubtitles fetch failed", e)
+            emptyList()
+        }
+    }
+
+    private fun parseOpenSubtitlesJson(jsonStr: String): List<SubtitleItem> {
+        val list = mutableListOf<SubtitleItem>()
+        try {
+            val json = JSONObject(jsonStr)
+            val data = json.optJSONArray("data")
+            if (data != null) {
+                for (i in 0 until data.length().coerceAtMost(10)) {
+                    val item = data.getJSONObject(i)
+                    val attr = item.getJSONObject("attributes")
+                    val files = attr.optJSONArray("files")
+                    val fileObj = files?.optJSONObject(0)
+                    val fileName = fileObj?.optString("file_name") ?: "Subtitle $i"
+                    val fileId = fileObj?.optString("file_id") ?: item.optString("id")
+                    val language = attr.optString("language", "en")
+
+                    list.add(SubtitleItem(
+                        id = fileId,
+                        name = fileName,
+                        language = language,
+                        downloadUrl = "https://api.opensubtitles.com/api/v1/download",
+                        isLocal = false
+                    ))
+                }
+            }
+        } catch (e: Exception) { e.printStackTrace() }
+        return list
+    }
+
+    private suspend fun fetchFromYts(query: String): List<SubtitleItem> {
+        subtitleCacheDao?.getCachedResults(query, "yts")?.let { cached ->
+            if (System.currentTimeMillis() - cached.timestamp < 48 * 60 * 60 * 1000) {
+                return parseYtsJson(cached.jsonResults, query)
+            }
+        }
+
+        return try {
+            val encoded = URLEncoder.encode(query, "UTF-8")
+            val ytsUrl = "https://yts-subs.com/api/v1/search?q=$encoded"
+            val request = Request.Builder().url(ytsUrl).header("User-Agent", userAgent).build()
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: ""
+                    subtitleCacheDao?.insertCache(SubtitleCache(query, "yts", body))
+                    parseYtsJson(body, query)
+                } else emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e("NetworkRepository", "YTS fallback failed", e)
+            emptyList()
+        }
+    }
+
+    private fun parseYtsJson(jsonStr: String, query: String): List<SubtitleItem> {
+        val list = mutableListOf<SubtitleItem>()
+        try {
+            val json = JSONObject(jsonStr)
+            if (json.optString("status") == "ok") {
+                val data = json.optJSONObject("data")
+                val subs = data?.optJSONObject("subtitles")
+                subs?.keys()?.forEach { language ->
+                    val langArray = subs.getJSONArray(language)
+                    for (i in 0 until langArray.length().coerceAtMost(3)) {
+                        val s = langArray.getJSONObject(i)
+                        list.add(SubtitleItem(
+                            id = "yts_${language}_$i",
+                            name = "$query ($language)",
+                            language = language,
+                            downloadUrl = "https://yts-subs.com${s.optString("url")}",
+                            isLocal = false
+                        ))
                     }
                 }
             }
+        } catch (e: Exception) { e.printStackTrace() }
+        return list
+    }
+
+    suspend fun downloadSubtitleFile(context: android.content.Context, item: SubtitleItem): Uri? = withContext(Dispatchers.IO) {
+        val url = item.downloadUrl ?: return@withContext null
+        if (url.isBlank()) return@withContext null
+
+        try {
+            val requestBuilder = Request.Builder().url(url).header("User-Agent", userAgent)
+            
+            // Special handling for OpenSubtitles.com download API
+            // Special handling for OpenSubtitles.com download API
+            if (url.contains("opensubtitles.com")) {
+                val mediaType = "application/json".toMediaType()
+                val content = "{\"file_id\": ${item.id}}"
+                val requestBody = content.toRequestBody(mediaType)
+                requestBuilder.header("Api-Key", openSubKey)
+                requestBuilder.post(requestBody)
+            }
+
+            val request = requestBuilder.build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val body = response.body ?: return@withContext null
+                
+                val fileName = "${item.name.filter { it.isLetterOrDigit() || it == '.' }.ifBlank { "subtitle" }}.srt"
+                val file = java.io.File(context.cacheDir, fileName)
+                
+                body.byteStream().use { input ->
+                    file.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                return@withContext Uri.fromFile(file)
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("NetworkRepository", "Subtitle download failed", e)
+            null
+        }
+    }
+
+    private suspend fun checkAndIncrementSubtitleQuota(settings: SettingsManager, dryRun: Boolean = false): Boolean {
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        val lastDate = settings.lastSubtitleSearchDate.first()
+        var count = settings.dailySubtitleSearchCount.first()
+
+        if (today != lastDate) {
+            count = 0
+            if (!dryRun) settings.setLastSubtitleSearchDate(today)
         }
 
-        list
+        return if (count < 5) {
+            if (!dryRun) settings.setDailySubtitleSearchCount(count + 1)
+            true
+        } else {
+            false
+        }
     }
 
     suspend fun fetchAudioMetadata(

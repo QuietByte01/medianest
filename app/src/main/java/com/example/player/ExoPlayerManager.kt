@@ -18,7 +18,10 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem as Media3Item
 import androidx.media3.common.PlaybackParameters
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -59,13 +62,14 @@ data class PlayerState(
     val isHardwareAccelerated: Boolean = true,
     val droppedFrames: Int = 0,
     val decoderFallbackReason: String? = null,
-    val audioSessionId: Int = 0
+    val audioSessionId: Int = 0,
 )
 
 @OptIn(UnstableApi::class)
 class ExoPlayerManager private constructor(private val context: Context) {
 
     companion object {
+        @android.annotation.SuppressLint("StaticFieldLeak")
         @Volatile
         private var instance: ExoPlayerManager? = null
 
@@ -138,7 +142,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
                 Triple(audioNotif, videoNotif, state)
             }.collectLatest { (audioNotif, videoNotif, state) ->
                 val currentItem = state.currentItem
-                if (currentItem != null && state.isPlaying && exoPlayer.playbackState != Player.STATE_ENDED) {
+                if (currentItem != null && (state.isPlaying) && (exoPlayer.playbackState != Player.STATE_ENDED)) {
                     val isVideo = currentItem.mimeType.startsWith("video") || currentItem.type == com.example.data.db.MediaType.VIDEO
                     val shouldShow = if (isVideo) videoNotif else audioNotif
                     if (shouldShow) {
@@ -146,7 +150,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
                             context = context,
                             title = currentItem.title,
                             artist = currentItem.artist ?: currentItem.album ?: currentItem.bucketName ?: "MediaNest",
-                            isPlaying = state.isPlaying,
+                            isPlaying = true, // We know it's playing here
                             artworkUri = currentItem.albumArtUri?.toString() ?: currentItem.uri.toString(),
                             isVideo = isVideo
                         )
@@ -686,7 +690,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
                     loudnessEnhancer = LoudnessEnhancer(audioSessionId)
                 }
                 // Gain in mB (millibels): 100% -> 2000mB (+20dB)
-                val gainMb = (clamped * 20).toInt()
+                val gainMb = clamped * 20
                 loudnessEnhancer?.setTargetGain(gainMb)
                 loudnessEnhancer?.enabled = clamped > 0
             }
@@ -812,7 +816,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
                     for (i in 0 until trackGroup.length) {
                         if (trackCount == trackIndex) {
                             builder.setOverrideForType(
-                                androidx.media3.common.TrackSelectionOverride(trackGroup.mediaTrackGroup, i)
+                                TrackSelectionOverride(trackGroup.mediaTrackGroup, i)
                             )
                             exoPlayer.trackSelectionParameters = builder.build()
                             return
@@ -823,6 +827,47 @@ class ExoPlayerManager private constructor(private val context: Context) {
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    fun addExternalSubtitle(uri: Uri, name: String = "External Subtitle") {
+        try {
+            val currentMedia3Item = exoPlayer.currentMediaItem ?: return
+            val currentPosition = exoPlayer.currentPosition
+            val isPlaying = exoPlayer.isPlaying
+
+            val subtitleConfig = Media3Item.SubtitleConfiguration.Builder(uri)
+                .setMimeType(MimeTypes.APPLICATION_SUBRIP) // Most common for .srt
+                .setLanguage("en")
+                .setLabel(name)
+                .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                .build()
+
+            val newItem = currentMedia3Item.buildUpon()
+                .setSubtitleConfigurations(listOf(subtitleConfig))
+                .build()
+
+            exoPlayer.setMediaItem(newItem, false) // false = don't reset position (but we'll seek anyway)
+            exoPlayer.prepare()
+            exoPlayer.seekTo(currentPosition)
+            if (isPlaying) exoPlayer.play()
+            
+            // Wait for tracks to be updated, then select the new subtitle
+            scope.launch {
+                delay(500)
+                val tracks = exoPlayer.currentTracks
+                for (group in tracks.groups) {
+                    if (group.type == C.TRACK_TYPE_TEXT) {
+                        val params = exoPlayer.trackSelectionParameters.buildUpon()
+                            .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, 0))
+                            .build()
+                        exoPlayer.trackSelectionParameters = params
+                        break
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("ExoPlayerManager", "Error adding external subtitle", e)
         }
     }
 

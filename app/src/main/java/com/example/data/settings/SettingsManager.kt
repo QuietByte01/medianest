@@ -61,6 +61,9 @@ class SettingsManager(private val context: Context) {
         val KEY_VIDEO_SORT_ASCENDING = booleanPreferencesKey("video_sort_ascending")
         val KEY_UNINTERRUPTED_MODE = booleanPreferencesKey("uninterrupted_mode")
         val KEY_AUTO_RESUME_ON_BLUETOOTH = booleanPreferencesKey("auto_resume_on_bluetooth")
+        
+        val KEY_DAILY_SUBTITLE_SEARCH_COUNT = intPreferencesKey("daily_subtitle_search_count")
+        val KEY_LAST_SUBTITLE_SEARCH_DATE = stringPreferencesKey("last_subtitle_search_date")
     }
 
     val theme: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_THEME] ?: "DARK" }
@@ -89,6 +92,9 @@ class SettingsManager(private val context: Context) {
     val videoSortAscending: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_VIDEO_SORT_ASCENDING] ?: false }
     val uninterruptedMode: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_UNINTERRUPTED_MODE] ?: false }
     val autoResumeOnBluetooth: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUTO_RESUME_ON_BLUETOOTH] ?: false }
+
+    val dailySubtitleSearchCount: Flow<Int> = context.dataStore.data.map { prefs -> prefs[KEY_DAILY_SUBTITLE_SEARCH_COUNT] ?: 0 }
+    val lastSubtitleSearchDate: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_LAST_SUBTITLE_SEARCH_DATE] ?: "" }
 
     val defaultSpeed: Flow<Float> = context.dataStore.data.map { prefs -> prefs[KEY_DEFAULT_SPEED] ?: 1.0f }
     val defaultCropMode: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_DEFAULT_CROP_MODE] ?: "FIT" }
@@ -173,4 +179,7 @@ class SettingsManager(private val context: Context) {
     suspend fun setVideoSortAscending(ascending: Boolean) = context.dataStore.edit { it[KEY_VIDEO_SORT_ASCENDING] = ascending }
     suspend fun setUninterruptedMode(enabled: Boolean) = context.dataStore.edit { it[KEY_UNINTERRUPTED_MODE] = enabled }
     suspend fun setAutoResumeOnBluetooth(enabled: Boolean) = context.dataStore.edit { it[KEY_AUTO_RESUME_ON_BLUETOOTH] = enabled }
+
+    suspend fun setDailySubtitleSearchCount(count: Int) = context.dataStore.edit { it[KEY_DAILY_SUBTITLE_SEARCH_COUNT] = count }
+    suspend fun setLastSubtitleSearchDate(date: String) = context.dataStore.edit { it[KEY_LAST_SUBTITLE_SEARCH_DATE] = date }
 }

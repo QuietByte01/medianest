@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
 
     private val mediaStoreRepository by lazy { MediaStoreRepository(applicationContext) }
     private val exoPlayerManager by lazy { ExoPlayerManager.getInstance(applicationContext) }
-    private val networkRepository by lazy { com.example.data.repository.NetworkRepository() }
+    private val networkRepository by lazy { com.example.data.repository.NetworkRepository(subtitleCacheDao = MediaNestApp.instance.database.subtitleCacheDao()) }
     private val analyticsRepository by lazy { com.example.data.repository.AnalyticsRepository(MediaNestApp.instance.database.analyticsDao(), mediaStoreRepository, MediaNestApp.instance.database.selectiveHiddenFolderDao()) }
 
     private val pendingScreenState = MutableStateFlow<String?>(null)

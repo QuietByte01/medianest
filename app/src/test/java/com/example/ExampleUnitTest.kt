@@ -30,7 +30,8 @@ class MetadataUtilsTest {
 
     @Test
     fun `hasDomainOrFalseInfo identifies URLs and missing tags`() {
-        assertTrue(MetadataUtils.hasDomainOrFalseInfo("http://free-music.ru"))
+        assertTrue(MetadataUtils.hasDomainOrFalseInfo("https://free-music.ru"))
+        assertTrue(MetadataUtils.hasDomainOrFalseInfo("http://legacy-site.ru"))
         assertTrue(MetadataUtils.hasDomainOrFalseInfo("Unknown Artist"))
         assertFalse(MetadataUtils.hasDomainOrFalseInfo("Hans Zimmer"))
     }

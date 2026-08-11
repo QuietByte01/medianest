@@ -66,6 +66,7 @@ fun SettingsScreen(
     val autoFetchLyrics by settingsManager.autoFetchLyrics.collectAsState(initial = true)
     val uninterruptedMode by settingsManager.uninterruptedMode.collectAsState(initial = false)
     val autoResumeOnBluetooth by settingsManager.autoResumeOnBluetooth.collectAsState(initial = false)
+    val dailySubtitleCount by settingsManager.dailySubtitleSearchCount.collectAsState(initial = 0)
     val offlineMode by settingsManager.offlineMode.collectAsState(initial = false)
     val showHiddenFiles by settingsManager.showHiddenFiles.collectAsState(initial = false)
     val decoderMode by settingsManager.decoderMode.collectAsState(initial = "AUTO")
@@ -704,6 +705,20 @@ fun SettingsScreen(
                             checked = autoResumeOnBluetooth,
                             onCheckedChange = { scope.launch { settingsManager.setAutoResumeOnBluetooth(it) } },
                             colors = customSwitchColors
+                        )
+                    }
+                )
+
+                // Subtitle Search Quota
+                SettingsRowItem(
+                    title = "Subtitle Search Limit",
+                    subtitle = "OpenSubtitles daily limit: $dailySubtitleCount / 5 searches used today.",
+                    control = {
+                        Text(
+                            text = if (dailySubtitleCount >= 5) "LIMIT REACHED" else "OK",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (dailySubtitleCount >= 5) Color.Red else Color(0xFF34D399)
                         )
                     }
                 )
