@@ -14,9 +14,10 @@ import androidx.room.RoomDatabase
         HiddenFolder::class,
         SelectiveHiddenFolder::class,
         FileStatSnapshot::class,
-        FormatStat::class
+        FormatStat::class,
+        LocationCache::class
     ],
-    version = 9,
+    version = 12,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -27,6 +28,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun hiddenFolderDao(): HiddenFolderDao
     abstract fun selectiveHiddenFolderDao(): SelectiveHiddenFolderDao
     abstract fun analyticsDao(): AnalyticsDao
+    abstract fun locationCacheDao(): LocationCacheDao
 
     companion object {
         @Volatile

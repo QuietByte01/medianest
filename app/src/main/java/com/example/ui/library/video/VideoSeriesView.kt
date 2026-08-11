@@ -6,9 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -32,7 +30,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.MediaItem
 import com.example.ui.components.GlassSurface
-import com.example.ui.components.MediaGridItem
+import com.example.ui.components.WideVideoCard
+import com.example.ui.components.translucentScrollBarGrid
 
 @Composable
 fun VideoSeriesView(
@@ -224,29 +223,25 @@ fun VideoSeriesView(
                 }
             }
 
-            val videoMinSize = when (gridSizeLevel) {
-                0 -> 100.dp
-                2 -> 180.dp
-                3 -> 220.dp
-                else -> 135.dp
-            }
-            LazyVerticalStaggeredGrid(
-                columns = StaggeredGridCells.Adaptive(minSize = videoMinSize),
-                modifier = Modifier.fillMaxSize(),
+            val gridState = rememberLazyGridState()
+            LazyVerticalGrid(
+                state = gridState,
+                columns = GridCells.Adaptive(minSize = 280.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .translucentScrollBarGrid(gridState),
                 contentPadding = PaddingValues(Dp(gridGapDp.toFloat())),
                 horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
-                verticalItemSpacing = Dp(gridGapDp.toFloat())
+                verticalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat()))
             ) {
                 items(currentSeasonItems, key = { it.id }) { item ->
-                    MediaGridItem(
+                    WideVideoCard(
                         item = item,
                         isSelected = selectedUris.contains(item.uri.toString()),
                         isSelectionMode = isSelectionMode,
-                        cornerRadiusDp = cornerRadiusDp,
-                        roundedCornersEnabled = roundedCornersEnabled,
                         onClick = { onVideoClick(item) },
                         onLongClick = { onVideoLongClick(item) },
-                        onInfo = { onInfoItem(item) },
+                        placeName = null, // No location badges for episodes view as requested
                         onDelete = { onVideoDelete(item) },
                         onRename = { onRename(item) }
                     )

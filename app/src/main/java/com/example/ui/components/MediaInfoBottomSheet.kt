@@ -57,6 +57,7 @@ import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
+import coil.request.videoFrameMicros
 import com.example.data.db.MediaType
 import com.example.data.model.MediaItem
 import com.example.util.ArtistImageUtils
@@ -1037,6 +1038,15 @@ private fun VideoFilePropertiesContent(
         }
     }
 
+    val imageRequest = remember<ImageRequest>(item.uri, item.durationMs) {
+        ImageRequest.Builder(context)
+            .data(item.uri)
+            .crossfade(true)
+            .decoderFactory(coil.decode.VideoFrameDecoder.Factory())
+            .videoFrameMicros(if (item.durationMs > 5000) 3_000_000L else if (item.durationMs > 2000) 1_000_000L else 0L)
+            .build()
+    }
+
     if (showRenameDialog) {
         AlertDialog(
             onDismissRequest = { showRenameDialog = false },
@@ -1621,8 +1631,10 @@ private fun StatBox(
         borderColor = Color(0x2AFFFFFF)
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
@@ -1634,6 +1646,7 @@ private fun StatBox(
             ) {
                 Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
             }
+            Spacer(modifier = Modifier.height(6.dp))
             Text(label, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8), letterSpacing = 0.5.sp)
             Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
         }

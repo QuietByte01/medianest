@@ -1,9 +1,14 @@
 package com.example.ui.components
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -15,37 +20,33 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 // Helper — detect touch + drag on the scrollbar track and translate to list-scroll commands.
-// Uses awaitPointerEventScope so we control hit-testing explicitly (the old detectVerticalDragGestures
-// approach missed the initial touch-down in the scrollbar zone on many devices).
 private fun Modifier.scrollBarDrag(
-    scrollBarWidthPx: () -> Float,      // Width of the visible scrollbar pill
-    touchZoneWidthPx: () -> Float,      // Extra horizontal touch zone to the left of pill
+    scrollBarWidthPx: () -> Float,
+    touchZoneWidthPx: () -> Float,
     totalItems: () -> Int,
-    onScroll: (fraction: Float) -> Unit // 0f = top, 1f = bottom
+    onScroll: (fraction: Float) -> Unit,
+    onInteraction: () -> Unit
 ): Modifier = this.pointerInput(Unit) {
     awaitPointerEventScope {
         while (true) {
-            // Wait for any pointer event on the initial pass
             val down = awaitPointerEvent(PointerEventPass.Initial)
             val touch = down.changes.firstOrNull() ?: continue
             val xThreshold = size.width - touchZoneWidthPx()
-            if (touch.position.x < xThreshold) continue   // Not in scrollbar zone — ignore
+            if (touch.position.x < xThreshold) continue
 
+            onInteraction()
             touch.consume()
-            var lastY = touch.position.y
-
-            // Track pointer while it's held down
+            
             while (true) {
                 val event = awaitPointerEvent(PointerEventPass.Initial)
                 val change = event.changes.firstOrNull() ?: break
                 if (!change.pressed) break
+                onInteraction()
                 change.consume()
-
-                val deltaY = change.position.y - lastY
-                lastY = change.position.y
 
                 val total = totalItems()
                 if (total > 0 && size.height > 0) {
@@ -61,8 +62,19 @@ fun Modifier.translucentScrollBar(
     listState: LazyListState,
     color: Color = Color(0xAAFFFFFF),
     width: Dp = 6.dp
-): Modifier = this
-    .scrollBarDrag(
+): Modifier = composed {
+    val alpha = remember { Animatable(0f) }
+    
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (listState.isScrollInProgress) {
+            alpha.snapTo(1f)
+        } else {
+            delay(1500)
+            alpha.animateTo(0f, animationSpec = tween(500))
+        }
+    }
+
+    this.scrollBarDrag(
         scrollBarWidthPx = { width.value * 3 },
         touchZoneWidthPx = { 56f },
         totalItems = { listState.layoutInfo.totalItemsCount },
@@ -72,9 +84,11 @@ fun Modifier.translucentScrollBar(
             CoroutineScope(Dispatchers.Main).launch {
                 listState.scrollToItem(target)
             }
+        },
+        onInteraction = {
+            CoroutineScope(Dispatchers.Main).launch { alpha.snapTo(1f) }
         }
-    )
-    .drawWithContent {
+    ).drawWithContent {
         drawContent()
         val visibleItems = listState.layoutInfo.visibleItemsInfo
         val totalItemsCount = listState.layoutInfo.totalItemsCount
@@ -87,20 +101,32 @@ fun Modifier.translucentScrollBar(
             val scrollBarOffsetY = scrollProgress * (size.height - scrollBarHeight)
 
             drawRoundRect(
-                color = color,
+                color = color.copy(alpha = color.alpha * alpha.value),
                 topLeft = Offset(size.width - width.toPx() - 3.dp.toPx(), scrollBarOffsetY),
                 size = Size(width.toPx(), scrollBarHeight),
                 cornerRadius = CornerRadius(width.toPx() / 2, width.toPx() / 2)
             )
         }
     }
+}
 
 fun Modifier.translucentScrollBarGrid(
     gridState: LazyGridState,
     color: Color = Color(0xAAFFFFFF),
     width: Dp = 6.dp
-): Modifier = this
-    .scrollBarDrag(
+): Modifier = composed {
+    val alpha = remember { Animatable(0f) }
+    
+    LaunchedEffect(gridState.isScrollInProgress) {
+        if (gridState.isScrollInProgress) {
+            alpha.snapTo(1f)
+        } else {
+            delay(1500)
+            alpha.animateTo(0f, animationSpec = tween(500))
+        }
+    }
+
+    this.scrollBarDrag(
         scrollBarWidthPx = { width.value * 3 },
         touchZoneWidthPx = { 56f },
         totalItems = { gridState.layoutInfo.totalItemsCount },
@@ -110,9 +136,11 @@ fun Modifier.translucentScrollBarGrid(
             CoroutineScope(Dispatchers.Main).launch {
                 gridState.scrollToItem(target)
             }
+        },
+        onInteraction = {
+            CoroutineScope(Dispatchers.Main).launch { alpha.snapTo(1f) }
         }
-    )
-    .drawWithContent {
+    ).drawWithContent {
         drawContent()
         val visibleItems = gridState.layoutInfo.visibleItemsInfo
         val totalItemsCount = gridState.layoutInfo.totalItemsCount
@@ -125,20 +153,32 @@ fun Modifier.translucentScrollBarGrid(
             val scrollBarOffsetY = scrollProgress * (size.height - scrollBarHeight)
 
             drawRoundRect(
-                color = color,
+                color = color.copy(alpha = color.alpha * alpha.value),
                 topLeft = Offset(size.width - width.toPx() - 3.dp.toPx(), scrollBarOffsetY),
                 size = Size(width.toPx(), scrollBarHeight),
                 cornerRadius = CornerRadius(width.toPx() / 2, width.toPx() / 2)
             )
         }
     }
+}
 
 fun Modifier.translucentScrollBarStaggeredGrid(
     staggeredGridState: LazyStaggeredGridState,
     color: Color = Color(0xAAFFFFFF),
     width: Dp = 6.dp
-): Modifier = this
-    .scrollBarDrag(
+): Modifier = composed {
+    val alpha = remember { Animatable(0f) }
+    
+    LaunchedEffect(staggeredGridState.isScrollInProgress) {
+        if (staggeredGridState.isScrollInProgress) {
+            alpha.snapTo(1f)
+        } else {
+            delay(1500)
+            alpha.animateTo(0f, animationSpec = tween(500))
+        }
+    }
+
+    this.scrollBarDrag(
         scrollBarWidthPx = { width.value * 3 },
         touchZoneWidthPx = { 56f },
         totalItems = { staggeredGridState.layoutInfo.totalItemsCount },
@@ -148,9 +188,11 @@ fun Modifier.translucentScrollBarStaggeredGrid(
             CoroutineScope(Dispatchers.Main).launch {
                 staggeredGridState.scrollToItem(target)
             }
+        },
+        onInteraction = {
+            CoroutineScope(Dispatchers.Main).launch { alpha.snapTo(1f) }
         }
-    )
-    .drawWithContent {
+    ).drawWithContent {
         drawContent()
         val visibleItems = staggeredGridState.layoutInfo.visibleItemsInfo
         val totalItemsCount = staggeredGridState.layoutInfo.totalItemsCount
@@ -163,10 +205,11 @@ fun Modifier.translucentScrollBarStaggeredGrid(
             val scrollBarOffsetY = scrollProgress * (size.height - scrollBarHeight)
 
             drawRoundRect(
-                color = color,
+                color = color.copy(alpha = color.alpha * alpha.value),
                 topLeft = Offset(size.width - width.toPx() - 3.dp.toPx(), scrollBarOffsetY),
                 size = Size(width.toPx(), scrollBarHeight),
                 cornerRadius = CornerRadius(width.toPx() / 2, width.toPx() / 2)
             )
         }
     }
+}

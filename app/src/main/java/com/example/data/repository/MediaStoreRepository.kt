@@ -553,7 +553,7 @@ class MediaStoreRepository(private val context: Context) {
         ".data", ".myfiles", ".secure", ".media", ".download", ".downloads",
         ".Telegram", ".WhatsApp", ".facebook", ".instagram", ".status", ".Statuses",
         ".RecycleBin", ".stfolder", ".camera", ".DCIM", ".Images", ".Videos",
-        ".Audio", ".Music", ".Documents", ".Files"
+        ".Audio", ".Music", ".Documents", ".Files", ".thumbnails", ".recycle_bin", "recycle.bin"
     )
 
     private fun scanFileSystemHiddenMedia(mediaType: MediaType, hiddenFolders: Set<String> = emptySet(), showHidden: Boolean = true): List<MediaItem> {

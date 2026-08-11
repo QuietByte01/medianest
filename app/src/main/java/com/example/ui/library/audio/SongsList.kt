@@ -25,6 +25,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
+import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
 import com.example.data.db.MediaType
 import com.example.data.model.MediaItem
@@ -76,13 +79,31 @@ fun SongsList(
         }
     } else {
         val listState = rememberLazyListState()
+        val isAlphabetical = remember(songs) {
+            if (songs.size < 10) false 
+            else {
+                // Check if list is sorted alphabetically by title (A-Z)
+                var sorted = true
+                for (i in 0 until (songs.size - 1)) {
+                    if (songs[i].title.lowercase() > songs[i+1].title.lowercase()) {
+                        sorted = false
+                        break
+                    }
+                }
+                sorted
+            }
+        }
+
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .translucentScrollBar(listState),
-                contentPadding = PaddingValues(bottom = 80.dp, end = 36.dp)
+                    .then(if (isAlphabetical) Modifier else Modifier.translucentScrollBar(listState)),
+                contentPadding = PaddingValues(
+                    bottom = 80.dp,
+                    end = if (isAlphabetical) 16.dp else 4.dp // Reduced space
+                )
             ) {
                 items(songs, key = { it.id }) { item ->
                     var showMenu by remember { mutableStateOf(false) }
@@ -92,7 +113,7 @@ fun SongsList(
                     GlassSurface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 5.dp)
+                            .padding(start = 16.dp, end = if (isAlphabetical) 4.dp else 16.dp, top = 5.dp, bottom = 5.dp)
                             .clip(RoundedCornerShape(20.dp))
                             .clickable { onSongClick(item) },
                         shape = RoundedCornerShape(20.dp),
@@ -105,27 +126,39 @@ fun SongsList(
                                 .padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Artwork Container with Frosty Fallback
                             Box(
                                 modifier = Modifier
                                     .size(46.dp)
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(Color(0x33FFFFFF)),
+                                    .clip(RoundedCornerShape(14.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                if (albumArtModel != null) {
-                                    AsyncImage(
-                                        model = ImageRequest.Builder(context).data(albumArtModel).crossfade(true).build(),
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.MusicNote,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(22.dp)
-                                    )
+                                SubcomposeAsyncImage(
+                                    model = ImageRequest.Builder(context).data(albumArtModel).crossfade(true).build(),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    val state = painter.state
+                                    if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error || albumArtModel == null) {
+                                        GlassSurface(
+                                            modifier = Modifier.fillMaxSize(),
+                                            shape = RoundedCornerShape(14.dp),
+                                            backgroundColor = Color.Transparent, // Transparent as requested
+                                            borderColor = Color(0x22FFFFFF)
+                                        ) {
+                                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Default.MusicNote,
+                                                    contentDescription = null,
+                                                    tint = Color.White.copy(alpha = 0.7f),
+                                                    modifier = Modifier.size(28.dp) // Increased from 22.dp
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        SubcomposeAsyncImageContent()
+                                    }
                                 }
 
                                 if (isCurrentlyPlaying) {
@@ -261,8 +294,10 @@ fun SongsList(
                     }
                 }
             }
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
-                AlphabetScroller(songs = songs, listState = listState)
+            if (isAlphabetical) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+                    AlphabetScroller(songs = songs, listState = listState)
+                }
             }
         }
     }

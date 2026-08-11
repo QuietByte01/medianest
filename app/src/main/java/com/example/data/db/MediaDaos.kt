@@ -159,3 +159,18 @@ interface AnalyticsDao {
     }
 }
 
+@Dao
+interface LocationCacheDao {
+    @Query("SELECT * FROM location_cache WHERE mediaUri = :uri")
+    suspend fun getLocation(uri: String): LocationCache?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveLocation(cache: LocationCache)
+
+    @Query("DELETE FROM location_cache WHERE mediaUri = :uri")
+    suspend fun deleteLocation(uri: String)
+
+    @Query("DELETE FROM location_cache")
+    suspend fun clearCache()
+}
+

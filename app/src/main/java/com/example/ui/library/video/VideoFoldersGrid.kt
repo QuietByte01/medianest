@@ -329,64 +329,62 @@ fun VideoFoldersGrid(
                 }
             }
 
-            item {
-                GlassSurface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(168.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .clickable { onCreateCategoryClick() },
-                    shape = RoundedCornerShape(20.dp),
-                    backgroundColor = Color(0x12FFFFFF),
-                    borderColor = Color.Transparent
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .drawWithContent {
-                                drawContent()
-                                val stroke = Stroke(
-                                    width = 1.5.dp.toPx(),
-                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 12f), 0f)
-                                )
-                                drawRoundRect(
-                                    color = Color(0x38FFFFFF),
-                                    style = stroke,
-                                    cornerRadius = CornerRadius(20.dp.toPx(), 20.dp.toPx())
-                                )
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0x2B3B82F6)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "Create Folder",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                            Text(
-                                text = "Create Folder",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = Color.White
-                            )
-                        }
-                    }
-                }
-            }
+//            item {
+//                GlassSurface(
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .height(168.dp)
+//                        .clip(RoundedCornerShape(20.dp))
+//                        .clickable { onCreateCategoryClick() },
+//                    shape = RoundedCornerShape(20.dp),
+//                    backgroundColor = Color(0x12FFFFFF),
+//                    borderColor = Color.Transparent
+//                ) {
+//                    Box(
+//                        modifier = Modifier
+//                            .fillMaxSize()
+//                            .drawWithContent {
+//                                drawContent()
+//                                val stroke = Stroke(
+//                                    width = 1.5.dp.toPx(),
+//                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 12f), 0f)
+//                                )
+//                                drawRoundRect(
+//                                    color = Color(0x38FFFFFF),
+//                                    style = stroke,
+//                                    cornerRadius = CornerRadius(20.dp.toPx(), 20.dp.toPx())
+//                                )
+//                            },
+//                        contentAlignment = Alignment.Center
+//                    ) {
+//                        Column(
+//                            horizontalAlignment = Alignment.CenterHorizontally,
+//                            verticalArrangement = Arrangement.spacedBy(10.dp)
+//                        ) {
+//                            Box(
+//                                modifier = Modifier
+//                                    .size(44.dp)
+//                                    .clip(CircleShape)
+//                                    .background(Color(0x2B3B82F6)),
+//                                contentAlignment = Alignment.Center
+//                            ) {
+//                                Icon(
+//                                    imageVector = Icons.Default.Add,
+//                                    contentDescription = "Create Folder",
+//                                    tint = Color.White,
+//                                    modifier = Modifier.size(24.dp)
+//                                )
+//                            }
+//                            Text(
+//                                text = "Create Folder",
+//                                fontWeight = FontWeight.Bold,
+//                                fontSize = 14.sp,
+//                                color = Color.White
+//                            )
+//                        }
+//                    }
+//                }
+//            }
         }
     }
 }
-
-

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -23,11 +24,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
+import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
 import com.example.data.model.MediaItem
 import com.example.ui.components.GlassSurface
 import com.example.ui.components.formatDuration
+import com.example.ui.components.translucentScrollBarGrid
 
 @Composable
 fun AlbumsGrid(
@@ -38,7 +42,10 @@ fun AlbumsGrid(
     onSongLongClick: (MediaItem) -> Unit,
     gridSizeLevel: Int = 1,
     initialSelectedAlbum: String? = null,
-    onAddToPlaylist: (MediaItem) -> Unit = {}
+    onAddToPlaylist: (MediaItem) -> Unit = {},
+    sortField: String = "Name",
+    isAscending: Boolean = true,
+    cacheMap: Map<String, com.example.data.db.AudioMetadataCache> = emptyMap()
 ) {
     val context = LocalContext.current
     var selectedAlbum by remember(initialSelectedAlbum) { mutableStateOf(initialSelectedAlbum) }
@@ -58,6 +65,24 @@ fun AlbumsGrid(
         songs.groupBy { it.album ?: "Unknown Album" }
     }
 
+    val sortedAlbumNames = remember(albumsMap, sortField, isAscending, cacheMap) {
+        val keys = albumsMap.keys.toList()
+        
+        val comp = when (sortField) {
+            "Name" -> compareBy<String> { it.lowercase() }
+            "Artist" -> compareBy<String> { albumName ->
+                albumsMap[albumName]?.firstOrNull()?.artist?.lowercase() ?: ""
+            }
+            "Release Year" -> compareBy<String> { albumName ->
+                val firstSong = albumsMap[albumName]?.firstOrNull()
+                cacheMap[firstSong?.uri?.toString()]?.year?.toIntOrNull() ?: 0
+            }
+            else -> compareBy<String> { it.lowercase() }
+        }
+        
+        if (isAscending) keys.sortedWith(comp) else keys.sortedWith(comp).reversed()
+    }
+
     if (selectedAlbum != null) {
         val albumSongs = albumsMap[selectedAlbum] ?: emptyList()
         val totalDurationMs = remember(albumSongs) { albumSongs.sumOf { it.durationMs } }
@@ -74,24 +99,35 @@ fun AlbumsGrid(
                 Box(
                     modifier = Modifier
                         .size(110.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0x33FFFFFF)),
+                        .clip(RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (coverUri != null) {
-                        AsyncImage(
-                            model = coverUri,
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Album,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(52.dp)
-                        )
+                    SubcomposeAsyncImage(
+                        model = ImageRequest.Builder(context).data(coverUri).crossfade(true).build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        val state = painter.state
+                        if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error || coverUri == null) {
+                                    GlassSurface(
+                                        modifier = Modifier.fillMaxSize(),
+                                        shape = RoundedCornerShape(16.dp),
+                                        backgroundColor = Color.Transparent,
+                                        borderColor = Color(0x22FFFFFF)
+                                    ) {
+                                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.Album,
+                                                contentDescription = null,
+                                                tint = Color.White.copy(alpha = 0.8f),
+                                                modifier = Modifier.size(64.dp) // Increased from 52.dp
+                                            )
+                                        }
+                                    }
+                        } else {
+                            SubcomposeAsyncImageContent()
+                        }
                     }
                 }
 
@@ -161,14 +197,18 @@ fun AlbumsGrid(
             3 -> (baseColumns * 0.5f).toInt().coerceAtLeast(1)
             else -> baseColumns
         }
+        val gridState = rememberLazyGridState()
         LazyVerticalGrid(
+            state = gridState,
             columns = GridCells.Fixed(gridColumns),
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .translucentScrollBarGrid(gridState),
             contentPadding = PaddingValues(bottom = 90.dp, start = 16.dp, end = 16.dp, top = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            items(albumsMap.keys.toList(), key = { it }) { albumName ->
+            items(sortedAlbumNames, key = { it }) { albumName ->
                 val albumSongs = albumsMap[albumName] ?: emptyList()
                 val coverItem = albumSongs.firstOrNull()
                 val isCurrentlyPlaying = currentlyPlayingAlbum != null && currentlyPlayingAlbum == albumName
@@ -189,25 +229,36 @@ fun AlbumsGrid(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .aspectRatio(1f)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xFF282C38)),
+                                .clip(RoundedCornerShape(16.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             val albumArtModel = coverItem?.albumArtUri
-                            if (albumArtModel != null) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(context).data(albumArtModel).crossfade(true).build(),
-                                    contentDescription = albumName,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Album,
-                                    contentDescription = null,
-                                    tint = Color.White.copy(alpha = 0.85f),
-                                    modifier = Modifier.size(32.dp)
-                                )
+                            SubcomposeAsyncImage(
+                                model = ImageRequest.Builder(context).data(albumArtModel).crossfade(true).build(),
+                                contentDescription = albumName,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                val state = painter.state
+                                if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error || albumArtModel == null) {
+                                    GlassSurface(
+                                        modifier = Modifier.fillMaxSize(),
+                                        shape = RoundedCornerShape(16.dp),
+                                        backgroundColor = Color.Transparent,
+                                        borderColor = Color(0x22FFFFFF)
+                                    ) {
+                                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.Album,
+                                                contentDescription = null,
+                                                tint = Color.White.copy(alpha = 0.85f),
+                                                modifier = Modifier.size(48.dp) // Increased from 32.dp
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    SubcomposeAsyncImageContent()
+                                }
                             }
 
                             if (isCurrentlyPlaying) {

@@ -8,7 +8,16 @@ fun filterImageList(
     favoriteUris: Set<String>,
     trashUris: Set<String>
 ): List<MediaItem> {
-    return when (activeFilterTab) {
+    val systemHiddenNames = listOf(".thumbnails", ".recycle_bin", "recycle.bin", "thumbnails")
+
+    val result = when (activeFilterTab) {
+        "HIDDEN" -> imagesList.filter { item ->
+            val bucket = (item.bucketName ?: "").lowercase()
+            val path = (item.relativePath ?: "").lowercase()
+            val title = item.title.lowercase()
+            bucket.startsWith(".") || path.contains("/.") || title.startsWith(".") ||
+                    systemHiddenNames.any { it == bucket || path.split('/').any { p -> p == it } }
+        }
         "CAMERA" -> imagesList.filter { item ->
             val bucket = (item.bucketName ?: "").lowercase()
             val path = (item.relativePath ?: "").lowercase()
@@ -139,5 +148,13 @@ fun filterImageList(
             }
         }
         else -> imagesList
+    }
+
+    if (activeFilterTab == "HIDDEN") return result
+
+    return result.filter { item ->
+        val bucket = (item.bucketName ?: "").lowercase()
+        val path = (item.relativePath ?: "").lowercase()
+        !systemHiddenNames.any { it == bucket || path.split('/').any { p -> p == it } }
     }
 }

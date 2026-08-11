@@ -15,6 +15,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -29,6 +33,7 @@ import com.example.data.model.MediaItem
 import com.example.data.settings.SettingsManager
 import com.example.ui.components.MediaInfoBottomSheet
 import com.example.ui.components.RenameFileDialog
+import com.example.ui.components.SortRow
 import com.example.ui.theme.LocalDarkTheme
 import com.example.util.FolderHiddenUtils
 import kotlinx.coroutines.Dispatchers
@@ -100,6 +105,8 @@ fun ImagesTab(
     var infoItem by remember { mutableStateOf<MediaItem?>(null) }
     var contextSheetItem by remember { mutableStateOf<MediaItem?>(null) }
     var showFolderBatchInfoModal by remember { mutableStateOf(false) }
+
+    val (isSortVisible, nestedScrollConnection) = com.example.ui.components.rememberSortRevealConnection()
 
     BackHandler(
         enabled = showUngroupConfirmDialog || showEditCollectionDialog || showCreateCollectionDialog ||
@@ -183,22 +190,25 @@ fun ImagesTab(
         else -> 135.dp
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection)) {
         Column(modifier = Modifier.fillMaxSize()) {
             ImageFilterRow(
                 activeFilterTab = activeFilterTab,
                 onFilterTabChange = { activeFilterTab = it },
                 viewMode = viewMode,
                 onViewModeChange = { viewMode = it },
-                selectedFolder = selectedFolder,
-                onSelectedFolderChange = { selectedFolder = it },
                 selectedCategory = selectedCategory,
                 onSelectedCategoryChange = { selectedCategory = it },
+                onSelectedFolderChange = { selectedFolder = it },
+                onShowHiddenFiles = { scope.launch { settingsManager.setShowHiddenFiles(true) } }
+            )
+
+            SortRow(
                 sortField = sortField,
                 onSortFieldChange = { sortField = it },
                 isAscending = isAscending,
                 onIsAscendingChange = { isAscending = it },
-                onShowHiddenFiles = { scope.launch { settingsManager.setShowHiddenFiles(true) } }
+                isVisible = isSortVisible.value
             )
 
 

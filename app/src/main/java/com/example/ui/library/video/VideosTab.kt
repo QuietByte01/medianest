@@ -52,12 +52,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import com.example.MediaNestApp
 import com.example.data.db.MediaCategory
@@ -70,6 +75,7 @@ import com.example.ui.components.MediaGridItem
 import com.example.ui.components.MediaInfoBottomSheet
 import com.example.ui.components.MediaLoadingAnimation
 import com.example.ui.components.RenameFileDialog
+import com.example.ui.components.SortRow
 import com.example.ui.components.translucentScrollBarGrid
 import com.example.ui.components.translucentScrollBarStaggeredGrid
 import com.example.ui.theme.LocalDarkTheme
@@ -79,6 +85,18 @@ import com.example.util.TrashManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = label, color = Color(0xFF9EA3B0), fontSize = 14.sp)
+        Text(text = value, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -125,6 +143,8 @@ fun VideosTab(
     var categoryForOptions by remember { mutableStateOf<MediaCategory?>(null) }
     var showCategoryInfoDialog by remember { mutableStateOf(false) }
     var showCategoryDeleteConfirm by remember { mutableStateOf(false) }
+
+    val (isSortVisible, nestedScrollConnection) = com.example.ui.components.rememberSortRevealConnection()
 
     val currentContext = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -218,8 +238,9 @@ fun VideosTab(
             .filter { it.mimeType.startsWith("video") }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Top Filter Tabs
+    Box(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Top Filter Tabs
         VideoFilterRow(
             isFolderViewActive = isFolderViewActive,
             selectedCategory = selectedCategory,
@@ -257,7 +278,6 @@ fun VideosTab(
             }
         )
 
-        // Bottom chips row: Categories shown on ALL or CATEGORIES tabs
         if (!isFolderViewActive && (activeFilterTab == "ALL" || activeFilterTab == "CATEGORIES")) {
             VideoCategoryRow(
                 allVideoCategories = allVideoCategories,
@@ -277,6 +297,14 @@ fun VideosTab(
                 }
             )
         }
+
+        SortRow(
+            sortField = sortField,
+            onSortFieldChange = { sortField = it },
+            isAscending = isAscending,
+            onIsAscendingChange = { isAscending = it },
+            isVisible = isSortVisible.value
+        )
 
         if (isFolderViewActive && selectedFolder != null) {
             Row(
@@ -383,92 +411,53 @@ fun VideosTab(
                 }
             )
         } else if (activeFilterTab == "CATEGORIES" && selectedCategory == null) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Category,
-                        contentDescription = null,
-                        tint = Color(0xFFC0C5D0),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = "ALL VIDEO CATEGORIES",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.5.sp,
-                        color = Color(0xFFC0C5D0)
-                    )
+            val combinedCategoryVideos = remember(videosList, allCrossRefs, allVideoCategories) {
+                val videoCatIds = allVideoCategories.map { it.id }.toSet()
+                val crossRefUris = allCrossRefs.filter { it.categoryId in videoCatIds }.map { it.mediaUri }.toSet()
+                
+                // Definitions for auto-categorization keywords based on the visible category list
+                val keywordMap = allVideoCategories.associate { cat ->
+                    val keywords = when (cat.name.lowercase()) {
+                        "workout" -> listOf("workout", "gym", "fitness", "exercise", "cardio", "lifting", "abs", "squat")
+                        "training videos" -> listOf("train", "tutorial", "learn", "course", "coaching", "drills", "practice")
+                        "birthday parties", "birthday" -> listOf("birthday", "bday", "party", "celebration", "cake")
+                        "travel & vlogs", "travel" -> listOf("travel", "vlog", "trip", "tour", "vacation", "journey", "holiday")
+                        "events & birthdays", "events" -> listOf("event", "festival", "party", "gala", "gathering", "celebration")
+                        else -> emptyList()
+                    }
+                    cat.id to keywords
                 }
-
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 160.dp),
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    items(allVideoCategories, key = { "cat_${it.id}" }) { cat ->
-                        val count = remember(allCrossRefs, cat, videosList) {
-                            val crossRefUris = allCrossRefs.filter { it.categoryId == cat.id }.map { it.mediaUri }.toSet()
-                            val filterKeywords = when (cat.name.lowercase()) {
-                                "workout" -> listOf("workout", "gym", "fitness", "exercise", "cardio", "lifting", "abs", "squat")
-                                "training videos" -> listOf("train", "tutorial", "learn", "course", "coaching", "drills", "practice")
-                                "birthday parties" -> listOf("birthday", "bday", "party", "celebration", "cake")
-                                "travel & vlogs" -> listOf("travel", "vlog", "trip", "tour", "vacation", "journey", "holiday")
-                                else -> emptyList()
-                            }
-                            videosList.count { item ->
-                                crossRefUris.contains(item.uri.toString()) ||
-                                        crossRefUris.any { ref -> ref == item.uri.toString() || ref == item.uri.path } ||
-                                        (filterKeywords.isNotEmpty() && filterKeywords.any { kw ->
-                                            item.title.lowercase().contains(kw) ||
-                                                    (item.relativePath ?: "").lowercase().contains(kw) ||
-                                                    (item.bucketName ?: "").lowercase().contains(kw)
-                                        })
-                            }
-                        }
-
-                        GlassSurface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable { onCategorySelect(cat) },
-                            shape = RoundedCornerShape(16.dp),
-                            backgroundColor = Color(0x28181C2B),
-                            borderColor = Color(0x28FFFFFF)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = CategoryIconUtils.getCategoryIcon(cat.iconName),
-                                    contentDescription = null,
-                                    tint = Color(0xFF6366F1),
-                                    modifier = Modifier.size(28.dp)
-                                )
-                                Text(
-                                    text = cat.name,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    color = Color.White
-                                )
-                                Text(
-                                    text = "$count Videos",
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF9EA3B0)
-                                )
-                            }
-                        }
+                
+                videosList.filter { item ->
+                    // 1. Explicitly linked via DB
+                    val isLinked = crossRefUris.contains(item.uri.toString()) ||
+                            crossRefUris.any { ref -> ref == item.uri.toString() || ref == item.uri.path }
+                    
+                    if (isLinked) return@filter true
+                    
+                    // 2. Implicitly matched via keywords
+                    keywordMap.values.flatten().any { kw ->
+                        item.title.lowercase().contains(kw) ||
+                                (item.relativePath ?: "").lowercase().contains(kw) ||
+                                (item.bucketName ?: "").lowercase().contains(kw)
                     }
                 }
             }
+            val allCategoriesHeader = remember {
+                MediaCategory(id = -999, name = "All Categorized Videos", type = "VIDEO", iconName = "category")
+            }
+
+            ChronologicalCategoryVideoGrid(
+                category = allCategoriesHeader,
+                videos = combinedCategoryVideos,
+                onVideoClick = onVideoClick,
+                onVideoLongClick = onVideoLongClick,
+                onBack = { activeFilterTab = "ALL" },
+                selectedUris = selectedUris,
+                isSelectionMode = isSelectionMode,
+                onDelete = { videoToDelete = it },
+                onRemoveFromCategory = { /* No-op for combined view */ }
+            )
         } else if (isFolderViewActive && selectedFolder == null) {
             VideoFoldersGrid(
                 videoFolderGroups = videoFolderGroups,
@@ -514,6 +503,7 @@ fun VideosTab(
                 cornerRadiusDp = cornerRadiusDp,
                 roundedCornersEnabled = roundedCornersEnabled,
                 selectedCategory = selectedCategory,
+                activeFilterTab = activeFilterTab,
                 onVideoClick = onVideoClick,
                 onVideoLongClick = onVideoLongClick,
                 onInfoItem = { infoItem = it },
@@ -655,84 +645,132 @@ fun VideosTab(
                             })
                 }
             }
-            AlertDialog(
-                onDismissRequest = {
-                    showCategoryInfoDialog = false
-                    categoryForOptions = null
-                },
-                shape = RoundedCornerShape(16.dp),
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Dialog(onDismissRequest = {
+                showCategoryInfoDialog = false
+                categoryForOptions = null
+            }) {
+                GlassSurface(
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.fillMaxWidth(0.92f)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Text("Category Details", fontWeight = FontWeight.Bold)
-                    }
-                },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Category Name", color = Color(0xFF9EA3B0), fontSize = 13.sp)
-                            Text(cat.name, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Text(
+                                text = "Category Details",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = Color.White
+                            )
                         }
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Category Type", color = Color(0xFF9EA3B0), fontSize = 13.sp)
-                            Text(cat.type, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            InfoRow("Category Name", cat.name)
+                            InfoRow("Category Type", cat.type)
+                            InfoRow("Total Items", "$itemCount items")
                         }
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Total Items", color = Color(0xFF9EA3B0), fontSize = 13.sp)
-                            Text("$itemCount items", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = {
+                                showCategoryInfoDialog = false
+                                categoryForOptions = null
+                            }) {
+                                Text("Close", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
                         }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        showCategoryInfoDialog = false
-                        categoryForOptions = null
-                    }) {
-                        Text("Close")
                     }
                 }
-            )
+            }
         }
 
         if (showCategoryDeleteConfirm && categoryForOptions != null) {
             val cat = categoryForOptions!!
-            AlertDialog(
-                onDismissRequest = {
-                    showCategoryDeleteConfirm = false
-                    categoryForOptions = null
-                },
-                shape = RoundedCornerShape(16.dp),
-                title = { Text("Delete Category") },
-                text = { Text("Are you sure you want to delete category '${cat.name}'? The videos in this category will not be deleted.") },
-                confirmButton = {
-                    Button(
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                        onClick = {
-                            scope.launch(Dispatchers.IO) {
-                                db.categoryDao().deleteCategory(cat)
-                            }
-                            if (selectedCategory?.id == cat.id) {
-                                onCategorySelect(null)
-                            }
-                            showCategoryDeleteConfirm = false
-                            categoryForOptions = null
-                        }
+            Dialog(onDismissRequest = {
+                showCategoryDeleteConfirm = false
+                categoryForOptions = null
+            }) {
+                GlassSurface(
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.fillMaxWidth(0.92f)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text("Delete", color = MaterialTheme.colorScheme.onError)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = {
-                        showCategoryDeleteConfirm = false
-                        categoryForOptions = null
-                    }) {
-                        Text("Cancel")
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Text(
+                                text = "Delete Category",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = Color.White
+                            )
+                        }
+
+                        Text(
+                            text = "Are you sure you want to delete category '${cat.name}'? The videos in this category will not be deleted.",
+                            color = Color(0xFFC0C5D0),
+                            fontSize = 15.sp
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(onClick = {
+                                showCategoryDeleteConfirm = false
+                                categoryForOptions = null
+                            }) {
+                                Text("Cancel", color = Color(0xFF9EA3B0))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                onClick = {
+                                    scope.launch(Dispatchers.IO) {
+                                        db.categoryDao().deleteCategory(cat)
+                                    }
+                                    if (selectedCategory?.id == cat.id) {
+                                        onCategorySelect(null)
+                                    }
+                                    showCategoryDeleteConfirm = false
+                                    categoryForOptions = null
+                                }
+                            ) {
+                                Text("Delete", color = MaterialTheme.colorScheme.onError, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
-            )
+            }
         }
     }
+}
 }

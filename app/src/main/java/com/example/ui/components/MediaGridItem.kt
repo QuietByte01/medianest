@@ -105,7 +105,7 @@ fun MediaGridItem(
                 .crossfade(true)
             if (item.type == com.example.data.db.MediaType.VIDEO) {
                 builder.decoderFactory(VideoFrameDecoder.Factory())
-                val seekMicros = if (item.durationMs > 2000) 1_000_000L else if (item.durationMs > 500) 250_000L else 0L
+                val seekMicros = if (item.durationMs > 5000) 2_000_000L else if (item.durationMs > 2000) 1_000_000L else 0L
                 builder.videoFrameMicros(seekMicros)
             }
             builder.build()
@@ -146,7 +146,8 @@ fun MediaGridItem(
                                 try {
                                     val retriever = android.media.MediaMetadataRetriever()
                                     retriever.setDataSource(context, item.uri)
-                                    val frame = retriever.getFrameAtTime(1_000_000L, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                                    val seekMicros = if (item.durationMs > 5000) 3_000_000L else if (item.durationMs > 2000) 1_000_000L else 0L
+                                    val frame = retriever.getFrameAtTime(seekMicros, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
                                         ?: retriever.getFrameAtTime(0L, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
                                     retriever.release()
                                     fallbackBitmap = frame
@@ -157,36 +158,32 @@ fun MediaGridItem(
                 )
             }
 
-            // Video duration overlay badge (Title hidden for regular videos as requested)
+            // Video duration overlay badge
             if (item.type == MediaType.VIDEO) {
-                Box(
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.Black.copy(alpha = 0.75f),
                     modifier = Modifier
-                        .fillMaxWidth()
                         .align(Alignment.BottomEnd)
                         .padding(6.dp)
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color.Black.copy(alpha = 0.75f)
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(3.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(10.dp)
-                            )
-                            Text(
-                                text = formatDuration(item.durationMs),
-                                color = Color.White,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(10.dp)
+                        )
+                        Text(
+                            text = formatDuration(item.durationMs),
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }

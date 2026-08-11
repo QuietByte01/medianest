@@ -40,8 +40,10 @@ secretsGradlePlugin = "2.0.1"
 credentials = "1.5.0"
 googleid = "1.1.1"
 media3 = "1.11.0"
+ffmpeg = "6.1.7"
 
 [libraries]
+ffmpeg-kit = { group = "io.github.jamaismagic.ffmpeg", name = "ffmpeg-kit-lts-16kb", version.ref = "ffmpeg" }
 media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
 media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }

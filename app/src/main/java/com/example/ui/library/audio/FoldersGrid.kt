@@ -38,7 +38,9 @@ fun FoldersGrid(
     onSongLongClick: (MediaItem) -> Unit,
     initialSelectedFolder: String? = null,
     onAddToPlaylist: (MediaItem) -> Unit = {},
-    onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?) -> Unit = { _, _, _, _ -> }
+    onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?) -> Unit = { _, _, _, _ -> },
+    sortField: String = "Name",
+    isAscending: Boolean = true
 ) {
     var showAllFoldersMode by remember { mutableStateOf(false) }
 
@@ -103,11 +105,21 @@ fun FoldersGrid(
         }
     }
 
-    val sortedFolderNames = remember(folderMap) {
-        folderMap.keys.sortedWith(
-            compareByDescending<String> { fn -> isFolderHidden(fn, folderMap[fn]) }
-                .thenBy { it.lowercase() }
-        )
+    val sortedFolderNames = remember(folderMap, sortField, isAscending) {
+        val keys = folderMap.keys.toList()
+        val comp = when (sortField) {
+            "Name" -> compareBy<String> { it.lowercase() }
+            "Date Added" -> compareBy<String> { folderName ->
+                folderMap[folderName]?.maxByOrNull { it.dateAdded }?.dateAdded ?: 0L
+            }
+            else -> compareBy<String> { it.lowercase() }
+        }
+        
+        val sorted = if (isAscending) keys.sortedWith(comp) else keys.sortedWith(comp).reversed()
+        
+        // Secondary sort to keep hidden folders at bottom/top if relevant, 
+        // but here we just follow the requested sort field.
+        sorted
     }
 
     var selectedFolder by remember(initialSelectedFolder, sortedFolderNames) {

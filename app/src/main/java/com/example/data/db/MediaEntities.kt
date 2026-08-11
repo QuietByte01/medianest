@@ -101,3 +101,11 @@ data class FormatStat(
     val category: String // IMAGE, VIDEO, AUDIO
 )
 
+@Entity(tableName = "location_cache")
+data class LocationCache(
+    @PrimaryKey val mediaUri: String,
+    val placeName: String,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val resolvedAt: Long = System.currentTimeMillis()
+)

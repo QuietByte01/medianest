@@ -63,7 +63,7 @@ fun AlphabetScroller(
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .padding(end = 4.dp, top = 8.dp, bottom = 80.dp),
+            .padding(end = 2.dp, top = 8.dp, bottom = 92.dp), // Respect space for mini-player
         contentAlignment = Alignment.CenterEnd
     ) {
         // Floating Letter Preview Pill
@@ -95,11 +95,10 @@ fun AlphabetScroller(
         // Vertical Alphabet Strip
         Column(
             modifier = Modifier
-                .width(22.dp)
-                .fillMaxHeight(0.85f)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0x33000000))
-                .padding(vertical = 4.dp)
+                .width(18.dp)
+                .fillMaxHeight() // Fill available height in the padded Box
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0x1A000000))
                 .onGloballyPositioned { layoutCoordinates ->
                     columnHeightPx = layoutCoordinates.size.height.toFloat().coerceAtLeast(1f)
                 }
@@ -120,15 +119,15 @@ fun AlphabetScroller(
                         }
                     )
                 },
-            verticalArrangement = Arrangement.SpaceEvenly,
+            verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             alphabetList.forEach { charStr ->
                 Text(
                     text = charStr,
-                    color = Color(0xDDFFFFFF),
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.SemiBold
+                    color = Color(0xCCFFFFFF),
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }

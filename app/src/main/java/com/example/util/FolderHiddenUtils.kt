@@ -15,6 +15,21 @@ object FolderHiddenUtils {
         return false
     }
 
+    fun isItemHidden(item: com.example.data.model.MediaItem): Boolean {
+        val name = item.title.lowercase()
+        val bucket = (item.bucketName ?: "").lowercase()
+        val relPath = (item.relativePath ?: "").lowercase()
+
+        if (name.startsWith(".") || bucket.startsWith(".") || relPath.contains("/.")) return true
+
+        val hiddenNames = listOf(".thumbnails", ".recycle_bin", "recycle.bin", ".trash", "thumbnails")
+        if (hiddenNames.any { hn ->
+            bucket == hn || name.contains(hn) || relPath.split('/').any { it == hn }
+        }) return true
+
+        return false
+    }
+
     fun deleteMediaUri(context: Context, uri: Uri): Boolean {
         return try {
             if (uri.scheme == "file") {
@@ -33,4 +48,3 @@ object FolderHiddenUtils {
         }
     }
 }
-
