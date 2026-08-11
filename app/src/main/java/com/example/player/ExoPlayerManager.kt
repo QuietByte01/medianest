@@ -181,23 +181,39 @@ class ExoPlayerManager private constructor(private val context: Context) {
     }
 
     private fun setupTelephonyListener() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            telephonyManager.registerTelephonyCallback(
-                context.mainExecutor,
-                object : TelephonyCallback(), TelephonyCallback.CallStateListener {
-                    override fun onCallStateChanged(state: Int) {
+        try {
+            val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.READ_PHONE_STATE
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+            if (!hasPermission) {
+                Log.w("ExoPlayerManager", "READ_PHONE_STATE permission not granted. Telephony listener skipped.")
+                return
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                telephonyManager.registerTelephonyCallback(
+                    context.mainExecutor,
+                    object : TelephonyCallback(), TelephonyCallback.CallStateListener {
+                        override fun onCallStateChanged(state: Int) {
+                            handleCallState(state)
+                        }
+                    }
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                telephonyManager.listen(object : android.telephony.PhoneStateListener() {
+                    @Deprecated("Deprecated in Java")
+                    override fun onCallStateChanged(state: Int, phoneNumber: String?) {
                         handleCallState(state)
                     }
-                }
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            telephonyManager.listen(object : android.telephony.PhoneStateListener() {
-                @Deprecated("Deprecated in Java")
-                override fun onCallStateChanged(state: Int, phoneNumber: String?) {
-                    handleCallState(state)
-                }
-            }, android.telephony.PhoneStateListener.LISTEN_CALL_STATE)
+                }, android.telephony.PhoneStateListener.LISTEN_CALL_STATE)
+            }
+        } catch (e: SecurityException) {
+            Log.e("ExoPlayerManager", "SecurityException setting up telephony listener", e)
+        } catch (e: Exception) {
+            Log.e("ExoPlayerManager", "Error setting up telephony listener", e)
         }
     }
 
@@ -229,8 +245,16 @@ class ExoPlayerManager private constructor(private val context: Context) {
     }
 
     private fun setupBluetoothReceiver() {
-        val filter = IntentFilter(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED)
-        context.registerReceiver(bluetoothReceiver, filter)
+        try {
+            val filter = IntentFilter(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(bluetoothReceiver, filter, Context.RECEIVER_EXPORTED)
+            } else {
+                context.registerReceiver(bluetoothReceiver, filter)
+            }
+        } catch (e: Exception) {
+            Log.e("ExoPlayerManager", "Error registering bluetooth receiver", e)
+        }
     }
 
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
