@@ -663,19 +663,22 @@ fun MediaCategoryCardItem(
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                // Icon Box
-                Box(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0x22FFFFFF)),
-                    contentAlignment = Alignment.Center
+                // Icon Box (Transparent Frosty Blur)
+                GlassSurface(
+                    modifier = Modifier.size(46.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    backgroundColor = Color(0x12FFFFFF),
+                    borderColor = Color(0x1AFFFFFF),
+                    enableBlur = true,
+                    blurRadius = 8.dp
                 ) {
                     Icon(
                         imageVector = iconVector,
                         contentDescription = title,
                         tint = iconTint,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier
+                            .size(22.dp)
+                            .align(Alignment.Center)
                     )
                 }
 

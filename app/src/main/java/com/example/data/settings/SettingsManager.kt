@@ -52,6 +52,15 @@ class SettingsManager(private val context: Context) {
         val KEY_CUSTOM_CONTRAST = floatPreferencesKey("custom_contrast")
         val KEY_CUSTOM_WARMTH = floatPreferencesKey("custom_warmth")
         val KEY_APPLY_PICTURE_MODE_TO_THUMBNAILS = booleanPreferencesKey("apply_picture_mode_to_thumbnails")
+
+        val KEY_AUDIO_SORT_FIELD = stringPreferencesKey("audio_sort_field")
+        val KEY_AUDIO_SORT_ASCENDING = booleanPreferencesKey("audio_sort_ascending")
+        val KEY_IMAGE_SORT_FIELD = stringPreferencesKey("image_sort_field")
+        val KEY_IMAGE_SORT_ASCENDING = booleanPreferencesKey("image_sort_ascending")
+        val KEY_VIDEO_SORT_FIELD = stringPreferencesKey("video_sort_field")
+        val KEY_VIDEO_SORT_ASCENDING = booleanPreferencesKey("video_sort_ascending")
+        val KEY_UNINTERRUPTED_MODE = booleanPreferencesKey("uninterrupted_mode")
+        val KEY_AUTO_RESUME_ON_BLUETOOTH = booleanPreferencesKey("auto_resume_on_bluetooth")
     }
 
     val theme: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_THEME] ?: "DARK" }
@@ -71,6 +80,15 @@ class SettingsManager(private val context: Context) {
     val customContrast: Flow<Float> = context.dataStore.data.map { prefs -> prefs[KEY_CUSTOM_CONTRAST] ?: 1.06f }
     val customWarmth: Flow<Float> = context.dataStore.data.map { prefs -> prefs[KEY_CUSTOM_WARMTH] ?: 0.03f }
     val applyPictureModeToThumbnails: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_APPLY_PICTURE_MODE_TO_THUMBNAILS] ?: false }
+
+    val audioSortField: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_AUDIO_SORT_FIELD] ?: "Name" }
+    val audioSortAscending: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUDIO_SORT_ASCENDING] ?: true }
+    val imageSortField: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_IMAGE_SORT_FIELD] ?: "Date" }
+    val imageSortAscending: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_IMAGE_SORT_ASCENDING] ?: false }
+    val videoSortField: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_VIDEO_SORT_FIELD] ?: "Date" }
+    val videoSortAscending: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_VIDEO_SORT_ASCENDING] ?: false }
+    val uninterruptedMode: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_UNINTERRUPTED_MODE] ?: false }
+    val autoResumeOnBluetooth: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUTO_RESUME_ON_BLUETOOTH] ?: false }
 
     val defaultSpeed: Flow<Float> = context.dataStore.data.map { prefs -> prefs[KEY_DEFAULT_SPEED] ?: 1.0f }
     val defaultCropMode: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_DEFAULT_CROP_MODE] ?: "FIT" }
@@ -146,4 +164,13 @@ class SettingsManager(private val context: Context) {
     suspend fun setCustomContrast(con: Float) = context.dataStore.edit { it[KEY_CUSTOM_CONTRAST] = con }
     suspend fun setCustomWarmth(warmth: Float) = context.dataStore.edit { it[KEY_CUSTOM_WARMTH] = warmth }
     suspend fun setApplyPictureModeToThumbnails(apply: Boolean) = context.dataStore.edit { it[KEY_APPLY_PICTURE_MODE_TO_THUMBNAILS] = apply }
+
+    suspend fun setAudioSortField(field: String) = context.dataStore.edit { it[KEY_AUDIO_SORT_FIELD] = field }
+    suspend fun setAudioSortAscending(ascending: Boolean) = context.dataStore.edit { it[KEY_AUDIO_SORT_ASCENDING] = ascending }
+    suspend fun setImageSortField(field: String) = context.dataStore.edit { it[KEY_IMAGE_SORT_FIELD] = field }
+    suspend fun setImageSortAscending(ascending: Boolean) = context.dataStore.edit { it[KEY_IMAGE_SORT_ASCENDING] = ascending }
+    suspend fun setVideoSortField(field: String) = context.dataStore.edit { it[KEY_VIDEO_SORT_FIELD] = field }
+    suspend fun setVideoSortAscending(ascending: Boolean) = context.dataStore.edit { it[KEY_VIDEO_SORT_ASCENDING] = ascending }
+    suspend fun setUninterruptedMode(enabled: Boolean) = context.dataStore.edit { it[KEY_UNINTERRUPTED_MODE] = enabled }
+    suspend fun setAutoResumeOnBluetooth(enabled: Boolean) = context.dataStore.edit { it[KEY_AUTO_RESUME_ON_BLUETOOTH] = enabled }
 }

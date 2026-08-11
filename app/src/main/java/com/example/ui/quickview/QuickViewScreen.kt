@@ -14,6 +14,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -59,7 +60,10 @@ import com.example.data.model.MediaItem
 import com.example.ui.components.GlassSurface
 import com.example.ui.theme.LocalDarkTheme
 import com.example.ui.components.formatDuration
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import com.example.ui.image.hybrid.HybridImageViewer
+import com.example.ui.image.hybrid.ImageSource
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,7 +82,29 @@ fun QuickViewScreen(
     var viewerBgColor by remember { mutableStateOf<Color?>(null) }
 
     var showControls by remember { mutableStateOf(true) }
+    var controlsTimerKey by remember { mutableStateOf(0) }
     var showInfoBottomSheet by remember { mutableStateOf(false) }
+
+    // Auto-hide controls timer
+    LaunchedEffect(showControls, controlsTimerKey) {
+        if (showControls) {
+            delay(3500)
+            showControls = false
+        }
+    }
+
+    fun resetControlsTimer() {
+        showControls = true
+        controlsTimerKey++
+    }
+
+    fun toggleControls() {
+        if (showControls) {
+            showControls = false
+        } else {
+            resetControlsTimer()
+        }
+    }
 
     val settingsManager = com.example.MediaNestApp.instance.settingsManager
     val pictureModeEnabled by settingsManager.pictureModeEnabled.collectAsState(initial = true)
@@ -105,6 +131,7 @@ fun QuickViewScreen(
     }
 
     var isInitialScrollDone by remember { mutableStateOf(false) }
+    var isCurrentPageZoomed by remember { mutableStateOf(false) }
 
     // Scroll pager & filmstrip to initial index on initial load
     LaunchedEffect(mutableMediaList, initialIndex) {
@@ -122,6 +149,7 @@ fun QuickViewScreen(
 
     // Scroll filmstrip when page changes
     LaunchedEffect(pagerState.currentPage) {
+        isCurrentPageZoomed = false
         if (mutableMediaList.isNotEmpty() && pagerState.currentPage in mutableMediaList.indices) {
             filmstripListState.animateScrollToItem(pagerState.currentPage)
         }
@@ -160,27 +188,54 @@ fun QuickViewScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
-            .clickable { showControls = !showControls }
+            .background(imageBgBrush) // Dynamic ambient gradient
+            .blur(if (viewerBgColor == Color.Transparent) 40.dp else 0.dp) // Frosted glass effect when transparent
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null
+            ) { 
+                // Only toggle if no items are shown or we're in video/audio
+                // Image viewer has its own cleaner toggle logic now.
+                if (mutableMediaList.isEmpty() || (currentItem != null && currentItem.type != MediaType.IMAGE)) {
+                    toggleControls()
+                }
+            }
     ) {
         if (mutableMediaList.isNotEmpty()) {
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                userScrollEnabled = !isCurrentPageZoomed
             ) { page ->
                 val item = mutableMediaList[page]
                 when (item.type) {
-                    MediaType.IMAGE -> ZoomableImageView(
-                        item = item,
-                        pictureModeEnabled = pictureModeEnabled,
-                        pictureMode = pictureMode,
-                        customSat = customSat,
-                        customCon = customCon,
-                        customWarmth = customWarmth,
-                        viewerBgColor = viewerBgColor,
-                        onToggleControls = { showControls = !showControls },
-                        onSwipeUpForInfo = { showInfoBottomSheet = true }
-                    )
+                    MediaType.IMAGE -> {
+                        val colorFilter = remember(pictureModeEnabled, pictureMode, customSat, customCon, customWarmth) {
+                            com.example.ui.components.PictureModeUtils.getComposeColorFilter(
+                                modeKey = pictureMode,
+                                customSat = customSat,
+                                customCon = customCon,
+                                customWarmth = customWarmth,
+                                enabled = pictureModeEnabled
+                            )
+                        }
+                        val zoomPadding = if (showControls) 150.dp else 24.dp
+                        
+                        HybridImageViewer(
+                            source = ImageSource.from(item.uri),
+                            colorFilter = colorFilter,
+                            backgroundColor = viewerBgColor ?: Color.Black, // Consistent black default
+                            zoomControlsBottomPadding = zoomPadding,
+                            onInteraction = { resetControlsTimer() },
+                            onZoomChanged = { zoomed ->
+                                if (pagerState.currentPage == page) {
+                                    isCurrentPageZoomed = zoomed
+                                }
+                            },
+                            onToggleControls = { toggleControls() },
+                            onSwipeUpForInfo = { showInfoBottomSheet = true }
+                        )
+                    }
 
                     MediaType.VIDEO -> QuickVideoPreview(item = item, onOpenFullPlayer = { onOpenFullPlayer(item) })
                     MediaType.AUDIO -> QuickAudioPreview(
@@ -237,12 +292,20 @@ fun QuickViewScreen(
                 ) {
                     var showBgColorPicker by remember { mutableStateOf(false) }
                     val colorOptions = listOf(
-                        Color.Transparent,
-                        Color.White,
+                        Color.Transparent, // Dynamic Frosted
                         Color.Black,
-                        Color(0xFF1E1E1E),
-                        Color(0xFFE0E0E0),
-                        Color(0xFFFDF6E3)
+                        Color.White,
+                        Color(0xFF1A1C1E), // Dark Gray
+                        Color(0xFF2D2D2D), // Medium Gray
+                        Color(0xFFE0E0E0), // Light Gray
+                        Color(0xFFFDF6E3), // Cream
+                        Color(0xFF0D1117), // Deep Navy
+                        Color(0xFF1E1E1E), // Slate
+                        Color(0xFF2C3E50), // Midnight Blue
+                        Color(0xFF34495E), // Wet Asphalt
+                        Color(0xFF7F8C8D), // Asbestos Gray
+                        Color(0xFFE67E22), // Pumpkin
+                        Color(0xFF27AE60)  // Emerald
                     )
 
                     // Inline Expanding Background Color Bar (No Circular Border, Text Label)
@@ -270,24 +333,53 @@ fun QuickViewScreen(
 
                         androidx.compose.animation.AnimatedVisibility(visible = showBgColorPicker) {
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
+                                    .widthIn(max = 280.dp) // Bound the width for scrolling
                                     .clip(RoundedCornerShape(20.dp))
                                     .background(Color.Black.copy(alpha = 0.65f))
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    .horizontalScroll(rememberScrollState())
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 colorOptions.forEach { color ->
+                                    val isTransparent = color == Color.Transparent
+                                    
                                     Box(
                                         modifier = Modifier
-                                            .size(26.dp)
+                                            .size(28.dp)
                                             .clip(CircleShape)
-                                            .background(if (color == Color.Transparent) Color(0x55FFFFFF) else color)
+                                            .then(
+                                                if (isTransparent) {
+                                                    Modifier.background(
+                                                        Brush.sweepGradient(
+                                                            colors = listOf(
+                                                                Color.Cyan.copy(alpha = 0.6f),
+                                                                Color.Magenta.copy(alpha = 0.6f),
+                                                                Color.Yellow.copy(alpha = 0.6f),
+                                                                Color.Cyan.copy(alpha = 0.6f)
+                                                            )
+                                                        )
+                                                    ).border(1.dp, Color.White.copy(alpha = 0.5f), CircleShape)
+                                                } else {
+                                                    Modifier.background(color)
+                                                }
+                                            )
                                             .clickable {
                                                 viewerBgColor = color
                                                 showBgColorPicker = false
-                                            }
-                                    )
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (isTransparent) {
+                                            Icon(
+                                                Icons.Default.AutoAwesome,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -319,7 +411,7 @@ fun QuickViewScreen(
                             if (pictureModeEnabled) {
                                 DropdownMenuItem(
                                     text = { Text("Picture Mode", color = Color.White) },
-                                    leadingIcon = { Icon(Icons.Default.Palette, contentDescription = null, tint = Color.White) },
+                                    leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, tint = Color.White) },
                                     onClick = {
                                         showOverflowMenu = false
                                         showPictureModeDialog = true
@@ -339,52 +431,6 @@ fun QuickViewScreen(
                                         }
                                         context.startActivity(Intent.createChooser(openIntent, "Open with"))
                                     }
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Edit", color = Color.White) },
-                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White) },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    currentItem?.let { item ->
-                                        val editIntent = Intent(Intent.ACTION_EDIT).apply {
-                                            setDataAndType(item.uri, item.mimeType.ifEmpty { "image/*" })
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                                        }
-                                        context.startActivity(Intent.createChooser(editIntent, "Edit image"))
-                                    }
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Share", color = Color.White) },
-                                leadingIcon = { Icon(Icons.Default.Share, contentDescription = null, tint = Color.White) },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    currentItem?.let { item ->
-                                        val sharingUri = com.example.util.ContentUriUtils.getSharingUri(context, item.uri)
-                                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                            type = item.mimeType.ifEmpty { "image/*" }
-                                            putExtra(Intent.EXTRA_STREAM, sharingUri)
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        }
-                                        context.startActivity(Intent.createChooser(shareIntent, "Share Image"))
-                                    }
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("File Info", color = Color.White) },
-                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = Color.White) },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    showInfoBottomSheet = true
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Delete", color = Color(0xFFEF4444)) },
-                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFEF4444)) },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    showDeleteDialog = true
                                 }
                             )
                         }
@@ -434,6 +480,7 @@ fun QuickViewScreen(
                                             shape = RoundedCornerShape(4.dp)
                                         )
                                         .clickable {
+                                            resetControlsTimer()
                                             scope.launch {
                                                 pagerState.animateScrollToPage(index)
                                             }
@@ -491,6 +538,7 @@ fun QuickViewScreen(
 
                         // 1. Favorite / Heart
                         IconButton(onClick = {
+                            resetControlsTimer()
                             isFavorite = !isFavorite
                             val item = currentItem ?: return@IconButton
                             scope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -525,6 +573,7 @@ fun QuickViewScreen(
                         // 2. Edit / Pencil
                         var showEditDialog by remember { mutableStateOf(false) }
                         IconButton(onClick = {
+                            resetControlsTimer()
                             currentItem?.let { item ->
                                 val editIntent = Intent(Intent.ACTION_EDIT).apply {
                                     setDataAndType(item.uri, item.mimeType.ifEmpty { "image/*" })
@@ -545,7 +594,10 @@ fun QuickViewScreen(
                         }
 
                         // 3. Info Details Icon
-                        IconButton(onClick = { showInfoBottomSheet = true }) {
+                        IconButton(onClick = { 
+                            resetControlsTimer()
+                            showInfoBottomSheet = true 
+                        }) {
                             Icon(
                                 imageVector = Icons.Default.Info,
                                 contentDescription = "Info Details",
@@ -555,6 +607,7 @@ fun QuickViewScreen(
 
                         // 4. Share
                         IconButton(onClick = {
+                            resetControlsTimer()
                             currentItem?.let { item ->
                                 val sharingUri = com.example.util.ContentUriUtils.getSharingUri(context, item.uri)
                                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
@@ -573,7 +626,10 @@ fun QuickViewScreen(
                         }
 
                         // 5. Delete / Trash
-                        IconButton(onClick = { showDeleteDialog = true }) {
+                        IconButton(onClick = { 
+                            resetControlsTimer()
+                            showDeleteDialog = true 
+                        }) {
                             Icon(
                                 imageVector = Icons.Default.DeleteOutline,
                                 contentDescription = "Delete",
@@ -913,264 +969,6 @@ fun DetailRow(
     }
 }
 
-@Composable
-fun ZoomableImageView(
-    item: MediaItem,
-    pictureModeEnabled: Boolean = true,
-    pictureMode: String = "BALANCED",
-    customSat: Float = 1.18f,
-    customCon: Float = 1.06f,
-    customWarmth: Float = 0.03f,
-    viewerBgColor: Color? = null,
-    onToggleControls: () -> Unit = {},
-    onSwipeUpForInfo: () -> Unit = {}
-) {
-    val scope = rememberCoroutineScope()
-    val animatedScale = remember { Animatable(1f) }
-    val animatedOffsetX = remember { Animatable(0f) }
-    val animatedOffsetY = remember { Animatable(0f) }
-
-    val colorFilter = remember(pictureModeEnabled, pictureMode, customSat, customCon, customWarmth) {
-        com.example.ui.components.PictureModeUtils.getComposeColorFilter(
-            modeKey = pictureMode,
-            customSat = customSat,
-            customCon = customCon,
-            customWarmth = customWarmth,
-            enabled = pictureModeEnabled
-        )
-    }
-
-    LaunchedEffect(item.uri) {
-        animatedScale.snapTo(1f)
-        animatedOffsetX.snapTo(0f)
-        animatedOffsetY.snapTo(0f)
-    }
-
-    val isPng = remember(item) {
-        item.title.endsWith(".png", ignoreCase = true) || item.mimeType.lowercase().contains("png")
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(viewerBgColor ?: if (isPng) Color.White else Color.Black)
-    ) {
-
-        var imageIntrinsicSize by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
-
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(item.uri)
-                .crossfade(true)
-                .build(),
-            contentDescription = item.title,
-            contentScale = ContentScale.Fit,
-            colorFilter = colorFilter,
-            onState = { state ->
-                if (state is AsyncImagePainter.State.Success) {
-                    imageIntrinsicSize = state.painter?.intrinsicSize ?: androidx.compose.ui.geometry.Size.Zero
-                }
-            },
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer(
-                    scaleX = animatedScale.value,
-                    scaleY = animatedScale.value,
-                    translationX = animatedOffsetX.value,
-                    translationY = animatedOffsetY.value
-                )
-                .pointerInput(item.uri) {
-                    var lastTapTime = 0L
-                    val doubleTapTimeout = 300L
-
-                    awaitEachGesture {
-                        var isPinching = false
-
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val changes = event.changes
-                            
-                            if (changes.all { !it.pressed }) {
-                                // Detect one-finger double tap on release
-                                if (!isPinching && changes.size == 1) {
-                                    val currentTime = System.currentTimeMillis()
-                                    if (currentTime - lastTapTime < doubleTapTimeout) {
-                                        // Double Tap Triggered
-                                        val centroid = changes[0].position
-                                        scope.launch {
-                                            if (animatedScale.value > 1.1f) {
-                                                launch { animatedScale.animateTo(1f, tween(300)) }
-                                                launch { animatedOffsetX.animateTo(0f, tween(300)) }
-                                                launch { animatedOffsetY.animateTo(0f, tween(300)) }
-                                            } else {
-                                                val targetScale = 4f
-                                                val centerX = size.width / 2f
-                                                val centerY = size.height / 2f
-                                                val targetX = (centerX - centroid.x) * (targetScale - 1f)
-                                                val targetY = (centerY - centroid.y) * (targetScale - 1f)
-
-                                                // Strict Bounds calculation
-                                                val f = if (imageIntrinsicSize.width > 0 && imageIntrinsicSize.height > 0) {
-                                                    kotlin.math.min(size.width / imageIntrinsicSize.width, size.height / imageIntrinsicSize.height)
-                                                } else 1f
-                                                val actualImgW = imageIntrinsicSize.width * f
-                                                val actualImgH = imageIntrinsicSize.height * f
-                                                
-                                                val maxOffsetX = kotlin.math.max(0f, (actualImgW * targetScale - size.width) / 2f)
-                                                val maxOffsetY = kotlin.math.max(0f, (actualImgH * targetScale - size.height) / 2f)
-
-                                                launch { animatedScale.animateTo(targetScale, tween(350)) }
-                                                launch { animatedOffsetX.animateTo(targetX.coerceIn(-maxOffsetX, maxOffsetX), tween(350)) }
-                                                launch { animatedOffsetY.animateTo(targetY.coerceIn(-maxOffsetY, maxOffsetY), tween(350)) }
-                                            }
-                                        }
-                                        lastTapTime = 0L
-                                    } else {
-                                        lastTapTime = currentTime
-                                    }
-                                }
-                                break
-                            }
-
-                            if (changes.size > 1) {
-                                // PINCH ZOOM
-                                isPinching = true
-                                val zoom = event.calculateZoom()
-                                val oldScale = animatedScale.value
-                                val newScale = (oldScale * zoom).coerceIn(1f, 10f)
-                                
-                                val centroid = event.calculateCentroid(useCurrent = true)
-                                val centerX = size.width / 2f
-                                val centerY = size.height / 2f
-                                
-                                val scaleFactor = newScale / oldScale
-                                val newOffsetX = (animatedOffsetX.value + centroid.x - centerX) * scaleFactor - (centroid.x - centerX)
-                                val newOffsetY = (animatedOffsetY.value + centroid.y - centerY) * scaleFactor - (centroid.y - centerY)
-
-                                scope.launch {
-                                    animatedScale.snapTo(newScale)
-                                    
-                                    val f = if (imageIntrinsicSize.width > 0 && imageIntrinsicSize.height > 0) {
-                                        kotlin.math.min(size.width / imageIntrinsicSize.width, size.height / imageIntrinsicSize.height)
-                                    } else 1f
-                                    val actualImgW = imageIntrinsicSize.width * f
-                                    val actualImgH = imageIntrinsicSize.height * f
-                                    
-                                    val maxOffsetX = kotlin.math.max(0f, (actualImgW * newScale - size.width) / 2f)
-                                    val maxOffsetY = kotlin.math.max(0f, (actualImgH * newScale - size.height) / 2f)
-                                    
-                                    animatedOffsetX.snapTo(newOffsetX.coerceIn(-maxOffsetX, maxOffsetX))
-                                    animatedOffsetY.snapTo(newOffsetY.coerceIn(-maxOffsetY, maxOffsetY))
-                                }
-                                changes.forEach { it.consume() }
-                            } else if (changes.size == 1 && !isPinching) {
-                                // PAN or SWIPE
-                                val change = changes[0]
-                                val dragAmount = change.position - change.previousPosition
-                                
-                                if (animatedScale.value > 1.01f) {
-                                    val newX = animatedOffsetX.value + dragAmount.x
-                                    val newY = animatedOffsetY.value + dragAmount.y
-                                    
-                                    val f = if (imageIntrinsicSize.width > 0 && imageIntrinsicSize.height > 0) {
-                                        kotlin.math.min(size.width / imageIntrinsicSize.width, size.height / imageIntrinsicSize.height)
-                                    } else 1f
-                                    val actualImgW = imageIntrinsicSize.width * f
-                                    val actualImgH = imageIntrinsicSize.height * f
-                                    
-                                    val maxOffsetX = kotlin.math.max(0f, (actualImgW * animatedScale.value - size.width) / 2f)
-                                    val maxOffsetY = kotlin.math.max(0f, (actualImgH * animatedScale.value - size.height) / 2f)
-                                    
-                                    scope.launch {
-                                        animatedOffsetX.snapTo(newX.coerceIn(-maxOffsetX, maxOffsetX))
-                                        animatedOffsetY.snapTo(newY.coerceIn(-maxOffsetY, maxOffsetY))
-                                    }
-                                    
-                                    // Lock to pan if not hitting edges horizontally
-                                    if (newX.coerceIn(-maxOffsetX, maxOffsetX) == newX) {
-                                        change.consume()
-                                    }
-                                } else {
-                                    // Info swipe up
-                                    if (dragAmount.y < -15f && kotlin.math.abs(dragAmount.y) > kotlin.math.abs(dragAmount.x) * 2f) {
-                                        onSwipeUpForInfo()
-                                        change.consume()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                .clickable(
-                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                    indication = null
-                ) { onToggleControls() }
-        )
-
-        // Bottom-Right Glass Zoom Percentage Control Pill
-        AnimatedVisibility(
-            visible = animatedScale.value > 1.01f,
-            enter = fadeIn() + scaleIn(),
-            exit = fadeOut() + scaleOut(),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 90.dp, end = 16.dp)
-        ) {
-            GlassSurface(
-                shape = RoundedCornerShape(20.dp),
-                backgroundColor = Color(0x66000000),
-                borderColor = Color(0x40FFFFFF)
-            ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                IconButton(
-                    onClick = {
-                        scope.launch {
-                            val newScale = (animatedScale.value - 1f).coerceAtLeast(1f)
-                            animatedScale.animateTo(newScale)
-                            if (newScale == 1f) {
-                                animatedOffsetX.animateTo(0f)
-                                animatedOffsetY.animateTo(0f)
-                            }
-                        }
-                    },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(Icons.Default.Remove, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                }
-
-                Text(
-                    text = "${(animatedScale.value * 100).toInt()}%",
-                    color = Color.White,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable { 
-                        scope.launch {
-                            launch { animatedScale.animateTo(1f) }
-                            launch { animatedOffsetX.animateTo(0f) }
-                            launch { animatedOffsetY.animateTo(0f) }
-                        }
-                    }.padding(4.dp)
-                )
-
-                IconButton(
-                    onClick = {
-                        scope.launch {
-                            animatedScale.animateTo((animatedScale.value + 1f).coerceAtMost(10f))
-                        }
-                    },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                }
-            }
-        }
-    }
-}
-}
 
 @Composable
 fun QuickVideoPreview(item: MediaItem, onOpenFullPlayer: () -> Unit) {

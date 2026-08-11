@@ -56,7 +56,8 @@ fun CollectionViews(
     cornerRadiusDp: Int,
     roundedCornersEnabled: Boolean,
     gridGapDp: Int,
-    imageMinSize: Dp
+    imageMinSize: Dp,
+    gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState()
 ) {
     val cardShape = if (roundedCornersEnabled) RoundedCornerShape(cornerRadiusDp.dp) else RoundedCornerShape(0.dp)
 
@@ -126,13 +127,12 @@ fun CollectionViews(
                             }
                         }
                     } else {
-                        val collectionGridState = rememberLazyStaggeredGridState()
                         LazyVerticalStaggeredGrid(
-                            state = collectionGridState,
+                            state = gridState,
                             columns = StaggeredGridCells.Adaptive(minSize = imageMinSize),
                             modifier = Modifier
                                 .fillMaxSize()
-                                .translucentScrollBarStaggeredGrid(collectionGridState),
+                                .translucentScrollBarStaggeredGrid(gridState),
                             contentPadding = PaddingValues(Dp(gridGapDp.toFloat())),
                             horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
                             verticalItemSpacing = Dp(gridGapDp.toFloat())

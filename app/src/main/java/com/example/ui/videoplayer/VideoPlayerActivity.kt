@@ -130,22 +130,20 @@ class VideoPlayerActivity : ComponentActivity() {
             val isBgPlayEnabled = playerManager.playerState.value.isBackgroundPlayEnabled
             
             if (playerManager.exoPlayer.isPlaying && !isFinishing && !isChangingConfigurations) {
-                // Only start foreground service notification if NOT background play enabled 
-                // OR if we want to ensure visibility in all cases.
-                // If bg play is NOT enabled, we should pause playback here.
-                
                 if (!isBgPlayEnabled) {
                     playerManager.exoPlayer.pause()
                 } else {
-                    val title = playerManager.playerState.value.currentItem?.title ?: "Video Playback"
-                    val serviceIntent = Intent(this, FloatingPlayerService::class.java).apply {
-                        action = FloatingPlayerService.ACTION_START
-                        putExtra("media_title", title)
-                    }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        startForegroundService(serviceIntent)
-                    } else {
-                        startService(serviceIntent)
+                    val currentItem = playerManager.playerState.value.currentItem
+                    if (currentItem != null) {
+                        val isVideo = currentItem.mimeType.startsWith("video") || currentItem.type == com.example.data.db.MediaType.VIDEO
+                        FloatingPlayerService.startOrUpdateService(
+                            context = this,
+                            title = currentItem.title,
+                            artist = currentItem.artist ?: currentItem.album ?: currentItem.bucketName ?: "MediaNest",
+                            isPlaying = true,
+                            artworkUri = currentItem.albumArtUri?.toString() ?: currentItem.uri.toString(),
+                            isVideo = isVideo
+                        )
                     }
                 }
             }

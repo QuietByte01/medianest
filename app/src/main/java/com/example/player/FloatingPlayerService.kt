@@ -42,7 +42,8 @@ class FloatingPlayerService : Service() {
             title: String,
             artist: String,
             isPlaying: Boolean,
-            artworkUri: String? = null
+            artworkUri: String? = null,
+            isVideo: Boolean = false
         ) {
             val intent = Intent(context, FloatingPlayerService::class.java).apply {
                 action = ACTION_START
@@ -50,6 +51,7 @@ class FloatingPlayerService : Service() {
                 putExtra("media_artist", artist)
                 putExtra("is_playing", isPlaying)
                 putExtra("artwork_uri", artworkUri)
+                putExtra("is_video", isVideo)
             }
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -74,6 +76,7 @@ class FloatingPlayerService : Service() {
     private var currentTitle: String = "Media Playback"
     private var currentArtist: String = ""
     private var isPlayingState: Boolean = false
+    private var isVideoState: Boolean = false
     private var currentArtworkUri: String? = null
     private var currentArtworkBitmap: Bitmap? = null
     private var mediaSession: MediaSessionCompat? = null
@@ -160,6 +163,9 @@ class FloatingPlayerService : Service() {
         if (artistExtra != null) currentArtist = artistExtra
         if (intent?.hasExtra("is_playing") == true) {
             isPlayingState = intent.getBooleanExtra("is_playing", false)
+        }
+        if (intent?.hasExtra("is_video") == true) {
+            isVideoState = intent.getBooleanExtra("is_video", false)
         }
 
         if (artworkExtra != currentArtworkUri) {
@@ -282,10 +288,16 @@ class FloatingPlayerService : Service() {
         val isPlaying = activeManager?.playerState?.value?.isPlaying
             ?: (activeManager?.exoPlayer?.playWhenReady ?: isPlayingState)
 
-        val contentIntent = Intent(this, MainActivity::class.java).apply {
-            action = "OPEN_AUDIO_PLAYER"
-            putExtra("open_screen", "AUDIO_PLAYER")
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        val contentIntent = if (isVideoState) {
+            Intent(this, com.example.ui.videoplayer.VideoPlayerActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+        } else {
+            Intent(this, MainActivity::class.java).apply {
+                action = "OPEN_AUDIO_PLAYER"
+                putExtra("open_screen", "AUDIO_PLAYER")
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
         }
         val contentPendingIntent = PendingIntent.getActivity(
             this, 0, contentIntent,

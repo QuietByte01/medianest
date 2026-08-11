@@ -46,7 +46,8 @@ fun ImagesFolderGrid(
     onFolderDeleteRequest: (String) -> Unit,
     onFolderInfoRequest: (String) -> Unit,
     onToggleFolderHidden: (String, List<MediaItem>, Boolean) -> Unit,
-    isFolderHidden: (String, List<MediaItem>?) -> Boolean
+    isFolderHidden: (String, List<MediaItem>?) -> Boolean,
+    gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState()
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -127,14 +128,13 @@ fun ImagesFolderGrid(
                 }
             }
         } else {
-            val folderGridState = rememberLazyStaggeredGridState()
             LazyVerticalStaggeredGrid(
-                state = folderGridState,
+                state = gridState,
                 columns = StaggeredGridCells.Adaptive(minSize = 160.dp),
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .translucentScrollBarStaggeredGrid(folderGridState),
+                    .translucentScrollBarStaggeredGrid(gridState),
                 contentPadding = PaddingValues(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalItemSpacing = 12.dp

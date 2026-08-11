@@ -120,9 +120,16 @@ fun VideosTab(
     onClearSelection: () -> Unit = {},
     initialFolder: String? = null
 ) {
-    var sortField by remember { mutableStateOf("Date") }
-    var isAscending by remember { mutableStateOf(false) }
-    var showSortMenu by remember { mutableStateOf(false) }
+    val currentContext = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val settingsManager = remember { SettingsManager(currentContext) }
+
+    val persistedSortField by settingsManager.videoSortField.collectAsState(initial = "Date")
+    val persistedSortAscending by settingsManager.videoSortAscending.collectAsState(initial = false)
+    
+    val sortField = persistedSortField
+    val isAscending = persistedSortAscending
+
     var activeFilterTab by remember(initialFolder) { mutableStateOf(if (initialFolder != null) "FOLDERS" else "ALL") }
     var isFolderViewActive by remember(initialFolder) { mutableStateOf(initialFolder != null) }
     var selectedFolder by remember(initialFolder) { mutableStateOf(initialFolder) }
@@ -146,9 +153,26 @@ fun VideosTab(
 
     val (isSortVisible, nestedScrollConnection) = com.example.ui.components.rememberSortRevealConnection()
 
-    val currentContext = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val settingsManager = remember { SettingsManager(currentContext) }
+    // Persistent Scroll States
+    val mainGridState = rememberLazyStaggeredGridState()
+    val wideGridState = rememberLazyGridState()
+    val folderGridState = rememberLazyGridState()
+    val chronologicalGridState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    // Smooth Scroll on Sort Change
+    LaunchedEffect(sortField, isAscending) {
+        scope.launch {
+            if (activeFilterTab in listOf("MUSIC", "MOVIES", "SERIES", "EDITED")) {
+                wideGridState.animateScrollToItem(0)
+            } else if (selectedCategory != null || activeFilterTab == "CATEGORIES") {
+                chronologicalGridState.animateScrollToItem(0)
+            } else if (isFolderViewActive && selectedFolder == null) {
+                folderGridState.animateScrollToItem(0)
+            } else {
+                mainGridState.animateScrollToItem(0)
+            }
+        }
+    }
 
     val db = remember { MediaNestApp.instance.database }
     val allCrossRefs by db.categoryDao().getAllCrossRefs().collectAsState(initial = emptyList())
@@ -300,15 +324,17 @@ fun VideosTab(
 
         SortRow(
             sortField = sortField,
-            onSortFieldChange = { sortField = it },
+            onSortFieldChange = { scope.launch { settingsManager.setVideoSortField(it) } },
             isAscending = isAscending,
-            onIsAscendingChange = { isAscending = it },
+            onIsAscendingChange = { scope.launch { settingsManager.setVideoSortAscending(it) } },
             isVisible = isSortVisible.value,
             onBack = when {
                 isFolderViewActive && selectedFolder != null -> ({ selectedFolder = null })
                 selectedCategory != null -> ({ onCategorySelect(null) })
                 activeFilterTab == "SERIES" && selectedSeasonName != null -> ({ selectedSeasonName = null })
                 activeFilterTab == "SERIES" && selectedSeriesName != null -> ({ selectedSeriesName = null })
+                isFolderViewActive && selectedFolder == null -> ({ isFolderViewActive = false; activeFilterTab = "ALL" })
+                activeFilterTab != "ALL" -> ({ activeFilterTab = "ALL" })
                 else -> null
             },
             backLabel = when {
@@ -316,6 +342,12 @@ fun VideosTab(
                 selectedCategory != null -> selectedCategory.name
                 activeFilterTab == "SERIES" && selectedSeasonName != null -> selectedSeasonName
                 activeFilterTab == "SERIES" && selectedSeriesName != null -> selectedSeriesName
+                isFolderViewActive && selectedFolder == null -> "Folders"
+                activeFilterTab == "MUSIC" -> "Music Videos"
+                activeFilterTab == "MOVIES" -> "Movies"
+                activeFilterTab == "SERIES" -> "Series"
+                activeFilterTab == "CATEGORIES" -> "Categories"
+                activeFilterTab == "TRASH" -> "Trash"
                 else -> null
             }
         )
@@ -402,7 +434,8 @@ fun VideosTab(
                     scope.launch(Dispatchers.IO) {
                         db.categoryDao().removeMediaFromCategory(selectedCategory.id, item.uri.toString())
                     }
-                }
+                },
+                gridState = chronologicalGridState
             )
         } else if (activeFilterTab == "CATEGORIES" && selectedCategory == null) {
             val combinedCategoryVideos = remember(videosList, allCrossRefs, allVideoCategories) {
@@ -449,7 +482,8 @@ fun VideosTab(
                 selectedUris = selectedUris,
                 isSelectionMode = isSelectionMode,
                 onDelete = { videoToDelete = it },
-                onRemoveFromCategory = { /* No-op for combined view */ }
+                onRemoveFromCategory = { /* No-op for combined view */ },
+                gridState = chronologicalGridState
             )
         } else if (isFolderViewActive && selectedFolder == null) {
             VideoFoldersGrid(
@@ -462,7 +496,8 @@ fun VideosTab(
                 onFolderClick = { selectedFolder = it },
                 onFolderDelete = { folderToDelete = it },
                 onFolderInfo = { folderForInfo = it },
-                onCreateCategoryClick = onCreateCategoryClick
+                onCreateCategoryClick = onCreateCategoryClick,
+                gridState = folderGridState
             )
         } else if (activeFilterTab == "SERIES") {
             VideoSeriesView(
@@ -508,7 +543,9 @@ fun VideosTab(
                     isFolderViewActive = true
                     selectedFolder = matchedKey
                 },
-                onRename = { itemToRename = it }
+                onRename = { itemToRename = it },
+                gridState = wideGridState,
+                staggeredGridState = mainGridState
             )
         }
 

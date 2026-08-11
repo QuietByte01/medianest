@@ -36,6 +36,7 @@ import com.example.ui.components.RenameFileDialog
 import com.example.ui.components.SortRow
 import com.example.ui.theme.LocalDarkTheme
 import com.example.util.FolderHiddenUtils
+import com.example.util.TrashManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -61,12 +62,18 @@ fun ImagesTab(
 ) {
     val currentContext = LocalContext.current
     val scope = rememberCoroutineScope()
-    val settingsManager = remember { SettingsManager(currentContext) }
 
     var activeFilterTab by remember { mutableStateOf("ALL") }
     var viewMode by remember { mutableIntStateOf(0) }
     var selectedFolder by remember { mutableStateOf<String?>(null) }
     var selectedCategory by remember { mutableStateOf<MediaCategory?>(null) }
+
+    val settingsManager = MediaNestApp.instance.settingsManager
+    val persistedSortField by settingsManager.imageSortField.collectAsState(initial = "Date")
+    val persistedSortAscending by settingsManager.imageSortAscending.collectAsState(initial = false)
+    
+    val sortField = persistedSortField
+    val isAscending = persistedSortAscending
 
     val db = remember { MediaNestApp.instance.database }
     val observedCrossRefs by db.categoryDao().getAllCrossRefs().collectAsState(initial = emptyList())
@@ -81,6 +88,18 @@ fun ImagesTab(
     }
 
     val trashUris by remember { mutableStateOf(setOf<String>()) }
+    val trashedItems = remember { TrashManager.getTrashedItems(currentContext) }
+
+    val filterCounts = remember(imagesList, favoriteUris, trashedItems) {
+        val counts = mutableMapOf<String, Int>()
+        val ids = listOf("CAMERA", "FAVORITES", "NOTES", "SCREENSHOTS", "GIFS", "SOCIAL", "PNG_SVG", "EDITED", "AI_GENERATED", "ANIME", "WALLPAPERS")
+        
+        ids.forEach { id ->
+            counts[id] = filterImageList(imagesList, id, favoriteUris, emptySet()).size
+        }
+        counts["TRASH"] = trashedItems.size
+        counts
+    }
 
     var isFolderSelectionActive by remember { mutableStateOf(false) }
     var selectedFolderNames by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -88,8 +107,6 @@ fun ImagesTab(
     var showCreateCollectionDialog by remember { mutableStateOf(false) }
     var newCollectionName by remember { mutableStateOf("") }
 
-    var sortField by remember { mutableStateOf("Date") }
-    var isAscending by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
 
     var showEditCollectionDialog by remember { mutableStateOf(false) }
@@ -107,6 +124,26 @@ fun ImagesTab(
     var showFolderBatchInfoModal by remember { mutableStateOf(false) }
 
     val (isSortVisible, nestedScrollConnection) = com.example.ui.components.rememberSortRevealConnection()
+
+    // Persistent Scroll States
+    val mainGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState()
+    val folderGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState()
+    val collectionsGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState()
+
+    // Smooth Scroll on Sort Change
+    LaunchedEffect(sortField, isAscending) {
+        scope.launch {
+            try {
+                when {
+                    selectedCategory != null || viewMode == 2 -> collectionsGridState.animateScrollToItem(0)
+                    viewMode == 1 && selectedFolder == null -> folderGridState.animateScrollToItem(0)
+                    else -> mainGridState.animateScrollToItem(0)
+                }
+            } catch (e: Exception) {
+                // Ignore if list is not yet ready
+            }
+        }
+    }
 
     BackHandler(
         enabled = showUngroupConfirmDialog || showEditCollectionDialog || showCreateCollectionDialog ||
@@ -200,24 +237,33 @@ fun ImagesTab(
                 selectedCategory = selectedCategory,
                 onSelectedCategoryChange = { selectedCategory = it },
                 onSelectedFolderChange = { selectedFolder = it },
-                onShowHiddenFiles = { scope.launch { settingsManager.setShowHiddenFiles(true) } }
+                onShowHiddenFiles = { scope.launch { settingsManager.setShowHiddenFiles(true) } },
+                filterCounts = filterCounts
             )
 
             SortRow(
                 sortField = sortField,
-                onSortFieldChange = { sortField = it },
+                onSortFieldChange = { scope.launch { settingsManager.setImageSortField(it) } },
                 isAscending = isAscending,
-                onIsAscendingChange = { isAscending = it },
+                onIsAscendingChange = { scope.launch { settingsManager.setImageSortAscending(it) } },
                 isVisible = isSortVisible.value,
                 onBack = when {
                     selectedCategory != null -> ({ selectedCategory = null })
                     selectedFolder != null -> ({ selectedFolder = null })
                     viewMode != 0 -> ({ viewMode = 0 })
+                    activeFilterTab != "ALL" -> ({ activeFilterTab = "ALL" })
                     else -> null
                 },
                 backLabel = when {
                     selectedCategory != null -> selectedCategory!!.name
                     selectedFolder != null -> selectedFolder!!.substringAfterLast('/')
+                    activeFilterTab == "CAMERA" -> "Camera"
+                    activeFilterTab == "FAVORITES" -> "Favorites"
+                    activeFilterTab == "SCREENSHOTS" -> "Screenshots"
+                    activeFilterTab == "EDITED" -> "Edited"
+                    activeFilterTab == "TRASH" -> "Trash"
+                    viewMode == 1 -> "Folders"
+                    viewMode == 2 -> "Collections"
                     else -> null
                 }
             )
@@ -254,10 +300,19 @@ fun ImagesTab(
 
                 when {
                     selectedCategory != null || viewMode == 2 -> {
+                        // Filter out empty collections for display in Grid view, but allow selected one to show
+                        val displayCollections = remember(allImageCategories, categoryFolderMap, imagesList) {
+                            allImageCategories.filter { cat ->
+                                val memberFolders = categoryFolderMap[cat.id] ?: emptyList()
+                                val hasItems = imagesList.any { (it.bucketName ?: "Pictures") in memberFolders }
+                                hasItems || cat.id == selectedCategory?.id
+                            }
+                        }
+
                         CollectionViews(
                             selectedCategory = selectedCategory,
                             onSelectedCategoryChange = { selectedCategory = it },
-                            imageCollections = allImageCategories,
+                            imageCollections = displayCollections,
                             categoryFolderMap = categoryFolderMap,
                             imagesList = imagesList,
                             isLoading = isLoading,
@@ -277,7 +332,8 @@ fun ImagesTab(
                             cornerRadiusDp = cornerRadiusDp,
                             roundedCornersEnabled = roundedCornersEnabled,
                             gridGapDp = gridGapDp,
-                            imageMinSize = imageMinSize
+                            imageMinSize = imageMinSize,
+                            gridState = collectionsGridState
                         )
                     }
 
@@ -315,7 +371,8 @@ fun ImagesTab(
                                         )
                                     }
                                 }
-                            }
+                            },
+                            gridState = folderGridState
                         )
                     }
 
@@ -344,7 +401,8 @@ fun ImagesTab(
                             },
                             selectedCategory = selectedCategory,
                             isLoading = isLoading,
-                            activeFilterTab = activeFilterTab
+                            activeFilterTab = activeFilterTab,
+                            gridState = mainGridState
                         )
                     }
                 }

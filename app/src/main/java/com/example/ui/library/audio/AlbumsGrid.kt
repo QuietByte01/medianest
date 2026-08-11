@@ -45,7 +45,8 @@ fun AlbumsGrid(
     onAddToPlaylist: (MediaItem) -> Unit = {},
     sortField: String = "Name",
     isAscending: Boolean = true,
-    cacheMap: Map<String, com.example.data.db.AudioMetadataCache> = emptyMap()
+    cacheMap: Map<String, com.example.data.db.AudioMetadataCache> = emptyMap(),
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
 ) {
     val context = LocalContext.current
     var selectedAlbum by remember(initialSelectedAlbum) { mutableStateOf(initialSelectedAlbum) }
@@ -197,7 +198,7 @@ fun AlbumsGrid(
             3 -> (baseColumns * 0.5f).toInt().coerceAtLeast(1)
             else -> baseColumns
         }
-        val gridState = rememberLazyGridState()
+        
         LazyVerticalGrid(
             state = gridState,
             columns = GridCells.Fixed(gridColumns),

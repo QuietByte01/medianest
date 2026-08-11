@@ -52,6 +52,7 @@ fun SongsList(
     onSongLongClick: (MediaItem) -> Unit,
     isLoading: Boolean = false,
     showDeleteOption: Boolean = false,
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?) -> Unit = { _, _, _, _ -> },
     onAddToPlaylist: (MediaItem) -> Unit = {}
 ) {
@@ -78,7 +79,6 @@ fun SongsList(
             Text("No Audio Files Found", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     } else {
-        val listState = rememberLazyListState()
         val isAlphabetical = remember(songs) {
             if (songs.size < 10) false 
             else {

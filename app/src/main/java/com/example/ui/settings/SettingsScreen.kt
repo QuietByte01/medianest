@@ -64,6 +64,8 @@ fun SettingsScreen(
     val currentPictureMode by settingsManager.pictureMode.collectAsState(initial = "Vivid Color Accent")
 
     val autoFetchLyrics by settingsManager.autoFetchLyrics.collectAsState(initial = true)
+    val uninterruptedMode by settingsManager.uninterruptedMode.collectAsState(initial = false)
+    val autoResumeOnBluetooth by settingsManager.autoResumeOnBluetooth.collectAsState(initial = false)
     val offlineMode by settingsManager.offlineMode.collectAsState(initial = false)
     val showHiddenFiles by settingsManager.showHiddenFiles.collectAsState(initial = false)
     val decoderMode by settingsManager.decoderMode.collectAsState(initial = "AUTO")
@@ -675,6 +677,32 @@ fun SettingsScreen(
                         Switch(
                             checked = autoFetchLyrics,
                             onCheckedChange = { scope.launch { settingsManager.setAutoFetchLyrics(it) } },
+                            colors = customSwitchColors
+                        )
+                    }
+                )
+
+                // Uninterrupted Mode
+                SettingsRowItem(
+                    title = "Uninterrupted Mode",
+                    subtitle = "Don't pause or duck for notifications. Phone calls will still pause playback.",
+                    control = {
+                        Switch(
+                            checked = uninterruptedMode,
+                            onCheckedChange = { scope.launch { settingsManager.setUninterruptedMode(it) } },
+                            colors = customSwitchColors
+                        )
+                    }
+                )
+
+                // Auto-resume on Bluetooth
+                SettingsRowItem(
+                    title = "Auto-resume on Bluetooth",
+                    subtitle = "Automatically start playback when Bluetooth headphones connect.",
+                    control = {
+                        Switch(
+                            checked = autoResumeOnBluetooth,
+                            onCheckedChange = { scope.launch { settingsManager.setAutoResumeOnBluetooth(it) } },
                             colors = customSwitchColors
                         )
                     }

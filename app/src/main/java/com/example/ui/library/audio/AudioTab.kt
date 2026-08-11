@@ -1,6 +1,7 @@
 package com.example.ui.library.audio
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -26,6 +27,7 @@ import com.example.ui.components.GlassSurface
 import com.example.ui.components.SortRow
 import com.example.ui.components.rememberSortRevealConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import kotlinx.coroutines.launch
 
 @Composable
 fun AudioTab(
@@ -49,9 +51,33 @@ fun AudioTab(
     var targetFolder by remember(initialFolder) { mutableStateOf(initialFolder) }
     var itemToAddToPlaylist by remember { mutableStateOf<MediaItem?>(null) }
 
-    var sortField by remember { mutableStateOf("Name") }
-    var isAscending by remember { mutableStateOf(true) }
+    val settingsManager = MediaNestApp.instance.settingsManager
+    val persistedSortField by settingsManager.audioSortField.collectAsState(initial = "Name")
+    val persistedSortAscending by settingsManager.audioSortAscending.collectAsState(initial = true)
+    
+    val sortField = persistedSortField
+    val isAscending = persistedSortAscending
+    
     val (isSortVisible, nestedScrollConnection) = rememberSortRevealConnection()
+    val scope = rememberCoroutineScope()
+
+    // Persistent Scroll States
+    val songsListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val albumsGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    val artistsGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    val foldersGridState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    // Smooth Scroll on Sort Change
+    LaunchedEffect(sortField, isAscending) {
+        scope.launch {
+            when (subTabState) {
+                0, 1, 2 -> songsListState.animateScrollToItem(0)
+                3 -> albumsGridState.animateScrollToItem(0)
+                4 -> artistsGridState.animateScrollToItem(0)
+                5 -> foldersGridState.animateScrollToItem(0)
+            }
+        }
+    }
 
     // Separate sort fields for different tabs
     val sortOptions = remember(subTabState) {
@@ -67,9 +93,9 @@ fun AudioTab(
 
     // Reset sort field if not available in current tab
     LaunchedEffect(subTabState) {
-        if (sortField !in sortOptions) {
-            sortField = if (subTabState == 3) "Name" else if (subTabState == 6) "Custom Order" else "Name"
-            isAscending = true
+        if (persistedSortField !in sortOptions) {
+            settingsManager.setAudioSortField(if (subTabState == 3) "Name" else if (subTabState == 6) "Custom Order" else "Name")
+            settingsManager.setAudioSortAscending(true)
         }
     }
 
@@ -174,6 +200,7 @@ fun AudioTab(
                 selectedUris = selectedUris,
                 isSelectionMode = isSelectionMode,
                 isLoading = isLoading,
+                listState = songsListState,
                 onSongClick = onSongClick,
                 onSongLongClick = onSongLongClick,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
@@ -189,6 +216,7 @@ fun AudioTab(
                 selectedUris = selectedUris,
                 isSelectionMode = isSelectionMode,
                 isLoading = isLoading,
+                listState = songsListState,
                 onSongClick = onSongClick,
                 onSongLongClick = onSongLongClick,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
@@ -204,6 +232,7 @@ fun AudioTab(
                 selectedUris = selectedUris,
                 isSelectionMode = isSelectionMode,
                 isLoading = isLoading,
+                listState = songsListState,
                 onSongClick = onSongClick,
                 onSongLongClick = onSongLongClick,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
@@ -225,7 +254,8 @@ fun AudioTab(
                 onAddToPlaylist = { itemToAddToPlaylist = it },
                 sortField = sortField,
                 isAscending = isAscending,
-                cacheMap = cacheMap
+                cacheMap = cacheMap,
+                gridState = albumsGridState
             )
             4 -> ArtistsGrid(
                 songs = effectiveAudioList,
@@ -237,7 +267,8 @@ fun AudioTab(
                 initialSelectedArtist = targetArtist,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
                 sortField = sortField,
-                isAscending = isAscending
+                isAscending = isAscending,
+                gridState = artistsGridState
             )
             5 -> FoldersGrid(
                 songs = effectiveAudioList,
@@ -335,21 +366,26 @@ fun AudioTab(
                 Column {
                     SortRow(
                         sortField = sortField,
-                        onSortFieldChange = { sortField = it },
+                        onSortFieldChange = { scope.launch { settingsManager.setAudioSortField(it) } },
                         isAscending = isAscending,
-                        onIsAscendingChange = { isAscending = it },
+                        onIsAscendingChange = { scope.launch { settingsManager.setAudioSortAscending(it) } },
                         isVisible = isSortVisible.value && (subTabState in listOf(0, 3, 4, 5, 6)),
                         options = sortOptions,
                         onBack = when (subTabState) {
-                            3 -> if (targetAlbum != null) ({ targetAlbum = null }) else null
-                            4 -> if (targetArtist != null) ({ targetArtist = null }) else null
-                            5 -> if (targetFolder != null) ({ targetFolder = null }) else null
-                            else -> null
+                            3 -> if (targetAlbum != null) ({ targetAlbum = null }) else ({ subTabState = 0 })
+                            4 -> if (targetArtist != null) ({ targetArtist = null }) else ({ subTabState = 0 })
+                            5 -> if (targetFolder != null) ({ targetFolder = null }) else ({ subTabState = 0 })
+                            6 -> if (subTabState != 0) ({ subTabState = 0 }) else null
+                            1, 2 -> ({ subTabState = 0 })
+                            else -> if (subTabState != 0) ({ subTabState = 0 }) else null
                         },
                         backLabel = when (subTabState) {
-                            3 -> targetAlbum
-                            4 -> targetArtist
-                            5 -> targetFolder?.substringAfterLast('/')
+                            3 -> targetAlbum ?: "Albums"
+                            4 -> targetArtist ?: "Artists"
+                            5 -> targetFolder?.substringAfterLast('/') ?: "Folders"
+                            6 -> "Playlists"
+                            1 -> "Recent"
+                            2 -> "Most Played"
                             else -> null
                         }
                     )
@@ -401,21 +437,26 @@ fun AudioTab(
             
             SortRow(
                 sortField = sortField,
-                onSortFieldChange = { sortField = it },
+                onSortFieldChange = { scope.launch { settingsManager.setAudioSortField(it) } },
                 isAscending = isAscending,
-                onIsAscendingChange = { isAscending = it },
+                onIsAscendingChange = { scope.launch { settingsManager.setAudioSortAscending(it) } },
                 isVisible = isSortVisible.value && (subTabState in listOf(0, 3, 4, 5, 6)),
                 options = sortOptions,
                 onBack = when (subTabState) {
-                    3 -> if (targetAlbum != null) ({ targetAlbum = null }) else null
-                    4 -> if (targetArtist != null) ({ targetArtist = null }) else null
-                    5 -> if (targetFolder != null) ({ targetFolder = null }) else null
-                    else -> null
+                    3 -> if (targetAlbum != null) ({ targetAlbum = null }) else ({ subTabState = 0 })
+                    4 -> if (targetArtist != null) ({ targetArtist = null }) else ({ subTabState = 0 })
+                    5 -> if (targetFolder != null) ({ targetFolder = null }) else ({ subTabState = 0 })
+                    6 -> if (subTabState != 0) ({ subTabState = 0 }) else null
+                    1, 2 -> ({ subTabState = 0 })
+                    else -> if (subTabState != 0) ({ subTabState = 0 }) else null
                 },
                 backLabel = when (subTabState) {
-                    3 -> targetAlbum
-                    4 -> targetArtist
-                    5 -> targetFolder?.substringAfterLast('/')
+                    3 -> targetAlbum ?: "Albums"
+                    4 -> targetArtist ?: "Artists"
+                    5 -> targetFolder?.substringAfterLast('/') ?: "Folders"
+                    6 -> "Playlists"
+                    1 -> "Recent"
+                    2 -> "Most Played"
                     else -> null
                 }
             )

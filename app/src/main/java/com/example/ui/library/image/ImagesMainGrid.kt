@@ -47,7 +47,8 @@ fun ImagesMainGrid(
     onRemoveFromCategory: (MediaItem) -> Unit,
     selectedCategory: MediaCategory?,
     isLoading: Boolean,
-    activeFilterTab: String
+    activeFilterTab: String,
+    gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState()
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         if (viewMode == 1 && selectedFolder != null) {
@@ -138,7 +139,6 @@ fun ImagesMainGrid(
                 }
             }
         } else {
-            val gridState = rememberLazyStaggeredGridState()
             LazyVerticalStaggeredGrid(
                 state = gridState,
                 columns = StaggeredGridCells.Adaptive(minSize = imageMinSize),

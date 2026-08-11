@@ -113,9 +113,6 @@ fun GlassSurface(
         )
 
         // 3. UI CONTENT LAYER
-        Box(
-            modifier = Modifier,
-            content = content
-        )
+        content()
     }
 }

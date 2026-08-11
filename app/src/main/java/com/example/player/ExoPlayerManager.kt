@@ -1,8 +1,17 @@
 package com.example.player
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.media.AudioAttributes as AndroidAudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.media.audiofx.LoudnessEnhancer
 import android.net.Uri
+import android.os.Build
+import android.telephony.TelephonyCallback
+import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
@@ -80,6 +89,15 @@ class ExoPlayerManager private constructor(private val context: Context) {
     private val scope = CoroutineScope(Dispatchers.Main + Job())
     private var currentDecoderPreference = "AUTO"
     private var isHwAccelEnabled = true
+    private var isUninterruptedMode = false
+    private var isAutoResumeOnBluetooth = false
+
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+    private var isCallActive = false
+    private var playOnFocusGain = false
+    private var isPausedByCall = false
+    private var focusRequest: AudioFocusRequest? = null
 
     init {
         scope.launch {
@@ -93,6 +111,23 @@ class ExoPlayerManager private constructor(private val context: Context) {
                 isHwAccelEnabled = enabled
             }
         }
+
+        scope.launch {
+            com.example.MediaNestApp.instance.settingsManager.uninterruptedMode.collectLatest { enabled ->
+                isUninterruptedMode = enabled
+                // Update player attributes if playing? 
+                // For simplicity, we'll re-apply focus strategy on next play
+            }
+        }
+
+        scope.launch {
+            com.example.MediaNestApp.instance.settingsManager.autoResumeOnBluetooth.collectLatest { enabled ->
+                isAutoResumeOnBluetooth = enabled
+            }
+        }
+
+        setupTelephonyListener()
+        setupBluetoothReceiver()
 
         scope.launch {
             combine(
@@ -112,7 +147,8 @@ class ExoPlayerManager private constructor(private val context: Context) {
                             title = currentItem.title,
                             artist = currentItem.artist ?: currentItem.album ?: currentItem.bucketName ?: "MediaNest",
                             isPlaying = state.isPlaying,
-                            artworkUri = currentItem.albumArtUri?.toString() ?: currentItem.uri.toString()
+                            artworkUri = currentItem.albumArtUri?.toString() ?: currentItem.uri.toString(),
+                            isVideo = isVideo
                         )
                     } else {
                         FloatingPlayerService.stopService(context)
@@ -141,6 +177,129 @@ class ExoPlayerManager private constructor(private val context: Context) {
             MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
         } else {
             sorted
+        }
+    }
+
+    private fun setupTelephonyListener() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            telephonyManager.registerTelephonyCallback(
+                context.mainExecutor,
+                object : TelephonyCallback(), TelephonyCallback.CallStateListener {
+                    override fun onCallStateChanged(state: Int) {
+                        handleCallState(state)
+                    }
+                }
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            telephonyManager.listen(object : android.telephony.PhoneStateListener() {
+                @Deprecated("Deprecated in Java")
+                override fun onCallStateChanged(state: Int, phoneNumber: String?) {
+                    handleCallState(state)
+                }
+            }, android.telephony.PhoneStateListener.LISTEN_CALL_STATE)
+        }
+    }
+
+    private fun handleCallState(state: Int) {
+        val wasCallActive = isCallActive
+        isCallActive = state != TelephonyManager.CALL_STATE_IDLE
+        
+        if (isCallActive && !wasCallActive) {
+            if (exoPlayer.isPlaying) {
+                isPausedByCall = true
+                exoPlayer.pause()
+            }
+        } else if (!isCallActive && wasCallActive) {
+            if (isPausedByCall) {
+                isPausedByCall = false
+                exoPlayer.play()
+            }
+        }
+    }
+
+    private val bluetoothReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED) {
+                if (isAutoResumeOnBluetooth && !exoPlayer.isPlaying && _playerState.value.currentItem != null) {
+                    exoPlayer.play()
+                }
+            }
+        }
+    }
+
+    private fun setupBluetoothReceiver() {
+        val filter = IntentFilter(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED)
+        context.registerReceiver(bluetoothReceiver, filter)
+    }
+
+    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                if (playOnFocusGain) {
+                    exoPlayer.play()
+                    playOnFocusGain = false
+                }
+                exoPlayer.volume = 1.0f
+            }
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                playOnFocusGain = false
+                exoPlayer.pause()
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                // If uninterrupted mode is ON, we ONLY pause if it's a call
+                // But wait, the system might have already paused us if it's a call.
+                // Actually, if we manage focus ourselves, we decide.
+                if (isUninterruptedMode && !isCallActive) {
+                    // Ignore transient loss (notifications)
+                } else {
+                    playOnFocusGain = exoPlayer.playWhenReady
+                    exoPlayer.pause()
+                }
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                if (isUninterruptedMode) {
+                    // Ignore ducking
+                    exoPlayer.volume = 1.0f
+                } else {
+                    // Standard ducking: lower volume to 20%
+                    exoPlayer.volume = 0.2f
+                }
+            }
+        }
+    }
+
+    private fun requestAudioFocus(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val attr = AndroidAudioAttributes.Builder()
+                .setUsage(AndroidAudioAttributes.USAGE_MEDIA)
+                .setContentType(AndroidAudioAttributes.CONTENT_TYPE_MOVIE)
+                .build()
+            
+            focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(attr)
+                .setAcceptsDelayedFocusGain(true)
+                .setOnAudioFocusChangeListener(audioFocusChangeListener)
+                .setWillPauseWhenDucked(false) // We handle ducking manually in listener
+                .build()
+            
+            return audioManager.requestAudioFocus(focusRequest!!) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        } else {
+            @Suppress("DEPRECATION")
+            return audioManager.requestAudioFocus(
+                audioFocusChangeListener,
+                AudioManager.STREAM_MUSIC,
+                AudioManager.AUDIOFOCUS_GAIN
+            ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        }
+    }
+
+    private fun abandonAudioFocus() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            focusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(audioFocusChangeListener)
         }
     }
 
@@ -196,8 +355,9 @@ class ExoPlayerManager private constructor(private val context: Context) {
                     .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                     .setUsage(C.USAGE_MEDIA)
                     .build(),
-                true
+                false // Disable automatic focus handling, we do it manually now
             )
+            .setHandleAudioBecomingNoisy(true)
             .build().apply {
                 addListener(playerListener)
                 addAnalyticsListener(analyticsListener)
@@ -263,9 +423,13 @@ class ExoPlayerManager private constructor(private val context: Context) {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _playerState.value = _playerState.value.copy(isPlaying = isPlaying)
             if (isPlaying) {
+                requestAudioFocus()
                 startPositionTracker()
                 attachAudioEffect()
             } else {
+                if (!isPausedByCall && !playOnFocusGain) {
+                    abandonAudioFocus()
+                }
                 stopPositionTracker()
             }
         }
@@ -281,13 +445,6 @@ class ExoPlayerManager private constructor(private val context: Context) {
                     currentPositionMs = exoPlayer.currentPosition.coerceAtLeast(0L),
                     audioSessionId = exoPlayer.audioSessionId
                 )
-            } else if (playbackState == Player.STATE_ENDED) {
-                val currentRepeatMode = exoPlayer.repeatMode
-                if (currentRepeatMode == Player.REPEAT_MODE_ONE || currentRepeatMode == Player.REPEAT_MODE_ALL) {
-                    exoPlayer.seekTo(0L)
-                    exoPlayer.prepare()
-                    exoPlayer.play()
-                }
             }
         }
 
@@ -474,12 +631,14 @@ class ExoPlayerManager private constructor(private val context: Context) {
             // Ensure the foreground notification service is started so the OS does not kill playback.
             val currentItem = _playerState.value.currentItem
             if (currentItem != null) {
+                val isVideo = currentItem.mimeType.startsWith("video") || currentItem.type == com.example.data.db.MediaType.VIDEO
                 FloatingPlayerService.startOrUpdateService(
                     context = context,
                     title = currentItem.title,
                     artist = currentItem.artist ?: currentItem.album ?: currentItem.bucketName ?: "MediaNest",
                     isPlaying = _playerState.value.isPlaying,
-                    artworkUri = currentItem.albumArtUri?.toString() ?: currentItem.uri.toString()
+                    artworkUri = currentItem.albumArtUri?.toString() ?: currentItem.uri.toString(),
+                    isVideo = isVideo
                 )
             }
         }

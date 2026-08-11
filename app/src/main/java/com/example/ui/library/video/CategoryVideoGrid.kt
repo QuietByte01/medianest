@@ -27,7 +27,8 @@ fun ChronologicalCategoryVideoGrid(
     selectedUris: Set<String>,
     isSelectionMode: Boolean,
     onDelete: (MediaItem) -> Unit,
-    onRemoveFromCategory: (MediaItem) -> Unit
+    onRemoveFromCategory: (MediaItem) -> Unit,
+    gridState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
 ) {
     // Grouping by date
     val groupedByDate = remember(videos) {
@@ -42,6 +43,7 @@ fun ChronologicalCategoryVideoGrid(
     }
 
     LazyColumn(
+        state = gridState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 90.dp, start = 16.dp, end = 16.dp, top = 4.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)

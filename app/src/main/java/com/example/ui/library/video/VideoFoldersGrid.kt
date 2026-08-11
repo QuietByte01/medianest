@@ -47,7 +47,8 @@ fun VideoFoldersGrid(
     onFolderClick: (String) -> Unit,
     onFolderDelete: (String) -> Unit,
     onFolderInfo: (String) -> Unit,
-    onCreateCategoryClick: () -> Unit
+    onCreateCategoryClick: () -> Unit,
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
 ) {
     val scope = rememberCoroutineScope()
     val appHiddenFolders by settingsManager.hiddenFolders.collectAsState(initial = emptySet())
@@ -123,13 +124,12 @@ fun VideoFoldersGrid(
             )
         }
 
-        val videoFolderGridState = rememberLazyGridState()
         LazyVerticalGrid(
-            state = videoFolderGridState,
+            state = gridState,
             columns = GridCells.Adaptive(minSize = 280.dp),
             modifier = Modifier
                 .fillMaxSize()
-                .translucentScrollBarGrid(videoFolderGridState),
+                .translucentScrollBarGrid(gridState),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)

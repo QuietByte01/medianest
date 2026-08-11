@@ -48,7 +48,8 @@ fun ArtistsGrid(
     initialSelectedArtist: String? = null,
     onAddToPlaylist: (MediaItem) -> Unit = {},
     sortField: String = "Name",
-    isAscending: Boolean = true
+    isAscending: Boolean = true,
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
 ) {
     val context = LocalContext.current
     var selectedArtist by remember(initialSelectedArtist) { mutableStateOf(initialSelectedArtist) }
@@ -381,7 +382,7 @@ fun ArtistsGrid(
                 3 -> (baseColumns * 0.5f).toInt().coerceAtLeast(1)
                 else -> baseColumns
             }
-            val gridState = rememberLazyGridState()
+            
             LazyVerticalGrid(
                 state = gridState,
                 columns = GridCells.Fixed(gridColumns),

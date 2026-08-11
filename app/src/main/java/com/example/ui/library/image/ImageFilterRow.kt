@@ -28,7 +28,8 @@ fun ImageFilterRow(
     selectedCategory: MediaCategory?,
     onSelectedCategoryChange: (MediaCategory?) -> Unit,
     onSelectedFolderChange: (String?) -> Unit,
-    onShowHiddenFiles: () -> Unit
+    onShowHiddenFiles: () -> Unit,
+    filterCounts: Map<String, Int> = emptyMap()
 ) {
     LazyRow(
         modifier = Modifier
@@ -38,7 +39,7 @@ fun ImageFilterRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        val filters = listOf(
+        val allFilters = listOf(
             FilterItem("All Photos", "ALL", Icons.Default.PhotoLibrary, 0),
             FilterItem("Folders & Albums", "FOLDERS", Icons.Default.FolderCopy, 1),
             FilterItem("Camera", "CAMERA", Icons.Default.PhotoCamera, 0),
@@ -56,12 +57,26 @@ fun ImageFilterRow(
             FilterItem("Trash", "TRASH", Icons.Default.Delete, 0)
         )
 
-        filters.forEach { filter ->
+        // Filter out empty categories unless they are selected
+        val visibleFilters = allFilters.filter { filter ->
+            val count = filterCounts[filter.id] ?: 0
+            val isAlwaysVisible = filter.id in listOf("ALL", "FOLDERS", "HIDDEN")
+            isAlwaysVisible || count > 0 || activeFilterTab == filter.id
+        }
+
+        visibleFilters.forEach { filter ->
             item {
                 val isSelected = activeFilterTab == filter.id && 
                                (if (filter.targetViewMode != null) viewMode == filter.targetViewMode else true) && 
                                selectedCategory == null
                 
+                val count = filterCounts[filter.id] ?: 0
+                val label = if (count > 0 && filter.id !in listOf("ALL", "FOLDERS", "HIDDEN")) {
+                    "${filter.label} ($count)"
+                } else {
+                    filter.label
+                }
+
                 GlassSurface(
                     shape = RoundedCornerShape(20.dp),
                     backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
@@ -91,7 +106,7 @@ fun ImageFilterRow(
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
-                            text = filter.label,
+                            text = label,
                             fontSize = 13.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             color = if (isSelected) Color.White else Color(0xFFC0C5D0)

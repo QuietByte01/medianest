@@ -40,13 +40,14 @@ fun VideosMainGrid(
     onVideoDelete: (MediaItem) -> Unit,
     onRemoveFromCategory: (MediaItem) -> Unit,
     onOpenFolder: (String) -> Unit,
-    onRename: (MediaItem) -> Unit
+    onRename: (MediaItem) -> Unit,
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
+    staggeredGridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState()
 ) {
     // Only use Wide style for specific curated tabs
     val isWideStyle = activeFilterTab in listOf("MUSIC", "MOVIES", "SERIES", "EDITED")
 
     if (isWideStyle) {
-        val gridState = rememberLazyGridState()
         LazyVerticalGrid(
             state = gridState,
             columns = GridCells.Adaptive(minSize = 280.dp),
@@ -78,13 +79,12 @@ fun VideosMainGrid(
             3 -> 220.dp
             else -> 135.dp
         }
-        val videoGridState = rememberLazyStaggeredGridState()
         LazyVerticalStaggeredGrid(
-            state = videoGridState,
+            state = staggeredGridState,
             columns = StaggeredGridCells.Adaptive(minSize = videoMinSize),
             modifier = Modifier
                 .fillMaxSize()
-                .translucentScrollBarStaggeredGrid(videoGridState),
+                .translucentScrollBarStaggeredGrid(staggeredGridState),
             contentPadding = PaddingValues(Dp(gridGapDp.toFloat())),
             horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
             verticalItemSpacing = Dp(gridGapDp.toFloat())

@@ -32,7 +32,8 @@ import com.example.ui.theme.LocalDarkTheme
 fun AdaptiveBottomSheet(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
-    sheetState: SheetState = rememberModalBottomSheetState(),
+    skipPartiallyExpanded: Boolean = false,
+    sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = skipPartiallyExpanded),
     shape: Shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
     containerColor: Color = Color.Unspecified,   // Unspecified → auto dark/light
     contentColor: Color = Color.White,
@@ -102,7 +103,11 @@ fun AdaptiveBottomSheet(
             contentColor = contentColor,
             scrimColor = Color.Black.copy(alpha = 0.45f),
             dragHandle = dragHandle,
-            content = content
+            content = {
+                Column(modifier = Modifier.navigationBarsPadding()) {
+                    content()
+                }
+            }
         )
     }
 }

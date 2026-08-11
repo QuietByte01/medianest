@@ -51,6 +51,7 @@ fun PlaylistsList(
     val scope = rememberCoroutineScope()
     var selectedPlaylist by remember { mutableStateOf<MediaCategory?>(null) }
     var playlistUris by remember { mutableStateOf<List<String>>(emptyList()) }
+    var playlistToDelete by remember { mutableStateOf<MediaCategory?>(null) }
 
     BackHandler(enabled = selectedPlaylist != null) {
         selectedPlaylist = null
@@ -291,18 +292,41 @@ fun PlaylistsList(
                                 pl = pl,
                                 audioList = audioList,
                                 onClick = { selectedPlaylist = pl },
-                                onDelete = {
-                                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                        val db = com.example.MediaNestApp.instance.database
-                                        db.categoryDao().deleteCategory(pl)
-                                    }
-                                }
+                                onDelete = { playlistToDelete = pl }
                             )
                         }
                     }
                 }
             }
         }
+    }
+
+    if (playlistToDelete != null) {
+        val target = playlistToDelete!!
+        AlertDialog(
+            onDismissRequest = { playlistToDelete = null },
+            title = { Text("Delete Playlist") },
+            text = { Text("Are you sure you want to delete the playlist '${target.name}'? The songs will not be deleted from your device.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        playlistToDelete = null
+                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            val db = com.example.MediaNestApp.instance.database
+                            db.categoryDao().deleteCategory(target)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { playlistToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (showRecognizedPlaylistsSheet) {

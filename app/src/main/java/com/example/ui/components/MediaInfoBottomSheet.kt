@@ -92,8 +92,10 @@ fun MediaInfoBottomSheet(
         else fileObj?.takeIf { it.exists() }?.length() ?: queryFileSizeFromUri(context, item.uri)
     }
 
-    val extracted = remember(item.uri) {
-        extractComprehensiveMetadata(context, item)
+    val extracted by produceState(initialValue = ComprehensiveMetadata(), key1 = item.uri) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            extractComprehensiveMetadata(context, item)
+        }
     }
 
     val formattedSize = remember(computedSize) { formatFileSize(computedSize) }
@@ -106,6 +108,7 @@ fun MediaInfoBottomSheet(
 
     AdaptiveBottomSheet(
         onDismissRequest = onDismiss,
+        skipPartiallyExpanded = true, // Force full height to avoid expansion jitter
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         containerColor = sheetBg,
         contentColor = if (isDark) Color.White else Color.Black,
@@ -135,9 +138,9 @@ fun MediaInfoBottomSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
-                    .padding(bottom = 28.dp)
+                    .padding(bottom = 16.dp)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
             // Top Bar: Back Button, Title, Edit Icon
             Row(
@@ -986,7 +989,7 @@ private fun InfoSectionCard(
         backgroundColor = Color(0x1AFFFFFF),
         borderColor = Color(0x2AFFFFFF)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -999,7 +1002,7 @@ private fun InfoSectionCard(
                     color = Color.White
                 )
             }
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             content()
         }
     }
@@ -1093,9 +1096,9 @@ private fun VideoFilePropertiesContent(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
-            .padding(top = 12.dp, bottom = 24.dp)
+            .padding(bottom = 16.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // Header Bar
         Row(
@@ -1662,7 +1665,6 @@ private fun LabelValueBlock(label: String, value: String) {
             fontWeight = FontWeight.Bold,
             color = Color(0xFF7A7F90)
         )
-        Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = value,
             fontSize = 13.sp,
@@ -1834,9 +1836,9 @@ private fun ImageFilePropertiesContent(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
-            .padding(bottom = 28.dp)
+            .padding(bottom = 16.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
