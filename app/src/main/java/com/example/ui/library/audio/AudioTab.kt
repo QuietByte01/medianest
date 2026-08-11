@@ -339,7 +339,19 @@ fun AudioTab(
                         isAscending = isAscending,
                         onIsAscendingChange = { isAscending = it },
                         isVisible = isSortVisible.value && (subTabState in listOf(0, 3, 4, 5, 6)),
-                        options = sortOptions
+                        options = sortOptions,
+                        onBack = when (subTabState) {
+                            3 -> if (targetAlbum != null) ({ targetAlbum = null }) else null
+                            4 -> if (targetArtist != null) ({ targetArtist = null }) else null
+                            5 -> if (targetFolder != null) ({ targetFolder = null }) else null
+                            else -> null
+                        },
+                        backLabel = when (subTabState) {
+                            3 -> targetAlbum
+                            4 -> targetArtist
+                            5 -> targetFolder?.substringAfterLast('/')
+                            else -> null
+                        }
                     )
                     contentBlock()
                 }
@@ -393,7 +405,19 @@ fun AudioTab(
                 isAscending = isAscending,
                 onIsAscendingChange = { isAscending = it },
                 isVisible = isSortVisible.value && (subTabState in listOf(0, 3, 4, 5, 6)),
-                options = sortOptions
+                options = sortOptions,
+                onBack = when (subTabState) {
+                    3 -> if (targetAlbum != null) ({ targetAlbum = null }) else null
+                    4 -> if (targetArtist != null) ({ targetArtist = null }) else null
+                    5 -> if (targetFolder != null) ({ targetFolder = null }) else null
+                    else -> null
+                },
+                backLabel = when (subTabState) {
+                    3 -> targetAlbum
+                    4 -> targetArtist
+                    5 -> targetFolder?.substringAfterLast('/')
+                    else -> null
+                }
             )
 
             contentBlock()

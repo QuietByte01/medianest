@@ -69,46 +69,38 @@ fun CollectionViews(
                 }
 
                 Column(modifier = Modifier.fillMaxSize()) {
-                    Surface(
+                    // Restored descriptive info (Back button is now in SortRow)
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 4.dp),
-                        shape = cardShape,
-                        color = MaterialTheme.colorScheme.surfaceVariant
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(onClick = { onSelectedCategoryChange(null) }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                            }
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = selectedCategory.name,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp
-                                )
-                                Text(
-                                    text = if (memberFolders.isEmpty()) "No folders assigned"
-                                    else "Folders: ${memberFolders.joinToString(", ")} • ${collectionImages.size} items",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            IconButton(onClick = {
-                                onEditCollectionRequest(selectedCategory, memberFolders.toSet())
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Default.Settings,
-                                    contentDescription = "Edit Collection Settings",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = selectedCategory.name,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp,
+                                color = Color.White
+                            )
+                            Text(
+                                text = if (memberFolders.isEmpty()) "No folders assigned"
+                                else "Folders: ${memberFolders.joinToString(", ")} • ${collectionImages.size} items",
+                                fontSize = 12.sp,
+                                color = Color(0xFF9EA3B0),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        
+                        IconButton(onClick = {
+                            onEditCollectionRequest(selectedCategory, memberFolders.toSet())
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Edit Collection Settings",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
                         }
                     }
 

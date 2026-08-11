@@ -290,7 +290,7 @@ fun FoldersGrid(
                 }
             }
         } else {
-            // Subdirectories Horizontal Scroll + Selected Directory Contents Below
+            // Restored original glossy path header
             GlassSurface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -314,8 +314,7 @@ fun FoldersGrid(
                     Text(
                         text = "Internal Storage",
                         fontSize = 13.sp,
-                        color = Color(0xFF9EA3B0),
-                        modifier = Modifier.clickable { selectedFolder = sortedFolderNames.firstOrNull() }
+                        color = Color(0xFF9EA3B0)
                     )
                     Icon(
                         imageVector = Icons.Default.ChevronRight,
@@ -326,9 +325,7 @@ fun FoldersGrid(
                     Text(
                         text = "Music",
                         fontSize = 13.sp,
-                        color = if (selectedFolder == null) Color.White else Color(0xFF9EA3B0),
-                        fontWeight = if (selectedFolder == null) FontWeight.Bold else FontWeight.Normal,
-                        modifier = Modifier.clickable { selectedFolder = sortedFolderNames.firstOrNull() }
+                        color = Color(0xFF9EA3B0)
                     )
                     if (selectedFolder != null) {
                         Icon(

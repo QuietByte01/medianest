@@ -303,27 +303,22 @@ fun VideosTab(
             onSortFieldChange = { sortField = it },
             isAscending = isAscending,
             onIsAscendingChange = { isAscending = it },
-            isVisible = isSortVisible.value
-        )
-
-        if (isFolderViewActive && selectedFolder != null) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { selectedFolder = null }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to folders", tint = Color.White)
-                }
-                Text(
-                    text = selectedFolder!!.substringAfterLast('/'),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = Color.White
-                )
+            isVisible = isSortVisible.value,
+            onBack = when {
+                isFolderViewActive && selectedFolder != null -> ({ selectedFolder = null })
+                selectedCategory != null -> ({ onCategorySelect(null) })
+                activeFilterTab == "SERIES" && selectedSeasonName != null -> ({ selectedSeasonName = null })
+                activeFilterTab == "SERIES" && selectedSeriesName != null -> ({ selectedSeriesName = null })
+                else -> null
+            },
+            backLabel = when {
+                isFolderViewActive && selectedFolder != null -> selectedFolder?.substringAfterLast('/')
+                selectedCategory != null -> selectedCategory.name
+                activeFilterTab == "SERIES" && selectedSeasonName != null -> selectedSeasonName
+                activeFilterTab == "SERIES" && selectedSeriesName != null -> selectedSeriesName
+                else -> null
             }
-        }
+        )
 
         val displayList = remember(videosList, videoFolderGroups, activeFilterTab, isFolderViewActive, selectedFolder, selectedCategory, categoryUris) {
             if (isFolderViewActive) {
@@ -400,7 +395,6 @@ fun VideosTab(
                 videos = categoryVideos,
                 onVideoClick = onVideoClick,
                 onVideoLongClick = onVideoLongClick,
-                onBack = { onCategorySelect(null) },
                 selectedUris = selectedUris,
                 isSelectionMode = isSelectionMode,
                 onDelete = { videoToDelete = it },
@@ -452,7 +446,6 @@ fun VideosTab(
                 videos = combinedCategoryVideos,
                 onVideoClick = onVideoClick,
                 onVideoLongClick = onVideoLongClick,
-                onBack = { activeFilterTab = "ALL" },
                 selectedUris = selectedUris,
                 isSelectionMode = isSelectionMode,
                 onDelete = { videoToDelete = it },
@@ -478,8 +471,6 @@ fun VideosTab(
                 selectedSeasonName = selectedSeasonName,
                 onSeriesClick = { selectedSeriesName = it },
                 onSeasonClick = { selectedSeasonName = it },
-                onBackFromSeason = { selectedSeasonName = null },
-                onBackFromSeries = { selectedSeriesName = null },
                 onVideoClick = onVideoClick,
                 onVideoLongClick = onVideoLongClick,
                 selectedUris = selectedUris,

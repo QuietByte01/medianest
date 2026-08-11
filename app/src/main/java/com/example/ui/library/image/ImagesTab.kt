@@ -208,7 +208,18 @@ fun ImagesTab(
                 onSortFieldChange = { sortField = it },
                 isAscending = isAscending,
                 onIsAscendingChange = { isAscending = it },
-                isVisible = isSortVisible.value
+                isVisible = isSortVisible.value,
+                onBack = when {
+                    selectedCategory != null -> ({ selectedCategory = null })
+                    selectedFolder != null -> ({ selectedFolder = null })
+                    viewMode != 0 -> ({ viewMode = 0 })
+                    else -> null
+                },
+                backLabel = when {
+                    selectedCategory != null -> selectedCategory!!.name
+                    selectedFolder != null -> selectedFolder!!.substringAfterLast('/')
+                    else -> null
+                }
             )
 
 

@@ -86,18 +86,7 @@ fun ArtistsGrid(
         val coverUri = artistSongs.firstOrNull { it.albumArtUri != null }?.albumArtUri
 
         Column(modifier = Modifier.fillMaxSize()) {
-            // Top Navigation Row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { selectedArtist = null }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                }
-                Spacer(modifier = Modifier.weight(1f))
-            }
+            // Top Navigation Row removed as it is now in parent SortRow
 
             // Centered Artist Header Section
             Column(
@@ -359,16 +348,23 @@ fun ArtistsGrid(
                                 }
                             }
                         } else {
-                            Surface(
-                                modifier = Modifier.size(38.dp),
+                            GlassSurface(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clickable {
+                                        if (topSongs.isNotEmpty()) onSongClick(topSongs.first())
+                                    },
                                 shape = CircleShape,
-                                color = Color(0xFF282D3A),
-                                onClick = {
-                                    if (topSongs.isNotEmpty()) onSongClick(topSongs.first())
-                                }
+                                backgroundColor = Color(0x3DFFFFFF),
+                                borderColor = Color(0x4DFFFFFF)
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = Color.White, modifier = Modifier.size(20.dp))
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = "Play",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
                                 }
                             }
                         }

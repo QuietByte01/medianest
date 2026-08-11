@@ -9,11 +9,9 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -24,7 +22,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -40,8 +37,6 @@ fun VideoSeriesView(
     selectedSeasonName: String?,
     onSeriesClick: (String) -> Unit,
     onSeasonClick: (String) -> Unit,
-    onBackFromSeason: () -> Unit,
-    onBackFromSeries: () -> Unit,
     onVideoClick: (MediaItem) -> Unit,
     onVideoLongClick: (MediaItem) -> Unit,
     selectedUris: Set<String>,
@@ -69,7 +64,7 @@ fun VideoSeriesView(
             ) {
                 Text("Web Series (${seriesFolderGroups.size} Series)", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
-
+            
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = 220.dp),
                 modifier = Modifier.fillMaxSize(),
@@ -132,20 +127,14 @@ fun VideoSeriesView(
         }
 
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
+            // Restored descriptive info
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                IconButton(onClick = { onBackFromSeries() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                }
-                Column {
-                    Text(selectedSeriesName, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
-                    Text("${seasonFolderGroups.size} Seasons • ${currentSeriesItems.size} Episodes", fontSize = 12.sp, color = Color(0xFF9EA3B0))
-                }
+                Text(selectedSeriesName, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+                Text("${seasonFolderGroups.size} Seasons • ${currentSeriesItems.size} Episodes", fontSize = 12.sp, color = Color(0xFF9EA3B0))
             }
 
             LazyVerticalGrid(
@@ -207,20 +196,14 @@ fun VideoSeriesView(
         }
 
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
+            // Restored descriptive info
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                IconButton(onClick = { onBackFromSeason() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                }
-                Column {
-                    Text("$selectedSeriesName > $selectedSeasonName", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("${currentSeasonItems.size} Episodes", fontSize = 12.sp, color = Color(0xFF9EA3B0))
-                }
+                Text("$selectedSeriesName > $selectedSeasonName", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${currentSeasonItems.size} Episodes", fontSize = 12.sp, color = Color(0xFF9EA3B0))
             }
 
             val gridState = rememberLazyGridState()
@@ -230,9 +213,9 @@ fun VideoSeriesView(
                 modifier = Modifier
                     .fillMaxSize()
                     .translucentScrollBarGrid(gridState),
-                contentPadding = PaddingValues(Dp(gridGapDp.toFloat())),
-                horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
-                verticalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat()))
+                contentPadding = PaddingValues(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 items(currentSeasonItems, key = { it.id }) { item ->
                     WideVideoCard(
@@ -241,7 +224,7 @@ fun VideoSeriesView(
                         isSelectionMode = isSelectionMode,
                         onClick = { onVideoClick(item) },
                         onLongClick = { onVideoLongClick(item) },
-                        placeName = null, // No location badges for episodes view as requested
+                        placeName = null,
                         onDelete = { onVideoDelete(item) },
                         onRename = { onRename(item) }
                     )
