@@ -414,6 +414,8 @@ fun VideoPlayerScreen(
                     scope.launch {
                         isSearchingSubtitles = true
                         subtitleStatusMessage = null
+                        // We reset the list when searching a specific provider to avoid confusion
+                        subtitleList = emptyList() 
                         subtitleList = networkRepository.searchOnlineSubtitles(
                             playerState.currentItem?.title ?: "", 
                             "en", 
@@ -422,7 +424,7 @@ fun VideoPlayerScreen(
                         )
                         isSearchingSubtitles = false
                         if (subtitleList.isEmpty()) {
-                            subtitleStatusMessage = "No subtitles found for this video."
+                            subtitleStatusMessage = "No subtitles found from ${if (provider == SubtitleProvider.OPEN_SUBTITLES) "OpenSubtitles" else "Community sources"}."
                         }
                     }
                 },

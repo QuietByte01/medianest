@@ -458,7 +458,9 @@ private fun SourceButton(
         borderColor = Color(0x33FFFFFF)
     ) {
         Row(
-            modifier = Modifier.padding(vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
