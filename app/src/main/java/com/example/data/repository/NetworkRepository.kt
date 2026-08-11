@@ -286,24 +286,44 @@ class NetworkRepository(
         if (url.isBlank()) return@withContext null
 
         try {
-            val requestBuilder = Request.Builder().url(url).header("User-Agent", userAgent)
+            var finalDownloadUrl = url
             
-            // Special handling for OpenSubtitles.com download API
-            // Special handling for OpenSubtitles.com download API
+            // 1. If it's OpenSubtitles, we first need to get the actual download link via POST
             if (url.contains("opensubtitles.com")) {
                 val mediaType = "application/json".toMediaType()
                 val content = "{\"file_id\": ${item.id}}"
-                val requestBody = content.toRequestBody(mediaType)
-                requestBuilder.header("Api-Key", openSubKey)
-                requestBuilder.post(requestBody)
+                val request = Request.Builder()
+                    .url(url)
+                    .header("Api-Key", openSubKey)
+                    .header("User-Agent", "MediaNest v1.0")
+                    .post(content.toRequestBody(mediaType))
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val bodyStr = response.body?.string() ?: ""
+                        if (bodyStr.isNotBlank()) {
+                            val json = JSONObject(bodyStr)
+                            finalDownloadUrl = json.optString("link", "")
+                        }
+                    }
+                }
             }
 
-            val request = requestBuilder.build()
-            client.newCall(request).execute().use { response ->
+            if (finalDownloadUrl.isBlank()) return@withContext null
+
+            // 2. Download the actual file from the final link
+            val downloadRequest = Request.Builder()
+                .url(finalDownloadUrl)
+                .header("User-Agent", userAgent)
+                .build()
+
+            client.newCall(downloadRequest).execute().use { response ->
                 if (!response.isSuccessful) return@withContext null
                 val body = response.body ?: return@withContext null
                 
-                val fileName = "${item.name.filter { it.isLetterOrDigit() || it == '.' }.ifBlank { "subtitle" }}.srt"
+                // Save with unique name to avoid conflicts
+                val fileName = "sub_${item.id}_${System.currentTimeMillis()}.srt"
                 val file = java.io.File(context.cacheDir, fileName)
                 
                 body.byteStream().use { input ->

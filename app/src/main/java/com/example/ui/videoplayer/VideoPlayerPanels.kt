@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.MediaItem
 import com.example.data.model.SubtitleItem
 import com.example.data.repository.NetworkRepository
+import com.example.data.repository.SubtitleProvider
 import com.example.player.ExoPlayerManager
 import com.example.player.PlayerState
 import com.example.ui.components.AdaptiveBottomSheet
@@ -204,7 +205,7 @@ fun SubtitleOptionsDialog(
     selectedTrackIndex: Int,
     onTrackSelect: (Int) -> Unit,
     onCustomizeClick: () -> Unit,
-    onSearchOnline: (NetworkRepository.SubtitleProvider) -> Unit,
+    onSearchOnline: (SubtitleProvider) -> Unit,
     isSearching: Boolean,
     onlineSubtitles: List<SubtitleItem>,
     onOnlineSubClick: (SubtitleItem) -> Unit,
@@ -267,167 +268,172 @@ fun SubtitleOptionsDialog(
                 }
             }
 
-            Text(
-                text = "Embedded Subtitle Tracks:",
-                fontSize = 13.sp,
-                color = Color(0xFF94A3B8)
-            )
-
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 400.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .heightIn(max = 450.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val isOffSelected = selectedTrackIndex == -1
+                item {
+                    Text(
+                        text = "Embedded Subtitle Tracks:",
+                        fontSize = 13.sp,
+                        color = Color(0xFF94A3B8)
+                    )
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val isOffSelected = selectedTrackIndex == -1
+                        GlassSurface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onTrackSelect(-1) },
+                            shape = RoundedCornerShape(12.dp),
+                            backgroundColor = if (isOffSelected) Color(0x33FFFFFF) else Color(0x1EFFFFFF),
+                            borderColor = if (isOffSelected) Color.White else Color(0x1AFFFFFF)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Subtitles Off",
+                                    fontSize = 14.sp,
+                                    fontWeight = if (isOffSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = Color.White
+                                )
+                                if (isOffSelected) {
+                                    Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color.White, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
+
+                        if (embeddedTracks.isNotEmpty()) {
+                            embeddedTracks.forEachIndexed { idx, track ->
+                                val isSelected = selectedTrackIndex == idx
+                                GlassSurface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onTrackSelect(idx) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    backgroundColor = if (isSelected) Color(0x33FFFFFF) else Color(0x1EFFFFFF),
+                                    borderColor = if (isSelected) Color.White else Color(0x1AFFFFFF)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "${track.name} (${track.language.uppercase()})",
+                                            fontSize = 14.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = Color.White
+                                        )
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = "Selected",
+                                                tint = Color(0xFFA78BFA),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            Text(
+                                text = "No embedded subtitles found.",
+                                fontSize = 12.sp,
+                                color = Color.Gray,
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                item {
                     GlassSurface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                onTrackSelect(-1)
-                            },
+                            .clickable { onCustomizeClick() },
                         shape = RoundedCornerShape(12.dp),
-                        backgroundColor = if (isOffSelected) Color(0x33FFFFFF) else Color(0x1EFFFFFF),
-                        borderColor = if (isOffSelected) Color.White else Color(0x1AFFFFFF)
+                        backgroundColor = Color(0x338B5CF6),
+                        borderColor = Color(0x448B5CF6)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                                .padding(vertical = 10.dp, horizontal = 14.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "Subtitles Off",
-                                fontSize = 14.sp,
-                                fontWeight = if (isOffSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = Color.White
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(Icons.Default.Style, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(18.dp))
+                                Text("Customize Subtitle Style...", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(text = "Online Subtitle Sources:", fontSize = 13.sp, color = Color(0xFF94A3B8))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SourceButton(
+                                label = "OpenSubs",
+                                icon = Icons.Default.Cloud,
+                                isLoading = isSearching,
+                                onClick = { onSearchOnline(SubtitleProvider.OPEN_SUBTITLES) },
+                                modifier = Modifier.weight(1f)
                             )
-                            if (isOffSelected) {
-                                Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color.White, modifier = Modifier.size(18.dp))
-                            }
+                            SourceButton(
+                                label = "Community",
+                                icon = Icons.Default.Public,
+                                isLoading = isSearching,
+                                onClick = { onSearchOnline(SubtitleProvider.YTS) },
+                                modifier = Modifier.weight(1f)
+                            )
                         }
-                    }
-
-                    if (embeddedTracks.isNotEmpty()) {
-                        embeddedTracks.forEachIndexed { idx, track ->
-                            val isSelected = selectedTrackIndex == idx
-                            GlassSurface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        onTrackSelect(idx)
-                                    },
-                                shape = RoundedCornerShape(12.dp),
-                                backgroundColor = if (isSelected) Color(0x33FFFFFF) else Color(0x1EFFFFFF),
-                                borderColor = if (isSelected) Color.White else Color(0x1AFFFFFF)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "${track.name} (${track.language.uppercase()})",
-                                        fontSize = 14.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = Color.White
-                                    )
-                                    if (isSelected) {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = "Selected",
-                                            tint = Color(0xFFA78BFA),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        Text(
-                            text = "No embedded subtitles found in this media file.",
-                            fontSize = 12.sp,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(horizontal = 4.dp)
-                        )
                     }
                 }
 
-                GlassSurface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onCustomizeClick() },
-                    shape = RoundedCornerShape(12.dp),
-                    backgroundColor = Color(0x338B5CF6),
-                    borderColor = Color(0x448B5CF6)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 10.dp, horizontal = 14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Default.Style, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(18.dp))
-                            Text("Customize Subtitle Style...", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        }
-                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                if (statusMessage != null) {
+                    item {
+                        Text(text = statusMessage, fontSize = 12.sp, color = Color(0xFFA78BFA), modifier = Modifier.padding(horizontal = 4.dp))
                     }
-                }
-
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(text = "Online Subtitle Sources:", fontSize = 13.sp, color = Color(0xFF94A3B8))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SourceButton(
-                            label = "OpenSubs",
-                            icon = Icons.Default.Cloud,
-                            isLoading = isSearching,
-                            onClick = { onSearchOnline(NetworkRepository.SubtitleProvider.OPEN_SUBTITLES) },
-                            modifier = Modifier.weight(1f)
-                        )
-                        SourceButton(
-                            label = "Community",
-                            icon = Icons.Default.Public,
-                            isLoading = isSearching,
-                            onClick = { onSearchOnline(NetworkRepository.SubtitleProvider.YTS) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-
-                statusMessage?.let { msg ->
-                    Text(text = msg, fontSize = 12.sp, color = Color(0xFFA78BFA), modifier = Modifier.padding(horizontal = 4.dp))
                 }
 
                 if (onlineSubtitles.isNotEmpty()) {
-                    Text(text = "Online Search Results:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 4.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        onlineSubtitles.forEach { onlineSub ->
-                            GlassSurface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onOnlineSubClick(onlineSub) },
-                                shape = RoundedCornerShape(10.dp),
-                                backgroundColor = Color(0x268B5CF6),
-                                borderColor = Color(0x338B5CF6)
+                    item {
+                        Text(text = "Online Search Results:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 4.dp))
+                    }
+                    items(onlineSubtitles) { onlineSub ->
+                        GlassSurface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onOnlineSubClick(onlineSub) },
+                            shape = RoundedCornerShape(10.dp),
+                            backgroundColor = Color(0x268B5CF6),
+                            borderColor = Color(0x338B5CF6)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(text = onlineSub.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text(text = "Lang: ${onlineSub.language.uppercase()}", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                                    }
-                                    Icon(Icons.Default.CloudDownload, contentDescription = "Select", tint = Color(0xFFA78BFA), modifier = Modifier.size(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = onlineSub.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(text = "Lang: ${onlineSub.language.uppercase()}", fontSize = 10.sp, color = Color(0xFF94A3B8))
                                 }
+                                Icon(Icons.Default.CloudDownload, contentDescription = "Select", tint = Color(0xFFA78BFA), modifier = Modifier.size(16.dp))
                             }
                         }
                     }
@@ -466,9 +472,9 @@ private fun SourceButton(
         }
     }
 }
-        }
-    }
-}
+//        }
+//    }
+//}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

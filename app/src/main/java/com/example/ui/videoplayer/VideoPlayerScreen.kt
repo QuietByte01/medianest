@@ -61,6 +61,7 @@ import androidx.media3.ui.PlayerView
 import com.example.MediaNestApp
 import com.example.data.db.PlaybackState
 import com.example.data.repository.NetworkRepository
+import com.example.data.repository.SubtitleProvider
 import com.example.player.ExoPlayerManager
 import com.example.ui.components.GlassSurface
 import com.example.ui.components.MediaInfoBottomSheet
@@ -434,6 +435,9 @@ fun VideoPlayerScreen(
                         if (subUri != null) {
                             playerManager.addExternalSubtitle(subUri, subItem.name)
                             subtitleStatusMessage = "Subtitle applied successfully!"
+                            // Select the newly added track (which will be the last one usually, or index 0 if it's the only one)
+                            // For simplicity, we just trigger a UI refresh of cues
+                            selectedSubtitleTrackIndex = 0 // The addExternalSubtitle logic in mgr selects it
                             delay(1500)
                             showSubtitleSheet = false
                         } else {
