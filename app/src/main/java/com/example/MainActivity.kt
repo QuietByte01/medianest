@@ -457,10 +457,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStop() {
+        super.onStop()
+        val state = exoPlayerManager.playerState.value
+        val currentItem = state.currentItem
+        if (currentItem != null && exoPlayerManager.exoPlayer.isPlaying && !isFinishing && !isChangingConfigurations) {
+            val isVideo = currentItem.mimeType.startsWith("video") || currentItem.type == com.example.data.db.MediaType.VIDEO
+            val bgPlayEnabled = if (isVideo) state.isVideoBackgroundPlayEnabled else state.isAudioBackgroundPlayEnabled
+            
+            if (!bgPlayEnabled) {
+                exoPlayerManager.exoPlayer.pause()
+            }
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         if (isFinishing) {
-            exoPlayerManager.release()
+            val state = exoPlayerManager.playerState.value
+            if (!state.isAudioBackgroundPlayEnabled || !state.isPlaying) {
+                exoPlayerManager.release()
+            }
         }
     }
 }

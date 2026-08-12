@@ -166,7 +166,8 @@ fun ImagesMainGrid(
                             onViewModeChange(1)
                             onSelectedFolderChange(folderName)
                         },
-                        onMoreClick = { onContextSheetItemChange(item) }
+                        onMoreClick = { onContextSheetItemChange(item) },
+                        showInGallery = (viewMode == 1 && selectedFolder != null)
                     )
                 }
             }

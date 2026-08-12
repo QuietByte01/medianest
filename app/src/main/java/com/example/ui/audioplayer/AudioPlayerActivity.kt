@@ -56,6 +56,18 @@ class AudioPlayerActivity : ComponentActivity() {
         }
     }
 
+    override fun onStop() {
+        super.onStop()
+        val exoPlayerManager = ExoPlayerManager.getInstance(applicationContext)
+        val isBgPlayEnabled = exoPlayerManager.playerState.value.isAudioBackgroundPlayEnabled
+        
+        if (exoPlayerManager.exoPlayer.isPlaying && !isFinishing && !isChangingConfigurations) {
+            if (!isBgPlayEnabled) {
+                exoPlayerManager.exoPlayer.pause()
+            }
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         // MiniPlayerOverlayManager is strictly reserved for quick view / external file manager playback.

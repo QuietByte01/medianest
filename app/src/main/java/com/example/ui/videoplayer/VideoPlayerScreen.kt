@@ -10,6 +10,7 @@ import android.os.Build
 import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -44,6 +45,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -96,6 +99,9 @@ fun VideoPlayerScreen(
     val customCon by settingsManager.customContrast.collectAsState(initial = 1.06f)
     val customWarmth by settingsManager.customWarmth.collectAsState(initial = 0.03f)
 
+    val isFilmGrainEnabled by settingsManager.filmGrainEnabled.collectAsState(initial = false)
+    val filmGrainIntensity by settingsManager.filmGrainIntensity.collectAsState(initial = 0.15f)
+
     var showControls by remember { mutableStateOf(true) }
     var cropMode by remember { mutableStateOf("FIT") } 
     val savedDecoderMode by settingsManager.decoderMode.collectAsState(initial = "HW+")
@@ -121,7 +127,6 @@ fun VideoPlayerScreen(
     var showDetailsSheet by remember { mutableStateOf(false) }
     var showAudioTrackSheet by remember { mutableStateOf(false) }
     var activeSubtitleText by remember { mutableStateOf<String?>(null) }
-
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     var swipeEdgeState by remember { mutableStateOf(SwipeEdge.NONE) }
@@ -136,8 +141,6 @@ fun VideoPlayerScreen(
     var subtitleTextColor by remember { mutableStateOf(Color.White) }
     var subtitleBgColor by remember { mutableStateOf(Color(0x99000000)) }
     var subtitleHasShadow by remember { mutableStateOf(true) }
-    var isFilmGrainEnabled by remember { mutableStateOf(false) }
-    var filmGrainIntensity by remember { mutableFloatStateOf(0.10f) }
 
     val embeddedTracks = remember(playerState.currentItem) {
         val list = mutableListOf<com.example.data.model.SubtitleItem>()
@@ -316,6 +319,12 @@ fun VideoPlayerScreen(
                 modifier = Modifier.fillMaxSize().graphicsLayer(scaleX = scale, scaleY = scale)
             )
 
+            if (isFilmGrainEnabled) {
+                Box(modifier = Modifier.fillMaxSize().graphicsLayer(alpha = 1f)) {
+                    FilmGrainOverlay(intensity = filmGrainIntensity)
+                }
+            }
+
             ZoomPercentagePill(scale = scale, onReset = { scale = 1f }, modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 160.dp, end = 24.dp))
             SubtitleTextOverlay(text = activeSubtitleText, isVisible = showControls, fontSizeSp = subtitleFontSizeSp, textColor = subtitleTextColor, bgColor = subtitleBgColor, hasShadow = subtitleHasShadow, modifier = Modifier.align(Alignment.BottomCenter))
         }
@@ -437,9 +446,7 @@ fun VideoPlayerScreen(
                         if (subUri != null) {
                             playerManager.addExternalSubtitle(subUri, subItem.name)
                             subtitleStatusMessage = "Subtitle applied successfully!"
-                            // Select the newly added track (which will be the last one usually, or index 0 if it's the only one)
-                            // For simplicity, we just trigger a UI refresh of cues
-                            selectedSubtitleTrackIndex = 0 // The addExternalSubtitle logic in mgr selects it
+                            selectedSubtitleTrackIndex = 0 
                             delay(1500)
                             showSubtitleSheet = false
                         } else {
@@ -457,7 +464,20 @@ fun VideoPlayerScreen(
         
         if (showAudioTrackSheet) AudioTrackSelectionSheet(onDismiss = { showAudioTrackSheet = false }, playerManager = playerManager, context = context)
         
-        if (showSettingsSheet) VideoPlayerSettingsDialog(onDismiss = { showSettingsSheet = false }, playerState = playerState, playerManager = playerManager, cropMode = cropMode, onCropModeChange = { cropMode = it }, pictureMode = pictureMode, onPictureModeChange = { scope.launch { settingsManager.setPictureMode(it) } }, audioSyncOffsetMs = audioSyncOffsetMs, onAudioSyncOffsetChange = { audioSyncOffsetMs = it }, isFilmGrainEnabled = isFilmGrainEnabled, onFilmGrainEnabledChange = { isFilmGrainEnabled = it }, filmGrainIntensity = filmGrainIntensity, onFilmGrainIntensityChange = { filmGrainIntensity = it }, onShowDetails = { showSettingsSheet = false; showDetailsSheet = true })
+        if (showSettingsSheet) VideoPlayerSettingsDialog(
+            onDismiss = { showSettingsSheet = false },
+            playerState = playerState,
+            playerManager = playerManager,
+            pictureMode = pictureMode,
+            onPictureModeChange = { scope.launch { settingsManager.setPictureMode(it) } },
+            audioSyncOffsetMs = audioSyncOffsetMs,
+            onAudioSyncOffsetChange = { audioSyncOffsetMs = it },
+            isFilmGrainEnabled = isFilmGrainEnabled,
+            onFilmGrainEnabledChange = { scope.launch { settingsManager.setFilmGrainEnabled(it) } },
+            filmGrainIntensity = filmGrainIntensity,
+            onFilmGrainIntensityChange = { scope.launch { settingsManager.setFilmGrainIntensity(it) } },
+            onShowDetails = { showSettingsSheet = false; showDetailsSheet = true }
+        )
         
         if (showAspectRatioMenu) AspectRatioModal(currentMode = cropMode, onModeChange = { 
             cropMode = it
@@ -518,12 +538,12 @@ fun VideoPlayerScreen(
                         }
                     }
                 },
-                isBackgroundPlayEnabled = playerState.isBackgroundPlayEnabled,
+                isBackgroundPlayEnabled = playerState.isVideoBackgroundPlayEnabled,
                 onToggleBackgroundPlay = { enabled ->
-                    playerManager.setBackgroundPlayEnabled(enabled)
+                    playerManager.setVideoBackgroundPlayEnabled(enabled)
                     android.widget.Toast.makeText(context, "Background Play ${if (enabled) "Enabled" else "Disabled"}", android.widget.Toast.LENGTH_SHORT).show()
                 },
-                isAutoRepeatEnabled = playerState.repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF,
+                isAutoRepeatEnabled = playerState.repeatMode == androidx.media3.common.Player.REPEAT_MODE_ONE,
                 onToggleAutoRepeat = { enabled ->
                     val nextMode = if (enabled) androidx.media3.common.Player.REPEAT_MODE_ONE else androidx.media3.common.Player.REPEAT_MODE_OFF
                     playerManager.setRepeatMode(nextMode)
@@ -566,5 +586,69 @@ fun VideoPlayerScreen(
             activeEdge = swipeEdgeState,
             swipeProgress = swipeProgressState
         )
+    }
+}
+
+@Composable
+fun FilmGrainOverlay(intensity: Float) {
+    // 1. Remember a high-density noise bitmap
+    val noiseBitmap = remember {
+        val size = 256 // Larger for more detail
+        val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+        val pixels = IntArray(size * size)
+        val random = java.util.Random()
+        for (i in pixels.indices) {
+            val noise = random.nextInt(256)
+            // Denser noise with higher contrast
+            pixels[i] = android.graphics.Color.argb(noise, 255, 255, 255)
+        }
+        bitmap.setPixels(pixels, 0, size, 0, 0, size, size)
+        bitmap
+    }
+
+    // 2. Faster flicker animation
+    val infiniteTransition = rememberInfiniteTransition(label = "FilmGrain")
+    val offsetX by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "GrainX"
+    )
+    val offsetY by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "GrainY"
+    )
+
+    // 3. Draw using BitmapShader (Hardware Accelerated)
+    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+        val paint = android.graphics.Paint().apply {
+            shader = android.graphics.BitmapShader(
+                noiseBitmap,
+                android.graphics.Shader.TileMode.REPEAT,
+                android.graphics.Shader.TileMode.REPEAT
+            )
+            val matrix = android.graphics.Matrix()
+            matrix.postTranslate(offsetX, offsetY)
+            shader.setLocalMatrix(matrix)
+            
+            // Significant visibility increase
+            alpha = (intensity * 255 * 0.85f).toInt().coerceIn(0, 255)
+            isFilterBitmap = true
+            isAntiAlias = false
+        }
+
+        drawIntoCanvas { canvas ->
+            canvas.nativeCanvas.drawRect(
+                0f, 0f, size.width, size.height, paint
+            )
+        }
     }
 }

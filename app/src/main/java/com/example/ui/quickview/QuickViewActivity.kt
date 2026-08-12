@@ -69,7 +69,32 @@ class QuickViewActivity : ComponentActivity() {
                 // Audio: no full-screen UI — start playback and show floating mini player overlay
                 val exoPlayerManager = ExoPlayerManager.getInstance(applicationContext)
                 val title = intentData.lastPathSegment ?: "Audio Track"
-                exoPlayerManager.playSingleUri(intentData, title, mimeType)
+                
+                // Refined MIME for audio
+                val bestMime = if (mimeType == "audio/*") {
+                    val path = intentData.toString().lowercase()
+                    when {
+                        path.endsWith(".mp3") -> "audio/mpeg"
+                        path.endsWith(".wav") -> "audio/wav"
+                        path.endsWith(".flac") -> "audio/flac"
+                        path.endsWith(".m4a") -> "audio/mp4"
+                        path.endsWith(".ogg") -> "audio/ogg"
+                        else -> mimeType
+                    }
+                } else mimeType
+
+                exoPlayerManager.playSingleUri(intentData, title, bestMime)
+
+                // IMPORTANT: Poke the service immediately so it holds onto the URI permission 
+                // before this activity finishes.
+                com.example.player.FloatingPlayerService.startOrUpdateService(
+                    context = applicationContext,
+                    title = title,
+                    artist = "Loading...",
+                    isPlaying = true,
+                    artworkUri = intentData.toString(),
+                    isVideo = false
+                )
 
                 // Show floating mini player bar overlay
                 MiniPlayerOverlayManager.show(applicationContext)

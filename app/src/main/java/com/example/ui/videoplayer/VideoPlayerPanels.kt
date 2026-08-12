@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,6 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.media3.common.Player
 import com.example.data.model.MediaItem
 import com.example.data.model.SubtitleItem
 import com.example.data.repository.NetworkRepository
@@ -41,7 +43,6 @@ import com.example.player.PlayerState
 import com.example.ui.components.AdaptiveBottomSheet
 import com.example.ui.components.GlassSurface
 import com.example.ui.components.PictureMode
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -268,154 +269,182 @@ fun SubtitleOptionsDialog(
                 }
             }
 
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 450.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                item {
-                    Text(
-                        text = "Embedded Subtitle Tracks:",
-                        fontSize = 13.sp,
-                        color = Color(0xFF94A3B8)
-                    )
+            Text(
+                text = "Embedded Subtitle Tracks:",
+                fontSize = 13.sp,
+                color = Color(0xFF94A3B8)
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val isOffSelected = selectedTrackIndex == -1
+                GlassSurface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onTrackSelect(-1)
+                        },
+                    shape = RoundedCornerShape(12.dp),
+                    backgroundColor = if (isOffSelected) Color(0x33FFFFFF) else Color(0x1EFFFFFF),
+                    borderColor = if (isOffSelected) Color.White else Color(0x1AFFFFFF)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Subtitles Off",
+                            fontSize = 14.sp,
+                            fontWeight = if (isOffSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = Color.White
+                        )
+                        if (isOffSelected) {
+                            Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                    }
                 }
 
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val isOffSelected = selectedTrackIndex == -1
+                if (embeddedTracks.isNotEmpty()) {
+                    embeddedTracks.forEachIndexed { idx, track ->
+                        val isSelected = selectedTrackIndex == idx
                         GlassSurface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onTrackSelect(-1) },
+                                .clickable {
+                                    onTrackSelect(idx)
+                                },
                             shape = RoundedCornerShape(12.dp),
-                            backgroundColor = if (isOffSelected) Color(0x33FFFFFF) else Color(0x1EFFFFFF),
-                            borderColor = if (isOffSelected) Color.White else Color(0x1AFFFFFF)
+                            backgroundColor = if (isSelected) Color(0x33FFFFFF) else Color(0x1EFFFFFF),
+                            borderColor = if (isSelected) Color.White else Color(0x1AFFFFFF)
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Subtitles Off",
+                                    text = "${track.name} (${track.language.uppercase()})",
                                     fontSize = 14.sp,
-                                    fontWeight = if (isOffSelected) FontWeight.Bold else FontWeight.Normal,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     color = Color.White
                                 )
-                                if (isOffSelected) {
-                                    Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color.White, modifier = Modifier.size(18.dp))
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Selected",
+                                        tint = Color(0xFFA78BFA),
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                 }
                             }
-                        }
-
-                        if (embeddedTracks.isNotEmpty()) {
-                            embeddedTracks.forEachIndexed { idx, track ->
-                                val isSelected = selectedTrackIndex == idx
-                                GlassSurface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { onTrackSelect(idx) },
-                                    shape = RoundedCornerShape(12.dp),
-                                    backgroundColor = if (isSelected) Color(0x33FFFFFF) else Color(0x1EFFFFFF),
-                                    borderColor = if (isSelected) Color.White else Color(0x1AFFFFFF)
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "${track.name} (${track.language.uppercase()})",
-                                            fontSize = 14.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = Color.White
-                                        )
-                                        if (isSelected) {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = "Selected",
-                                                tint = Color(0xFFA78BFA),
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            Text(
-                                text = "No embedded subtitles found.",
-                                fontSize = 12.sp,
-                                color = Color.Gray,
-                                modifier = Modifier.padding(horizontal = 4.dp)
-                            )
                         }
                     }
+                } else {
+                    Text(
+                        text = "No embedded subtitles found in this media file.",
+                        fontSize = 12.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
                 }
+            }
 
-                item {
-                    GlassSurface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onCustomizeClick() },
-                        shape = RoundedCornerShape(12.dp),
-                        backgroundColor = Color(0x338B5CF6),
-                        borderColor = Color(0x448B5CF6)
+            GlassSurface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onCustomizeClick() },
+                shape = RoundedCornerShape(12.dp),
+                backgroundColor = Color(0x338B5CF6),
+                borderColor = Color(0x448B5CF6)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 10.dp, horizontal = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Default.Style, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(18.dp))
+                        Text("Customize Subtitle Style...", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                }
+            }
+
+            Text(text = "Search Online Subtitles:", fontSize = 13.sp, color = Color(0xFF94A3B8))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // OpenSubtitles Button
+                GlassSurface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp)
+                        .clickable(enabled = !isSearching) { onSearchOnline(SubtitleProvider.OPEN_SUBTITLES) },
+                    shape = RoundedCornerShape(10.dp),
+                    backgroundColor = Color(0x26FFFFFF),
+                    borderColor = Color(0x33FFFFFF)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 10.dp, horizontal = 14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Icon(Icons.Default.Style, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(18.dp))
-                                Text("Customize Subtitle Style...", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            }
-                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                        }
+                        Icon(Icons.Default.CloudDownload, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("OpenSubtitles", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
 
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(text = "Online Subtitle Sources:", fontSize = 13.sp, color = Color(0xFF94A3B8))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SourceButton(
-                                label = "OpenSubs",
-                                icon = Icons.Default.Cloud,
-                                isLoading = isSearching,
-                                onClick = { onSearchOnline(SubtitleProvider.OPEN_SUBTITLES) },
-                                modifier = Modifier.weight(1f)
-                            )
-                            SourceButton(
-                                label = "Community",
-                                icon = Icons.Default.Public,
-                                isLoading = isSearching,
-                                onClick = { onSearchOnline(SubtitleProvider.YTS) },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                // Community (YTS) Button
+                GlassSurface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp)
+                        .clickable(enabled = !isSearching) { onSearchOnline(SubtitleProvider.YTS) },
+                    shape = RoundedCornerShape(10.dp),
+                    backgroundColor = Color(0x26FFFFFF),
+                    borderColor = Color(0x33FFFFFF)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(Icons.Default.People, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Community", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
+            }
 
-                if (statusMessage != null) {
-                    item {
-                        Text(text = statusMessage, fontSize = 12.sp, color = Color(0xFFA78BFA), modifier = Modifier.padding(horizontal = 4.dp))
-                    }
+            if (isSearching) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(color = Color(0xFFA78BFA), modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Searching Subtitles...", fontSize = 13.sp, color = Color.White)
                 }
+            }
 
-                if (onlineSubtitles.isNotEmpty()) {
-                    item {
-                        Text(text = "Online Search Results:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 4.dp))
-                    }
-                    items(onlineSubtitles) { onlineSub ->
+            statusMessage?.let { msg ->
+                Text(text = msg, fontSize = 12.sp, color = Color(0xFFA78BFA))
+            }
+
+            if (onlineSubtitles.isNotEmpty()) {
+                Text(text = "Online Search Results:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    onlineSubtitles.forEach { onlineSub ->
                         GlassSurface(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -442,41 +471,6 @@ fun SubtitleOptionsDialog(
         }
     }
 }
-
-@Composable
-private fun SourceButton(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    isLoading: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    GlassSurface(
-        modifier = modifier.clickable(enabled = !isLoading) { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        backgroundColor = Color(0x26FFFFFF),
-        borderColor = Color(0x33FFFFFF)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 10.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(color = Color(0xFFA78BFA), modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-            } else {
-                Icon(icon, null, tint = Color.White, modifier = Modifier.size(14.dp))
-            }
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(text = label, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
-        }
-    }
-}
-//        }
-//    }
-//}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -788,8 +782,6 @@ fun VideoPlayerSettingsDialog(
     onDismiss: () -> Unit,
     playerState: PlayerState,
     playerManager: ExoPlayerManager,
-    cropMode: String,
-    onCropModeChange: (String) -> Unit,
     pictureMode: String,
     onPictureModeChange: (String) -> Unit,
     audioSyncOffsetMs: Long,
@@ -831,7 +823,7 @@ fun VideoPlayerSettingsDialog(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             IconButton(onClick = onDismiss) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                             }
                             Text(
                                 text = "Player Settings",
@@ -847,13 +839,11 @@ fun VideoPlayerSettingsDialog(
                             .weight(1f)
                             .padding(horizontal = 20.dp)
                             .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(20.dp)
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
                         SettingsContent(
                             playerState = playerState,
                             playerManager = playerManager,
-                            cropMode = cropMode,
-                            onCropModeChange = onCropModeChange,
                             pictureMode = pictureMode,
                             onPictureModeChange = onPictureModeChange,
                             audioSyncOffsetMs = audioSyncOffsetMs,
@@ -871,8 +861,8 @@ fun VideoPlayerSettingsDialog(
     } else {
         AlertDialog(
             onDismissRequest = onDismiss,
-            containerColor = Color(0xDC121522),
-            shape = RoundedCornerShape(20.dp),
+            containerColor = Color(0xF20E111A),
+            shape = RoundedCornerShape(24.dp),
             title = { Text(text = "Video Player Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White) },
             text = {
                 Column(
@@ -883,8 +873,6 @@ fun VideoPlayerSettingsDialog(
                     SettingsContent(
                         playerState = playerState,
                         playerManager = playerManager,
-                        cropMode = cropMode,
-                        onCropModeChange = onCropModeChange,
                         pictureMode = pictureMode,
                         onPictureModeChange = onPictureModeChange,
                         audioSyncOffsetMs = audioSyncOffsetMs,
@@ -899,7 +887,7 @@ fun VideoPlayerSettingsDialog(
             },
             confirmButton = {
                 TextButton(onClick = onDismiss) {
-                    Text("Close", color = Color(0xFF94A3B8))
+                    Text("Close", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -911,8 +899,6 @@ fun VideoPlayerSettingsDialog(
 private fun SettingsContent(
     playerState: PlayerState,
     playerManager: ExoPlayerManager,
-    cropMode: String,
-    onCropModeChange: (String) -> Unit,
     pictureMode: String,
     onPictureModeChange: (String) -> Unit,
     audioSyncOffsetMs: Long,
@@ -923,131 +909,192 @@ private fun SettingsContent(
     onFilmGrainIntensityChange: (Float) -> Unit,
     onShowDetails: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        OutlinedButton(
-            onClick = onShowDetails,
-            modifier = Modifier.fillMaxWidth()
+    val glossyChipColors = FilterChipDefaults.filterChipColors(
+        containerColor = Color(0x1AFFFFFF),
+        labelColor = Color(0xFF9EA3B0),
+        selectedContainerColor = Color(0x4DFFFFFF),
+        selectedLabelColor = Color.White,
+        selectedLeadingIconColor = Color.White
+    )
+
+    val sliderColors = SliderDefaults.colors(
+        thumbColor = Color.White,
+        activeTrackColor = Color.White,
+        inactiveTrackColor = Color(0x33FFFFFF)
+    )
+
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        GlassSurface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onShowDetails() },
+            shape = RoundedCornerShape(16.dp),
+            backgroundColor = Color(0x1AFFFFFF),
+            borderColor = Color(0x33FFFFFF)
         ) {
-            Icon(Icons.Default.Info, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("View File Info")
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(Icons.Default.Info, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(10.dp))
+                Text("View Detailed File Info", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
         }
 
         // Repeat mode
-        Text(text = "Repeat Mode", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilterChip(
-                selected = playerState.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF,
-                onClick = { playerManager.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_OFF) },
-                label = { Text("Off") }
-            )
-            FilterChip(
-                selected = playerState.repeatMode == androidx.media3.common.Player.REPEAT_MODE_ONE,
-                onClick = { playerManager.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ONE) },
-                label = { Text("Repeat One") }
-            )
-            FilterChip(
-                selected = playerState.repeatMode == androidx.media3.common.Player.REPEAT_MODE_ALL,
-                onClick = { playerManager.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ALL) },
-                label = { Text("Repeat All") }
-            )
-        }
-
-        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-
-        // Playback Speed
-        Text(text = "Playback Speed: ${playerState.playbackSpeed}x", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White)
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            val speedList = listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f)
-            items(speedList) { spd ->
-                FilterChip(
-                    selected = playerState.playbackSpeed == spd,
-                    onClick = { playerManager.setPlaybackSpeed(spd) },
-                    label = { Text("${spd}x") }
-                )
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(text = "Repeat Mode", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                listOf(
+                    Player.REPEAT_MODE_OFF to "Off",
+                    Player.REPEAT_MODE_ONE to "Single",
+                    Player.REPEAT_MODE_ALL to "All"
+                ).forEach { (mode, label) ->
+                    val isSelected = playerState.repeatMode == mode
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { playerManager.setRepeatMode(mode) },
+                        label = { Text(label) },
+                        colors = glossyChipColors,
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = Color(0x33FFFFFF),
+                            selectedBorderColor = Color.White,
+                            borderWidth = 1.dp,
+                            selectedBorderWidth = 1.5.dp
+                        )
+                    )
+                }
             }
         }
 
-        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
-        // Aspect Ratio Scale Mode
-        Text(text = "Aspect Ratio / Scale Mode: $cropMode", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilterChip(selected = cropMode == "FIT", onClick = { onCropModeChange("FIT") }, label = { Text("Fit") })
-            FilterChip(selected = cropMode == "CROP", onClick = { onCropModeChange("CROP") }, label = { Text("Fill / Crop") })
-            FilterChip(selected = cropMode == "STRETCH", onClick = { onCropModeChange("STRETCH") }, label = { Text("Stretch") })
-        }
-
-        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-
-        Text(text = "Picture Mode: ${PictureMode.fromKey(pictureMode).displayName}", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White)
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(PictureMode.entries) { mode ->
-                FilterChip(
-                    selected = pictureMode.equals(mode.key, ignoreCase = true),
-                    onClick = { onPictureModeChange(mode.key) },
-                    label = { Text(mode.displayName) }
-                )
+        // Picture Mode
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(text = "Picture Mode: ${PictureMode.fromKey(pictureMode).displayName}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(PictureMode.entries) { mode ->
+                    val isSelected = pictureMode.equals(mode.key, ignoreCase = true)
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { onPictureModeChange(mode.key) },
+                        label = { Text(mode.displayName) },
+                        colors = glossyChipColors,
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = Color(0x33FFFFFF),
+                            selectedBorderColor = Color.White,
+                            borderWidth = 1.dp,
+                            selectedBorderWidth = 1.5.dp
+                        )
+                    )
+                }
             }
         }
 
-        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
         // Audio Sync Delay
-        Text(text = "Audio Sync Delay: ${audioSyncOffsetMs}ms", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(onClick = { onAudioSyncOffsetChange(audioSyncOffsetMs - 100) }, modifier = Modifier.weight(1f)) { Text("-100ms") }
-            OutlinedButton(onClick = { onAudioSyncOffsetChange(audioSyncOffsetMs + 100) }, modifier = Modifier.weight(1f)) { Text("+100ms") }
-            OutlinedButton(onClick = { onAudioSyncOffsetChange(0) }, modifier = Modifier.weight(1f)) { Text("Reset") }
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(text = "Audio Sync Delay: ${audioSyncOffsetMs}ms", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                listOf("-100ms" to { onAudioSyncOffsetChange(audioSyncOffsetMs - 100) },
+                    "+100ms" to { onAudioSyncOffsetChange(audioSyncOffsetMs + 100) },
+                    "Reset" to { onAudioSyncOffsetChange(0) }
+                ).forEach { (label, action) ->
+                    GlassSurface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(26.dp)
+                            .clickable { action() },
+                        shape = RoundedCornerShape(8.dp),
+                        backgroundColor = Color(0x1AFFFFFF),
+                        borderColor = Color(0x33FFFFFF)
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(label, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                        }
+                    }
+                }
+            }
         }
 
-        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
-        Text(text = "Audio Boost: ${playerState.audioBoostPercent}%", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White)
-        Slider(
-            value = playerState.audioBoostPercent.toFloat(),
-            onValueChange = { playerManager.setAudioBoost(it.toInt()) },
-            valueRange = 0f..100f
-        )
-
-        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(text = "Film Grain Overlay", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White)
-            Switch(
-                checked = isFilmGrainEnabled,
-                onCheckedChange = onFilmGrainEnabledChange,
-                colors = SwitchDefaults.colors(checkedThumbColor = Color.White)
-            )
-        }
-
-        if (isFilmGrainEnabled) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = "Grain Intensity", fontSize = 12.sp, color = Color(0xFF94A3B8))
+        // Audio Boost
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(text = "Audio Boost (Loudness): ${playerState.audioBoostPercent}%", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
             Slider(
-                value = filmGrainIntensity,
-                onValueChange = onFilmGrainIntensityChange,
-                valueRange = 0.05f..0.30f
+                value = playerState.audioBoostPercent.toFloat(),
+                onValueChange = { playerManager.setAudioBoost(it.toInt()) },
+                valueRange = 0f..100f,
+                colors = sliderColors,
+                thumb = {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(Color.White)
+                    )
+                }
             )
+        }
+
+        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
+        // Film Grain
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "Film Grain Overlay", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                Switch(
+                    checked = isFilmGrainEnabled,
+                    onCheckedChange = onFilmGrainEnabledChange,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = Color(0x80FFFFFF),
+                        uncheckedThumbColor = Color(0xFF9EA3B0),
+                        uncheckedTrackColor = Color(0x1AFFFFFF)
+                    )
+                )
+            }
+
+            if (isFilmGrainEnabled) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(text = "Grain Intensity", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                    Slider(
+                        value = filmGrainIntensity,
+                        onValueChange = onFilmGrainIntensityChange,
+                        valueRange = 0.05f..0.30f,
+                        colors = sliderColors,
+                        thumb = {
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White)
+                            )
+                        }
+                    )
+                }
+            }
         }
     }
 }

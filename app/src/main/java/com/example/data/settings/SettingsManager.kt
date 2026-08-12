@@ -45,9 +45,19 @@ class SettingsManager(private val context: Context) {
         val KEY_ENABLE_ANALYTICS_TAB = booleanPreferencesKey("enable_analytics_tab")
         val KEY_ENABLE_TRASH = booleanPreferencesKey("enable_trash")
 
+        val KEY_AUDIO_BACKGROUND_PLAY = booleanPreferencesKey("audio_background_play")
+        val KEY_VIDEO_BACKGROUND_PLAY = booleanPreferencesKey("video_background_play")
+
+        val KEY_AUDIO_REPEAT_MODE = intPreferencesKey("audio_repeat_mode")
+        val KEY_VIDEO_REPEAT_MODE = intPreferencesKey("video_repeat_mode")
+        val KEY_AUDIO_SHUFFLE_MODE = booleanPreferencesKey("audio_shuffle_mode")
+        val KEY_VIDEO_SHUFFLE_MODE = booleanPreferencesKey("video_shuffle_mode")
+
         val KEY_PICTURE_MODE_ENABLED = booleanPreferencesKey("picture_mode_enabled")
         val KEY_DECODER_MODE = stringPreferencesKey("decoder_mode") // AUTO, HARDWARE, SOFTWARE
         val KEY_PICTURE_MODE = stringPreferencesKey("picture_mode") // DEVICE_DEFAULT, BALANCED, NATURAL, VIVID, CINEMATIC, CUSTOM
+        val KEY_FILM_GRAIN_ENABLED = booleanPreferencesKey("film_grain_enabled")
+        val KEY_FILM_GRAIN_INTENSITY = floatPreferencesKey("film_grain_intensity")
         val KEY_CUSTOM_SATURATION = floatPreferencesKey("custom_saturation")
         val KEY_CUSTOM_CONTRAST = floatPreferencesKey("custom_contrast")
         val KEY_CUSTOM_WARMTH = floatPreferencesKey("custom_warmth")
@@ -78,6 +88,8 @@ class SettingsManager(private val context: Context) {
     val decoderMode: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_DECODER_MODE] ?: "AUTO" }
     val pictureModeEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_PICTURE_MODE_ENABLED] ?: true }
     val pictureMode: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_PICTURE_MODE] ?: "DEVICE_DEFAULT" }
+    val filmGrainEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_FILM_GRAIN_ENABLED] ?: false }
+    val filmGrainIntensity: Flow<Float> = context.dataStore.data.map { prefs -> prefs[KEY_FILM_GRAIN_INTENSITY] ?: 0.15f }
     val enableTrash: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_ENABLE_TRASH] ?: true }
     val customSaturation: Flow<Float> = context.dataStore.data.map { prefs -> prefs[KEY_CUSTOM_SATURATION] ?: 1.18f }
     val customContrast: Flow<Float> = context.dataStore.data.map { prefs -> prefs[KEY_CUSTOM_CONTRAST] ?: 1.06f }
@@ -118,6 +130,14 @@ class SettingsManager(private val context: Context) {
     val showHiddenFiles: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_SHOW_HIDDEN_FILES] ?: false }
     val hiddenFolders: Flow<Set<String>> = context.dataStore.data.map { prefs -> prefs[KEY_HIDDEN_FOLDERS] ?: emptySet() }
     val enableAnalyticsTab: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_ENABLE_ANALYTICS_TAB] ?: true }
+
+    val audioBackgroundPlay: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUDIO_BACKGROUND_PLAY] ?: true }
+    val videoBackgroundPlay: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_VIDEO_BACKGROUND_PLAY] ?: false }
+
+    val audioRepeatMode: Flow<Int> = context.dataStore.data.map { prefs -> prefs[KEY_AUDIO_REPEAT_MODE] ?: 0 } // REPEAT_MODE_OFF
+    val videoRepeatMode: Flow<Int> = context.dataStore.data.map { prefs -> prefs[KEY_VIDEO_REPEAT_MODE] ?: 0 } // REPEAT_MODE_OFF
+    val audioShuffleMode: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUDIO_SHUFFLE_MODE] ?: false }
+    val videoShuffleMode: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_VIDEO_SHUFFLE_MODE] ?: false }
 
     suspend fun setTheme(theme: String) = context.dataStore.edit { it[KEY_THEME] = theme }
     suspend fun setAccentColor(color: Int) = context.dataStore.edit { it[KEY_ACCENT_COLOR] = color }
@@ -163,9 +183,19 @@ class SettingsManager(private val context: Context) {
     suspend fun setEnableAnalyticsTab(enabled: Boolean) = context.dataStore.edit { it[KEY_ENABLE_ANALYTICS_TAB] = enabled }
     suspend fun setEnableTrash(enabled: Boolean) = context.dataStore.edit { it[KEY_ENABLE_TRASH] = enabled }
 
+    suspend fun setAudioBackgroundPlay(enabled: Boolean) = context.dataStore.edit { it[KEY_AUDIO_BACKGROUND_PLAY] = enabled }
+    suspend fun setVideoBackgroundPlay(enabled: Boolean) = context.dataStore.edit { it[KEY_VIDEO_BACKGROUND_PLAY] = enabled }
+
+    suspend fun setAudioRepeatMode(mode: Int) = context.dataStore.edit { it[KEY_AUDIO_REPEAT_MODE] = mode }
+    suspend fun setVideoRepeatMode(mode: Int) = context.dataStore.edit { it[KEY_VIDEO_REPEAT_MODE] = mode }
+    suspend fun setAudioShuffleMode(enabled: Boolean) = context.dataStore.edit { it[KEY_AUDIO_SHUFFLE_MODE] = enabled }
+    suspend fun setVideoShuffleMode(enabled: Boolean) = context.dataStore.edit { it[KEY_VIDEO_SHUFFLE_MODE] = enabled }
+
     suspend fun setDecoderMode(mode: String) = context.dataStore.edit { it[KEY_DECODER_MODE] = mode }
     suspend fun setPictureModeEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_PICTURE_MODE_ENABLED] = enabled }
     suspend fun setPictureMode(mode: String) = context.dataStore.edit { it[KEY_PICTURE_MODE] = mode }
+    suspend fun setFilmGrainEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_FILM_GRAIN_ENABLED] = enabled }
+    suspend fun setFilmGrainIntensity(intensity: Float) = context.dataStore.edit { it[KEY_FILM_GRAIN_INTENSITY] = intensity }
     suspend fun setCustomSaturation(sat: Float) = context.dataStore.edit { it[KEY_CUSTOM_SATURATION] = sat }
     suspend fun setCustomContrast(con: Float) = context.dataStore.edit { it[KEY_CUSTOM_CONTRAST] = con }
     suspend fun setCustomWarmth(warmth: Float) = context.dataStore.edit { it[KEY_CUSTOM_WARMTH] = warmth }

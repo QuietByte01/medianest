@@ -544,6 +544,8 @@ fun VideosTab(
                     selectedFolder = matchedKey
                 },
                 onRename = { itemToRename = it },
+                selectedFolder = selectedFolder,
+                isFolderViewActive = isFolderViewActive,
                 gridState = wideGridState,
                 staggeredGridState = mainGridState
             )

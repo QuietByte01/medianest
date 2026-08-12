@@ -74,8 +74,9 @@ class VideoPlayerActivity : ComponentActivity() {
                     playerManager = playerManager,
                     networkRepository = networkRepository,
                     onClose = {
-                        stopService(Intent(this@VideoPlayerActivity, FloatingPlayerService::class.java))
+                        // Always stop playback on explicit close via UI (Back button or Close icon)
                         playerManager.exoPlayer.stop()
+                        stopService(Intent(this@VideoPlayerActivity, FloatingPlayerService::class.java))
                         finish()
                     },
                     onEnterPip = {
@@ -127,13 +128,14 @@ class VideoPlayerActivity : ComponentActivity() {
         super.onStop()
         // If app is minimized (not finishing/destroying) and not in Picture-in-Picture mode
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !isInPictureInPictureMode) {
-            val isBgPlayEnabled = playerManager.playerState.value.isBackgroundPlayEnabled
+            val state = playerManager.playerState.value
+            val isBgPlayEnabled = state.isVideoBackgroundPlayEnabled
             
             if (playerManager.exoPlayer.isPlaying && !isFinishing && !isChangingConfigurations) {
                 if (!isBgPlayEnabled) {
                     playerManager.exoPlayer.pause()
                 } else {
-                    val currentItem = playerManager.playerState.value.currentItem
+                    val currentItem = state.currentItem
                     if (currentItem != null) {
                         val isVideo = currentItem.mimeType.startsWith("video") || currentItem.type == com.example.data.db.MediaType.VIDEO
                         FloatingPlayerService.startOrUpdateService(
@@ -153,7 +155,13 @@ class VideoPlayerActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         try {
-            stopService(Intent(this, FloatingPlayerService::class.java))
+            val state = playerManager.playerState.value
+            // Only stop service if background play is disabled
+            if (!state.isVideoBackgroundPlayEnabled) {
+                playerManager.exoPlayer.pause()
+                stopService(Intent(this, FloatingPlayerService::class.java))
+            }
+            
             if (activePlayerManager == playerManager) {
                 activePlayerManager = null
             }

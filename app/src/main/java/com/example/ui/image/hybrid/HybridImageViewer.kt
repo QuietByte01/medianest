@@ -241,7 +241,7 @@ fun HybridImageViewer(
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                 ) {
                     IconButton(
                         onClick = {
@@ -250,20 +250,20 @@ fun HybridImageViewer(
                                 onInteraction()
                             }
                         },
-                        modifier = Modifier.size(40.dp) // Enlarge hit area
+                        modifier = Modifier.size(24.dp) // Shrink hit area
                     ) {
                         Icon(
                             imageVector = Icons.Default.Remove, 
                             contentDescription = "Zoom Out", 
                             tint = Color.White, 
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(14.dp)
                         )
                     }
 
                     Text(
                         text = "${(zoomController.viewport.scale * 100).toInt()}%",
                         color = Color.White,
-                        fontSize = 11.sp,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier
                             .clickable(
@@ -275,7 +275,7 @@ fun HybridImageViewer(
                                     onInteraction()
                                 }
                             }
-                            .padding(horizontal = 8.dp, vertical = 10.dp) // Larger hit area for text
+                            .padding(horizontal = 4.dp, vertical = 6.dp) // Shrink padding
                     )
 
                     IconButton(
@@ -285,13 +285,13 @@ fun HybridImageViewer(
                                 onInteraction()
                             }
                         },
-                        modifier = Modifier.size(40.dp) // Enlarge hit area
+                        modifier = Modifier.size(24.dp) // Shrink hit area
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add, 
                             contentDescription = "Zoom In", 
                             tint = Color.White, 
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                 }

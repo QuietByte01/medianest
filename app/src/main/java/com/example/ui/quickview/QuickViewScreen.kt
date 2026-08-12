@@ -429,7 +429,11 @@ fun QuickViewScreen(
                                             setDataAndType(sharingUri, item.mimeType.ifEmpty { "image/*" })
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                         }
-                                        context.startActivity(Intent.createChooser(openIntent, "Open with"))
+                                        runCatching {
+                                            context.startActivity(openIntent)
+                                        }.onFailure {
+                                            android.widget.Toast.makeText(context, "No app available to open image", android.widget.Toast.LENGTH_SHORT).show()
+                                        }
                                     }
                                 }
                             )

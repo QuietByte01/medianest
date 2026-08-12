@@ -455,7 +455,8 @@ fun FoldersGrid(
                     onSongClick = onSongClick,
                     onSongLongClick = onSongLongClick,
                     onNavigateSubTab = onNavigateSubTab,
-                    onAddToPlaylist = onAddToPlaylist
+                    onAddToPlaylist = onAddToPlaylist,
+                    showInGallery = true
                 )
             }
         }

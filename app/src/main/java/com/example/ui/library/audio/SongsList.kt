@@ -54,7 +54,8 @@ fun SongsList(
     showDeleteOption: Boolean = false,
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?) -> Unit = { _, _, _, _ -> },
-    onAddToPlaylist: (MediaItem) -> Unit = {}
+    onAddToPlaylist: (MediaItem) -> Unit = {},
+    showInGallery: Boolean = false
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -271,11 +272,20 @@ fun SongsList(
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Show in Folder") },
-                                        leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
+                                        text = { Text(if (showInGallery) "Open with" else "Show in Folder") },
+                                        leadingIcon = { 
+                                            Icon(
+                                                if (showInGallery) Icons.Default.MusicNote else Icons.Default.Folder, 
+                                                contentDescription = null
+                                            ) 
+                                        },
                                         onClick = {
                                             showMenu = false
-                                            onNavigateSubTab(5, null, null, item.bucketName ?: "Music")
+                                            if (showInGallery) {
+                                                com.example.util.IntentUtils.openInGallery(context, item)
+                                            } else {
+                                                onNavigateSubTab(5, null, null, item.bucketName ?: "Music")
+                                            }
                                         }
                                     )
                                     if (showDeleteOption) {

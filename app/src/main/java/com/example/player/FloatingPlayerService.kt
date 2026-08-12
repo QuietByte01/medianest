@@ -19,6 +19,7 @@ import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Size
 import androidx.core.app.NotificationCompat
+import androidx.media3.common.Player
 import com.example.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -168,7 +169,7 @@ class FloatingPlayerService : Service() {
             isVideoState = intent.getBooleanExtra("is_video", false)
         }
 
-        if (artworkExtra != currentArtworkUri) {
+        if (artworkExtra != null && artworkExtra != currentArtworkUri) {
             currentArtworkUri = artworkExtra
             loadArtworkBitmap(artworkExtra)
         }
@@ -176,6 +177,9 @@ class FloatingPlayerService : Service() {
         val activeManager = ExoPlayerManager.activeManager
 
         when (action) {
+            ACTION_START -> {
+                updateNotification()
+            }
             ACTION_PREVIOUS -> {
                 activeManager?.previous()
                 updateNotification()
@@ -183,7 +187,8 @@ class FloatingPlayerService : Service() {
             ACTION_PLAY_PAUSE -> {
                 if (activeManager != null) {
                     activeManager.togglePlayPause()
-                    isPlayingState = activeManager.exoPlayer.playWhenReady
+                    // Update local state based on player
+                    isPlayingState = activeManager.exoPlayer.playWhenReady && activeManager.exoPlayer.playbackState != Player.STATE_ENDED
                 } else {
                     isPlayingState = !isPlayingState
                 }

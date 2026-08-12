@@ -57,7 +57,12 @@ data class PlayerState(
     val queueIndex: Int = 0,
     val isShuffle: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
-    val isBackgroundPlayEnabled: Boolean = false,
+    val audioRepeatMode: Int = Player.REPEAT_MODE_ALL,
+    val videoRepeatMode: Int = Player.REPEAT_MODE_OFF,
+    val isAudioShuffleEnabled: Boolean = false,
+    val isVideoShuffleEnabled: Boolean = false,
+    val isAudioBackgroundPlayEnabled: Boolean = true,
+    val isVideoBackgroundPlayEnabled: Boolean = false,
     val activeDecoderName: String = "Hardware Default",
     val isHardwareAccelerated: Boolean = true,
     val droppedFrames: Int = 0,
@@ -130,6 +135,46 @@ class ExoPlayerManager private constructor(private val context: Context) {
             }
         }
 
+        scope.launch {
+            com.example.MediaNestApp.instance.settingsManager.audioBackgroundPlay.collectLatest { enabled ->
+                _playerState.value = _playerState.value.copy(isAudioBackgroundPlayEnabled = enabled)
+            }
+        }
+
+        scope.launch {
+            com.example.MediaNestApp.instance.settingsManager.videoBackgroundPlay.collectLatest { enabled ->
+                _playerState.value = _playerState.value.copy(isVideoBackgroundPlayEnabled = enabled)
+            }
+        }
+
+        scope.launch {
+            com.example.MediaNestApp.instance.settingsManager.audioRepeatMode.collectLatest { mode ->
+                _playerState.value = _playerState.value.copy(audioRepeatMode = mode)
+                applySettingsForCurrentType()
+            }
+        }
+
+        scope.launch {
+            com.example.MediaNestApp.instance.settingsManager.videoRepeatMode.collectLatest { mode ->
+                _playerState.value = _playerState.value.copy(videoRepeatMode = mode)
+                applySettingsForCurrentType()
+            }
+        }
+
+        scope.launch {
+            com.example.MediaNestApp.instance.settingsManager.audioShuffleMode.collectLatest { enabled ->
+                _playerState.value = _playerState.value.copy(isAudioShuffleEnabled = enabled)
+                applySettingsForCurrentType()
+            }
+        }
+
+        scope.launch {
+            com.example.MediaNestApp.instance.settingsManager.videoShuffleMode.collectLatest { enabled ->
+                _playerState.value = _playerState.value.copy(isVideoShuffleEnabled = enabled)
+                applySettingsForCurrentType()
+            }
+        }
+
         setupTelephonyListener()
         setupBluetoothReceiver()
 
@@ -142,15 +187,32 @@ class ExoPlayerManager private constructor(private val context: Context) {
                 Triple(audioNotif, videoNotif, state)
             }.collectLatest { (audioNotif, videoNotif, state) ->
                 val currentItem = state.currentItem
-                if (currentItem != null && (state.isPlaying) && (exoPlayer.playbackState != Player.STATE_ENDED)) {
+                // Keep service running if we have a track, even if paused, to prevent process death.
+                // Only stop if the queue is empty or playback explicitly ended.
+                if (currentItem != null && (exoPlayer.playbackState != Player.STATE_ENDED || state.isPlaying)) {
                     val isVideo = currentItem.mimeType.startsWith("video") || currentItem.type == com.example.data.db.MediaType.VIDEO
+                    
+                    // Check background play permission for the specific type
+                    val bgPlayEnabled = if (isVideo) state.isVideoBackgroundPlayEnabled else state.isAudioBackgroundPlayEnabled
+                    
+                    // Service shutdown policy:
+                    // 1. Never stop if currently playing.
+                    // 2. Only stop if (paused AND bg play is off) AND we are NOT in a transition.
+                    // We detect "transition" by checking if playbackState is IDLE but queue is NOT empty.
+                    val isTransitioning = exoPlayer.playbackState == Player.STATE_IDLE && exoPlayer.mediaItemCount > 0
+                    
+                    if (!bgPlayEnabled && !state.isPlaying && !isTransitioning) {
+                        FloatingPlayerService.stopService(context)
+                        return@collectLatest
+                    }
+
                     val shouldShow = if (isVideo) videoNotif else audioNotif
                     if (shouldShow) {
                         FloatingPlayerService.startOrUpdateService(
                             context = context,
                             title = currentItem.title,
                             artist = currentItem.artist ?: currentItem.album ?: currentItem.bucketName ?: "MediaNest",
-                            isPlaying = true, // We know it's playing here
+                            isPlaying = state.isPlaying,
                             artworkUri = currentItem.albumArtUri?.toString() ?: currentItem.uri.toString(),
                             isVideo = isVideo
                         )
@@ -301,7 +363,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val attr = AndroidAudioAttributes.Builder()
                 .setUsage(AndroidAudioAttributes.USAGE_MEDIA)
-                .setContentType(AndroidAudioAttributes.CONTENT_TYPE_MOVIE)
+                .setContentType(AndroidAudioAttributes.CONTENT_TYPE_MUSIC)
                 .build()
             
             focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
@@ -486,8 +548,26 @@ class ExoPlayerManager private constructor(private val context: Context) {
                     queueIndex = curIndex,
                     audioSessionId = exoPlayer.audioSessionId
                 )
+                applySettingsForCurrentType()
                 recordPlay(currentItem.uri.toString())
             }
+        }
+    }
+
+    private fun applySettingsForCurrentType() {
+        val currentItem = _playerState.value.currentItem ?: return
+        val isVideo = currentItem.mimeType.startsWith("video") || currentItem.type == com.example.data.db.MediaType.VIDEO
+        
+        val targetRepeatMode = if (isVideo) _playerState.value.videoRepeatMode else _playerState.value.audioRepeatMode
+        val targetShuffleEnabled = if (isVideo) _playerState.value.isVideoShuffleEnabled else _playerState.value.isAudioShuffleEnabled
+        
+        if (exoPlayer.repeatMode != targetRepeatMode) {
+            exoPlayer.repeatMode = targetRepeatMode
+            _playerState.value = _playerState.value.copy(repeatMode = targetRepeatMode)
+        }
+        if (exoPlayer.shuffleModeEnabled != targetShuffleEnabled) {
+            exoPlayer.shuffleModeEnabled = targetShuffleEnabled
+            _playerState.value = _playerState.value.copy(isShuffle = targetShuffleEnabled)
         }
     }
 
@@ -531,19 +611,27 @@ class ExoPlayerManager private constructor(private val context: Context) {
                 .build()
         }
 
-        try {
-            exoPlayer.stop()
-            exoPlayer.setMediaItems(media3Items, targetIndex, startPosMs)
-            exoPlayer.prepare()
-            exoPlayer.play()
+        scope.launch {
+            withContext(Dispatchers.Main) {
+                try {
+                    // Update state FIRST so service observers see the change
+                    _playerState.value = _playerState.value.copy(
+                        queue = items,
+                        queueIndex = targetIndex,
+                        currentItem = currentTarget
+                    )
 
-            _playerState.value = _playerState.value.copy(
-                queue = items,
-                queueIndex = targetIndex,
-                currentItem = currentTarget
-            )
-        } catch (e: Exception) {
-            Log.e("ExoPlayerManager", "Failed to prepare playback", e)
+                    // exoPlayer.stop() removed to prevent service death on item change. 
+                    // setMediaItems already resets the player state for the new items.
+                    exoPlayer.setMediaItems(media3Items, targetIndex, startPosMs)
+                    exoPlayer.prepare()
+                    if (requestAudioFocus()) {
+                        exoPlayer.play()
+                    }
+                } catch (e: Exception) {
+                    Log.e("ExoPlayerManager", "Failed to prepare playback", e)
+                }
+            }
         }
 
         recordPlay(currentTarget.uri.toString())
@@ -574,7 +662,11 @@ class ExoPlayerManager private constructor(private val context: Context) {
 
     fun playSingleUri(uri: Uri, title: String, mimeType: String, startPosMs: Long = 0L) {
         scope.launch(Dispatchers.IO) {
-            val optUri = ContentUriUtils.resolveOptimizedUri(context, uri)
+            // Avoid aggressive resolution to file:// for external intents as it might lose permission.
+            // Only resolve if it's already an internal URI.
+            val isExternalIntentUri = uri.scheme == "content" && !uri.toString().contains(context.packageName)
+            val optUri = if (isExternalIntentUri) uri else ContentUriUtils.resolveOptimizedUri(context, uri)
+            
             val singleItem = if (mimeType.startsWith("audio")) {
                 com.example.util.AudioMetadataUtils.extractMetadata(context, optUri, rawTitleHint = title, mimeTypeHint = mimeType)
             } else {
@@ -591,19 +683,31 @@ class ExoPlayerManager private constructor(private val context: Context) {
     }
 
     fun togglePlayPause() {
-        if (exoPlayer.playbackState == Player.STATE_ENDED) {
-            exoPlayer.seekTo(0)
-            exoPlayer.play()
-        } else if (exoPlayer.isPlaying) {
-            exoPlayer.pause()
-        } else {
-            exoPlayer.play()
+        scope.launch {
+            withContext(Dispatchers.Main) {
+                if (exoPlayer.playbackState == Player.STATE_ENDED) {
+                    exoPlayer.seekTo(0)
+                    if (requestAudioFocus()) {
+                        exoPlayer.play()
+                    }
+                } else if (exoPlayer.isPlaying) {
+                    exoPlayer.pause()
+                } else {
+                    if (requestAudioFocus()) {
+                        exoPlayer.play()
+                    }
+                }
+            }
         }
     }
 
     fun seekTo(positionMs: Long) {
-        exoPlayer.seekTo(positionMs)
-        _playerState.value = _playerState.value.copy(currentPositionMs = positionMs)
+        scope.launch {
+            withContext(Dispatchers.Main) {
+                exoPlayer.seekTo(positionMs)
+                _playerState.value = _playerState.value.copy(currentPositionMs = positionMs)
+            }
+        }
     }
 
     fun seekForward(ms: Long = 10000L) {
@@ -617,26 +721,34 @@ class ExoPlayerManager private constructor(private val context: Context) {
     }
 
     fun next() {
-        if (exoPlayer.hasNextMediaItem()) {
-            exoPlayer.seekToNextMediaItem()
-        } else {
-            // End of queue. If repeat ALL is not on, we loop manually to start
-            if (exoPlayer.repeatMode == Player.REPEAT_MODE_OFF) {
-                exoPlayer.seekToDefaultPosition(0)
+        scope.launch {
+            withContext(Dispatchers.Main) {
+                if (exoPlayer.hasNextMediaItem()) {
+                    exoPlayer.seekToNextMediaItem()
+                } else {
+                    // End of queue. If repeat ALL is not on, we loop manually to start
+                    if (exoPlayer.repeatMode == Player.REPEAT_MODE_OFF) {
+                        exoPlayer.seekToDefaultPosition(0)
+                    }
+                }
             }
         }
     }
 
     fun previous() {
-        if (exoPlayer.currentPosition > 3000L) {
-            seekTo(0L)
-        } else if (exoPlayer.hasPreviousMediaItem()) {
-            exoPlayer.seekToPreviousMediaItem()
-        } else {
-            // Loop to end manually if at start
-            val queueSize = exoPlayer.mediaItemCount
-            if (queueSize > 0) {
-                exoPlayer.seekToDefaultPosition(queueSize - 1)
+        scope.launch {
+            withContext(Dispatchers.Main) {
+                if (exoPlayer.currentPosition > 3000L) {
+                    seekTo(0L)
+                } else if (exoPlayer.hasPreviousMediaItem()) {
+                    exoPlayer.seekToPreviousMediaItem()
+                } else {
+                    // Loop to end manually if at start
+                    val queueSize = exoPlayer.mediaItemCount
+                    if (queueSize > 0) {
+                        exoPlayer.seekToDefaultPosition(queueSize - 1)
+                    }
+                }
             }
         }
     }
@@ -647,36 +759,51 @@ class ExoPlayerManager private constructor(private val context: Context) {
     }
 
     fun setRepeatMode(repeatMode: Int) {
-        exoPlayer.repeatMode = repeatMode
-        _playerState.value = _playerState.value.copy(repeatMode = repeatMode)
-    }
-
-    fun setBackgroundPlayEnabled(enabled: Boolean) {
-        _playerState.value = _playerState.value.copy(isBackgroundPlayEnabled = enabled)
-        if (enabled) {
-            // Keep audio focus and allow playback to continue when app goes to background.
-            // ExoPlayer already handles AudioAttributes with handleAudioBecomingNoisy=true by default.
-            // Ensure the foreground notification service is started so the OS does not kill playback.
-            val currentItem = _playerState.value.currentItem
-            if (currentItem != null) {
-                val isVideo = currentItem.mimeType.startsWith("video") || currentItem.type == com.example.data.db.MediaType.VIDEO
-                FloatingPlayerService.startOrUpdateService(
-                    context = context,
-                    title = currentItem.title,
-                    artist = currentItem.artist ?: currentItem.album ?: currentItem.bucketName ?: "MediaNest",
-                    isPlaying = _playerState.value.isPlaying,
-                    artworkUri = currentItem.albumArtUri?.toString() ?: currentItem.uri.toString(),
-                    isVideo = isVideo
-                )
+        scope.launch {
+            withContext(Dispatchers.Main) {
+                val currentItem = _playerState.value.currentItem
+                val isVideo = currentItem?.mimeType?.startsWith("video") == true || currentItem?.type == com.example.data.db.MediaType.VIDEO
+                
+                if (isVideo) {
+                    com.example.MediaNestApp.instance.settingsManager.setVideoRepeatMode(repeatMode)
+                } else {
+                    com.example.MediaNestApp.instance.settingsManager.setAudioRepeatMode(repeatMode)
+                }
+                
+                exoPlayer.repeatMode = repeatMode
+                _playerState.value = _playerState.value.copy(repeatMode = repeatMode)
             }
         }
-        // When disabled, the notification service lifecycle is managed by the existing
-        // combine collector (lines 97-123) which stops the service when !isPlaying.
+    }
+
+    fun setVideoBackgroundPlayEnabled(enabled: Boolean) {
+        scope.launch {
+            com.example.MediaNestApp.instance.settingsManager.setVideoBackgroundPlay(enabled)
+        }
+    }
+
+    fun setAudioBackgroundPlayEnabled(enabled: Boolean) {
+        scope.launch {
+            com.example.MediaNestApp.instance.settingsManager.setAudioBackgroundPlay(enabled)
+        }
     }
 
     fun setShuffleMode(shuffleMode: Boolean) {
-        exoPlayer.shuffleModeEnabled = shuffleMode
-        _playerState.value = _playerState.value.copy(isShuffle = shuffleMode)
+        scope.launch {
+            withContext(Dispatchers.Main) {
+                val currentItem = _playerState.value.currentItem
+                val isVideo = currentItem?.mimeType?.startsWith("video") == true || currentItem?.type == com.example.data.db.MediaType.VIDEO
+                
+                if (isVideo) {
+                    com.example.MediaNestApp.instance.settingsManager.setVideoShuffleMode(shuffleMode)
+                } else {
+                    com.example.MediaNestApp.instance.settingsManager.setAudioShuffleMode(shuffleMode)
+                }
+                
+                exoPlayer.shuffleModeEnabled = shuffleMode
+                _playerState.value = _playerState.value.copy(isShuffle = shuffleMode)
+            }
+        }
     }
 
     fun setAudioBoost(percent: Int) {

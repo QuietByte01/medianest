@@ -1,28 +1,32 @@
-# UI Refinement: Library Tab Reordering
+# Final Logic Restorations & UI Centering Walkthrough
 
-I have reorganized the filter tabs in both the Video and Image libraries to match your requested layout, making common navigation elements more accessible.
+I have addressed the button alignment, film grain visibility, state persistence, and independent background playback issues.
 
-## 📹 Video Library Refinements
-The filter chips at the top of the video tab have been reordered as follows:
-1.  **All Videos**
-2.  **Folders** (Moved from last to be immediately after "All Videos")
-3.  **Music Videos**
-4.  **Movies & Shows**
-5.  **Clips & Recordings**
-6.  **Shorts**
-7.  **Social Media** (Moved before "Edited")
-8.  **Edited**
-9.  **Downloaded**
-10. **Category**
+---
 
-## 🖼️ Image Library Refinements
-The collections and filter chips in the image tab have been reordered for better grouping:
-- **Trash:** Moved to the **very end** of the list.
-- **Notes:** Now appears **before GIFs**.
-- **Screenshots:** Now appears immediately **after GIFs**.
-- **Sequence:** `... Favorites -> Notes & Studies -> GIFs -> Screenshots -> Social Media ...`
+## 🚀 Key Improvements
 
-## Verification
-- ✅ **Videos:** Folders now accessible right at the start. Social Media moved forward.
-- ✅ **Images:** Notes and Screenshots grouped near media types (GIFs). Trash safely tucked away at the end.
-- ✅ **Stability:** Build verified; duplicate folder tags in the video tab removed.
+### 1. High-Density Film Grain Overlay
+- **Visibility**: Significantly increased the opacity and density of the film grain. It is now clearly visible as a realistic cinematic texture over the video.
+- **Persistence**: The Film Grain state (Enabled/Intensity) is now saved to `SettingsManager`. It will no longer "auto turn off" when you exit and return to a video.
+
+### 2. Perfected Button Alignment & Sizing
+- **Subtitle Buttons**: Shrunk the OpenSubtitles and Community buttons to a sleek `40.dp` height. Content is now perfectly centered using a `Row` with `Arrangement.Center`.
+- **Audio Sync Controls**: Shrunk these buttons to a minimal `26.dp` height and ensured the text is bold and perfectly centered in the middle of the button.
+
+### 3. Reliable Background Playback
+- **Independent Control**: Verified that Audio and Video background play are fully independent.
+    - **Audio**: Pressing Back now keeps music playing (Audio BG Play is ON by default).
+    - **Video**: If Video BG Play is OFF, pressing Back now **immediately stops** the player and clears the notification, preventing any audio leakage.
+- **Fixed "Auto-Pause"**: Refined the service shutdown policy to ignore the split-second "idle" state that occurs when transitioning to a new video. Videos now start instantly without pausing themselves.
+
+### 4. Back Button Restoration
+- Pressing the **Back button** now calls `onClose()`, which clears the media session and stops the player (unless you have explicitly enabled background play for that type). This restores the predictable "Exit" behavior you expected.
+
+---
+
+## ✅ Final Verification Results
+- **Visuals**: All buttons in the settings and subtitle dialogs are compact and centered.
+- **Grains**: Noise texture is clearly visible and animates smoothly at high FPS.
+- **Persistence**: Verified settings are remembered across app restarts.
+- **Logic**: No conflicts between music and video background states.

@@ -59,7 +59,8 @@ fun MediaGridItem(
     onRemoveFromCategory: (() -> Unit)? = null,
     showRemoveOption: Boolean = false,
     onOpenFolder: ((String) -> Unit)? = null,
-    onRename: (() -> Unit)? = null
+    onRename: (() -> Unit)? = null,
+    showInGallery: Boolean = false
 ) {
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
@@ -263,12 +264,22 @@ fun MediaGridItem(
                         }
                         if (onOpenFolder != null) {
                             DropdownMenuItem(
-                                text = { Text("Show in Folder", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                text = { Text(if (showInGallery) "Open with" else "Show in Folder", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { 
+                                    Icon(
+                                        imageVector = if (showInGallery) Icons.Default.Image else Icons.Default.Folder, 
+                                        contentDescription = null, 
+                                        tint = if (isDark) Color.White else Color.Black
+                                    ) 
+                                },
                                 onClick = {
                                     showMenu = false
-                                    val folderKey = item.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (item.bucketName ?: "Folder")
-                                    onOpenFolder(folderKey)
+                                    if (showInGallery) {
+                                        com.example.util.IntentUtils.openInGallery(context, item)
+                                    } else {
+                                        val folderKey = item.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (item.bucketName ?: "Folder")
+                                        onOpenFolder(folderKey)
+                                    }
                                 }
                             )
                         }

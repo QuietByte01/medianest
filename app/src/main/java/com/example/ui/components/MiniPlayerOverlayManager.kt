@@ -80,6 +80,9 @@ object MiniPlayerOverlayManager {
             return
         }
         if (overlayView != null) return
+        
+        // Ensure there is something to play before showing overlay
+        if (ExoPlayerManager.activeManager == null) return
 
         try {
             windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager

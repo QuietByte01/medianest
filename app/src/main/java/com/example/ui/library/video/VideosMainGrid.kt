@@ -41,6 +41,8 @@ fun VideosMainGrid(
     onRemoveFromCategory: (MediaItem) -> Unit,
     onOpenFolder: (String) -> Unit,
     onRename: (MediaItem) -> Unit,
+    selectedFolder: String? = null,
+    isFolderViewActive: Boolean = false,
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
     staggeredGridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState()
 ) {
@@ -111,7 +113,8 @@ fun VideosMainGrid(
                         } ?: targetFolder
                         onOpenFolder(matchedKey)
                     },
-                    onRename = { onRename(item) }
+                    onRename = { onRename(item) },
+                    showInGallery = (isFolderViewActive && selectedFolder != null)
                 )
             }
         }
