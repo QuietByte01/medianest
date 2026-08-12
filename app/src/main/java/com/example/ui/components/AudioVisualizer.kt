@@ -66,7 +66,10 @@ enum class VisualizerStyle {
     GLOSSY_SPECTRUM_BARS,
     CIRCULAR_RING_WAVE,
     NEON_WAVEFORM,
-    BASS_PARTICLE_HALO
+    BASS_PARTICLE_HALO,
+    PARTICLE_GLOBE_SPHERE,
+    WAVE_GRID_TERRAIN,
+    PARTICLE_TUNNEL_VORTEX
 }
 
 private class VisualizerParticle(
@@ -397,6 +400,27 @@ fun AudioVisualizer(
                         primaryColor = primaryColor,
                         secondaryColor = secondaryColor,
                         accentColor = accentColor,
+                        timeNanos = animNanos
+                    )
+                }
+                VisualizerStyle.PARTICLE_GLOBE_SPHERE -> {
+                    drawParticleGlobeSphere(
+                        state = state,
+                        artBaseHue = artBaseHue,
+                        timeNanos = animNanos
+                    )
+                }
+                VisualizerStyle.WAVE_GRID_TERRAIN -> {
+                    drawWaveGridTerrain(
+                        state = state,
+                        artBaseHue = artBaseHue,
+                        timeNanos = animNanos
+                    )
+                }
+                VisualizerStyle.PARTICLE_TUNNEL_VORTEX -> {
+                    drawParticleTunnelVortex(
+                        state = state,
+                        artBaseHue = artBaseHue,
                         timeNanos = animNanos
                     )
                 }
@@ -739,6 +763,288 @@ private fun DrawScope.drawBassParticleHalo(
     }
 }
 
+private fun DrawScope.drawParticleGlobeSphere(
+    state: VisualizerDataState,
+    artBaseHue: Float,
+    timeNanos: Float
+) {
+    val center = Offset(size.width / 2f, size.height / 2f)
+    val radius = (size.width.coerceAtMost(size.height) * 0.38f).coerceAtLeast(50.dp.toPx())
+    val timeSec = timeNanos / 1_000_000_000f
+    val baseHue = (artBaseHue + sin(timeSec * 0.25f) * 12f + 360f) % 360f
+
+    val latSteps = 24
+    val lonSteps = 48
+    val rotY = timeSec * 0.35f
+    val rotX = 0.4f + sin(timeSec * 0.15f) * 0.12f
+
+    val cyanColor = Color.hsv((baseHue + 195f) % 360f, 0.95f, 1.0f)
+    val magentaColor = Color.hsv((baseHue + 315f) % 360f, 0.90f, 0.95f)
+
+    // 1. Deep Volumetric Nebula Atmosphere Bloom
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                cyanColor.copy(alpha = 0.40f * state.bassEnergy + 0.15f),
+                magentaColor.copy(alpha = 0.30f * state.bassEnergy + 0.10f),
+                Color.Transparent
+            ),
+            center = center,
+            radius = radius * 2.1f
+        ),
+        radius = radius * 2.1f,
+        center = center
+    )
+
+    // 2. Ambient Space Dust Floating Particles around the Globe
+    for (i in 0..35) {
+        val dustAngle = (i * 1.7f) + timeSec * 0.2f
+        val dustDist = radius * (1.1f + (i % 7) * 0.12f)
+        val dx = center.x + cos(dustAngle.toDouble()).toFloat() * dustDist
+        val dy = center.y + sin((dustAngle * 0.8f).toDouble()).toFloat() * (dustDist * 0.7f)
+        val dustAlpha = (0.2f + (i % 5) * 0.15f).coerceIn(0.1f, 0.8f)
+        drawCircle(
+            color = (if (i % 2 == 0) cyanColor else magentaColor).copy(alpha = dustAlpha),
+            radius = (0.8f + (i % 3) * 0.6f).dp.toPx(),
+            center = Offset(dx, dy)
+        )
+    }
+
+    // 3. Specular Lens Flare on Top-Right Rim
+    val flareCenter = Offset(center.x + radius * 0.62f, center.y - radius * 0.62f)
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.92f * (0.6f + state.bassEnergy * 0.4f)),
+                cyanColor.copy(alpha = 0.45f),
+                Color.Transparent
+            ),
+            center = flareCenter,
+            radius = radius * 0.45f
+        ),
+        radius = radius * 0.45f,
+        center = flareCenter
+    )
+
+    // 4. High-Density 3D Holographic Particle Matrix Sphere
+    for (lat in 0..latSteps) {
+        val latAngle = (lat.toFloat() / latSteps - 0.5f) * Math.PI.toFloat()
+        val cosLat = cos(latAngle.toDouble()).toFloat()
+        val sinLat = sin(latAngle.toDouble()).toFloat()
+
+        for (lon in 0 until lonSteps) {
+            val lonAngle = (lon.toFloat() / lonSteps) * 2f * Math.PI.toFloat() + rotY
+            val bandIdx = (lat * 2 + lon) % state.numBands
+            val mag = state.smoothedBands[bandIdx]
+
+            // Audio reactive wave displacement with bass punch
+            val waveMod = sin((timeSec * 3.5f + lat * 0.4f + lon * 0.3f).toDouble()).toFloat()
+            val r = radius * (1.0f + mag * 0.45f + state.bassEnergy * 0.25f * waveMod)
+
+            // 3D Cartesian coordinates
+            val x3d = r * cosLat * cos(lonAngle.toDouble()).toFloat()
+            val y3d = r * sinLat
+            val z3d = r * cosLat * sin(lonAngle.toDouble()).toFloat()
+
+            // Rotate around X axis
+            val cosX = cos(rotX.toDouble()).toFloat()
+            val sinX = sin(rotX.toDouble()).toFloat()
+            val yRot = y3d * cosX - z3d * sinX
+            val zRot = y3d * sinX + z3d * cosX
+
+            // Perspective projection
+            val perspective = 450f / (450f + zRot)
+            val screenX = center.x + x3d * perspective
+            val screenY = center.y + yRot * perspective
+
+            if (zRot > -220f) {
+                // Dual-hemisphere lighting: Lit side (right/cyan) vs Shaded side (left/magenta)
+                val depthFactor = ((zRot + 220f) / 440f).coerceIn(0.12f, 1.0f)
+                val nodeColor = if (x3d > 0f) cyanColor else magentaColor
+                val dotSize = (1.0f + mag * 3.8f + depthFactor * 1.8f).dp.toPx()
+
+                // Outer Glow Halo
+                drawCircle(
+                    color = nodeColor.copy(alpha = (depthFactor * 0.55f).coerceIn(0f, 1f)),
+                    radius = dotSize * 1.8f,
+                    center = Offset(screenX, screenY)
+                )
+                // Crisp White-Hot Core
+                drawCircle(
+                    color = Color.White.copy(alpha = depthFactor.coerceIn(0f, 1f)),
+                    radius = dotSize,
+                    center = Offset(screenX, screenY)
+                )
+            }
+        }
+    }
+}
+
+private fun DrawScope.drawWaveGridTerrain(
+    state: VisualizerDataState,
+    artBaseHue: Float,
+    timeNanos: Float
+) {
+    val width = size.width
+    val height = size.height
+    val timeSec = timeNanos / 1_000_000_000f
+    val baseHue = (artBaseHue + 360f) % 360f
+
+    val horizonY = height * 0.38f
+    val bottomY = height * 0.98f
+    val rows = 18
+    val cols = 26
+
+    val cyanColor = Color.hsv((baseHue + 195f) % 360f, 0.95f, 1.0f)
+    val magentaColor = Color.hsv((baseHue + 315f) % 360f, 0.90f, 0.95f)
+
+    // 1. Glowing Synthwave Horizon Sky & Sun Gradient
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(
+                Color.Black,
+                magentaColor.copy(alpha = 0.35f),
+                cyanColor.copy(alpha = 0.30f),
+                Color.Transparent
+            ),
+            startY = 0f,
+            endY = horizonY
+        )
+    )
+
+    // 2. Perspective Horizontal Grid Lines
+    for (r in 0..rows) {
+        val rowNorm = r.toFloat() / rows
+        val y = horizonY + (bottomY - horizonY) * (rowNorm * rowNorm) // Non-linear perspective spacing
+        val alpha = (rowNorm * 0.85f + 0.15f).coerceIn(0.1f, 0.95f)
+
+        val path = Path()
+        for (c in 0 until cols) {
+            val colNorm = c.toFloat() / (cols - 1)
+            val perspectiveSpread = width * (0.05f + 2.1f * rowNorm)
+            val centerX = width / 2f
+            val x = centerX + (colNorm - 0.5f) * perspectiveSpread
+
+            val bandIdx = (c + r * 2) % state.numBands
+            val mag = state.smoothedBands[bandIdx]
+            val wave = sin((timeSec * 4.5f + c * 0.35f + r * 0.55f).toDouble()).toFloat()
+            val zOffset = (mag * 55f + state.bassEnergy * 40f) * wave * rowNorm
+
+            val screenX = x
+            val screenY = y - zOffset
+
+            if (c == 0) path.moveTo(screenX, screenY) else path.lineTo(screenX, screenY)
+        }
+
+        drawPath(
+            path = path,
+            brush = Brush.horizontalGradient(
+                colors = listOf(magentaColor.copy(alpha = alpha), cyanColor.copy(alpha = alpha))
+            ),
+            style = Stroke(width = (1.2f + rowNorm * 1.8f).dp.toPx(), cap = StrokeCap.Round)
+        )
+    }
+
+    // 3. Perspective Vertical Depth Lines
+    for (c in 0 until cols) {
+        val colNorm = c.toFloat() / (cols - 1)
+        val path = Path()
+
+        for (r in 0..rows) {
+            val rowNorm = r.toFloat() / rows
+            val y = horizonY + (bottomY - horizonY) * (rowNorm * rowNorm)
+            val perspectiveSpread = width * (0.05f + 2.1f * rowNorm)
+            val centerX = width / 2f
+            val x = centerX + (colNorm - 0.5f) * perspectiveSpread
+
+            val bandIdx = (c + r * 2) % state.numBands
+            val mag = state.smoothedBands[bandIdx]
+            val wave = sin((timeSec * 4.5f + c * 0.35f + r * 0.55f).toDouble()).toFloat()
+            val zOffset = (mag * 55f + state.bassEnergy * 40f) * wave * rowNorm
+
+            val screenX = x
+            val screenY = y - zOffset
+
+            if (r == 0) path.moveTo(screenX, screenY) else path.lineTo(screenX, screenY)
+        }
+
+        drawPath(
+            path = path,
+            color = cyanColor.copy(alpha = 0.50f),
+            style = Stroke(width = 1.4.dp.toPx(), cap = StrokeCap.Round)
+        )
+    }
+}
+
+private fun DrawScope.drawParticleTunnelVortex(
+    state: VisualizerDataState,
+    artBaseHue: Float,
+    timeNanos: Float
+) {
+    val center = Offset(size.width / 2f, size.height / 2f)
+    val timeSec = timeNanos / 1_000_000_000f
+    val baseHue = (artBaseHue + 360f) % 360f
+
+    val rings = 16
+    val pointsPerRing = 32
+    val maxRadius = size.width.coerceAtMost(size.height) * 0.70f
+
+    val cyanColor = Color.hsv((baseHue + 195f) % 360f, 0.95f, 1.0f)
+    val magentaColor = Color.hsv((baseHue + 315f) % 360f, 0.90f, 0.95f)
+
+    // 1. Infinite Center Suction Core Glow
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.9f * state.bassEnergy + 0.4f),
+                cyanColor.copy(alpha = 0.5f),
+                magentaColor.copy(alpha = 0.2f),
+                Color.Transparent
+            ),
+            center = center,
+            radius = maxRadius * 0.30f
+        ),
+        radius = maxRadius * 0.30f,
+        center = center
+    )
+
+    // 2. Swirling Perspective Vortex Rings
+    for (ring in 0 until rings) {
+        val ringProgress = ((ring + (timeSec * 1.5f)) % rings) / rings.toFloat()
+        // Logarithmic exponential scaling for true 3D tunnel depth illusion
+        val radius = maxRadius * (ringProgress * ringProgress * 0.9f + 0.1f) * (1f + state.bassEnergy * 0.30f)
+        val alpha = (ringProgress * 1.3f).coerceIn(0.05f, 0.98f)
+
+        val angleOffset = timeSec * 0.75f * (if (ring % 2 == 0) 1f else -1f)
+
+        for (p in 0 until pointsPerRing) {
+            val angle = (p.toFloat() / pointsPerRing) * 2f * Math.PI.toFloat() + angleOffset
+            val bandIdx = (ring * 2 + p) % state.numBands
+            val mag = state.smoothedBands[bandIdx]
+
+            val r = radius * (1f + mag * 0.35f)
+            val x = center.x + cos(angle.toDouble()).toFloat() * r
+            val y = center.y + sin(angle.toDouble()).toFloat() * r
+
+            val particleColor = if (p % 2 == 0) cyanColor else magentaColor
+            val particleSize = (0.8f + ringProgress * 4.5f + mag * 3.5f).dp.toPx()
+
+            // Outer Glow
+            drawCircle(
+                color = particleColor.copy(alpha = alpha * 0.65f),
+                radius = particleSize * 1.8f,
+                center = Offset(x, y)
+            )
+            // Crisp Core
+            drawCircle(
+                color = Color.White.copy(alpha = alpha),
+                radius = particleSize * 0.75f,
+                center = Offset(x, y)
+            )
+        }
+    }
+}
+
 @Composable
 private fun StyleSelectorBar(
     currentStyle: VisualizerStyle,
@@ -779,6 +1085,24 @@ private fun StyleSelectorBar(
                 label = "Particles",
                 isSelected = currentStyle == VisualizerStyle.BASS_PARTICLE_HALO,
                 onClick = { onSelectStyle(VisualizerStyle.BASS_PARTICLE_HALO) }
+            )
+            VisualizerStyleItem(
+                icon = Icons.Default.Lens,
+                label = "Globe",
+                isSelected = currentStyle == VisualizerStyle.PARTICLE_GLOBE_SPHERE,
+                onClick = { onSelectStyle(VisualizerStyle.PARTICLE_GLOBE_SPHERE) }
+            )
+            VisualizerStyleItem(
+                icon = Icons.Default.Waves,
+                label = "Terrain",
+                isSelected = currentStyle == VisualizerStyle.WAVE_GRID_TERRAIN,
+                onClick = { onSelectStyle(VisualizerStyle.WAVE_GRID_TERRAIN) }
+            )
+            VisualizerStyleItem(
+                icon = Icons.Default.Grain,
+                label = "Vortex",
+                isSelected = currentStyle == VisualizerStyle.PARTICLE_TUNNEL_VORTEX,
+                onClick = { onSelectStyle(VisualizerStyle.PARTICLE_TUNNEL_VORTEX) }
             )
         }
     }

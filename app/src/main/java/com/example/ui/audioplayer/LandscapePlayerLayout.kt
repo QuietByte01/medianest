@@ -110,9 +110,7 @@ fun LandscapePlayerLayout(
                         trackSeed = currentItem?.id ?: 0L,
                         albumArtUri = currentItem?.albumArtUri,
                         audioSessionId = playerState.audioSessionId,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(24.dp)
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
             } else {

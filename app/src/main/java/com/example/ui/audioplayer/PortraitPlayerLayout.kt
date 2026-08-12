@@ -218,9 +218,7 @@ fun PortraitPlayerLayout(
                             trackSeed = currentItem?.id ?: 0L,
                             albumArtUri = currentItem?.albumArtUri,
                             audioSessionId = playerState.audioSessionId,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(18.dp)
+                            modifier = Modifier.fillMaxSize()
                         )
                     }
 
