@@ -976,6 +976,55 @@ private fun SettingsContent(
 
         HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
+        // Playback Engine Diagnostics
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "Playback Engine Diagnostics", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                Surface(
+                    color = if (playerState.activeEngineName == "FFmpeg") Color(0xFFF59E0B) else Color(0xFF10B981),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        text = playerState.activeEngineName,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                }
+            }
+            
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                backgroundColor = Color(0x1AFFFFFF),
+                borderColor = Color(0x33FFFFFF)
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    DiagnosticRow("Container", playerState.containerName)
+                    DiagnosticRow("Video", playerState.videoCodec)
+                    DiagnosticRow("Audio", playerState.audioCodec)
+                    DiagnosticRow("Decoder", playerState.activeDecoderName)
+                    DiagnosticRow("Status", if (playerState.isHardwareAccelerated) "Hardware Accelerated" else "Software / FFmpeg Fallback")
+                    
+                    if (playerState.activeEngineName == "FFmpeg" || playerState.droppedFrames > 0) {
+                        Divider(color = Color.White.copy(alpha = 0.1f), thickness = 0.5.dp)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            DiagnosticStat("Dropped", playerState.droppedFrames.toString())
+                            DiagnosticStat("Audio Errs", playerState.audioDecodeErrors.toString())
+                            DiagnosticStat("TS Recov", playerState.timestampRecoveryCount.toString())
+                        }
+                    }
+                }
+            }
+        }
+
+        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
         // Picture Mode
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(text = "Picture Mode: ${PictureMode.fromKey(pictureMode).displayName}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
@@ -1096,6 +1145,22 @@ private fun SettingsContent(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DiagnosticRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(text = label, fontSize = 11.sp, color = Color(0xFF94A3B8))
+        Text(text = value, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.End, modifier = Modifier.weight(1f).padding(start = 16.dp))
+    }
+}
+
+@Composable
+private fun DiagnosticStat(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = label, fontSize = 9.sp, color = Color(0xFF94A3B8))
+        Text(text = value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
     }
 }
 

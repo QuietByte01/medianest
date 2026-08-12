@@ -9,6 +9,7 @@ plugins {
 android {
   namespace = "com.example"
   compileSdk = 37
+  ndkVersion = "25.2.9519653"
 
   defaultConfig {
     applicationId = "com.aistudio.medianest.xypqrz"
@@ -54,6 +55,20 @@ android {
     compose = true
     buildConfig = true
   }
+
+  packaging {
+    jniLibs {
+      useLegacyPackaging = false
+    }
+  }
+
+  externalNativeBuild {
+    cmake {
+      path = file("src/main/cpp/CMakeLists.txt")
+      version = "3.22.1"
+    }
+  }
+
   testOptions { unitTests { isIncludeAndroidResources = true } }
 
   // ABI splits: reduces APK size from ~90MB to ~25MB for release per-ABI split

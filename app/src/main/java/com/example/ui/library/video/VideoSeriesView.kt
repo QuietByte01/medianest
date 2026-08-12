@@ -54,28 +54,44 @@ fun VideoSeriesView(
         seriesVideos.groupBy { extractSeriesName(it) }
     }
 
-    if (selectedSeriesName == null) {
-        Column(modifier = Modifier.fillMaxSize()) {
+    // Three-column layout matching the target screenshot design
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Column 1: ALL SERIES
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                    .padding(vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Web Series (${seriesFolderGroups.size} Series)", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Icon(Icons.Default.Tv, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("ALL SERIES", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9EA3B0))
             }
-            
+
+            val seriesGridState = rememberLazyGridState()
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 220.dp),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                state = seriesGridState,
+                columns = GridCells.Fixed(1),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .translucentScrollBarGrid(seriesGridState),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(seriesFolderGroups.keys.toList(), key = { "series_$it" }) { sName ->
                     val sItems = seriesFolderGroups[sName] ?: emptyList()
                     val seasonsCount = remember(sItems) { sItems.map { extractSeasonName(it) }.toSet().size }
                     val coverUri = sItems.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: sItems.firstOrNull()?.uri
+                    val isSelected = selectedSeriesName == sName
 
                     GlassSurface(
                         modifier = Modifier
@@ -83,8 +99,8 @@ fun VideoSeriesView(
                             .clip(RoundedCornerShape(16.dp))
                             .clickable { onSeriesClick(sName) },
                         shape = RoundedCornerShape(16.dp),
-                        backgroundColor = Color(0x28181C2B),
-                        borderColor = Color(0x28FFFFFF)
+                        backgroundColor = if (isSelected) Color(0x403B4252) else Color(0x28181C2B),
+                        borderColor = if (isSelected) Color(0x66FFFFFF) else Color(0x28FFFFFF)
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
@@ -118,35 +134,42 @@ fun VideoSeriesView(
                 }
             }
         }
-    } else if (selectedSeasonName == null) {
-        val currentSeriesItems = remember(seriesFolderGroups, selectedSeriesName) {
-            seriesFolderGroups[selectedSeriesName] ?: emptyList()
-        }
-        val seasonFolderGroups = remember(currentSeriesItems) {
-            currentSeriesItems.groupBy { extractSeasonName(it) }
-        }
 
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Restored descriptive info
-            Column(
+        // Column 2: SEASONS
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+        ) {
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(selectedSeriesName, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
-                Text("${seasonFolderGroups.size} Seasons • ${currentSeriesItems.size} Episodes", fontSize = 12.sp, color = Color(0xFF9EA3B0))
+                Text("SEASONS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9EA3B0))
             }
 
+            val currentSeriesItems = remember(seriesFolderGroups, selectedSeriesName) {
+                if (selectedSeriesName != null) seriesFolderGroups[selectedSeriesName] ?: emptyList() else emptyList()
+            }
+            val seasonFolderGroups = remember(currentSeriesItems) {
+                currentSeriesItems.groupBy { extractSeasonName(it) }
+            }
+
+            val seasonGridState = rememberLazyGridState()
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 200.dp),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                state = seasonGridState,
+                columns = GridCells.Fixed(1),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .translucentScrollBarGrid(seasonGridState),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(seasonFolderGroups.keys.sorted(), key = { "season_$it" }) { seasonName ->
                     val seasonItems = seasonFolderGroups[seasonName] ?: emptyList()
                     val coverUri = seasonItems.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: seasonItems.firstOrNull()?.uri
+                    val isSelected = selectedSeasonName == seasonName
 
                     GlassSurface(
                         modifier = Modifier
@@ -154,8 +177,8 @@ fun VideoSeriesView(
                             .clip(RoundedCornerShape(16.dp))
                             .clickable { onSeasonClick(seasonName) },
                         shape = RoundedCornerShape(16.dp),
-                        backgroundColor = Color(0x28181C2B),
-                        borderColor = Color(0x28FFFFFF)
+                        backgroundColor = if (isSelected) Color(0x403B4252) else Color(0x28181C2B),
+                        borderColor = if (isSelected) Color(0x66FFFFFF) else Color(0x28FFFFFF)
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
@@ -189,33 +212,40 @@ fun VideoSeriesView(
                 }
             }
         }
-    } else {
-        val currentSeasonItems = remember(seriesFolderGroups, selectedSeriesName, selectedSeasonName) {
-            val seriesItems = seriesFolderGroups[selectedSeriesName] ?: emptyList()
-            seriesItems.filter { extractSeasonName(it) == selectedSeasonName }
-        }
 
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Restored descriptive info
-            Column(
+        // Column 3: EPISODES
+        Column(
+            modifier = Modifier
+                .weight(1.2f)
+                .fillMaxHeight()
+        ) {
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("$selectedSeriesName > $selectedSeasonName", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${currentSeasonItems.size} Episodes", fontSize = 12.sp, color = Color(0xFF9EA3B0))
+                Text("EPISODES", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9EA3B0))
             }
 
-            val gridState = rememberLazyGridState()
+            val currentSeasonItems = remember(seriesFolderGroups, selectedSeriesName, selectedSeasonName) {
+                if (selectedSeriesName != null && selectedSeasonName != null) {
+                    val seriesItems = seriesFolderGroups[selectedSeriesName] ?: emptyList()
+                    seriesItems.filter { extractSeasonName(it) == selectedSeasonName }
+                } else {
+                    emptyList()
+                }
+            }
+
+            val episodeGridState = rememberLazyGridState()
             LazyVerticalGrid(
-                state = gridState,
-                columns = GridCells.Adaptive(minSize = 280.dp),
+                state = episodeGridState,
+                columns = GridCells.Fixed(1),
                 modifier = Modifier
                     .fillMaxSize()
-                    .translucentScrollBarGrid(gridState),
-                contentPadding = PaddingValues(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                    .translucentScrollBarGrid(episodeGridState),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(currentSeasonItems, key = { it.id }) { item ->
                     WideVideoCard(

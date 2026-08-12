@@ -221,6 +221,7 @@ fun VideosTab(
                 else -> emptyList()
             }
             videosList.filter { item ->
+                if (isFromExcludedCategoryFolder(item)) return@filter false
                 crossRefUris.contains(item.uri.toString()) ||
                         (filterKeywords.isNotEmpty() && filterKeywords.any { kw ->
                             item.title.lowercase().contains(kw) ||
@@ -412,6 +413,7 @@ fun VideosTab(
                     else -> emptyList()
                 }
                 videosList.filter { item ->
+                    if (isFromExcludedCategoryFolder(item)) return@filter false
                     crossRefUris.contains(item.uri.toString()) ||
                             crossRefUris.any { ref -> ref == item.uri.toString() || ref == item.uri.path } ||
                             (filterKeywords.isNotEmpty() && filterKeywords.any { kw ->
@@ -456,6 +458,7 @@ fun VideosTab(
                 }
                 
                 videosList.filter { item ->
+                    if (isFromExcludedCategoryFolder(item)) return@filter false
                     // 1. Explicitly linked via DB
                     val isLinked = crossRefUris.contains(item.uri.toString()) ||
                             crossRefUris.any { ref -> ref == item.uri.toString() || ref == item.uri.path }
