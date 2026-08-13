@@ -67,7 +67,12 @@ data class PlayerState(
     val audioCodec: String = "Unknown",
     val decoderFallbackReason: String? = null,
     val audioSessionId: Int = 0,
-    val activeEngineName: String = "Media3"
+    val activeEngineName: String = "Media3",
+    // DSP Settings
+    val bassBoostPercent: Int = 0,
+    val volumeBoostPercent: Int = 0,
+    val eqBands: List<Float> = listOf(0f, 0f, 0f, 0f, 0f), // 5 bands default
+    val isDolbyEnabled: Boolean = false
 )
 
 @OptIn(UnstableApi::class)
@@ -204,7 +209,10 @@ class ExoPlayerManager private constructor(private val context: Context) {
                 
                 // If we switched to FFmpeg, apply the surface manually.
                 // If we are on Media3, the VideoPlayerScreen's AndroidView will attach the surface itself.
-                if (activeEngine == ffmpegEngine) activeEngine?.setSurface(lastSurface)
+                if (activeEngine == ffmpegEngine) {
+                    activeEngine?.setSurface(lastSurface)
+                    updateNativeFilters()
+                }
                 
                 activeEngine?.prepare(item.uri, wasPlaying)
                 activeEngine?.seekTo(pos)
@@ -310,7 +318,10 @@ class ExoPlayerManager private constructor(private val context: Context) {
                         isHardwareAccelerated = newEngine == media3Engine
                     )
 
-                    if (activeEngine == ffmpegEngine) activeEngine?.setSurface(lastSurface)
+                    if (activeEngine == ffmpegEngine) {
+                        activeEngine?.setSurface(lastSurface)
+                        updateNativeFilters() // Apply DSP settings to FFmpeg
+                    }
                     activeEngine?.prepare(currentTarget.uri, true)
                     if (startPosMs > 0) activeEngine?.seekTo(startPosMs)
                     if (requestAudioFocus()) activeEngine?.play()
@@ -389,10 +400,56 @@ class ExoPlayerManager private constructor(private val context: Context) {
         } catch (_: Exception) {}
     }
 
-    fun setAudioBoost(percent: Int) {}
+    fun setAudioBoost(percent: Int) {
+        setVolumeBoost(percent)
+    }
     fun getAvailableTextTracks(): List<TextTrackInfo> = emptyList()
     fun selectTextTrack(index: Int) {}
     fun addExternalSubtitle(uri: Uri, name: String = "Subtitle") {}
+    
+    fun setBassBoost(percent: Int) {
+        _playerState.value = _playerState.value.copy(bassBoostPercent = percent)
+        updateNativeFilters()
+    }
+
+    fun setVolumeBoost(percent: Int) {
+        _playerState.value = _playerState.value.copy(volumeBoostPercent = percent)
+        updateNativeFilters()
+    }
+
+    fun setEqBands(bands: List<Float>) {
+        _playerState.value = _playerState.value.copy(eqBands = bands)
+        updateNativeFilters()
+    }
+
+    private fun updateNativeFilters() {
+        val state = _playerState.value
+        val filterList = mutableListOf<String>()
+        
+        // 1. Bass Boost
+        if (state.bassBoostPercent > 0) {
+            val gain = (state.bassBoostPercent / 100f) * 15 // Max 15dB
+            filterList.add("bass=g=$gain:f=100:w=0.5")
+        }
+        
+        // 2. EQ Bands (Simplified 5-band)
+        val freqs = listOf(60, 230, 910, 3600, 14000)
+        state.eqBands.forEachIndexed { index, gain ->
+            if (index < freqs.size && gain != 0f) {
+                filterList.add("equalizer=f=${freqs[index]}:t=q:w=1:g=$gain")
+            }
+        }
+        
+        // 3. Volume Boost
+        if (state.volumeBoostPercent > 0) {
+            val multiplier = 1.0f + (state.volumeBoostPercent / 100f) * 2.0f // Up to 3.0x (300%)
+            filterList.add("volume=$multiplier")
+        }
+
+        val filterStr = if (filterList.isEmpty()) "anull" else filterList.joinToString(",")
+        ffmpegEngine.setAudioFilters(filterStr)
+    }
+
     fun setVideoBackgroundPlayEnabled(enabled: Boolean) { _playerState.value = _playerState.value.copy(isVideoBackgroundPlayEnabled = enabled) }
     fun clearAllCache(onComplete: () -> Unit = {}) { onComplete() }
     fun addToQueue(items: List<MediaItem>) {}

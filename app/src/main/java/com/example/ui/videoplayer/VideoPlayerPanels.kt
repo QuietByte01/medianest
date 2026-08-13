@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
@@ -1084,23 +1085,71 @@ private fun SettingsContent(
 
         HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
-        // Audio Boost
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(text = "Audio Boost (Loudness): ${playerState.audioBoostPercent}%", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
-            Slider(
-                value = playerState.audioBoostPercent.toFloat(),
-                onValueChange = { playerManager.setAudioBoost(it.toInt()) },
-                valueRange = 0f..100f,
-                colors = sliderColors,
-                thumb = {
-                    Box(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clip(CircleShape)
-                            .background(Color.White)
-                    )
+        // Native Audio DSP (FFmpeg + Oboe)
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text(text = "Native Audio DSP (Low Latency)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF10B981))
+            
+            // Bass Boost
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(text = "High Bass Boost", fontSize = 12.sp, color = Color.White)
+                    Text(text = "${playerState.bassBoostPercent}%", fontSize = 12.sp, color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
                 }
-            )
+                Slider(
+                    value = playerState.bassBoostPercent.toFloat(),
+                    onValueChange = { playerManager.setBassBoost(it.toInt()) },
+                    valueRange = 0f..100f,
+                    colors = sliderColors
+                )
+            }
+
+            // Equalizer (5-Band)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(text = "5-Band Native Equalizer", fontSize = 12.sp, color = Color.White)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val labels = listOf("60", "230", "910", "3.6K", "14K")
+                    playerState.eqBands.forEachIndexed { index, gain ->
+                        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(modifier = Modifier.height(100.dp).width(30.dp), contentAlignment = Alignment.Center) {
+                                Slider(
+                                    value = gain,
+                                    onValueChange = { newGain ->
+                                        val newBands = playerState.eqBands.toMutableList()
+                                        newBands[index] = newGain
+                                        playerManager.setEqBands(newBands)
+                                    },
+                                    valueRange = -10f..10f,
+                                    modifier = Modifier
+                                        .graphicsLayer {
+                                            rotationZ = -90f
+                                            translationX = -35f // Adjust for rotation
+                                        }
+                                        .width(100.dp),
+                                    colors = sliderColors
+                                )
+                            }
+                            Text(labels[index], fontSize = 8.sp, color = Color.White.copy(alpha = 0.5f))
+                        }
+                    }
+                }
+            }
+
+            // Volume Boost
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(text = "Super Volume Boost", fontSize = 12.sp, color = Color.White)
+                    Text(text = "${playerState.volumeBoostPercent}%", fontSize = 12.sp, color = Color(0xFFF59E0B), fontWeight = FontWeight.Bold)
+                }
+                Slider(
+                    value = playerState.volumeBoostPercent.toFloat(),
+                    onValueChange = { playerManager.setVolumeBoost(it.toInt()) },
+                    valueRange = 0f..100f,
+                    colors = sliderColors
+                )
+            }
         }
 
         HorizontalDivider(color = Color.White.copy(alpha = 0.08f))

@@ -1,9 +1,7 @@
 package com.example.ui.audioplayer
 
 import android.content.Context
-import android.content.Intent
 import android.content.res.Configuration
-import android.media.audiofx.AudioEffect
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -89,6 +87,7 @@ fun AudioPlayerScreen(
     var showMetadataModal by remember { mutableStateOf(false) }
     var showDetailsSheet by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
+    var showDspSheet by remember { mutableStateOf(false) }
     var showAlbumSongsSheet by remember { mutableStateOf(false) }
     var showAlbumSongsInPanel by remember { mutableStateOf(false) }
     var showAlbumSongsInPortraitBox by remember { mutableStateOf(false) }
@@ -121,6 +120,7 @@ fun AudioPlayerScreen(
             showMetadataModal -> showMetadataModal = false
             showAddAlbumToPlaylistDialog -> showAddAlbumToPlaylistDialog = false
             showAlbumSongsSheet -> showAlbumSongsSheet = false
+            showDspSheet -> showDspSheet = false
             showLyricsView -> showLyricsView = false
             else -> onClose()
         }
@@ -323,20 +323,11 @@ fun AudioPlayerScreen(
                             )
                         }
                         DropdownMenuItem(
-                            text = { Text("Equalizer", color = if (isDark) Color.White else Color.Black) },
+                            text = { Text("Native Audio DSP", color = if (isDark) Color.White else Color.Black) },
                             leadingIcon = { Icon(Icons.Default.Equalizer, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                             onClick = {
                                 showOverflowMenu = false
-                                try {
-                                    val intent = Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL).apply {
-                                        putExtra(AudioEffect.EXTRA_AUDIO_SESSION, playerState.audioSessionId)
-                                        putExtra(AudioEffect.EXTRA_PACKAGE_NAME, context.packageName)
-                                        putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
-                                    }
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "System equalizer not found", Toast.LENGTH_SHORT).show()
-                                }
+                                showDspSheet = true
                             }
                         )
                         DropdownMenuItem(
@@ -590,6 +581,14 @@ fun AudioPlayerScreen(
                     if (raw != null) showLyricsView = true
                 },
                 onDismiss = { showManualLyricsDialog = false }
+            )
+        }
+
+        if (showDspSheet) {
+            com.example.ui.components.NativeAudioDspSheet(
+                playerState = playerState,
+                playerManager = playerManager,
+                onDismiss = { showDspSheet = false }
             )
         }
     }

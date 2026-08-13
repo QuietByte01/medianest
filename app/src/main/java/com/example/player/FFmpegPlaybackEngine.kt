@@ -37,10 +37,11 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
     private external fun nativeGetPosition(ptr: Long): Long
     private external fun nativeGetDuration(ptr: Long): Long
     private external fun nativeIsPlaying(ptr: Long): Boolean
+    private external fun nativeSetAudioFilters(ptr: Long, filters: String)
 
     private val _diagnosticState = MutableStateFlow(
         EngineDiagnosticState(
-            engineName = "FFmpeg",
+            engineName = "FFmpeg Native (Oboe)",
             containerName = "Unknown",
             videoCodec = "Unknown",
             audioCodec = "Unknown",
@@ -56,9 +57,6 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
         if (isLibLoaded) {
             try {
                 nativeContextPtr = nativeInit()
-                if (nativeContextPtr == 0L) {
-                    Log.e(TAG, "Failed to initialize native FFmpeg context")
-                }
             } catch (e: Throwable) {
                 Log.e(TAG, "Error calling nativeInit: ${e.message}")
             }
@@ -87,7 +85,7 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
             containerName = profile.container,
             videoCodec = profile.videoCodec,
             audioCodec = profile.audioCodec,
-            decoderName = "FFmpeg Software Decoder"
+            decoderName = "FFmpeg Native (Oboe Low Latency)"
         )
         
         try {
@@ -101,37 +99,18 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
         if (playWhenReady) {
             play()
         }
-        Log.i(TAG, "Prepared FFmpeg engine for $uri with profile $profile")
     }
 
     override fun play() {
-        if (nativeContextPtr != 0L) {
-            try {
-                nativePlay(nativeContextPtr)
-            } catch (e: Throwable) {
-                Log.e(TAG, "nativePlay failed", e)
-            }
-        }
+        if (nativeContextPtr != 0L) try { nativePlay(nativeContextPtr) } catch (e: Throwable) {}
     }
 
     override fun pause() {
-        if (nativeContextPtr != 0L) {
-            try {
-                nativePause(nativeContextPtr)
-            } catch (e: Throwable) {
-                Log.e(TAG, "nativePause failed", e)
-            }
-        }
+        if (nativeContextPtr != 0L) try { nativePause(nativeContextPtr) } catch (e: Throwable) {}
     }
 
     override fun seekTo(positionMs: Long) {
-        if (nativeContextPtr != 0L) {
-            try {
-                nativeSeek(nativeContextPtr, positionMs)
-            } catch (e: Throwable) {
-                Log.e(TAG, "nativeSeek failed", e)
-            }
-        }
+        if (nativeContextPtr != 0L) try { nativeSeek(nativeContextPtr, positionMs) } catch (e: Throwable) {}
     }
 
     override fun setPlaybackSpeed(speed: Float) {}
@@ -139,13 +118,7 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
 
     override fun setSurface(surface: Surface?) {
         currentSurface = surface
-        if (nativeContextPtr != 0L) {
-            try {
-                nativeUpdateSurface(nativeContextPtr, surface)
-            } catch (e: Throwable) {
-                Log.e(TAG, "nativeUpdateSurface failed", e)
-            }
-        }
+        if (nativeContextPtr != 0L) try { nativeUpdateSurface(nativeContextPtr, surface) } catch (e: Throwable) {}
     }
 
     override fun setVolume(volume: Float) {}
@@ -155,23 +128,15 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
             try {
                 nativeRelease(nativeContextPtr)
                 nativeContextPtr = 0L
-            } catch (e: Throwable) {
-                Log.e(TAG, "nativeRelease failed", e)
-            }
+            } catch (e: Throwable) {}
         }
-        audioTrack?.release()
-        audioTrack = null
     }
 
-    override val currentPositionMs: Long
-        get() = if (nativeContextPtr != 0L) { try { nativeGetPosition(nativeContextPtr) } catch(e: Throwable) { 0L } } else 0L
+    fun setAudioFilters(filters: String) {
+        if (nativeContextPtr != 0L) try { nativeSetAudioFilters(nativeContextPtr, filters) } catch (e: Throwable) {}
+    }
 
-    override val durationMs: Long
-        get() = if (nativeContextPtr != 0L) { try { nativeGetDuration(nativeContextPtr) } catch(e: Throwable) { 0L } } else 0L
-
-    override val isPlaying: Boolean
-        get() = if (nativeContextPtr != 0L) { try { nativeIsPlaying(nativeContextPtr) } catch(e: Throwable) { false } } else false
-
+    // Called from Native
     fun onNativeStatsUpdate(dropped: Int, audioErrs: Int, tsRecov: Int) {
         _diagnosticState.value = _diagnosticState.value.copy(
             droppedFrames = dropped,
@@ -180,42 +145,12 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
         )
     }
 
-    private var audioTrack: android.media.AudioTrack? = null
-    
-    fun onAudioData(data: ByteArray, sampleRate: Int, channels: Int) {
-        try {
-            val track = audioTrack
-            if (track == null || track.sampleRate != sampleRate) {
-                Log.i(TAG, "Recreating AudioTrack: $sampleRate Hz, $channels ch")
-                track?.release()
-                val channelConfig = if (channels == 1) android.media.AudioFormat.CHANNEL_OUT_MONO else android.media.AudioFormat.CHANNEL_OUT_STEREO
-                val attributes = android.media.AudioAttributes.Builder()
-                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
-                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .build()
-                val format = android.media.AudioFormat.Builder()
-                    .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(sampleRate)
-                    .setChannelMask(channelConfig)
-                    .build()
-                
-                val minBufSize = android.media.AudioTrack.getMinBufferSize(sampleRate, channelConfig, android.media.AudioFormat.ENCODING_PCM_16BIT)
-                val newTrack = android.media.AudioTrack.Builder()
-                    .setAudioAttributes(attributes)
-                    .setAudioFormat(format)
-                    .setBufferSizeInBytes(minBufSize * 4)
-                    .setTransferMode(android.media.AudioTrack.MODE_STREAM)
-                    .build()
-                newTrack.play()
-                audioTrack = newTrack
-            }
-            
-            val result = audioTrack?.write(data, 0, data.size, android.media.AudioTrack.WRITE_NON_BLOCKING)
-            if (result != null && result < 0) {
-                Log.w(TAG, "AudioTrack write error: $result")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "AudioTrack write failed", e)
-        }
-    }
+    override val currentPositionMs: Long
+        get() = if (nativeContextPtr != 0L) try { nativeGetPosition(nativeContextPtr) } catch(e: Throwable) { 0L } else 0L
+
+    override val durationMs: Long
+        get() = if (nativeContextPtr != 0L) try { nativeGetDuration(nativeContextPtr) } catch(e: Throwable) { 0L } else 0L
+
+    override val isPlaying: Boolean
+        get() = if (nativeContextPtr != 0L) try { nativeIsPlaying(nativeContextPtr) } catch(e: Throwable) { false } else false
 }

@@ -49,6 +49,17 @@ object MediaCapabilityInspector {
             }
         }
 
+        // Route specific audio formats to FFmpeg for Native Low Latency & EQ support
+        val audioExtensions = listOf(".mp3", ".flac", ".wav", ".ogg", ".opus", ".m4a")
+        if (audioExtensions.any { fileName.endsWith(it) }) {
+             return MediaProfile(
+                container = "Audio (Native)",
+                videoCodec = "NONE",
+                audioCodec = fileName.substringAfterLast(".").uppercase(),
+                requiresFFmpegFallback = true // Use FFmpeg + Oboe for high-fidelity audio
+            )
+        }
+
         // Fallback to extension check if probe is missing or clean
         val isAvi = fileName.endsWith(".avi") || path.contains("/avi")
         if (isAvi) {

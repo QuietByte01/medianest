@@ -19,6 +19,12 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    
+    externalNativeBuild {
+      cmake {
+        arguments("-DANDROID_STL=c++_shared")
+      }
+    }
   }
 
   signingConfigs {
@@ -54,6 +60,7 @@ android {
   buildFeatures {
     compose = true
     buildConfig = true
+    prefab = true
   }
 
   packaging {
@@ -104,6 +111,7 @@ dependencies {
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.datastore.preferences)
   implementation(libs.androidx.documentfile)
+  implementation("com.google.oboe:oboe:1.9.3")
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.lifecycle.viewmodel.compose)

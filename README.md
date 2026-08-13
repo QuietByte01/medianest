@@ -36,14 +36,84 @@ View your app in AI Studio: [https://ai.studio/apps/17f7222d-22c3-467f-ace8-cb1f
 
 ---
 
-## 🚀 Hardware Optimization
+## 🚀 Hardware Optimization & Architecture
 
-MediaNest includes a custom **Hardware Acceleration Engine** that detects device capabilities at runtime:
-- **Zero-Copy Pipeline:** Direct surface binding from decoder buffers to VRAM.
-- **Adaptive Caching:** Memory tiers (2GB to 64GB+) determine cache sizes dynamically.
-- **GPU Rendering:** UI effects, blur, and scaling filters (Lanczos/CAS) are processed entirely on the GPU.
+MediaNest implements a sophisticated, multi-engine pipeline to ensure high-performance playback and broad format compatibility.
 
-For detailed specifications, see [HARDWARE_ACCELERATION.md](file:///Users/sachin/Desktop/Lab/VibeCoded/medianest/HARDWARE_ACCELERATION.md).
+### Media Flow Architecture
+
+```mermaid
+graph TD
+    Input[Media File / Content URI] --> Inspector{Media Inspector}
+    
+    %% Image Path
+    Inspector -->|Image: JPG/PNG/WebP/GIF| Coil[Coil Image Engine]
+    Coil --> HW_Bitmap[Hardware Bitmaps]
+    HW_Bitmap --> GPU_Comp[GPU Composition]
+
+    %% Routing Decisions
+    Inspector -->|Standard: MP4/MKV/WebM| Media3[Media3 / ExoPlayer]
+    
+    %% Fallback Trigger
+    Inspector -->|Non-Android: AVI/FLV/WMV| FFmpegTrigger{FFmpeg Fallback}
+    Inspector -->|Corrupted: Broken Headers/PTS| FFmpegTrigger
+    Inspector -->|Hi-Fi: FLAC/ALAC/Lossless| FFmpegTrigger
+
+    %% Hardware Path
+    subgraph HW_SoC_Path [Hardware Accelerated Path]
+        Media3 --> MediaCodec[Android MediaCodec HW]
+        MediaCodec -->|H.264 / HEVC / AV1 / VP9| Surface[Direct Surface Binding]
+    end
+
+    %% Software/Native Path
+    subgraph Native_Path [Native FFmpeg & Oboe Path]
+        FFmpegTrigger --> Demux[Native Demuxer libavformat]
+        Demux -->|Handles AVI Indexing / Proc FD| Dec[Native Decoder libavcodec]
+        
+        %% Video SW Fallback
+        Dec -->|MPEG-4 / Xvid / Sorenson / WMV| SWS[swscale YUV to RGB]
+        SWS --> NativeWin[ANativeWindow Rendering]
+        
+        %% Audio Oboe Path
+        Dec -->|AC-3 / DTS / FLAC / MP3| Filters[libavfilter DSP]
+        Filters -->|Bass Boost / EQ / Vol Boost| Resample[libswresample]
+        Resample --> Oboe[Oboe / AAudio Direct]
+    end
+
+    %% Fault Tolerance Mechanism
+    subgraph Resilience_Layer [Fault Tolerance & Recovery]
+        Resilience[Native Resilience Loop]
+        Resilience -->|+discardcorrupt| Dec
+        Resilience -->|ignore_err| Demux
+        Resilience -->|Clock Resync| NativeWin
+    end
+
+    FFmpegTrigger -.->|Unstable Input| Resilience
+
+    Surface --> Display[Screen]
+    NativeWin --> Display
+    Oboe --> AudioHW[Audio Hardware]
+```
+
+### Engine Selection Matrix
+
+| Media Type | Formats / Codecs | Why Fallback? | Decoding Engine | Rendering Path |
+| :--- | :--- | :--- | :--- | :--- |
+| **Standard Video** | MP4, MKV, WebM (H.264, HEVC, AV1) | Native Support | **Media3 (HW)** | MediaCodec -> Surface |
+| **Non-Native Video**| **AVI, FLV, WMV** (Xvid, DivX, Sorenson) | Missing HW Decoders | **FFmpeg (SW)** | swscale -> NativeWindow |
+| **Corrupted Video** | **Damaged Headers, Invalid PTS** | Media3 Stalls/Crashes | **FFmpeg (Resilient)** | Fault-Tolerant Loop |
+| **Lossless Audio** | **FLAC, ALAC, WAV, DTS, AC-3** | Bit-Perfect / DSP | **FFmpeg (Native)** | Oboe (Direct HW Access) |
+| **Standard Audio** | MP3, AAC | System Default | **Media3** | System Mixer |
+| **Images** | JPG, PNG, WEBP, SVG, GIF | Zero-Copy | **Coil** | Hardware Bitmaps |
+
+### Fault Tolerance & Resilience
+- **Native Recovery**: The FFmpeg loop uses `+discardcorrupt` and `ignore_err` flags to bypass damaged frames.
+- **Clock Synchronization**: The master clock is slaved to Oboe's hardware clock. If video timestamps drift by more than 500ms, a sub-millisecond resync occurs to prevent hangs.
+- **Memory Safety**: Uses direct File Descriptors (`/proc/self/fd/`) to avoid memory-heavy file copying during native probing.
+
+---
+
+## 🚀 Hardware Features Details
 
 ---
 
