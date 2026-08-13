@@ -101,6 +101,18 @@ fun isShorts(item: MediaItem): Boolean {
     return (isVerticalOrSquare && isUnder90s) || hasKeyword
 }
 
+private fun cleanSeriesName(name: String): String {
+    // Remove season patterns ranging from 1 to 100 (e.g., "season 1", "season 100", "s01", "s100")
+    val seasonRemovalPattern = Regex("(?i)\\b(season\\s*(?:[1-9][0-9]?|100)|s(?:[1-9][0-9]?|100)|s0?[1-9]|s[1-9][0-9]|s100)\\b")
+    val withoutSeason = name.replace(seasonRemovalPattern, "")
+
+    // Remove specified special characters and symbols: . , # ! ? - _ + = ) ( [ ] / { } & $ @ *
+    val sanitized = withoutSeason.replace(Regex("[.,#!?\\-_+=()\\[\\]/{}&$@*]"), " ")
+
+    // Trim extra whitespace resulting from replacements
+    return sanitized.replace(Regex("\\s+"), " ").trim()
+}
+
 fun extractSeriesName(item: MediaItem): String {
     val relPath = item.relativePath?.trim('/') ?: ""
     val bucket = item.bucketName ?: "Web Series"
@@ -135,18 +147,6 @@ fun extractSeriesName(item: MediaItem): String {
     // Fallback to cleaning the last part of the path or the bucket name
     val fallbackTarget = parts.lastOrNull() ?: bucket
     return cleanSeriesName(fallbackTarget)
-}
-
-private fun cleanSeriesName(name: String): String {
-    // Remove season patterns ranging from 1 to 100 (e.g., "season 1", "season 100", "s01", "s100")
-    val seasonRemovalPattern = Regex("(?i)\\b(season\\s*(?:[1-9][0-9]?|100)|s(?:[1-9][0-9]?|100)|s0?[1-9]|s[1-9][0-9]|s100)\\b")
-    val withoutSeason = name.replace(seasonRemovalPattern, "")
-
-    // Remove specified special characters and symbols: . , # ! ? - _ + = ) ( [ ] / { } & $ @ *
-    val sanitized = withoutSeason.replace(Regex("[.,#!?\\-_+=()\\[\\]/{}&$@*]"), " ")
-
-    // Trim extra whitespace resulting from replacements
-    return sanitized.replace(Regex("\\s+"), " ").trim()
 }
 
 fun extractSeasonName(item: MediaItem): String {

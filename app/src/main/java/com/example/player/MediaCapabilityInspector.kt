@@ -1,6 +1,7 @@
 package com.example.player
 
 import android.net.Uri
+import android.util.Log
 import java.util.Locale
 
 object MediaCapabilityInspector {
@@ -12,40 +13,50 @@ object MediaCapabilityInspector {
         val requiresFFmpegFallback: Boolean
     )
 
-    fun inspect(uri: Uri): MediaProfile {
+    fun inspect(uri: Uri, probeResult: String? = null): MediaProfile {
         val path = uri.path?.lowercase(Locale.ROOT) ?: uri.toString().lowercase(Locale.ROOT)
+        val fileName = path.substringAfterLast('/')
         
-        // Check for known formats or extensions requiring FFmpeg fallback
-        val isAvi = path.endsWith(".avi")
-        val isFlv = path.endsWith(".flv")
-        val isTs = path.endsWith(".ts") || path.endsWith(".mts")
-        val isOgg = path.endsWith(".ogg")
-        val isWmv = path.endsWith(".wmv")
-        val isAsf = path.endsWith(".asf")
+        // Use Probe Result if available (format: "container|vcodec|acodec")
+        if (probeResult != null) {
+            val parts = probeResult.split("|")
+            if (parts.size >= 3) {
+                val container = parts[0].uppercase()
+                val vcodec = parts[1].lowercase()
+                val acodec = parts[2].lowercase()
+                
+                Log.d("MediaInspector", "Probe: Container=$container, Video=$vcodec, Audio=$acodec")
+                
+                // Only force FFmpeg for containers/codecs Media3/MediaCodec definitively struggles with
+                val isAvi = container.contains("AVI")
+                val isMpeg4 = vcodec.contains("mpeg4") || vcodec.contains("xvid") || vcodec.contains("msmpeg4")
+                val isAc3 = acodec.contains("ac3")
+                
+                val needsFFmpeg = isAvi && (isMpeg4 || isAc3) || 
+                                  vcodec.contains("flv") || 
+                                  vcodec.contains("wmv") ||
+                                  acodec.contains("wma")
+                
+                if (needsFFmpeg) {
+                    Log.i("MediaInspector", "FFmpeg fallback triggered by probe: $probeResult")
+                    return MediaProfile(
+                        container = container,
+                        videoCodec = vcodec.uppercase(),
+                        audioCodec = acodec.uppercase(),
+                        requiresFFmpegFallback = true
+                    )
+                }
+            }
+        }
 
+        // Fallback to extension check if probe is missing or clean
+        val isAvi = fileName.endsWith(".avi") || path.contains("/avi")
         if (isAvi) {
+            Log.i("MediaInspector", "FFmpeg fallback triggered by extension: $fileName")
             return MediaProfile(
-                container = "AVI",
-                videoCodec = "MPEG-4 ASP / XVID",
-                audioCodec = "AC-3 5.1",
-                requiresFFmpegFallback = true
-            )
-        }
-
-        if (isFlv) {
-            return MediaProfile(
-                container = "FLV",
-                videoCodec = "Sorenson Spark / H.264",
-                audioCodec = "MP3 / AAC",
-                requiresFFmpegFallback = true
-            )
-        }
-
-        if (isTs) {
-            return MediaProfile(
-                container = "MPEG-TS",
-                videoCodec = "MPEG-2 / H.264",
-                audioCodec = "AC-3 / AAC",
+                container = "AVI (Ext)",
+                videoCodec = "MPEG-4 / XVID",
+                audioCodec = "AC-3",
                 requiresFFmpegFallback = true
             )
         }

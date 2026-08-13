@@ -78,3 +78,15 @@ For detailed specifications, see [HARDWARE_ACCELERATION.md](file:///Users/sachin
 ## 🛡️ Privacy & Security
 
 **100% Local Processing.** All media decoding, indexing, and UI rendering happen strictly on your device. MediaNest does not upload your personal media to any cloud services.
+
+---
+
+## 📱 Device Support & Build Variants
+
+MediaNest uses **ABI Splits** to keep the application size small while providing native FFmpeg support. When building or downloading, choose the variant that matches your device:
+
+- **`arm64-v8a` (Modern Standard):** Recommended for almost all Android devices released in the last 5-7 years (e.g., Pixel 4-9, Samsung S10-S24). Offers the best performance for native decoding.
+- **`armeabi-v7a` (Legacy):** Suitability for older 32-bit ARM devices or budget entry-level phones (pre-2017 hardware).
+- **`x86_64` (Emulators/Laptops):** Optimized for Android Emulators (running on Mac/Windows) and Intel-based Chromebooks or tablets.
+- **`Universal APK` (One-Size-Fits-All):** Contains native code for all architectures. Larger file size (~90MB vs ~25MB), but compatible with any device.
+

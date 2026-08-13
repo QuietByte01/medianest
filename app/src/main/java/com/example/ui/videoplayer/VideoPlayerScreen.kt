@@ -7,6 +7,7 @@ import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.compose.animation.*
@@ -281,43 +282,87 @@ fun VideoPlayerScreen(
                     coroutineScope = scope
                 )
         ) {
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        player = playerManager.exoPlayer
-                        useController = false
-                        resizeMode = when (cropMode) {
-                            "CROP" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                            "STRETCH" -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                            "ORIGINAL" -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
-                            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        }
-                        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                    }
-                },
-                update = { view ->
-                    view.resizeMode = when (cropMode) {
-                        "CROP" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                        "STRETCH" -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                        "ORIGINAL" -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
-                        else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    }
-                    try {
-                        val androidFilter = com.example.ui.components.PictureModeUtils.getAndroidColorFilter(
-                            modeKey = pictureMode,
-                            customSat = customSat, customCon = customCon, customWarmth = customWarmth,
-                            enabled = pictureModeEnabled
-                        )
-                        if (androidFilter != null) {
-                            val paint = android.graphics.Paint().apply { colorFilter = androidFilter }
-                            view.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, paint)
-                        } else {
-                            view.setLayerType(android.view.View.LAYER_TYPE_NONE, null)
-                        }
-                    } catch (_: Exception) {}
-                },
-                modifier = Modifier.fillMaxSize().graphicsLayer(scaleX = scale, scaleY = scale)
-            )
+            // Use a key that forced recreation if the engine changes OR the player instance changes.
+            // Use a key that forced recreation if the engine changes OR the player instance changes.
+            androidx.compose.runtime.key(playerState.activeEngineName) {
+                if (playerState.activeEngineName == "Media3") {
+                    AndroidView(
+                        factory = { ctx ->
+                            Log.i("VideoPlayerScreen", "Creating NEW PlayerView for Media3")
+                            PlayerView(ctx).apply {
+                                useController = false
+                                // Important: Assign player in factory to ensure it's there from the start
+                                try {
+                                    this.player = playerManager.exoPlayer
+                                } catch (_: Exception) {}
+                                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                            }
+                        },
+                        update = { view ->
+                            try {
+                                val currentExo = playerManager.exoPlayer
+                                if (view.player != currentExo) {
+                                    Log.i("VideoPlayerScreen", "Syncing PlayerView with new ExoPlayer instance")
+                                    view.player = currentExo
+                                }
+                            } catch (e: Exception) {
+                                Log.e("VideoPlayerScreen", "Error syncing player", e)
+                            }
+                            
+                            view.resizeMode = when (cropMode) {
+                                "CROP" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                "STRETCH" -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                "ORIGINAL" -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+                                else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            }
+                            try {
+                                val androidFilter = com.example.ui.components.PictureModeUtils.getAndroidColorFilter(
+                                    modeKey = pictureMode,
+                                    customSat = customSat, customCon = customCon, customWarmth = customWarmth,
+                                    enabled = pictureModeEnabled
+                                )
+                                if (androidFilter != null) {
+                                    val paint = android.graphics.Paint().apply { colorFilter = androidFilter }
+                                    view.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, paint)
+                                } else {
+                                    view.setLayerType(android.view.View.LAYER_TYPE_NONE, null)
+                                }
+                            } catch (_: Exception) {}
+                        },
+                        modifier = Modifier.fillMaxSize().graphicsLayer(scaleX = scale, scaleY = scale)
+                    )
+                } else {
+                    // FFmpeg Fallback Rendering Path
+                    AndroidView(
+                        factory = { ctx ->
+                            Log.i("VideoPlayerScreen", "Creating SurfaceView for FFmpeg")
+                            android.view.SurfaceView(ctx).apply {
+                                holder.addCallback(object : android.view.SurfaceHolder.Callback {
+                                    override fun surfaceCreated(h: android.view.SurfaceHolder) { 
+                                        Log.i("VideoPlayerScreen", "FFmpeg Surface Created")
+                                        playerManager.setVideoSurface(h.surface) 
+                                    }
+                                    override fun surfaceChanged(h: android.view.SurfaceHolder, f: Int, w: Int, hi: Int) { 
+                                        playerManager.setVideoSurface(h.surface) 
+                                    }
+                                    override fun surfaceDestroyed(h: android.view.SurfaceHolder) { 
+                                        Log.i("VideoPlayerScreen", "FFmpeg Surface Destroyed")
+                                        playerManager.setVideoSurface(null) 
+                                    }
+                                })
+                                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                            }
+                        },
+                        update = { _ -> },
+                        modifier = Modifier.fillMaxSize().graphicsLayer(scaleX = scale, scaleY = scale)
+                    )
+                }
+            }
+
+
+
+
+
 
             if (isFilmGrainEnabled) {
                 Box(modifier = Modifier.fillMaxSize().graphicsLayer(alpha = 1f)) {

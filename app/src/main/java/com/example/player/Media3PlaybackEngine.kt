@@ -2,6 +2,7 @@ package com.example.player
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import android.view.Surface
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem as Media3Item
@@ -9,14 +10,16 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 @OptIn(UnstableApi::class)
-class Media3PlaybackEngine(private val context: Context) : PlaybackEngine {
-
-    val player: ExoPlayer = ExoPlayer.Builder(context).build()
+class Media3PlaybackEngine(
+    private val context: Context,
+    val player: ExoPlayer
+) : PlaybackEngine {
 
     private val _diagnosticState = MutableStateFlow(
         EngineDiagnosticState(
@@ -32,12 +35,44 @@ class Media3PlaybackEngine(private val context: Context) : PlaybackEngine {
 
     private var currentSurface: Surface? = null
 
+    private val analyticsListener = object : AnalyticsListener {
+        override fun onVideoDecoderInitialized(
+            eventTime: AnalyticsListener.EventTime,
+            decoderName: String,
+            initializedTimestampMs: Long,
+            initializationDurationMs: Long
+        ) {
+            val lowerName = decoderName.lowercase()
+            val isHw = !lowerName.contains("omx.google") &&
+                       !lowerName.contains("c2.android") &&
+                       !lowerName.contains("sw") &&
+                       !lowerName.contains("software")
+            _diagnosticState.value = _diagnosticState.value.copy(
+                decoderName = decoderName,
+                isHardwareAccelerated = isHw
+            )
+        }
+
+        override fun onDroppedVideoFrames(
+            eventTime: AnalyticsListener.EventTime,
+            droppedFrames: Int,
+            elapsedMs: Long
+        ) {
+            _diagnosticState.value = _diagnosticState.value.copy(
+                droppedFrames = _diagnosticState.value.droppedFrames + droppedFrames
+            )
+        }
+    }
+
     init {
+        player.addAnalyticsListener(analyticsListener)
         player.addListener(object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
-                _diagnosticState.value = _diagnosticState.value.copy(
-                    videoCodec = if (videoSize.width > 0) "Decoded (${videoSize.width}x${videoSize.height})" else "Hardware/MediaCodec"
-                )
+                if (videoSize.width > 0) {
+                    _diagnosticState.value = _diagnosticState.value.copy(
+                        videoCodec = "${videoSize.width}x${videoSize.height}"
+                    )
+                }
             }
         })
     }
@@ -47,7 +82,6 @@ class Media3PlaybackEngine(private val context: Context) : PlaybackEngine {
         player.setMediaItem(mediaItem)
         player.prepare()
         player.playWhenReady = playWhenReady
-        currentSurface?.let { player.setVideoSurface(it) }
     }
 
     override fun play() {
@@ -71,6 +105,7 @@ class Media3PlaybackEngine(private val context: Context) : PlaybackEngine {
     }
 
     override fun setSurface(surface: Surface?) {
+        Log.i("Media3PlaybackEngine", "setSurface: $surface")
         currentSurface = surface
         player.setVideoSurface(surface)
     }
@@ -80,6 +115,7 @@ class Media3PlaybackEngine(private val context: Context) : PlaybackEngine {
     }
 
     override fun release() {
+        player.removeAnalyticsListener(analyticsListener)
         player.release()
     }
 
