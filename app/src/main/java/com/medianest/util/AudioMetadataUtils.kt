@@ -1,0 +1,110 @@
+package com.medianest.util
+
+import android.content.Context
+import android.media.MediaMetadataRetriever
+import android.net.Uri
+import android.provider.OpenableColumns
+import android.util.Log
+import com.medianest.data.model.MediaItem
+import java.io.File
+
+object AudioMetadataUtils {
+
+    fun extractMetadata(context: Context, uri: Uri, rawTitleHint: String? = null, mimeTypeHint: String = "audio/*"): MediaItem {
+        var title: String? = null
+        var artist: String? = null
+        var album: String? = null
+        var durationMs: Long = 0L
+        var albumArtUri: Uri? = null
+
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(context, uri)
+            title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
+            artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+            album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
+            val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+            durationMs = durationStr?.toLongOrNull() ?: 0L
+
+            val artBytes = retriever.embeddedPicture
+
+            if (artBytes != null && artBytes.isNotEmpty()) {
+                val cacheFile = File(context.cacheDir, "album_art_${uri.toString().hashCode()}.jpg")
+                if (!cacheFile.exists()) {
+                    cacheFile.writeBytes(artBytes)
+                }
+                albumArtUri = Uri.fromFile(cacheFile)
+            }
+        } catch (e: Exception) {
+            Log.e("AudioMetadataUtils", "Failed to retrieve metadata for $uri", e)
+        } finally {
+            try {
+                retriever.release()
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
+
+        val cleanedTitle = resolveTitle(context, uri, title, rawTitleHint)
+
+        return MediaItem(
+            id = uri.hashCode().toLong(),
+            uri = uri,
+            title = cleanedTitle,
+            mimeType = mimeTypeHint,
+            type = com.medianest.data.db.MediaType.AUDIO,
+            durationMs = durationMs,
+            artist = artist?.takeIf { it.isNotBlank() && it != "<unknown>" },
+            album = album?.takeIf { it.isNotBlank() && it != "<unknown>" },
+            albumArtUri = albumArtUri
+        )
+    }
+
+    private fun resolveTitle(context: Context, uri: Uri, metaTitle: String?, rawTitleHint: String?): String {
+        // 1. If ID3 metaTitle is valid
+        if (!metaTitle.isNullOrBlank()) {
+            return metaTitle.trim()
+        }
+
+        // 2. Query content resolver display name (e.g. OpenableColumns.DISPLAY_NAME)
+        val displayName = getDisplayName(context, uri)
+        if (!displayName.isNullOrBlank()) {
+            val cleanName = if (displayName.contains('.')) displayName.substringBeforeLast('.') else displayName
+            if (cleanName.isNotBlank() && !cleanName.startsWith("audio:", ignoreCase = true) && !cleanName.startsWith("document", ignoreCase = true)) {
+                return cleanName
+            }
+        }
+
+        // 3. Try rawTitleHint if provided
+        if (!rawTitleHint.isNullOrBlank()) {
+            val cleanHint = if (rawTitleHint.contains('.')) rawTitleHint.substringBeforeLast('.') else rawTitleHint
+            if (cleanHint.isNotBlank() && !cleanHint.startsWith("audio:", ignoreCase = true) && !cleanHint.startsWith("document", ignoreCase = true)) {
+                return cleanHint
+            }
+        }
+
+        // 4. Try Uri lastPathSegment
+        val lastSeg = uri.lastPathSegment
+        if (!lastSeg.isNullOrBlank()) {
+            val cleanSeg = if (lastSeg.contains('.')) lastSeg.substringBeforeLast('.') else lastSeg
+            if (cleanSeg.isNotBlank() && !cleanSeg.startsWith("audio:", ignoreCase = true) && !cleanSeg.startsWith("document", ignoreCase = true)) {
+                return cleanSeg
+            }
+        }
+
+        return "Audio Track"
+    }
+
+    private fun getDisplayName(context: Context, uri: Uri): String? {
+        return try {
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameIdx >= 0) cursor.getString(nameIdx) else null
+                } else null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+}

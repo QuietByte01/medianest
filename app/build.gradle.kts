@@ -6,13 +6,29 @@ plugins {
   alias(libs.plugins.secrets)
 }
 
+val ffmpegExtractionDir = layout.buildDirectory.dir("ffmpeg-kit-extracted")
+
+val extractFFmpegNativeLibs = tasks.register<Copy>("extractFFmpegNativeLibs") {
+  val ffmpegConfig = configurations.detachedConfiguration(dependencies.create(libs.ffmpeg.kit.get()))
+  ffmpegConfig.isTransitive = false
+  val ffmpegAar = ffmpegConfig.singleFile
+  from(zipTree(ffmpegAar))
+  into(ffmpegExtractionDir)
+  include("jni/**/*.so")
+  exclude("**/libc++_shared.so")
+  eachFile {
+    path = path.replaceFirst("jni/", "")
+  }
+  includeEmptyDirs = false
+}
+
 android {
-  namespace = "com.example"
+  namespace = "com.medianest"
   compileSdk = 37
-  ndkVersion = "25.2.9519653"
+  ndkVersion = "29.0.14206865"
 
   defaultConfig {
-    applicationId = "com.aistudio.medianest.xypqrz"
+    applicationId = "com.medianest.app"
     minSdk = 24
     targetSdk = 37
     versionCode = 1
@@ -22,7 +38,7 @@ android {
     
     externalNativeBuild {
       cmake {
-        arguments("-DANDROID_STL=c++_shared")
+        arguments("-DANDROID_STL=c++_shared", "-DFFMPEG_EXTRACTION_DIR=${ffmpegExtractionDir.get().asFile.absolutePath}")
       }
     }
   }
@@ -66,6 +82,7 @@ android {
   packaging {
     jniLibs {
       useLegacyPackaging = false
+      pickFirsts.add("**/libc++_shared.so")
     }
   }
 
@@ -132,9 +149,8 @@ dependencies {
   implementation(libs.converter.moshi)
 
 
-  // implementation(libs.androidx.credentials)
-  // implementation(libs.androidx.credentials.play.services)
-  // implementation(libs.googleid)
+  implementation(libs.haze)
+  implementation(libs.haze.materials)
 
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
@@ -148,6 +164,7 @@ dependencies {
   testImplementation(libs.androidx.junit)
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
+  testImplementation(libs.mockk)
   testImplementation(libs.robolectric)
   testImplementation(libs.roborazzi)
   testImplementation(libs.roborazzi.compose)
@@ -161,4 +178,11 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
+}
+
+tasks.withType<com.android.build.gradle.tasks.ExternalNativeBuildTask>().configureEach {
+  dependsOn(extractFFmpegNativeLibs)
+}
+tasks.withType<com.android.build.gradle.tasks.ExternalNativeBuildJsonTask>().configureEach {
+  dependsOn(extractFFmpegNativeLibs)
 }

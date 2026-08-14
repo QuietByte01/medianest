@@ -58,9 +58,8 @@ Here is the list of APIs, SDKs, and development kits used in **MediaNest**:
 
 ---
 
-### **5. Cloud, AI & Security**
+### **5. Cloud & Security**
 
-- **Firebase BOM** (v34.15.0) – Firebase suite, including firebase-ai and firebase-appcheck-recaptcha.
 - **Secrets Gradle Plugin** – Tooling to inject environment variables and API keys from .env into BuildConfig.
 - **Accompanist Permissions** (v0.37.3) – Jetpack Compose runtime permission handlers.
 

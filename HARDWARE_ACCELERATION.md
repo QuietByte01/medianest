@@ -274,7 +274,7 @@ Optimized CPU Software Fallback
 
 ## 9. Verification & Build Confirmation
 
-The `AndroidHardwareEngine` class is compiled directly into the application codebase (`com.example.hardware.AndroidHardwareEngine`) and integrated into:
+The `AndroidHardwareEngine` class is compiled directly into the application codebase (`com.medianest.hardware.AndroidHardwareEngine`) and integrated into:
 - `ExoPlayerManager.kt` for hardware decoder selector strategies.
 - `SettingsScreen.kt` for user controls and engine status reporting.
 - `MediaNestApp.kt` for startup hardware profile initialization.
@@ -288,7 +288,7 @@ I have implemented the **Android Production-Ready Hardware Acceleration Archite
 
 - Saved /HARDWARE_ACCELERATION.md containing the complete architecture specification, hardware_config.json schema, GPU/MediaCodec/AAudio fallback chains, RAM/VRAM cache scaling tables, and zero-copy rendering guidelines for Android.
 
-#### **2. Native Android Hardware Engine (com.example.hardware.AndroidHardwareEngine)**
+#### **2. Native Android Hardware Engine (com.medianest.hardware.AndroidHardwareEngine)**
 
 - **Capability Detection**: Automatically queries Android MediaCodecList, system memory tiers (2GB to 64GB+), Vulkan/OpenGL ES 3.2 support, AAudio API levels, and HDR display capabilities at runtime.
 - **Dynamic Memory Allocation**: Calculates optimal RAM cache, VRAM cache pool, decoder frame queue size, thumbnail cache, and prefetch buffer limits based on the host device's hardware profile.
@@ -352,6 +352,6 @@ Yes, every single directive has been implemented and strictly integrated into th
 ### **Key Files Updated in Codebase & Verified**
 
 - **/HARDWARE_ACCELERATION.md**: Complete framework architecture specification and dynamic configuration schema at root.
-- **com.example.hardware.AndroidHardwareEngine**: Capability detection module, dynamic memory allocation engine, and JSON framework generator.
-- **com.example.MediaNestApp**: Initialized VRAM hardware bitmap loading and adaptive thumbnail caching.
-- **com.example.ui.settings.SettingsScreen**: Added the Hardware Pipeline Diagnostics dashboard card displaying real-time GPU, audio sink, and decoder profile status.
+- **com.medianest.hardware.AndroidHardwareEngine**: Capability detection module, dynamic memory allocation engine, and JSON framework generator.
+- **com.medianest.MediaNestApp**: Initialized VRAM hardware bitmap loading and adaptive thumbnail caching.
+- **com.medianest.ui.settings.SettingsScreen**: Added the Hardware Pipeline Diagnostics dashboard card displaying real-time GPU, audio sink, and decoder profile status.

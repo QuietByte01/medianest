@@ -3,8 +3,6 @@
 
 MediaNest is a high-performance, feature-rich media management application designed for seamless local media playback and organization. Built with a "Hardware-First" philosophy, it leverages modern Android APIs to provide a zero-copy, privacy-focused experience.
 
-View your app in AI Studio: [https://ai.studio/apps/17f7222d-22c3-467f-ace8-cb1f8b9d9cba](https://ai.studio/apps/17f7222d-22c3-467f-ace8-cb1f8b9d9cba)
-
 ---
 
 ## 🌟 Key Features
@@ -32,8 +30,6 @@ View your app in AI Studio: [https://ai.studio/apps/17f7222d-22c3-467f-ace8-cb1f
 - **Preferences:** [Jetpack DataStore](https://developer.android.com/topic/libraries/architecture/datastore)
 - **Image Loading:** [Coil](https://coil-kt.github.io/coil/) with Hardware Bitmaps enabled
 - **Language:** 100% [Kotlin](https://kotlinlang.org/)
-- **AI Integration:** [Gemini AI](https://ai.google.dev/) via Firebase AI SDK
-
 ---
 
 ## 🚀 Hardware Optimization & Architecture
@@ -111,6 +107,31 @@ graph TD
 - **Clock Synchronization**: The master clock is slaved to Oboe's hardware clock. If video timestamps drift by more than 500ms, a sub-millisecond resync occurs to prevent hangs.
 - **Memory Safety**: Uses direct File Descriptors (`/proc/self/fd/`) to avoid memory-heavy file copying during native probing.
 
+
+### Format & Preferred Path Routing(Video)
+
+| File / Stream Condition | Preferred Path | How MediaNest Handles It |
+| :--- | :--- | :--- |
+| **MP4 + H.264** | **Media3 → hardware** | Evaluated clean by `MediaCapabilityInspector` → routed to `Media3PlaybackEngine` / `ExoPlayer` using Android `MediaCodec` hardware acceleration. |
+| **MKV + H.265** | **Media3 → hardware** | Evaluated clean by `MediaCapabilityInspector` → routed to `Media3PlaybackEngine`. |
+| **WebM + VP9** | **Media3 → hardware** | Evaluated clean by `MediaCapabilityInspector` → routed to `Media3PlaybackEngine`. |
+| **AVI + Xvid** | **FFmpeg** | `MediaCapabilityInspector` probes format as `AVI` + `MPEG-4/XVID` → forces `requiresFFmpegFallback = true` → routes to `FFmpegPlaybackEngine`. |
+| **AVI + unusual MPEG-4** | **FFmpeg** | Probed as `AVI` / `msmpeg4` / `mpeg4` → routed to `FFmpegPlaybackEngine`. |
+| **FLV + old codec** | **FFmpeg** | Probed as `FLV` container or video codec containing `flv` → routed to `FFmpegPlaybackEngine`. |
+| **MPEG-TS + unusual stream** | **FFmpeg** | Evaluated or fallen back to `FFmpegPlaybackEngine`. |
+| **Unsupported Android codec / Container** | **FFmpeg** | `DefaultRenderersFactory.setEnableDecoderFallback(true)` in Media3 attempts software fallback first; if Media3 fails to demux/decode, it automatically switches to `FFmpegPlaybackEngine`. |
+
+---
+
+### Fault Tolerance & Error Recovery Strategies (FFmpeg Engine)
+
+| Fault / Corruption Scenario | Recovery Behavior in `FFmpegPlaybackEngine` (`ffmpeg_jni.cpp`) |
+| :--- | :--- |
+| **Broken timestamps** | Monotonic clock derivation via stream time bases (`AV_NOPTS_VALUE` checks) & frame rates. Recovers timestamps without dropping playback. |
+| **Corrupt video packets** | Catches `AVERROR_INVALIDDATA` / decode errors, flushes/resets video decoders if required, skips bad frames/packets, and resumes decoding on next decodable frame/keyframe. |
+| **Corrupt audio packets** | Catches corrupt frames (e.g. AC-3 `expacc out-of-range`), logs error, increments `audioDecodeErrors` counter, skips corrupted packet, and continues decoding valid subsequent frames without stopping video. |
+| **A/V Desynchronization** | Audio (via Oboe) and Video (via `ANativeWindow`) maintain independent error recovery loops, resynchronizing with the master playback clock. |
+
 ---
 
 ## 🚀 Hardware Features Details
@@ -119,10 +140,10 @@ graph TD
 
 ## 📂 Project Structure
 
-- `app/src/main/java/com/example/ui/`: Compose screens and components.
-- `app/src/main/java/com/example/data/`: Repositories and Room DB definitions.
-- `app/src/main/java/com/example/player/`: ExoPlayer lifecycle and state management.
-- `app/src/main/java/com/example/hardware/`: Hardware capability detection and optimization logic.
+- `app/src/main/java/com/medianest/ui/`: Compose screens and components.
+- `app/src/main/java/com/medianest/data/`: Repositories and Room DB definitions.
+- `app/src/main/java/com/medianest/player/`: ExoPlayer lifecycle and state management.
+- `app/src/main/java/com/medianest/hardware/`: Hardware capability detection and optimization logic.
 
 ---
 
@@ -131,17 +152,8 @@ graph TD
 **Prerequisites:** [Android Studio](https://developer.android.com/studio)
 
 1. **Clone & Open:** Open the project directory in Android Studio.
-2. **API Key Setup:** Create a `.env` file in the root directory and add:
-   ```env
-   GEMINI_API_KEY=your_gemini_api_key_here
-   ```
-   (See `.env.example` for reference).
-3. **Build Configuration:** Remove the following line from `app/build.gradle.kts`:
-   ```kotlin
-   signingConfig = signingConfigs.getByName("debugConfig")
-   ```
-4. **Deploy:** Run the app on an emulator or physical device.
-5. **Key Reset:** If published in AI Studio, [request an upload key reset](https://support.google.com/googleplay/android-developer/answer/9842756#zippy=%2Crequest-an-upload-key-reset) in the Play Console if needed.
+2. **Configuration:** Ensure your environment is set up according to Android Studio requirements.
+3. **Deploy:** Run the app on an emulator or physical device.
 
 ---
 

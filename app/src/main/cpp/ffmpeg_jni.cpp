@@ -7,6 +7,7 @@
 #include <mutex>
 #include <vector>
 #include <queue>
+#include <array>
 #include <chrono>
 #include <unistd.h>
 #include <fcntl.h>
@@ -33,40 +34,51 @@ extern "C" {
 
 static JavaVM *g_jvm = nullptr;
 
-// Thread-safe buffer for audio samples
+// Lock-free atomic ring buffer for audio samples (zero allocations, zero mutexes in high-priority audio callback)
 struct AudioBuffer {
-    std::mutex mutex;
-    std::vector<int16_t> samples;
-    size_t read_ptr = 0;
+    static constexpr size_t RING_SIZE = 192000; // 2 seconds of 48kHz stereo PCM
+    std::array<int16_t, RING_SIZE> ring_buffer{};
+    std::atomic<size_t> write_pos{0};
+    std::atomic<size_t> read_pos{0};
 
     void push(const int16_t* data, size_t count) {
-        std::lock_guard<std::mutex> lock(mutex);
-        samples.insert(samples.end(), data, data + count);
-        // Limit buffer size to 500ms to prevent extreme latency
-        if (samples.size() > read_ptr + 48000 * 2) {
-             // Drop old data if buffer is too large
+        if (!data || count == 0) return;
+        size_t w = write_pos.load(std::memory_order_relaxed);
+        size_t r = read_pos.load(std::memory_order_acquire);
+        
+        size_t free_space = (r > w) ? (r - w - 1) : (RING_SIZE - (w - r) - 1);
+        if (count > free_space) {
+            // Buffer overrun protection: advance read position to drop oldest samples
+            size_t drop = count - free_space;
+            read_pos.store((r + drop) % RING_SIZE, std::memory_order_release);
         }
+
+        for (size_t i = 0; i < count; ++i) {
+            ring_buffer[w] = data[i];
+            w = (w + 1) % RING_SIZE;
+        }
+        write_pos.store(w, std::memory_order_release);
     }
 
     size_t pull(int16_t* out, size_t count) {
-        std::lock_guard<std::mutex> lock(mutex);
-        size_t available = samples.size() - read_ptr;
+        if (!out || count == 0) return 0;
+        size_t w = write_pos.load(std::memory_order_acquire);
+        size_t r = read_pos.load(std::memory_order_relaxed);
+
+        size_t available = (w >= r) ? (w - r) : (RING_SIZE - (r - w));
         size_t to_read = std::min(count, available);
-        if (to_read > 0) {
-            std::copy(samples.begin() + read_ptr, samples.begin() + read_ptr + to_read, out);
-            read_ptr += to_read;
-            if (read_ptr > 100000) { // Cleanup periodically
-                samples.erase(samples.begin(), samples.begin() + read_ptr);
-                read_ptr = 0;
-            }
+
+        for (size_t i = 0; i < to_read; ++i) {
+            out[i] = ring_buffer[r];
+            r = (r + 1) % RING_SIZE;
         }
+        read_pos.store(r, std::memory_order_release);
         return to_read;
     }
 
     void clear() {
-        std::lock_guard<std::mutex> lock(mutex);
-        samples.clear();
-        read_ptr = 0;
+        write_pos.store(0, std::memory_order_relaxed);
+        read_pos.store(0, std::memory_order_relaxed);
     }
 };
 
@@ -82,8 +94,10 @@ public:
 struct PlayerContext {
     jobject java_ref = nullptr;
     jmethodID on_stats_mid = nullptr;
+    jmethodID on_ended_mid = nullptr;
+    std::atomic<int> repeat_mode{0};
 
-    std::mutex mutex;
+    std::recursive_mutex mutex;
     AVFormatContext *fmt_ctx = nullptr;
     int video_stream_idx = -1;
     int audio_stream_idx = -1;
@@ -101,6 +115,7 @@ struct PlayerContext {
     std::shared_ptr<oboe::AudioStream> audio_stream;
     std::unique_ptr<OboeAudioCallback> oboe_callback;
     AudioBuffer audio_buffer;
+    std::atomic<bool> audio_initialized{false};
 
     int source_fd = -1;
     std::atomic<bool> is_playing{false};
@@ -117,67 +132,136 @@ struct PlayerContext {
 
     std::thread playback_thread;
 
-    void cleanup(JNIEnv *env) {
-        LOGI("cleanup: Releasing all resources");
-        is_released = true;
-        is_playing = false;
-        if (playback_thread.joinable()) playback_thread.join();
-
-        if (audio_stream) {
-            audio_stream->stop();
-            audio_stream->close();
-        }
-
-        std::lock_guard<std::mutex> lock(mutex);
-        if (filter_graph) avfilter_graph_free(&filter_graph);
-        if (v_codec_ctx) avcodec_free_context(&v_codec_ctx);
-        if (a_codec_ctx) avcodec_free_context(&a_codec_ctx);
-        if (fmt_ctx) avformat_close_input(&fmt_ctx);
-        if (source_fd != -1) {
-            close(source_fd);
-            source_fd = -1;
-        }
+    ~PlayerContext() {
+        reset_playback();
         if (native_window) {
             ANativeWindow_release(native_window);
             native_window = nullptr;
         }
-        if (java_ref) {
+    }
+
+    void reset_playback() {
+        is_released = true;
+        is_playing = false;
+        if (playback_thread.joinable()) {
+            playback_thread.join();
+        }
+
+        if (audio_stream) {
+            audio_stream->stop();
+            audio_stream->close();
+            audio_stream.reset();
+        }
+        audio_initialized = false;
+
+        std::lock_guard<std::recursive_mutex> lock(mutex);
+        if (filter_graph) {
+            avfilter_graph_free(&filter_graph);
+            filter_graph = nullptr;
+            buffersrc_ctx = nullptr;
+            buffersink_ctx = nullptr;
+        }
+        if (v_codec_ctx) {
+            avcodec_free_context(&v_codec_ctx);
+            v_codec_ctx = nullptr;
+        }
+        if (a_codec_ctx) {
+            avcodec_free_context(&a_codec_ctx);
+            a_codec_ctx = nullptr;
+        }
+        if (fmt_ctx) {
+            avformat_close_input(&fmt_ctx);
+            fmt_ctx = nullptr;
+        }
+        if (source_fd != -1) {
+            close(source_fd);
+            source_fd = -1;
+        }
+        video_stream_idx = -1;
+        audio_stream_idx = -1;
+        duration = 0;
+        current_position = 0;
+        video_frame_count = 0;
+        start_time = 0;
+        dropped_frames = 0;
+        audio_errors = 0;
+        ts_recoveries = 0;
+        audio_buffer.clear();
+        is_released = false;
+    }
+
+    void cleanup(JNIEnv *env) {
+        LOGI("cleanup: Releasing all resources");
+        reset_playback();
+        is_released = true;
+
+        std::lock_guard<std::recursive_mutex> lock(mutex);
+        if (native_window) {
+            ANativeWindow_release(native_window);
+            native_window = nullptr;
+        }
+        if (java_ref && env) {
             env->DeleteGlobalRef(java_ref);
             java_ref = nullptr;
         }
     }
 
     void set_surface(JNIEnv *env, jobject surface) {
-        std::lock_guard<std::mutex> lock(mutex);
+        std::lock_guard<std::recursive_mutex> lock(mutex);
         if (native_window) {
             ANativeWindow_release(native_window);
             native_window = nullptr;
         }
-        if (surface) {
+        if (surface && env) {
             native_window = ANativeWindow_fromSurface(env, surface);
-            if (native_window && v_codec_ctx) {
+            if (native_window && v_codec_ctx && v_codec_ctx->width > 0 && v_codec_ctx->height > 0) {
                 ANativeWindow_setBuffersGeometry(native_window, v_codec_ctx->width, v_codec_ctx->height, WINDOW_FORMAT_RGBA_8888);
             }
         }
     }
 
     int init_filter_graph(const std::string& filters_desc) {
-        std::lock_guard<std::mutex> lock(mutex);
-        if (filter_graph) avfilter_graph_free(&filter_graph);
+        std::lock_guard<std::recursive_mutex> lock(mutex);
+        if (filter_graph) {
+            avfilter_graph_free(&filter_graph);
+            filter_graph = nullptr;
+            buffersrc_ctx = nullptr;
+            buffersink_ctx = nullptr;
+        }
+        if (!a_codec_ctx) return -1;
+
         filter_graph = avfilter_graph_alloc();
+        if (!filter_graph) return -1;
 
         const AVFilter *abuffersrc = avfilter_get_by_name("abuffer");
         const AVFilter *abuffersink = avfilter_get_by_name("abuffersink");
+        if (!abuffersrc || !abuffersink) return -1;
+
         AVFilterInOut *outputs = avfilter_inout_alloc();
         AVFilterInOut *inputs = avfilter_inout_alloc();
         int ret = 0;
 
         char args[512];
-        AVChannelLayout ch_layout = a_codec_ctx->ch_layout;
+        AVRational tb = {1, 44100};
+        if (fmt_ctx && audio_stream_idx >= 0 && fmt_ctx->streams[audio_stream_idx]) {
+            tb = fmt_ctx->streams[audio_stream_idx]->time_base;
+        }
+        if (tb.num <= 0 || tb.den <= 0) {
+            tb = {1, (a_codec_ctx->sample_rate > 0) ? a_codec_ctx->sample_rate : 44100};
+        }
+        int sample_rate = (a_codec_ctx->sample_rate > 0) ? a_codec_ctx->sample_rate : 44100;
+        const char* fmt_name = (a_codec_ctx->sample_fmt != AV_SAMPLE_FMT_NONE) ? av_get_sample_fmt_name(a_codec_ctx->sample_fmt) : "fltp";
+        if (!fmt_name) fmt_name = "fltp";
+
+        char in_layout_str[128] = "stereo";
+        if (a_codec_ctx->ch_layout.nb_channels > 0) {
+            av_channel_layout_describe(&a_codec_ctx->ch_layout, in_layout_str, sizeof(in_layout_str));
+        }
+
         snprintf(args, sizeof(args),
                  "sample_rate=%d:sample_fmt=%s:time_base=%d/%d:channel_layout=%s",
-                 a_codec_ctx->sample_rate, av_get_sample_fmt_name(a_codec_ctx->sample_fmt),
-                 a_codec_ctx->time_base.num, a_codec_ctx->time_base.den, "stereo"); // Force stereo for mobile
+                 sample_rate, fmt_name,
+                 tb.num, tb.den, in_layout_str);
 
         ret = avfilter_graph_create_filter(&buffersrc_ctx, abuffersrc, "in", args, nullptr, filter_graph);
         if (ret < 0) goto end;
@@ -199,8 +283,13 @@ struct PlayerContext {
         inputs->pad_idx = 0;
         inputs->next = nullptr;
 
-        if ((ret = avfilter_graph_parse_ptr(filter_graph, filters_desc.c_str(), &inputs, &outputs, nullptr)) < 0) goto end;
-        if ((ret = avfilter_graph_config(filter_graph, nullptr)) < 0) goto end;
+        {
+            std::string full_filters = filters_desc.empty() ? "anull" : filters_desc;
+            full_filters += ",aformat=sample_fmts=s16:channel_layouts=stereo";
+
+            if ((ret = avfilter_graph_parse_ptr(filter_graph, full_filters.c_str(), &inputs, &outputs, nullptr)) < 0) goto end;
+            if ((ret = avfilter_graph_config(filter_graph, nullptr)) < 0) goto end;
+        }
 
     end:
         avfilter_inout_free(&inputs);
@@ -210,6 +299,7 @@ struct PlayerContext {
 };
 
 oboe::DataCallbackResult OboeAudioCallback::onAudioReady(oboe::AudioStream *audioStream, void *audioData, int32_t numFrames) {
+    if (!audioStream || !audioData || !ctx) return oboe::DataCallbackResult::Continue;
     auto *outputData = static_cast<int16_t *>(audioData);
     size_t samplesNeeded = numFrames * audioStream->getChannelCount();
     size_t pulled = ctx->audio_buffer.pull(outputData, samplesNeeded);
@@ -227,12 +317,13 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_example_player_FFmpegPlaybackEngine_nativeInit(JNIEnv *env, jobject thiz) {
+Java_com_medianest_player_FFmpegPlaybackEngine_nativeInit(JNIEnv *env, jobject thiz) {
     try {
         auto ctx = new PlayerContext();
         ctx->java_ref = env->NewGlobalRef(thiz);
         jclass clazz = env->GetObjectClass(thiz);
         ctx->on_stats_mid = env->GetMethodID(clazz, "onNativeStatsUpdate", "(III)V");
+        ctx->on_ended_mid = env->GetMethodID(clazz, "onNativePlaybackEnded", "()V");
         return reinterpret_cast<jlong>(ctx);
     } catch (...) {
         return 0;
@@ -240,7 +331,7 @@ Java_com_example_player_FFmpegPlaybackEngine_nativeInit(JNIEnv *env, jobject thi
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_example_player_FFmpegPlaybackEngine_nativeProbe(JNIEnv *env, jobject thiz, jlong ptr, jint fd) {
+Java_com_medianest_player_FFmpegPlaybackEngine_nativeProbe(JNIEnv *env, jobject thiz, jlong ptr, jint fd) {
     AVFormatContext *probe_fmt_ctx = avformat_alloc_context();
     char path[64];
     int dup_fd = dup(fd);
@@ -257,7 +348,7 @@ Java_com_example_player_FFmpegPlaybackEngine_nativeProbe(JNIEnv *env, jobject th
     }
 
     avformat_find_stream_info(probe_fmt_ctx, nullptr);
-    std::string container = probe_fmt_ctx->iformat->name;
+    std::string container = probe_fmt_ctx->iformat ? probe_fmt_ctx->iformat->name : "unknown";
     std::string vcodec = "none", acodec = "none";
     for (unsigned int i = 0; i < probe_fmt_ctx->nb_streams; i++) {
         auto cp = probe_fmt_ctx->streams[i]->codecpar;
@@ -281,7 +372,7 @@ void playback_loop(PlayerContext *ctx) {
     while (!ctx->is_released) {
         if (!ctx->is_playing) {
             ctx->start_time = 0;
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            std::this_thread::sleep_for(std::chrono::milliseconds(30));
             continue;
         }
 
@@ -289,11 +380,36 @@ void playback_loop(PlayerContext *ctx) {
             ctx->start_time = av_gettime() - (ctx->current_position * 1000);
         }
 
+        if (!ctx->fmt_ctx) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(30));
+            continue;
+        }
+
         int ret = av_read_frame(ctx->fmt_ctx, packet);
         if (ret < 0) {
             if (ret == AVERROR_EOF) {
                 LOGI("playback_loop: EOFReached");
-                ctx->is_playing = false;
+                if (ctx->repeat_mode.load() == 1) { // Player.REPEAT_MODE_ONE
+                    std::lock_guard<std::recursive_mutex> lock(ctx->mutex);
+                    if (ctx->fmt_ctx) {
+                        av_seek_frame(ctx->fmt_ctx, -1, 0, AVSEEK_FLAG_BACKWARD);
+                    }
+                    ctx->current_position = 0;
+                    ctx->start_time = 0;
+                    ctx->audio_buffer.clear();
+                    if (ctx->v_codec_ctx) avcodec_flush_buffers(ctx->v_codec_ctx);
+                    if (ctx->a_codec_ctx) avcodec_flush_buffers(ctx->a_codec_ctx);
+                    continue;
+                } else {
+                    ctx->is_playing = false;
+                    JNIEnv *env = nullptr;
+                    if (g_jvm->AttachCurrentThread(&env, nullptr) == JNI_OK) {
+                        if (ctx->java_ref && ctx->on_ended_mid) {
+                            env->CallVoidMethod(ctx->java_ref, ctx->on_ended_mid);
+                        }
+                        g_jvm->DetachCurrentThread();
+                    }
+                }
             } else {
                 ctx->ts_recoveries++;
                 std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -301,14 +417,21 @@ void playback_loop(PlayerContext *ctx) {
             continue;
         }
 
-        if (packet->stream_index == ctx->video_stream_idx) {
+        if (packet->stream_index == ctx->video_stream_idx && ctx->v_codec_ctx) {
             if (avcodec_send_packet(ctx->v_codec_ctx, packet) >= 0) {
                 while (avcodec_receive_frame(ctx->v_codec_ctx, frame) >= 0) {
                     ctx->video_frame_count++;
                     int64_t pts = frame->best_effort_timestamp;
+                    if (pts == AV_NOPTS_VALUE) pts = frame->pts;
                     if (pts == AV_NOPTS_VALUE) pts = ctx->video_frame_count;
 
-                    double time_base = av_q2d(ctx->fmt_ctx->streams[ctx->video_stream_idx]->time_base);
+                    double time_base = 1.0 / 24.0;
+                    if (ctx->fmt_ctx && ctx->video_stream_idx >= 0 && ctx->fmt_ctx->streams[ctx->video_stream_idx]) {
+                        AVRational vtb = ctx->fmt_ctx->streams[ctx->video_stream_idx]->time_base;
+                        if (vtb.num > 0 && vtb.den > 0) {
+                            time_base = av_q2d(vtb);
+                        }
+                    }
                     int64_t pts_ms = (int64_t)(pts * time_base * 1000);
 
                     int64_t now_ms = (av_gettime() - ctx->start_time.load()) / 1000;
@@ -324,17 +447,21 @@ void playback_loop(PlayerContext *ctx) {
                         std::this_thread::sleep_for(std::chrono::milliseconds(wait));
                     }
 
-                    std::lock_guard<std::mutex> lock(ctx->mutex);
-                    if (ctx->native_window) {
+                    std::lock_guard<std::recursive_mutex> lock(ctx->mutex);
+                    if (ctx->native_window && frame->width > 0 && frame->height > 0) {
                         ANativeWindow_Buffer buffer;
                         if (ANativeWindow_lock(ctx->native_window, &buffer, nullptr) == 0) {
-                            sws_ctx = sws_getCachedContext(sws_ctx,
-                                frame->width, frame->height, (AVPixelFormat)frame->format,
-                                buffer.width, buffer.height, AV_PIX_FMT_RGBA,
-                                SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
-                            uint8_t *dest[4] = {(uint8_t *)buffer.bits, nullptr, nullptr, nullptr};
-                            int dest_linesize[4] = {buffer.stride * 4, 0, 0, 0};
-                            sws_scale(sws_ctx, frame->data, frame->linesize, 0, frame->height, dest, dest_linesize);
+                            if (buffer.bits != nullptr && buffer.width > 0 && buffer.height > 0) {
+                                sws_ctx = sws_getCachedContext(sws_ctx,
+                                    frame->width, frame->height, (AVPixelFormat)frame->format,
+                                    buffer.width, buffer.height, AV_PIX_FMT_RGBA,
+                                    SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
+                                if (sws_ctx) {
+                                    uint8_t *dest[4] = {(uint8_t *)buffer.bits, nullptr, nullptr, nullptr};
+                                    int dest_linesize[4] = {buffer.stride * 4, 0, 0, 0};
+                                    sws_scale(sws_ctx, frame->data, frame->linesize, 0, frame->height, dest, dest_linesize);
+                                }
+                            }
                             ANativeWindow_unlockAndPost(ctx->native_window);
                         }
                     }
@@ -343,11 +470,33 @@ void playback_loop(PlayerContext *ctx) {
             } else {
                 ctx->dropped_frames++;
             }
-        } else if (packet->stream_index == ctx->audio_stream_idx) {
+        } else if (packet->stream_index == ctx->audio_stream_idx && ctx->a_codec_ctx) {
             if (avcodec_send_packet(ctx->a_codec_ctx, packet) >= 0) {
                 while (avcodec_receive_frame(ctx->a_codec_ctx, frame) >= 0) {
-                    std::lock_guard<std::mutex> lock(ctx->mutex);
-                    if (ctx->filter_graph) {
+                    std::lock_guard<std::recursive_mutex> lock(ctx->mutex);
+                    
+                    if (!ctx->audio_initialized.load() && ctx->a_codec_ctx->sample_rate > 0 && ctx->a_codec_ctx->sample_fmt != AV_SAMPLE_FMT_NONE) {
+                        if (ctx->init_filter_graph(ctx->current_filter_desc) >= 0) {
+                            oboe::AudioStreamBuilder builder;
+                            builder.setDirection(oboe::Direction::Output);
+                            builder.setPerformanceMode(oboe::PerformanceMode::LowLatency);
+                            builder.setSharingMode(oboe::SharingMode::Exclusive);
+                            builder.setFormat(oboe::AudioFormat::I16);
+                            builder.setChannelCount(oboe::ChannelCount::Stereo);
+                            builder.setSampleRate(ctx->a_codec_ctx->sample_rate);
+                            ctx->oboe_callback = std::make_unique<OboeAudioCallback>(ctx);
+                            builder.setDataCallback(ctx->oboe_callback.get());
+
+                            if (builder.openStream(ctx->audio_stream) == oboe::Result::OK) {
+                                if (ctx->is_playing.load()) {
+                                    ctx->audio_stream->requestStart();
+                                }
+                                ctx->audio_initialized = true;
+                            }
+                        }
+                    }
+
+                    if (ctx->filter_graph && ctx->buffersrc_ctx && ctx->buffersink_ctx) {
                         if (av_buffersrc_add_frame_flags(ctx->buffersrc_ctx, frame, AV_BUFFERSRC_FLAG_KEEP_REF) >= 0) {
                             while (av_buffersink_get_frame(ctx->buffersink_ctx, filter_frame) >= 0) {
                                 ctx->audio_buffer.push(reinterpret_cast<int16_t*>(filter_frame->data[0]), filter_frame->nb_samples * 2);
@@ -356,9 +505,15 @@ void playback_loop(PlayerContext *ctx) {
                         }
                     }
                     // For audio-only, update position from audio frames
-                    if (ctx->video_stream_idx == -1) {
-                         double time_base = av_q2d(ctx->fmt_ctx->streams[ctx->audio_stream_idx]->time_base);
-                         ctx->current_position = (int64_t)(frame->pts * time_base * 1000);
+                    if (ctx->video_stream_idx == -1 && ctx->fmt_ctx && ctx->audio_stream_idx >= 0 && ctx->fmt_ctx->streams[ctx->audio_stream_idx]) {
+                         AVRational atb = ctx->fmt_ctx->streams[ctx->audio_stream_idx]->time_base;
+                         if (atb.num > 0 && atb.den > 0) {
+                             double time_base = av_q2d(atb);
+                             int64_t f_pts = (frame->best_effort_timestamp != AV_NOPTS_VALUE) ? frame->best_effort_timestamp : frame->pts;
+                             if (f_pts != AV_NOPTS_VALUE) {
+                                 ctx->current_position = (int64_t)(f_pts * time_base * 1000);
+                             }
+                         }
                     }
                 }
             } else {
@@ -383,9 +538,11 @@ void playback_loop(PlayerContext *ctx) {
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_example_player_FFmpegPlaybackEngine_nativePrepare(JNIEnv *env, jobject thiz, jlong ptr, jint fd, jobject surface) {
+Java_com_medianest_player_FFmpegPlaybackEngine_nativePrepare(JNIEnv *env, jobject thiz, jlong ptr, jint fd, jobject surface) {
     auto ctx = reinterpret_cast<PlayerContext *>(ptr);
     if (!ctx) return JNI_FALSE;
+
+    ctx->reset_playback();
 
     char path[64];
     ctx->source_fd = dup(fd);
@@ -401,38 +558,49 @@ Java_com_example_player_FFmpegPlaybackEngine_nativePrepare(JNIEnv *env, jobject 
     avformat_find_stream_info(ctx->fmt_ctx, nullptr);
     for (unsigned int i = 0; i < ctx->fmt_ctx->nb_streams; i++) {
         auto cp = ctx->fmt_ctx->streams[i]->codecpar;
-        if (cp->codec_type == AVMEDIA_TYPE_VIDEO) ctx->video_stream_idx = i;
-        else if (cp->codec_type == AVMEDIA_TYPE_AUDIO) ctx->audio_stream_idx = i;
+        if (cp->codec_type == AVMEDIA_TYPE_VIDEO && ctx->video_stream_idx == -1) ctx->video_stream_idx = i;
+        else if (cp->codec_type == AVMEDIA_TYPE_AUDIO && ctx->audio_stream_idx == -1) ctx->audio_stream_idx = i;
     }
 
     auto setup = [&](int idx, AVCodecContext **c) {
-        if (idx < 0) return;
+        if (idx < 0 || !ctx->fmt_ctx || !ctx->fmt_ctx->streams[idx]) return;
         auto codec = avcodec_find_decoder(ctx->fmt_ctx->streams[idx]->codecpar->codec_id);
         if (!codec) return;
         *c = avcodec_alloc_context3(codec);
+        if (!*c) return;
         avcodec_parameters_to_context(*c, ctx->fmt_ctx->streams[idx]->codecpar);
-        avcodec_open2(*c, codec, nullptr);
+        if (avcodec_open2(*c, codec, nullptr) < 0) {
+            avcodec_free_context(c);
+            *c = nullptr;
+        }
     };
     setup(ctx->video_stream_idx, &ctx->v_codec_ctx);
+    if (!ctx->v_codec_ctx) ctx->video_stream_idx = -1;
+    
     setup(ctx->audio_stream_idx, &ctx->a_codec_ctx);
+    if (!ctx->a_codec_ctx) ctx->audio_stream_idx = -1;
 
-    if (ctx->audio_stream_idx >= 0) {
-        ctx->init_filter_graph(ctx->current_filter_desc);
+    if (ctx->video_stream_idx == -1 && ctx->audio_stream_idx == -1) {
+        ctx->reset_playback();
+        return JNI_FALSE;
+    }
 
-        // Init Oboe
-        oboe::AudioStreamBuilder builder;
-        builder.setDirection(oboe::Direction::Output);
-        builder.setPerformanceMode(oboe::PerformanceMode::LowLatency);
-        builder.setSharingMode(oboe::SharingMode::Exclusive);
-        builder.setFormat(oboe::AudioFormat::I16);
-        builder.setChannelCount(oboe::ChannelCount::Stereo);
-        builder.setSampleRate(ctx->a_codec_ctx->sample_rate);
-        ctx->oboe_callback = std::make_unique<OboeAudioCallback>(ctx);
-        builder.setDataCallback(ctx->oboe_callback.get());
+    if (ctx->audio_stream_idx >= 0 && ctx->a_codec_ctx && ctx->a_codec_ctx->sample_rate > 0 && ctx->a_codec_ctx->sample_fmt != AV_SAMPLE_FMT_NONE) {
+        if (ctx->init_filter_graph(ctx->current_filter_desc) >= 0) {
+            oboe::AudioStreamBuilder builder;
+            builder.setDirection(oboe::Direction::Output);
+            builder.setPerformanceMode(oboe::PerformanceMode::LowLatency);
+            builder.setSharingMode(oboe::SharingMode::Exclusive);
+            builder.setFormat(oboe::AudioFormat::I16);
+            builder.setChannelCount(oboe::ChannelCount::Stereo);
+            builder.setSampleRate(ctx->a_codec_ctx->sample_rate);
+            ctx->oboe_callback = std::make_unique<OboeAudioCallback>(ctx);
+            builder.setDataCallback(ctx->oboe_callback.get());
 
-        auto result = builder.openStream(ctx->audio_stream);
-        if (result == oboe::Result::OK) {
-            ctx->audio_stream->requestStart();
+            if (builder.openStream(ctx->audio_stream) == oboe::Result::OK) {
+                ctx->audio_stream->requestStart();
+                ctx->audio_initialized = true;
+            }
         }
     }
 
@@ -443,24 +611,26 @@ Java_com_example_player_FFmpegPlaybackEngine_nativePrepare(JNIEnv *env, jobject 
     return JNI_TRUE;
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_player_FFmpegPlaybackEngine_nativePlay(JNIEnv *env, jobject thiz, jlong ptr) {
+extern "C" JNIEXPORT void JNICALL Java_com_medianest_player_FFmpegPlaybackEngine_nativePlay(JNIEnv *env, jobject thiz, jlong ptr) {
     if (auto ctx = reinterpret_cast<PlayerContext *>(ptr)) {
         ctx->is_playing = true;
         if (ctx->audio_stream) ctx->audio_stream->requestStart();
     }
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_player_FFmpegPlaybackEngine_nativePause(JNIEnv *env, jobject thiz, jlong ptr) {
+extern "C" JNIEXPORT void JNICALL Java_com_medianest_player_FFmpegPlaybackEngine_nativePause(JNIEnv *env, jobject thiz, jlong ptr) {
     if (auto ctx = reinterpret_cast<PlayerContext *>(ptr)) {
         ctx->is_playing = false;
         if (ctx->audio_stream) ctx->audio_stream->requestPause();
     }
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_player_FFmpegPlaybackEngine_nativeSeek(JNIEnv *env, jobject thiz, jlong ptr, jlong pos) {
+extern "C" JNIEXPORT void JNICALL Java_com_medianest_player_FFmpegPlaybackEngine_nativeSeek(JNIEnv *env, jobject thiz, jlong ptr, jlong pos) {
     if (auto ctx = reinterpret_cast<PlayerContext *>(ptr)) {
-        std::lock_guard<std::mutex> lock(ctx->mutex);
-        av_seek_frame(ctx->fmt_ctx, -1, pos * AV_TIME_BASE / 1000, AVSEEK_FLAG_BACKWARD);
+        std::lock_guard<std::recursive_mutex> lock(ctx->mutex);
+        if (ctx->fmt_ctx) {
+            av_seek_frame(ctx->fmt_ctx, -1, pos * AV_TIME_BASE / 1000, AVSEEK_FLAG_BACKWARD);
+        }
         ctx->current_position = pos;
         ctx->start_time = 0;
         ctx->audio_buffer.clear();
@@ -469,37 +639,47 @@ extern "C" JNIEXPORT void JNICALL Java_com_example_player_FFmpegPlaybackEngine_n
     }
 }
 
-extern "C" JNIEXPORT jlong JNICALL Java_com_example_player_FFmpegPlaybackEngine_nativeGetPosition(JNIEnv *env, jobject thiz, jlong ptr) {
+extern "C" JNIEXPORT jlong JNICALL Java_com_medianest_player_FFmpegPlaybackEngine_nativeGetPosition(JNIEnv *env, jobject thiz, jlong ptr) {
     auto ctx = reinterpret_cast<PlayerContext *>(ptr);
     return ctx ? ctx->current_position.load() : 0;
 }
 
-extern "C" JNIEXPORT jlong JNICALL Java_com_example_player_FFmpegPlaybackEngine_nativeGetDuration(JNIEnv *env, jobject thiz, jlong ptr) {
+extern "C" JNIEXPORT jlong JNICALL Java_com_medianest_player_FFmpegPlaybackEngine_nativeGetDuration(JNIEnv *env, jobject thiz, jlong ptr) {
     auto ctx = reinterpret_cast<PlayerContext *>(ptr);
     return ctx ? ctx->duration : 0;
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_com_example_player_FFmpegPlaybackEngine_nativeIsPlaying(JNIEnv *env, jobject thiz, jlong ptr) {
+extern "C" JNIEXPORT jboolean JNICALL Java_com_medianest_player_FFmpegPlaybackEngine_nativeIsPlaying(JNIEnv *env, jobject thiz, jlong ptr) {
     auto ctx = reinterpret_cast<PlayerContext *>(ptr);
     return ctx ? ctx->is_playing.load() : false;
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_player_FFmpegPlaybackEngine_nativeRelease(JNIEnv *env, jobject thiz, jlong ptr) {
+extern "C" JNIEXPORT void JNICALL Java_com_medianest_player_FFmpegPlaybackEngine_nativeRelease(JNIEnv *env, jobject thiz, jlong ptr) {
     if (auto ctx = reinterpret_cast<PlayerContext *>(ptr)) {
         ctx->cleanup(env);
         delete ctx;
     }
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_player_FFmpegPlaybackEngine_nativeUpdateSurface(JNIEnv *env, jobject thiz, jlong ptr, jobject surface) {
+extern "C" JNIEXPORT void JNICALL Java_com_medianest_player_FFmpegPlaybackEngine_nativeUpdateSurface(JNIEnv *env, jobject thiz, jlong ptr, jobject surface) {
     if (auto ctx = reinterpret_cast<PlayerContext *>(ptr)) ctx->set_surface(env, surface);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_example_player_FFmpegPlaybackEngine_nativeSetAudioFilters(JNIEnv *env, jobject thiz, jlong ptr, jstring filters) {
+extern "C" JNIEXPORT void JNICALL Java_com_medianest_player_FFmpegPlaybackEngine_nativeSetRepeatMode(JNIEnv *env, jobject thiz, jlong ptr, jint repeat_mode) {
+    if (auto ctx = reinterpret_cast<PlayerContext *>(ptr)) {
+        ctx->repeat_mode = repeat_mode;
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_medianest_player_FFmpegPlaybackEngine_nativeSetAudioFilters(JNIEnv *env, jobject thiz, jlong ptr, jstring filters) {
     if (auto ctx = reinterpret_cast<PlayerContext *>(ptr)) {
         const char* f = env->GetStringUTFChars(filters, nullptr);
-        ctx->current_filter_desc = f;
-        if (ctx->fmt_ctx) ctx->init_filter_graph(f);
-        env->ReleaseStringUTFChars(filters, f);
+        if (f) {
+            ctx->current_filter_desc = f;
+            if (ctx->fmt_ctx && ctx->audio_initialized.load()) {
+                ctx->init_filter_graph(f);
+            }
+            env->ReleaseStringUTFChars(filters, f);
+        }
     }
 }

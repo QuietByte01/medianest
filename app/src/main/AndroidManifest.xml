@@ -83,7 +83,7 @@
             android:exported="true"
             android:excludeFromRecents="true"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
-            android:theme="@style/Theme.MediaNest.TranslucentDialog">
+            android:theme="@style/Theme.MediaNest.FullScreenViewer">
             
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
