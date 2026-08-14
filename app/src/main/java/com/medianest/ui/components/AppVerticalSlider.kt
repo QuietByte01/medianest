@@ -55,10 +55,10 @@ fun AppVerticalSlider(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 
-    val resolvedTrackHeight = customTrackHeight ?: if (thickness == AppSliderThickness.Thin) 2.5.dp else 6.dp
+    val resolvedTrackHeight = customTrackHeight ?: if (thickness == AppSliderThickness.Thin) 4.dp else 6.dp
     val resolvedThumbDpSize = customThumbSize ?: when (headStyle) {
-        AppSliderHeadStyle.Bar -> DpSize(6.dp, 14.dp)
-        AppSliderHeadStyle.Circular -> if (thickness == AppSliderThickness.Thin) DpSize(10.dp, 10.dp) else DpSize(14.dp, 14.dp)
+        AppSliderHeadStyle.Bar -> DpSize(6.dp, 16.dp)
+        AppSliderHeadStyle.Circular -> if (thickness == AppSliderThickness.Thin) DpSize(14.dp, 14.dp) else DpSize(16.dp, 16.dp)
     }
 
     Box(
@@ -115,14 +115,18 @@ fun AppVerticalSlider(
             )
             val placeable = measurables.first().measure(sliderConstraints)
             layout(constraints.maxWidth, constraints.maxHeight) {
-                val x = (constraints.maxWidth - placeable.width) / 2
-                val y = (constraints.maxHeight - placeable.height) / 2
+                // To center a -90deg rotated item:
+                // unrotatedWidth = placeable.width, unrotatedHeight = placeable.height
+                // rotatedWidth = placeable.height, rotatedHeight = placeable.width
+                val x = (constraints.maxWidth - placeable.height) / 2
+                val y = (constraints.maxHeight - placeable.width) / 2
                 placeable.placeWithLayer(
                     x = x,
                     y = y,
                     zIndex = 0f,
                     layerBlock = {
                         rotationZ = -90f
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
                     }
                 )
             }
