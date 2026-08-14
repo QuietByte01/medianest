@@ -914,8 +914,8 @@ private fun OutputFileSafetyCard(
 ) {
     GlassSurface(
         shape = RoundedCornerShape(14.dp),
-        backgroundColor = Color(0x1810B981),
-        borderColor = Color(0x3310B981),
+        backgroundColor = Color(0x1838BDF8),
+        borderColor = Color(0x3338BDF8),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -949,7 +949,7 @@ private fun OutputFileSafetyCard(
             Switch(
                 checked = isCreateNewFile,
                 onCheckedChange = onToggle,
-                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF10B981))
+                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF38BDF8))
             )
         }
     }
@@ -1295,7 +1295,7 @@ private fun ExtractControlsCard(
                         subtitle = sub,
                         isSelected = isSel,
                         onClick = { onAudioFormatChange(fmt) },
-                        modifier = Modifier.width(160.dp)
+                        modifier = Modifier.width(170.dp)
                     )
                 }
             }

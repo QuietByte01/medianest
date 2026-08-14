@@ -36,10 +36,14 @@ import com.medianest.player.PlayerState
 fun NativeAudioDspSheet(
     playerState: PlayerState,
     playerManager: ExoPlayerManager,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    backgroundImage: Any? = null,
+    hue: Float? = null
 ) {
     AdaptiveBottomSheet(
         onDismissRequest = onDismiss,
+        backgroundImage = backgroundImage,
+        hue = hue,
         dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.3f)) }
     ) {
         Column(
@@ -218,7 +222,7 @@ private fun EqBandSlider(
             onValueChange = onGainChange,
             valueRange = -10f..10f,
             style = AppSliderStyle.Glossy,
-            headStyle = AppSliderHeadStyle.Bar,
+            headStyle = AppSliderHeadStyle.Circular,
             accentColor = Color(0xFFF1F5F9),
             modifier = Modifier
                 .weight(1f)

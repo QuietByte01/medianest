@@ -38,6 +38,7 @@ fun AdaptiveBottomSheet(
     containerColor: Color = Color.Unspecified,   // Unspecified → auto dark/light
     contentColor: Color = Color.White,
     backgroundImage: Any? = null,
+    hue: Float? = null,
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -48,6 +49,7 @@ fun AdaptiveBottomSheet(
     // Obsidian for dark, frosted white for light
     val resolvedColor = when {
         containerColor != Color.Unspecified -> containerColor
+        hue != null -> Color.Unspecified // Let GlassSurface handle hue-based color
         isDark -> Color(0xCC08090E)
         else   -> Color(0xCCE3E3E3)
     }
@@ -85,7 +87,8 @@ fun AdaptiveBottomSheet(
                     borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
                     backgroundImage = backgroundImage,
                     enableBlur = true,
-                    blurRadius = 32.dp
+                    blurRadius = 32.dp,
+                    hue = hue
                 ) {
                     Column(
                         modifier = Modifier
@@ -113,7 +116,8 @@ fun AdaptiveBottomSheet(
                     backgroundColor = resolvedColor,
                     backgroundImage = backgroundImage,
                     enableBlur = true,
-                    blurRadius = 32.dp
+                    blurRadius = 32.dp,
+                    hue = hue
                 ) {
                     Column(modifier = Modifier.navigationBarsPadding()) {
                         if (dragHandle != null) {

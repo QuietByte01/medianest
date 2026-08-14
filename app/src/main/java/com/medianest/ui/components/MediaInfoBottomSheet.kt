@@ -76,7 +76,8 @@ fun MediaInfoBottomSheet(
     item: MediaItem?,
     onDismiss: () -> Unit,
     onShowFileLocation: ((MediaItem) -> Unit)? = null,
-    onFetchInfo: ((MediaItem) -> Unit)? = null
+    onFetchInfo: ((MediaItem) -> Unit)? = null,
+    hue: Float? = null
 ) {
     // ISSUE: Metadata extraction is performed directly in composition via 'remember'.
     // This can block the UI thread for large files or slow storage.
@@ -113,7 +114,8 @@ fun MediaInfoBottomSheet(
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         containerColor = sheetBg,
         contentColor = if (isDark) Color.White else Color.Black,
-        backgroundImage = item.uri,
+        backgroundImage = item.albumArtUri ?: item.uri,
+        hue = hue,
         dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
         if (item.type == MediaType.VIDEO) {

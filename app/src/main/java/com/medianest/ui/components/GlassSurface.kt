@@ -42,6 +42,7 @@ fun GlassSurface(
     backgroundImage: Any? = null,
     enableBlur: Boolean = true,
     blurRadius: Dp = 24.dp,
+    hue: Float? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
     val isDark = LocalDarkTheme.current
@@ -49,11 +50,30 @@ fun GlassSurface(
     val glassEnabled by settingsManager.glassmorphismEnabled.collectAsState(initial = true)
 
     // Dark → Obsidian tint; Light → Frosted #E3E3E3
-    val defaultBg = if (isDark) Color(0xCC08090E) else Color(0xCCE3E3E3)
-    val defaultBorder = if (isDark) Color(0x28FFFFFF) else Color(0x28000000)
+    val defaultBg = if (backgroundColor != Color.Unspecified) {
+        backgroundColor
+    } else if (hue != null) {
+        if (isDark) {
+            // Obsidian Tint: Low saturation (35%), very low value (12%)
+            Color.hsv(hue, 0.35f, 0.12f, alpha = 0.85f)
+        } else {
+            // Frosted White Tint: Very low saturation (8%), high value (92%)
+            Color.hsv(hue, 0.08f, 0.92f, alpha = 0.85f)
+        }
+    } else {
+        if (isDark) Color(0xCC08090E) else Color(0xCCE3E3E3)
+    }
 
-    val effectiveBg = if (backgroundColor != Color.Unspecified) backgroundColor else defaultBg
-    val effectiveBorder = if (borderColor != Color.Unspecified) borderColor else defaultBorder
+    val defaultBorder = if (borderColor != Color.Unspecified) {
+        borderColor
+    } else if (hue != null) {
+        Color.hsv(hue, 0.20f, if (isDark) 0.8f else 0.2f, alpha = 0.25f)
+    } else {
+        if (isDark) Color(0x28FFFFFF) else Color(0x28000000)
+    }
+
+    val effectiveBg = defaultBg
+    val effectiveBorder = defaultBorder
 
     val context = LocalContext.current
     val shouldApplyBlur = enableBlur && glassEnabled

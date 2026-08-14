@@ -405,38 +405,51 @@ fun QuickViewScreen(
                         DropdownMenu(
                             expanded = showOverflowMenu,
                             onDismissRequest = { showOverflowMenu = false },
-                            containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
+                            containerColor = Color.Transparent, // Transparent because we use GlassSurface
                             shape = RoundedCornerShape(16.dp)
                         ) {
-                            if (pictureModeEnabled) {
-                                DropdownMenuItem(
-                                    text = { Text("Picture Mode", color = Color.White) },
-                                    leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, tint = Color.White) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        showPictureModeDialog = true
+                            val isDark = LocalDarkTheme.current
+                            val menuBg = if (isDark) Color(0xCC08090E) else Color(0xBFFFFFFF)
+                            
+                            com.medianest.ui.components.GlassSurface(
+                                backgroundImage = currentItem?.uri,
+                                backgroundColor = menuBg,
+                                shape = RoundedCornerShape(16.dp),
+                                enableBlur = true,
+                                hue = imageHue
+                            ) {
+                                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                    if (pictureModeEnabled) {
+                                        DropdownMenuItem(
+                                            text = { Text("Picture Mode", color = if (isDark) Color.White else Color.Black) },
+                                            leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                showPictureModeDialog = true
+                                            }
+                                        )
                                     }
-                                )
-                            }
-                            DropdownMenuItem(
-                                text = { Text("Open with", color = Color.White) },
-                                leadingIcon = { Icon(Icons.Default.OpenInNew, contentDescription = null, tint = Color.White) },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    currentItem?.let { item ->
-                                        val sharingUri = com.medianest.util.ContentUriUtils.getSharingUri(context, item.uri)
-                                        val openIntent = Intent(Intent.ACTION_VIEW).apply {
-                                            setDataAndType(sharingUri, item.mimeType.ifEmpty { "image/*" })
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    DropdownMenuItem(
+                                        text = { Text("Open with", color = if (isDark) Color.White else Color.Black) },
+                                        leadingIcon = { Icon(Icons.Default.OpenInNew, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            currentItem?.let { item ->
+                                                val sharingUri = com.medianest.util.ContentUriUtils.getSharingUri(context, item.uri)
+                                                val openIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                    setDataAndType(sharingUri, item.mimeType.ifEmpty { "image/*" })
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                                runCatching {
+                                                    context.startActivity(openIntent)
+                                                }.onFailure {
+                                                    android.widget.Toast.makeText(context, "No app available to open image", android.widget.Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
                                         }
-                                        runCatching {
-                                            context.startActivity(openIntent)
-                                        }.onFailure {
-                                            android.widget.Toast.makeText(context, "No app available to open image", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
+                                    )
                                 }
-                            )
+                            }
                         }
                     }
                 }
@@ -767,7 +780,8 @@ fun QuickViewScreen(
         if (showInfoBottomSheet && currentItem != null) {
             MediaInfoBottomSheet(
                 item = currentItem,
-                onDismiss = { showInfoBottomSheet = false }
+                onDismiss = { showInfoBottomSheet = false },
+                hue = imageHue
             )
         }
     }

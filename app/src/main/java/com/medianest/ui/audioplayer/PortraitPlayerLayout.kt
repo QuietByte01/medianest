@@ -104,7 +104,7 @@ fun PortraitPlayerLayout(
                     activeLyricFontSize = 20,
                     inactiveLyricFontSize = 15,
                     glassSurfaceModifier = Modifier.fillMaxSize(),
-                    cardShapeRadius = 24.dp
+                    cardShapeRadius = 16.dp
                 )
             } else if (showAlbumSongsInPortraitBox) {
                 Column(
@@ -115,7 +115,7 @@ fun PortraitPlayerLayout(
                         modifier = Modifier
                             .width(albumArtSize)
                             .height(albumArtSize),
-                        shape = RoundedCornerShape(20.dp),
+                        shape = RoundedCornerShape(16.dp),
                         backgroundColor = Color(0x1F24293A),
                         borderColor = Color(0x2EFFFFFF)
                     ) {
@@ -217,8 +217,8 @@ fun PortraitPlayerLayout(
                     GlassSurface(
                         modifier = Modifier
                             .size(albumArtSize)
-                            .clip(RoundedCornerShape(20.dp)),
-                        shape = RoundedCornerShape(20.dp),
+                            .clip(RoundedCornerShape(16.dp)),
+                        shape = RoundedCornerShape(16.dp),
                         backgroundColor = Color(0x12FFFFFF),
                         borderColor = Color.Transparent,
                         blurRadius = 30.dp
@@ -389,7 +389,7 @@ fun PortraitPlayerLayout(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 2.dp),
+                .padding(horizontal = 12.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {

@@ -55,6 +55,7 @@ fun LandscapePlayerLayout(
     activeLyricIndex: Int,
     listState: LazyListState,
     isFavorite: Boolean,
+    isTablet: Boolean,
     albumSongs: List<MediaItem>,
     albumArtHue: Float?,
     isSeeking: Boolean,
@@ -69,9 +70,11 @@ fun LandscapePlayerLayout(
     onFullscreenVisualizerClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val artworkWidthFraction = if (isTablet) 0.85f else 0.68f
+
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Left Side: Artwork / Visualizer / Lyrics & Track Title below
@@ -99,15 +102,15 @@ fun LandscapePlayerLayout(
                     glassSurfaceModifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
-                    cardShapeRadius = 22.dp
+                    cardShapeRadius = 16.dp
                 )
             } else if (showAudioVisualizer) {
                 GlassSurface(
                     modifier = Modifier
-                        .fillMaxWidth(0.85f)
+                        .fillMaxWidth(artworkWidthFraction)
                         .aspectRatio(1f)
-                        .clip(RoundedCornerShape(24.dp)),
-                    shape = RoundedCornerShape(24.dp),
+                        .clip(RoundedCornerShape(16.dp)),
+                    shape = RoundedCornerShape(16.dp),
                     backgroundColor = Color(0x12FFFFFF),
                     borderColor = Color.Transparent,
                     blurRadius = 30.dp
@@ -140,11 +143,11 @@ fun LandscapePlayerLayout(
             } else {
                 Card(
                     modifier = Modifier
-                        .fillMaxWidth(0.85f)
+                        .fillMaxWidth(artworkWidthFraction)
                         .aspectRatio(1f)
-                        .clip(RoundedCornerShape(24.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .clickable { onToggleShowLyrics(true) },
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(16.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
                 ) {
                     if (currentItem?.albumArtUri != null) {
@@ -177,7 +180,7 @@ fun LandscapePlayerLayout(
                                             Color.White.copy(alpha = 0.15f)
                                         )
                                     ),
-                                    shape = RoundedCornerShape(24.dp)
+                                    shape = RoundedCornerShape(16.dp)
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
@@ -214,7 +217,6 @@ fun LandscapePlayerLayout(
             )
         }
 
-        Spacer(modifier = Modifier.weight(0.10f))
 
         // Right Side: UP NEXT queue / Album Songs panel & Player Transport
         Column(

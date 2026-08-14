@@ -58,7 +58,7 @@ fun AppVerticalSlider(
     val resolvedTrackHeight = customTrackHeight ?: 8.dp
     val resolvedThumbDpSize = customThumbSize ?: when (headStyle) {
         AppSliderHeadStyle.Bar -> DpSize(14.dp, 8.dp) // unrotated: physical height=14, physical width=8
-        AppSliderHeadStyle.Circular -> DpSize(16.dp, 16.dp)
+        AppSliderHeadStyle.Circular -> DpSize(12.dp, 12.dp)
     }
 
     Box(
@@ -121,8 +121,10 @@ fun AppVerticalSlider(
             val placeable = measurables.first().measure(sliderConstraints)
             
             layout(constraints.maxWidth, constraints.maxHeight) {
-                // Rotated width is placeable.height
-                // Rotated height is placeable.width
+                // To center a -90deg rotated item correctly:
+                // We place the unrotated item such that its center aligns with the container's physical center.
+                // physical center = (constraints.maxWidth / 2, constraints.maxHeight / 2)
+                // unrotated item center = (x + placeable.width / 2, y + placeable.height / 2)
                 val x = (constraints.maxWidth - placeable.width) / 2
                 val y = (constraints.maxHeight - placeable.height) / 2
                 
@@ -132,7 +134,6 @@ fun AppVerticalSlider(
                     zIndex = 0f,
                     layerBlock = {
                         rotationZ = -90f
-                        // By default transformOrigin is (0.5f, 0.5f)
                     }
                 )
             }
