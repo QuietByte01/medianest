@@ -38,71 +38,20 @@ fun NativeAudioDspSheet(
     playerManager: ExoPlayerManager,
     onDismiss: () -> Unit
 ) {
-    val configuration = LocalConfiguration.current
-    val isTablet = configuration.screenWidthDp >= 600
-
-    if (isTablet) {
-        // Centered Alert Dialog Box for Tablets
-        Box(
+    AdaptiveBottomSheet(
+        onDismissRequest = onDismiss,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.3f)) }
+    ) {
+        Column(
             modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.6f))
-                .clickable { onDismiss() },
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 8.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            GlassSurface(
-                modifier = Modifier
-                    .width(540.dp)
-                    .padding(24.dp)
-                    .clickable(enabled = false) {},
-                shape = RoundedCornerShape(24.dp),
-                backgroundColor = Color(0xF20F172A),
-                borderColor = Color(0x33FFFFFF),
-                enableBlur = true,
-                blurRadius = 24.dp
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    HeaderSection()
-                    DspSheetContent(playerState = playerState, playerManager = playerManager)
-                }
-            }
-        }
-    } else {
-        // Bottom Sheet for Phones
-        ModalBottomSheet(
-            onDismissRequest = onDismiss,
-            containerColor = Color(0x990F172A),
-            scrimColor = Color.Black.copy(alpha = 0.55f),
-            dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.3f)) }
-        ) {
-            GlassSurface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding(),
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                backgroundColor = Color(0x550F172A),
-                borderColor = Color(0x2EFFFFFF),
-                enableBlur = true,
-                blurRadius = 24.dp
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 16.dp)
-                        .padding(bottom = 32.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    HeaderSection()
-                    DspSheetContent(playerState = playerState, playerManager = playerManager)
-                }
-            }
+            HeaderSection()
+            DspSheetContent(playerState = playerState, playerManager = playerManager)
         }
     }
 }
@@ -120,70 +69,28 @@ private fun DspSheetContent(
     playerState: PlayerState,
     playerManager: ExoPlayerManager
 ) {
-    // 1. Vocal Mute & Loudness Toggles (Cyan / Sky Blue theme, NO PURPLE)
+    // 1. Vocal Mute & Loudness Toggles (Glossy Pill Buttons)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Vocal Mute Toggle
-        Surface(
+        AppPillButton(
+            text = if (playerState.isVocalMuteEnabled) "Vocal Mute ON" else "Vocal Mute",
+            icon = Icons.Default.MusicNote,
+            isSelected = playerState.isVocalMuteEnabled,
             onClick = { playerManager.setVocalMute(!playerState.isVocalMuteEnabled) },
-            shape = RoundedCornerShape(16.dp),
-            color = if (playerState.isVocalMuteEnabled) Color(0xFF0EA5E9) else Color(0x1F22D3EE),
-            border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.2f)),
+            accentColor = Color(0xFF0EA5E9),
             modifier = Modifier.weight(1f)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.MusicNote,
-                    contentDescription = null,
-                    tint = if (playerState.isVocalMuteEnabled) Color.White else Color(0xFFA5F3FC),
-                    modifier = Modifier.size(18.dp)
-                )
-                Text(
-                    text = if (playerState.isVocalMuteEnabled) "Vocal Mute ON" else "Vocal Mute",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
+        )
 
-        // Loudness Normalizer Toggle
-        Surface(
+        AppPillButton(
+            text = if (playerState.isLoudnessNormalizerEnabled) "Auto Level ON" else "Auto Level",
+            icon = Icons.Default.Hearing,
+            isSelected = playerState.isLoudnessNormalizerEnabled,
             onClick = { playerManager.setLoudnessNormalizer(!playerState.isLoudnessNormalizerEnabled) },
-            shape = RoundedCornerShape(16.dp),
-            color = if (playerState.isLoudnessNormalizerEnabled) Color(0xFF06B6D4) else Color(0x1F22D3EE),
-            border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.2f)),
+            accentColor = Color(0xFF06B6D4),
             modifier = Modifier.weight(1f)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Hearing,
-                    contentDescription = null,
-                    tint = if (playerState.isLoudnessNormalizerEnabled) Color.White else Color(0xFFA5F3FC),
-                    modifier = Modifier.size(18.dp)
-                )
-                Text(
-                    text = if (playerState.isLoudnessNormalizerEnabled) "Auto Level ON" else "Auto Level",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
+        )
     }
 
     // 2. Pitch Shifter (-12 to +12 Semitones, Sky Blue accent)
@@ -193,7 +100,7 @@ private fun DspSheetContent(
         onValueChange = { playerManager.setPitchSemitones(it.toInt()) },
         valueRange = -12f..12f,
         icon = Icons.Default.Hearing,
-        accentColor = Color(0xFF38BDF8),
+        accentColor = Color(0xFFF1F5F9),
         unit = " semitones"
     )
 
@@ -220,7 +127,7 @@ private fun DspSheetContent(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Color(0xFFF1F5F9), modifier = Modifier.size(18.dp))
                 Text("5-Band Native Equalizer", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
 
@@ -287,6 +194,8 @@ private fun DspSliderItem(
             value = value,
             onValueChange = onValueChange,
             valueRange = valueRange,
+            style = AppSliderStyle.Glossy,
+            customTrackHeight = 8.dp,
             accentColor = accentColor
         )
     }
@@ -309,9 +218,8 @@ private fun EqBandSlider(
             onValueChange = onGainChange,
             valueRange = -10f..10f,
             style = AppSliderStyle.Glossy,
-            thickness = AppSliderThickness.Thin,
-            headStyle = AppSliderHeadStyle.Circular,
-            accentColor = Color(0xFF38BDF8),
+            headStyle = AppSliderHeadStyle.Bar,
+            accentColor = Color(0xFFF1F5F9),
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()

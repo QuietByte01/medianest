@@ -55,10 +55,10 @@ fun AppVerticalSlider(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 
-    val resolvedTrackHeight = customTrackHeight ?: if (thickness == AppSliderThickness.Thin) 4.dp else 6.dp
+    val resolvedTrackHeight = customTrackHeight ?: 8.dp
     val resolvedThumbDpSize = customThumbSize ?: when (headStyle) {
-        AppSliderHeadStyle.Bar -> DpSize(6.dp, 16.dp)
-        AppSliderHeadStyle.Circular -> if (thickness == AppSliderThickness.Thin) DpSize(14.dp, 14.dp) else DpSize(16.dp, 16.dp)
+        AppSliderHeadStyle.Bar -> DpSize(14.dp, 8.dp) // unrotated: physical height=14, physical width=8
+        AppSliderHeadStyle.Circular -> DpSize(16.dp, 16.dp)
     }
 
     Box(
@@ -70,14 +70,14 @@ fun AppVerticalSlider(
                 Slider(
                     value = value,
                     onValueChange = onValueChange,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxWidth(), // In Layout, this is the unrotated width (physical height)
                     enabled = enabled,
                     valueRange = valueRange,
                     steps = steps,
                     onValueChangeFinished = onValueChangeFinished,
                     interactionSource = interactionSource,
                     thumb = {
-                        val shape = if (headStyle == AppSliderHeadStyle.Bar) RoundedCornerShape(2.dp) else CircleShape
+                        val shape = if (headStyle == AppSliderHeadStyle.Bar) RoundedCornerShape(1.5.dp) else CircleShape
                         Box(
                             modifier = Modifier
                                 .size(resolvedThumbDpSize.width, resolvedThumbDpSize.height)
@@ -85,7 +85,7 @@ fun AppVerticalSlider(
                                 .background(thumbColor)
                                 .then(
                                     if (style == AppSliderStyle.Glossy) {
-                                        Modifier.border(BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)), shape)
+                                        Modifier.border(BorderStroke(0.5.dp, Color.White.copy(alpha = 0.6f)), shape)
                                     } else Modifier
                                 )
                         )
@@ -105,28 +105,34 @@ fun AppVerticalSlider(
                 )
             }
         ) { measurables, constraints ->
-            val sliderHeight = constraints.maxWidth
-            val sliderWidth = constraints.maxHeight.coerceAtLeast(1)
-            val sliderConstraints = androidx.compose.ui.unit.Constraints(
-                minWidth = sliderWidth,
-                maxWidth = sliderWidth,
-                minHeight = 0,
-                maxHeight = sliderHeight
+            // In a vertical slider rotated -90deg:
+            // physical width = constraints.maxWidth
+            // physical height = constraints.maxHeight
+            
+            // The unrotated slider's width should be the physical height.
+            val sliderUnrotatedWidth = constraints.maxHeight
+            // The unrotated slider's height should be the physical width.
+            val sliderUnrotatedHeight = constraints.maxWidth.coerceAtLeast(1)
+            
+            val sliderConstraints = androidx.compose.ui.unit.Constraints.fixed(
+                width = sliderUnrotatedWidth,
+                height = sliderUnrotatedHeight
             )
             val placeable = measurables.first().measure(sliderConstraints)
+            
             layout(constraints.maxWidth, constraints.maxHeight) {
-                // To center a -90deg rotated item:
-                // unrotatedWidth = placeable.width, unrotatedHeight = placeable.height
-                // rotatedWidth = placeable.height, rotatedHeight = placeable.width
-                val x = (constraints.maxWidth - placeable.height) / 2
-                val y = (constraints.maxHeight - placeable.width) / 2
+                // Rotated width is placeable.height
+                // Rotated height is placeable.width
+                val x = (constraints.maxWidth - placeable.width) / 2
+                val y = (constraints.maxHeight - placeable.height) / 2
+                
                 placeable.placeWithLayer(
                     x = x,
                     y = y,
                     zIndex = 0f,
                     layerBlock = {
                         rotationZ = -90f
-                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                        // By default transformOrigin is (0.5f, 0.5f)
                     }
                 )
             }
