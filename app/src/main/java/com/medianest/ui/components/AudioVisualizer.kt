@@ -89,7 +89,11 @@ enum class VisualizerStyle {
     INDIGO_HYPERSPACE,
     PARTICLE_GLOBE_SPHERE,
     WAVE_GRID_TERRAIN,
-    ENERGY_PARTICLES
+    ENERGY_PARTICLES;
+
+    fun is3D(): Boolean = this == INDIGO_HYPERSPACE ||
+                         this == PARTICLE_GLOBE_SPHERE ||
+                         this == WAVE_GRID_TERRAIN
 }
 
 class VisualizerDataState(val numBands: Int = 256) {
@@ -177,6 +181,8 @@ class AudioVisualizerGLSurfaceView(
         updateMode(styleProvider())
     }
 
+    private var lastStyle: VisualizerStyle? = null
+
     fun updateAudioData(
         bassEnergy: Float, midEnergy: Float, trebleEnergy: Float,
         amplitude: Float, timeSec: Float, bands: FloatArray, artBaseHue: Float, peakCaps: FloatArray
@@ -184,7 +190,12 @@ class AudioVisualizerGLSurfaceView(
         renderer.updateAudio(bassEnergy, midEnergy, trebleEnergy, amplitude, timeSec, bands)
         renderer.updatePeakCaps(peakCaps)
         canvasView.updateAudio(bassEnergy, midEnergy, trebleEnergy, amplitude, timeSec, bands, artBaseHue, renderer.currentPeakCaps())
-        updateMode(styleProvider())
+        
+        val currentStyle = styleProvider()
+        if (currentStyle != lastStyle) {
+            updateMode(currentStyle)
+            lastStyle = currentStyle
+        }
     }
 
     fun getTagStyle(): VisualizerStyle = styleProvider()
@@ -192,23 +203,15 @@ class AudioVisualizerGLSurfaceView(
     fun setFullscreenBackground(enabled: Boolean) {
         val bg = if (enabled) android.graphics.Color.rgb(2, 1, 8) else android.graphics.Color.TRANSPARENT
         setBackgroundColor(bg)
-        glView.setBackgroundColor(bg)
         canvasView.setOpaqueBackground(enabled)
         invalidate()
     }
 
     private fun updateMode(style: VisualizerStyle) {
-        val is2D = when (style) {
-            VisualizerStyle.GLOSSY_SPECTRUM_BARS,
-            VisualizerStyle.CIRCULAR_RING_WAVE,
-            VisualizerStyle.NEON_WAVEFORM,
-            VisualizerStyle.BASS_PARTICLE_HALO,
-            VisualizerStyle.DOT_MATRIX_BARS,
-            VisualizerStyle.ENERGY_PARTICLES -> true
-            else -> false
-        }
-        canvasView.visibility = if (is2D) View.VISIBLE else View.GONE
-        glView.visibility = if (is2D) View.GONE else View.VISIBLE
+        val is3D = style.is3D()
+        // Always keep canvas visible so it can draw background in fullscreen if needed
+        canvasView.visibility = View.VISIBLE
+        glView.visibility = if (is3D) View.VISIBLE else View.GONE
     }
 }
 
@@ -311,7 +314,11 @@ private class AudioVisualizer2DView(context: Context) : View(context) {
         super.onDraw(canvas)
         val dt = if (lastTime == 0f) 0.016f else (timeSec - lastTime).coerceIn(0f, 0.05f)
         lastTime = timeSec
-        if (opaqueBackground) {
+
+        val style = currentStyle()
+        val is3D = style.is3D()
+
+        if (opaqueBackground && !is3D) {
             canvas.drawColor(android.graphics.Color.rgb(2, 1, 8))
         } else {
             canvas.drawColor(android.graphics.Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)

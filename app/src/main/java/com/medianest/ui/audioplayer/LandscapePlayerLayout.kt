@@ -67,10 +67,32 @@ fun LandscapePlayerLayout(
     onToggleFavorite: () -> Unit,
     onOpenAddPlaylist: () -> Unit,
     onEditLyrics: () -> Unit,
+    onToggleVisualizer: () -> Unit = {},
     onFullscreenVisualizerClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val artworkWidthFraction = if (isTablet) 0.85f else 0.68f
+    if (!isTablet) {
+        PhoneMinimalLandscapeLayout(
+            playerState = playerState,
+            currentItem = currentItem,
+            playerManager = playerManager,
+            showLyricsView = showLyricsView,
+            showAudioVisualizer = showAudioVisualizer,
+            isLoadingLyrics = isLoadingLyrics,
+            lyricsLines = lyricsLines,
+            rawLyricsText = rawLyricsText,
+            activeLyricIndex = activeLyricIndex,
+            listState = listState,
+            albumArtHue = albumArtHue,
+            onToggleShowLyrics = onToggleShowLyrics,
+            onEditLyrics = onEditLyrics,
+            onToggleVisualizer = onToggleVisualizer,
+            modifier = modifier
+        )
+        return
+    }
+
+    val artworkWidthFraction = 0.85f
 
     Row(
         modifier = modifier.padding(vertical = 4.dp),
@@ -541,6 +563,164 @@ fun LandscapePlayerLayout(
                         secondaryButtonSize = 38.dp
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhoneMinimalLandscapeLayout(
+    playerState: PlayerState,
+    currentItem: MediaItem?,
+    playerManager: ExoPlayerManager,
+    showLyricsView: Boolean,
+    showAudioVisualizer: Boolean,
+    isLoadingLyrics: Boolean,
+    lyricsLines: List<LyricLine>,
+    rawLyricsText: String?,
+    activeLyricIndex: Int,
+    listState: LazyListState,
+    albumArtHue: Float?,
+    onToggleShowLyrics: (Boolean) -> Unit,
+    onEditLyrics: () -> Unit,
+    onToggleVisualizer: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier.fillMaxSize()) {
+        // 1. Background Content (Immersive)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable { onToggleShowLyrics(!showLyricsView) }
+        ) {
+            if (showLyricsView) {
+                LyricsView(
+                    isLoadingLyrics = isLoadingLyrics,
+                    lyricsLines = lyricsLines,
+                    rawLyricsText = rawLyricsText,
+                    activeLyricIndex = activeLyricIndex,
+                    listState = listState,
+                    onSeekTo = { playerManager.seekTo(it) },
+                    onEditLyrics = onEditLyrics,
+                    onHideLyrics = { onToggleShowLyrics(false) },
+                    titleFontSize = 14,
+                    activeLyricFontSize = 18,
+                    inactiveLyricFontSize = 14,
+                    glassSurfaceModifier = Modifier.fillMaxSize(),
+                    cardShapeRadius = 0.dp
+                )
+            } else if (showAudioVisualizer) {
+                AudioReactiveVisualizerPattern(
+                    isPlaying = playerState.isPlaying,
+                    audioSessionId = playerState.audioSessionId,
+                    hue = albumArtHue,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                if (currentItem?.albumArtUri != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(currentItem.albumArtUri)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = currentItem.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF1A1C1E)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MusicNote,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.2f),
+                            modifier = Modifier.size(100.dp)
+                        )
+                    }
+                }
+                // Add a subtle vignette/darkening to ensure controls and text are visible
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = 0.4f),
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.6f)
+                                )
+                            )
+                        )
+                )
+            }
+        }
+
+        // 2. Center Bottom Title & Artist
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 20.dp)
+                .padding(horizontal = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = currentItem?.title ?: "No Track",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee()
+            )
+            Text(
+                text = currentItem?.artist ?: "Unknown Artist",
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        // 3. Top Right Controls
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 16.dp, end = 24.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            IconButton(
+                onClick = onToggleVisualizer,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.15f))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.BarChart,
+                    contentDescription = "Toggle Visualizer",
+                    tint = if (showAudioVisualizer) Color(0xFF64B5F6) else Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            IconButton(
+                onClick = { playerManager.togglePlayPause() },
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.2f))
+            ) {
+                Icon(
+                    imageVector = if (playerState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = "Play/Pause",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
             }
         }
     }

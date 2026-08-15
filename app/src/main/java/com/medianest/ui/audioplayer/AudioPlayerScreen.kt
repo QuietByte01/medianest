@@ -435,6 +435,9 @@ fun AudioPlayerScreen(
                         manualLyricsInput = rawLyricsText ?: ""
                         showManualLyricsDialog = true
                     },
+                    onToggleVisualizer = {
+                        scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) }
+                    },
                     onFullscreenVisualizerClick = { showFullscreenVisualizer = true },
                     modifier = Modifier
                         .fillMaxSize()
@@ -662,7 +665,7 @@ fun AudioPlayerScreen(
                         style = selectedVisualizerStyle,
                         onStyleChange = { selectedVisualizerStyle = it },
                         showControls = false,
-//                        isFullscreen = true,
+                        isFullscreen = true,
                         modifier = Modifier.fillMaxSize()
                     )
 

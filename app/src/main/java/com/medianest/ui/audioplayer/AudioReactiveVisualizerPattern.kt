@@ -15,6 +15,7 @@ fun AudioReactiveVisualizerPattern(
     hue: Float? = null,
     style: VisualizerStyle = VisualizerStyle.ENERGY_PARTICLES, // VisualizerStyle.AUDIO_REACTIVE_DANCER,
     showControls: Boolean = false,
+    isFullscreen: Boolean = false,
     onStyleChange: ((VisualizerStyle) -> Unit)? = null
 ) {
     // Generate colors based on hue if available, else use defaults
@@ -30,6 +31,7 @@ fun AudioReactiveVisualizerPattern(
         secondaryColor = secondaryColor,
         accentColor = accentColor,
         showControls = showControls,
+        isFullscreen = isFullscreen,
         onStyleChange = onStyleChange,
         modifier = modifier.fillMaxSize()
     )
