@@ -18,6 +18,14 @@ class AudioPlayerActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
+        if (Build.VERSION.SDK_INT >= 34) {
+            overrideActivityTransition(
+                OVERRIDE_TRANSITION_OPEN,
+                com.medianest.R.anim.viewer_open_enter,
+                com.medianest.R.anim.viewer_open_exit
+            )
+        }
+
         val exoPlayerManager = ExoPlayerManager.getInstance(applicationContext)
         val networkRepository = com.medianest.data.repository.NetworkRepository()
         val settingsManager = MediaNestApp.instance.settingsManager

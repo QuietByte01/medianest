@@ -357,7 +357,7 @@ fun MediaProcessorStudioCard(
                         Surface(
                             onClick = { onOpenStudioTab(tab) },
                             shape = RoundedCornerShape(14.dp),
-                            color = Color(0x1AFFFFFF),
+                            color = Color(0x3D181A24),
                             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x1FFFFFFF)),
                             modifier = Modifier.fillMaxWidth()
                         ) {

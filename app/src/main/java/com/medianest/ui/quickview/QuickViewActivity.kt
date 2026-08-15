@@ -29,6 +29,14 @@ class QuickViewActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        if (android.os.Build.VERSION.SDK_INT >= 34) {
+            overrideActivityTransition(
+                OVERRIDE_TRANSITION_OPEN,
+                com.medianest.R.anim.viewer_open_enter,
+                com.medianest.R.anim.viewer_open_exit
+            )
+        }
+
         val intentData: Uri? = when (intent?.action) {
             Intent.ACTION_SEND -> intent.getParcelableExtra(Intent.EXTRA_STREAM)
             Intent.ACTION_VIEW -> intent.data

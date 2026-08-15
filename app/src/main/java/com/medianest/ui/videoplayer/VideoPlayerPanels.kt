@@ -1091,9 +1091,10 @@ private fun SettingsContent(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        val labels = listOf("60", "230", "910", "3.6K", "14K")
+                        val labels = listOf("60Hz", "230Hz", "910Hz", "3.6kHz", "14kHz")
                         playerState.eqBands.forEachIndexed { index, gain ->
-                            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(text = "${if (gain > 0) "+" else ""}${gain.toInt()}dB", fontSize = 10.sp, color = if (gain != 0f) Color(0xFF38BDF8) else Color(0xFF64748B), fontWeight = if (gain != 0f) FontWeight.Bold else FontWeight.Normal)
                                 AppVerticalSlider(
                                     value = gain,
                                     onValueChange = { newGain ->
@@ -1106,10 +1107,9 @@ private fun SettingsContent(
                                     thickness = AppSliderThickness.Thin,
                                     headStyle = AppSliderHeadStyle.Circular,
                                     accentColor = Color(0xFF38BDF8),
-                                    modifier = Modifier.height(100.dp).fillMaxWidth()
+                                    modifier = Modifier.height(145.dp).fillMaxWidth()
                                 )
-                                Text(text = "${if (gain > 0) "+" else ""}${gain.toInt()}dB", fontSize = 10.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
-                                Text(labels[index], fontSize = 9.sp, color = Color.White.copy(alpha = 0.5f))
+                                Text(labels[index], fontSize = 9.5.sp, color = Color.White.copy(alpha = 0.6f), fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -1144,13 +1144,17 @@ private fun SettingsContent(
                     ) {
                         Text(text = "Grain Intensity", fontSize = 12.sp, color = Color(0xFF94A3B8))
                         val percent = ((filmGrainIntensity - 0.05f) / (0.30f - 0.05f) * 100).toInt().coerceIn(0, 100)
-                        Text(text = "$percent%", fontSize = 12.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                        Text(text = "$percent%", fontSize = 12.sp, color = Color(0xFFE2E8F0), fontWeight = FontWeight.Bold)
                     }
                     AppSlider(
                         value = filmGrainIntensity,
                         onValueChange = onFilmGrainIntensityChange,
                         valueRange = 0.05f..0.30f,
-                        accentColor = Color(0xFF38BDF8)
+                        style = AppSliderStyle.Glossy,
+                        accentColor = Color(0xFFE2E8F0),
+                        activeTrackColor = Color(0xFFE2E8F0),
+                        inactiveTrackColor = Color.White.copy(alpha = 0.16f),
+                        thumbColor = Color.White
                     )
                 }
             }
@@ -1321,8 +1325,8 @@ fun AspectRatioModal(
                 Text(text = "Aspect Ratio", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.Center)
                 Spacer(modifier = Modifier.height(10.dp))
                 val aspectRatios = listOf(
-                    "FIT" to "Fit", "CROP" to "Crop", "STRETCH" to "Stretch",
-                    "ORIGINAL" to "Original", "16:9" to "16:9", "4:3" to "4:3", "FILL" to "Fill"
+                    "FIT" to "Fit", "CROP" to "Crop", "16:9" to "16:9",
+                    "16:10" to "16:10", "4:3" to "4:3", "ORIGINAL" to "Original (100%)", "STRETCH" to "Stretch"
                 )
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
@@ -1455,11 +1459,16 @@ fun VideoPostProcessingPanel(
 
                 val effects = listOf(
                     "NORMAL" to "Normal",
-                    "SHARPEN" to "Sharpen (Unsharp)",
+                    "TRUE_COLOR" to "Natural Balance",
+                    "BW" to "B&W",
+                    "SEPIA" to "Sepia Film",
+                    "CINEMATIC" to "Cinematic",
+                    "VIVID" to "Vivid",
+                    "BALANCED" to "Balanced",
+                    "SHARPEN" to "Sharpen",
                     "HIGH_CONTRAST" to "High Contrast",
                     "NIGHT_VISION" to "Night Vision",
-                    "VINTAGE_CRT" to "Vintage CRT",
-                    "SEPIA" to "Sepia Film"
+                    "VINTAGE_CRT" to "Vintage CRT"
                 )
 
                 LazyRow(
@@ -1470,14 +1479,14 @@ fun VideoPostProcessingPanel(
                     items(effects) { (code, label) ->
                         val isSelected = currentEffect.equals(code, ignoreCase = true)
                         Surface(
-                            onClick = { onEffectChange(code); onDismiss() },
+                            onClick = { onEffectChange(code) },
                             shape = RoundedCornerShape(14.dp),
-                            color = if (isSelected) Color(0xFF38BDF8) else Color(0x22FFFFFF),
-                            border = BorderStroke(1.dp, if (isSelected) Color.White else Color(0x1AFFFFFF))
+                            color = if (isSelected) Color(0xF5FFFFFF) else Color(0x1AFFFFFF),
+                            border = BorderStroke(1.dp, if (isSelected) Color(0xFFFFFFFF) else Color(0x14FFFFFF))
                         ) {
                             Text(
                                 text = label,
-                                color = if (isSelected) Color.Black else Color.White,
+                                color = if (isSelected) Color(0xFF0F172A) else Color(0xCCFFFFFF),
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 fontSize = 13.sp,
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)

@@ -169,9 +169,9 @@ fun RoundedSkipPreviousIcon(
         val w = size.width
         val h = size.height
         val pillWidth = w * 0.15f
-        val pillHeight = h * 0.64f
+        val pillHeight = h * 0.75f
         val capRadius = pillWidth / 2f
-        val startX = w * 0.15f
+        val startX = w * 0.10f
         val startY = (h - pillHeight) / 2f
 
         // 1. Left vertical rounded pill bar
@@ -183,11 +183,11 @@ fun RoundedSkipPreviousIcon(
         )
 
         // 2. Left-pointing rounded triangle
-        val triRadius = w * 0.14f
+        val triRadius = w * 0.16f
         val triVertices = listOf(
-            Offset(w * 0.85f, h * 0.18f), // Top-right
-            Offset(w * 0.38f, h * 0.50f), // Left tip
-            Offset(w * 0.85f, h * 0.82f)  // Bottom-right
+            Offset(w * 0.90f, h * 0.125f), // Top-right
+            Offset(w * 0.35f, h * 0.50f), // Left tip
+            Offset(w * 0.90f, h * 0.875f)  // Bottom-right
         )
         drawRoundedPolygon(triVertices, triRadius, tint)
     }
@@ -205,19 +205,111 @@ fun RoundedSkipNextIcon(
         val w = size.width
         val h = size.height
         val pillWidth = w * 0.15f
-        val pillHeight = h * 0.64f
+        val pillHeight = h * 0.75f
         val capRadius = pillWidth / 2f
-        val pillX = w * 0.70f
+        val pillX = w * 0.75f
         val pillY = (h - pillHeight) / 2f
 
         // 1. Right-pointing rounded triangle
-        val triRadius = w * 0.14f
+        val triRadius = w * 0.16f
         val triVertices = listOf(
-            Offset(w * 0.15f, h * 0.18f), // Top-left
-            Offset(w * 0.62f, h * 0.50f), // Right tip
-            Offset(w * 0.15f, h * 0.82f)  // Bottom-left
+            Offset(w * 0.10f, h * 0.125f), // Top-left
+            Offset(w * 0.65f, h * 0.50f), // Right tip
+            Offset(w * 0.10f, h * 0.875f)  // Bottom-left
         )
         drawRoundedPolygon(triVertices, triRadius, tint)
+
+        // 2. Right vertical rounded pill bar
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(pillX, pillY),
+            size = Size(pillWidth, pillHeight),
+            cornerRadius = CornerRadius(capRadius, capRadius)
+        )
+    }
+}
+
+/**
+ * Redesigned Skip Previous Icon: Vertical pill + double left-pointing triangles (|<<)
+ */
+@Composable
+fun RoundedDoubleSkipPreviousIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = Color.White
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val pillWidth = w * 0.12f
+        val pillHeight = h * 0.51f
+        val capRadius = pillWidth / 2f
+        val startX = w * 0.12f
+        val startY = (h - pillHeight) / 2f
+
+        // 1. Left vertical rounded pill bar
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(startX, startY),
+            size = Size(pillWidth, pillHeight),
+            cornerRadius = CornerRadius(capRadius, capRadius)
+        )
+
+        // 2. Two Left-pointing rounded triangles
+        val triRadius = w * 0.12f
+        
+        // Outer triangle
+        val tri1Vertices = listOf(
+            Offset(w * 0.65f, h * 0.20f), 
+            Offset(w * 0.32f, h * 0.50f), 
+            Offset(w * 0.65f, h * 0.80f)
+        )
+        drawRoundedPolygon(tri1Vertices, triRadius, tint)
+        
+        // Inner triangle
+        val tri2Vertices = listOf(
+            Offset(w * 0.92f, h * 0.20f), 
+            Offset(w * 0.59f, h * 0.50f), 
+            Offset(w * 0.92f, h * 0.80f)
+        )
+        drawRoundedPolygon(tri2Vertices, triRadius, tint)
+    }
+}
+
+/**
+ * Redesigned Skip Next Icon: Double right-pointing triangles + vertical pill (>>|)
+ */
+@Composable
+fun RoundedDoubleSkipNextIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = Color.White
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val pillWidth = w * 0.12f
+        val pillHeight = h * 0.51f
+        val capRadius = pillWidth / 2f
+        val pillX = w * 0.76f
+        val pillY = (h - pillHeight) / 2f
+
+        // 1. Two Right-pointing rounded triangles
+        val triRadius = w * 0.12f
+        
+        // Inner triangle
+        val tri1Vertices = listOf(
+            Offset(w * 0.08f, h * 0.20f), 
+            Offset(w * 0.41f, h * 0.50f), 
+            Offset(w * 0.08f, h * 0.80f)
+        )
+        drawRoundedPolygon(tri1Vertices, triRadius, tint)
+        
+        // Outer triangle
+        val tri2Vertices = listOf(
+            Offset(w * 0.35f, h * 0.20f), 
+            Offset(w * 0.68f, h * 0.50f), 
+            Offset(w * 0.35f, h * 0.80f)
+        )
+        drawRoundedPolygon(tri2Vertices, triRadius, tint)
 
         // 2. Right vertical rounded pill bar
         drawRoundRect(
@@ -275,20 +367,24 @@ fun CustomRoundedPlayPauseButton(
                     ControlButtonStyle.TRANSPARENT_MINIMAL -> Modifier.clip(CircleShape)
                     ControlButtonStyle.GLASS_SQUIRCLE -> Modifier
                         .clip(RoundedCornerShape(buttonSize * 0.35f))
+                        /*
                         .background(containerColor)
                         .then(
                             if (borderColor != null) {
                                 Modifier.border(1.dp, borderColor, RoundedCornerShape(buttonSize * 0.35f))
                             } else Modifier
                         )
+                        */
                     ControlButtonStyle.PILL_ACCENT -> Modifier
                         .clip(CircleShape)
+                        /*
                         .background(containerColor)
                         .then(
                             if (borderColor != null) {
                                 Modifier.border(1.dp, borderColor, CircleShape)
                             } else Modifier
                         )
+                        */
                 }
             )
             .clickable(
@@ -331,7 +427,8 @@ fun CustomRoundedPreviousButton(
     style: ControlButtonStyle = ControlButtonStyle.TRANSPARENT_MINIMAL,
     tint: Color = Color.White,
     containerColor: Color = Color.White.copy(alpha = 0.12f),
-    borderColor: Color? = null
+    borderColor: Color? = null,
+    useDoubleIcon: Boolean = false
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -356,20 +453,24 @@ fun CustomRoundedPreviousButton(
                     ControlButtonStyle.TRANSPARENT_MINIMAL -> Modifier.clip(CircleShape)
                     ControlButtonStyle.GLASS_SQUIRCLE -> Modifier
                         .clip(RoundedCornerShape(buttonSize * 0.35f))
+                        /*
                         .background(containerColor)
                         .then(
                             if (borderColor != null) {
                                 Modifier.border(1.dp, borderColor, RoundedCornerShape(buttonSize * 0.35f))
                             } else Modifier
                         )
+                        */
                     ControlButtonStyle.PILL_ACCENT -> Modifier
                         .clip(CircleShape)
+                        /*
                         .background(containerColor)
                         .then(
                             if (borderColor != null) {
                                 Modifier.border(1.dp, borderColor, CircleShape)
                             } else Modifier
                         )
+                        */
                 }
             )
             .clickable(
@@ -380,10 +481,17 @@ fun CustomRoundedPreviousButton(
             ),
         contentAlignment = Alignment.Center
     ) {
-        RoundedSkipPreviousIcon(
-            modifier = Modifier.size(iconSize),
-            tint = effectiveTint
-        )
+        if (useDoubleIcon) {
+            RoundedDoubleSkipPreviousIcon(
+                modifier = Modifier.size(iconSize),
+                tint = effectiveTint
+            )
+        } else {
+            RoundedSkipPreviousIcon(
+                modifier = Modifier.size(iconSize),
+                tint = effectiveTint
+            )
+        }
     }
 }
 
@@ -400,7 +508,8 @@ fun CustomRoundedNextButton(
     style: ControlButtonStyle = ControlButtonStyle.TRANSPARENT_MINIMAL,
     tint: Color = Color.White,
     containerColor: Color = Color.White.copy(alpha = 0.12f),
-    borderColor: Color? = null
+    borderColor: Color? = null,
+    useDoubleIcon: Boolean = false
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -425,20 +534,24 @@ fun CustomRoundedNextButton(
                     ControlButtonStyle.TRANSPARENT_MINIMAL -> Modifier.clip(CircleShape)
                     ControlButtonStyle.GLASS_SQUIRCLE -> Modifier
                         .clip(RoundedCornerShape(buttonSize * 0.35f))
+                        /*
                         .background(containerColor)
                         .then(
                             if (borderColor != null) {
                                 Modifier.border(1.dp, borderColor, RoundedCornerShape(buttonSize * 0.35f))
                             } else Modifier
                         )
+                        */
                     ControlButtonStyle.PILL_ACCENT -> Modifier
                         .clip(CircleShape)
+                        /*
                         .background(containerColor)
                         .then(
                             if (borderColor != null) {
                                 Modifier.border(1.dp, borderColor, CircleShape)
                             } else Modifier
                         )
+                        */
                 }
             )
             .clickable(
@@ -449,10 +562,17 @@ fun CustomRoundedNextButton(
             ),
         contentAlignment = Alignment.Center
     ) {
-        RoundedSkipNextIcon(
-            modifier = Modifier.size(iconSize),
-            tint = effectiveTint
-        )
+        if (useDoubleIcon) {
+            RoundedDoubleSkipNextIcon(
+                modifier = Modifier.size(iconSize),
+                tint = effectiveTint
+            )
+        } else {
+            RoundedSkipNextIcon(
+                modifier = Modifier.size(iconSize),
+                tint = effectiveTint
+            )
+        }
     }
 }
 
@@ -485,7 +605,7 @@ fun MaterialYouPlayerControlBar(
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Optional Shuffle
@@ -501,11 +621,12 @@ fun MaterialYouPlayerControlBar(
             Surface(
                 onClick = onShuffleToggle,
                 shape = RoundedCornerShape(secondaryButtonSize * 0.35f),
-                color = if (isShuffle) accentTint.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.10f),
-                border = if (isShuffle) BorderStroke(1.dp, accentTint.copy(alpha = 0.6f)) else BorderStroke(0.5.dp, Color.White.copy(alpha = 0.15f)),
+                color = Color.Transparent, // if (isShuffle) accentTint.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.10f),
+                border = null, // if (isShuffle) BorderStroke(1.dp, accentTint.copy(alpha = 0.6f)) else BorderStroke(0.5.dp, Color.White.copy(alpha = 0.15f)),
                 modifier = Modifier
                     .size(secondaryButtonSize)
                     .scale(shuffleScale)
+                    .offset(x = (-12).dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     CustomShuffleIcon(
@@ -525,7 +646,8 @@ fun MaterialYouPlayerControlBar(
             style = style,
             tint = tint,
             containerColor = Color.White.copy(alpha = 0.12f),
-            borderColor = Color.White.copy(alpha = 0.22f)
+            borderColor = Color.White.copy(alpha = 0.22f),
+            useDoubleIcon = true
         )
 
         // Main Center Play/Pause Button
@@ -549,7 +671,8 @@ fun MaterialYouPlayerControlBar(
             style = style,
             tint = tint,
             containerColor = Color.White.copy(alpha = 0.12f),
-            borderColor = Color.White.copy(alpha = 0.22f)
+            borderColor = Color.White.copy(alpha = 0.22f),
+            useDoubleIcon = true
         )
 
         // Optional Repeat
@@ -566,14 +689,16 @@ fun MaterialYouPlayerControlBar(
             Surface(
                 onClick = onRepeatToggle,
                 shape = RoundedCornerShape(secondaryButtonSize * 0.35f),
-                color = if (isRepeatActive) accentTint.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.10f),
-                border = if (isRepeatActive) BorderStroke(1.dp, accentTint.copy(alpha = 0.6f)) else BorderStroke(0.5.dp, Color.White.copy(alpha = 0.15f)),
+                color = Color.Transparent, // if (isRepeatActive) accentTint.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.10f),
+                border = null, // if (isRepeatActive) BorderStroke(1.dp, accentTint.copy(alpha = 0.6f)) else BorderStroke(0.5.dp, Color.White.copy(alpha = 0.15f)),
                 modifier = Modifier
                     .size(secondaryButtonSize)
                     .scale(repeatScale)
+                    .offset(x = 12.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     CustomABRepeatIcon(
+                        mode = repeatMode,
                         modifier = Modifier.size(secondaryButtonSize * 0.48f),
                         tint = if (isRepeatActive) accentTint else tint.copy(alpha = 0.75f)
                     )
@@ -605,15 +730,15 @@ fun CustomPlaylistIcon(
         val y2 = h * 0.52f
         val y3 = h * 0.74f
 
-        // 3 horizontal lines (cascading lengths)
-        drawLine(color = tint, start = Offset(xStart, y1), end = Offset(w * 0.85f, y1), strokeWidth = strokeWidth, cap = StrokeCap.Round)
-        drawLine(color = tint, start = Offset(xStart, y2), end = Offset(w * 0.65f, y2), strokeWidth = strokeWidth, cap = StrokeCap.Round)
-        drawLine(color = tint, start = Offset(xStart, y3), end = Offset(w * 0.45f, y3), strokeWidth = strokeWidth, cap = StrokeCap.Round)
+        // 3 horizontal lines (cascading lengths: 75%, 45%, 25%)
+        drawLine(color = tint, start = Offset(xStart, y1), end = Offset(w * 0.75f, y1), strokeWidth = strokeWidth, cap = StrokeCap.Round)
+        drawLine(color = tint, start = Offset(xStart, y2), end = Offset(w * 0.45f, y2), strokeWidth = strokeWidth, cap = StrokeCap.Round)
+        drawLine(color = tint, start = Offset(xStart, y3), end = Offset(w * 0.25f, y3), strokeWidth = strokeWidth, cap = StrokeCap.Round)
 
-        // Musical note detached on bottom right
-        val noteHeadCenter = Offset(w * 0.68f, h * 0.72f)
+        // Musical note pulled left
+        val noteHeadCenter = Offset(w * 0.53f, h * 0.72f)
         val noteHeadRadius = w * 0.08f
-        val stemX = w * 0.76f
+        val stemX = w * 0.61f
 
         // Solid Note Head
         drawCircle(color = tint, center = noteHeadCenter, radius = noteHeadRadius)
@@ -622,7 +747,7 @@ fun CustomPlaylistIcon(
         // Upper Beam Flag
         val flagPath = Path().apply {
             moveTo(stemX, h * 0.40f)
-            quadraticTo(w * 0.85f, h * 0.45f, w * 0.90f, h * 0.58f)
+            quadraticTo(w * 0.70f, h * 0.45f, w * 0.75f, h * 0.58f)
         }
         drawPath(path = flagPath, color = tint, style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth, cap = StrokeCap.Round))
     }
@@ -721,6 +846,7 @@ fun CustomShuffleIcon(
  */
 @Composable
 fun CustomABRepeatIcon(
+    mode: Int = 0, // 0 = OFF, 1 = ONE, 2 = ALL
     modifier: Modifier = Modifier,
     tint: Color = Color.White
 ) {
@@ -751,6 +877,24 @@ fun CustomABRepeatIcon(
         // Bottom left arrow head (pointing left)
         drawLine(color = tint, start = Offset(w * 0.35f, h * 0.62f), end = Offset(w * 0.20f, h * 0.75f), strokeWidth = stroke, cap = StrokeCap.Round)
         drawLine(color = tint, start = Offset(w * 0.35f, h * 0.88f), end = Offset(w * 0.20f, h * 0.75f), strokeWidth = stroke, cap = StrokeCap.Round)
+
+        if (mode == 1) {
+            // Draw a stylized "1" in the center
+            val s1 = w * 0.08f
+            // Vertical bar
+            drawLine(color = tint, start = Offset(w * 0.52f, h * 0.40f), end = Offset(w * 0.52f, h * 0.60f), strokeWidth = s1, cap = StrokeCap.Round)
+            // Tip
+            drawLine(color = tint, start = Offset(w * 0.44f, h * 0.45f), end = Offset(w * 0.52f, h * 0.40f), strokeWidth = s1, cap = StrokeCap.Round)
+        } else if (mode == 0) {
+            // Draw a diagonal slash
+            drawLine(
+                color = tint.copy(alpha = 0.5f),
+                start = Offset(w * 0.28f, h * 0.28f),
+                end = Offset(w * 0.72f, h * 0.72f),
+                strokeWidth = stroke * 0.8f,
+                cap = StrokeCap.Round
+            )
+        }
     }
 }
 

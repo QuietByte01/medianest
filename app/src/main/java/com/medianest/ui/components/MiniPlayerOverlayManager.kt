@@ -238,6 +238,29 @@ fun FloatingMiniPlayerBar(
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
 
+    var albumArtHue by remember { mutableStateOf<Float?>(null) }
+    LaunchedEffect(currentItem.albumArtUri, currentItem.uri) {
+        val artUri = currentItem.albumArtUri ?: currentItem.uri
+        albumArtHue = extractBaseHueFromArt(context, artUri)
+    }
+
+    val ambientHueBrush = remember(albumArtHue) {
+        val hue = albumArtHue
+        if (hue != null) {
+            val topColor = Color.hsv(hue, 0.65f, 0.35f).copy(alpha = 0.82f)
+            val midColor = Color.hsv((hue + 15f) % 360f, 0.48f, 0.22f).copy(alpha = 0.85f)
+            val bottomColor = Color(0xEB111418)
+            Brush.verticalGradient(listOf(topColor, midColor, bottomColor))
+        } else {
+            Brush.verticalGradient(
+                listOf(
+                    Color(0xCC28303C),
+                    Color(0xEB111418)
+                )
+            )
+        }
+    }
+
     GlassSurface(
         modifier = Modifier
             .then(if (isTablet) Modifier.width(380.dp) else Modifier.fillMaxWidth())
@@ -247,7 +270,9 @@ fun FloatingMiniPlayerBar(
         shape = RoundedCornerShape(20.dp),
         backgroundColor = Color(0x66181C20),
         borderColor = Color.White.copy(alpha = 0.35f),
-        backgroundImage = currentItem.albumArtUri ?: currentItem.uri
+        backgroundImage = currentItem.albumArtUri ?: currentItem.uri,
+        blurRadius = 24.dp,
+        backgroundBrush = ambientHueBrush
     ) {
         var isDraggingSeek by remember { mutableStateOf(false) }
         var dragProgress by remember { mutableFloatStateOf(0f) }

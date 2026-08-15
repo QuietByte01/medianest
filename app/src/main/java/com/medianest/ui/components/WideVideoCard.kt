@@ -7,7 +7,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material3.*
@@ -44,10 +46,12 @@ fun WideVideoCard(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
     placeName: String? = null,
+    isLocationFallback: Boolean = false,
     onDelete: () -> Unit,
     onRemoveFromCategory: (() -> Unit)? = null,
     onRename: (() -> Unit)? = null,
-    onShowInfo: (() -> Unit)? = null
+    onShowInfo: (() -> Unit)? = null,
+    useRealRatio: Boolean = false
 ) {
     val timeFormat = SimpleDateFormat("hh:mm a", Locale.US)
     val timeMillis = if (item.dateAdded > 10_000_000_000L) item.dateAdded else item.dateAdded * 1000L
@@ -78,10 +82,17 @@ fun WideVideoCard(
     ) {
         Box {
             Column(modifier = Modifier.padding(10.dp)) {
-                Box(
-                    modifier = Modifier
+                val thumbModifier = if (useRealRatio) {
+                    Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(item.aspectRatio.coerceIn(0.5f, 2.0f))
+                } else {
+                    Modifier
                         .fillMaxWidth()
                         .height(180.dp)
+                }
+                Box(
+                    modifier = thumbModifier
                         .clip(RoundedCornerShape(14.dp))
                 ) {
                     if (fallbackBitmap != null) {
@@ -128,7 +139,12 @@ fun WideVideoCard(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text("📍", fontSize = 10.sp)
+                                Icon(
+                                    imageVector = if (isLocationFallback) Icons.Default.Folder else Icons.Default.LocationOn,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(12.dp)
+                                )
                                 Text(
                                     text = placeName,
                                     fontSize = 11.sp,
@@ -196,10 +212,9 @@ fun WideVideoCard(
                 IconButton(onClick = { menuExpanded = true }) {
                     Icon(Icons.Default.MoreVert, contentDescription = "More", tint = Color.White)
                 }
-                DropdownMenu(
+                GlassDropdownMenu(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false },
-                    containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     if (onShowInfo != null) {

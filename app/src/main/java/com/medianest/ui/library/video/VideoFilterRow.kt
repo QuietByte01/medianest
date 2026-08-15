@@ -148,16 +148,17 @@ fun VideoFilterRow(
             }
         }
 
-        if (trashedCount > 0) {
-            item {
-                FilterTabItem(
-                    label = "Trash ($trashedCount)",
-                    icon = Icons.Default.Delete,
-                    isSelected = activeFilterTab == "TRASH",
-                    onClick = { onFilterSelect("TRASH") }
-                )
-            }
-        }
+        // Trash filter tab commented out
+        // if (trashedCount > 0) {
+        //     item {
+        //         FilterTabItem(
+        //             label = "Trash ($trashedCount)",
+        //             icon = Icons.Default.Delete,
+        //             isSelected = activeFilterTab == "TRASH",
+        //             onClick = { onFilterSelect("TRASH") }
+        //         )
+        //     }
+        // }
 
         item {
             FilterTabItem(

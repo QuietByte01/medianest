@@ -13,8 +13,9 @@ fun AudioReactiveVisualizerPattern(
     audioSessionId: Int = 0,
     modifier: Modifier = Modifier,
     hue: Float? = null,
-    style: VisualizerStyle = VisualizerStyle.GLOSSY_SPECTRUM_BARS,
-    showControls: Boolean = false
+    style: VisualizerStyle = VisualizerStyle.ENERGY_PARTICLES, // VisualizerStyle.AUDIO_REACTIVE_DANCER,
+    showControls: Boolean = false,
+    onStyleChange: ((VisualizerStyle) -> Unit)? = null
 ) {
     // Generate colors based on hue if available, else use defaults
     val primaryColor = hue?.let { Color.hsv(it, 0.8f, 0.9f) } ?: Color(0xFF00E5FF)
@@ -29,6 +30,7 @@ fun AudioReactiveVisualizerPattern(
         secondaryColor = secondaryColor,
         accentColor = accentColor,
         showControls = showControls,
+        onStyleChange = onStyleChange,
         modifier = modifier.fillMaxSize()
     )
 }

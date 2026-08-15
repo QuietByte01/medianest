@@ -5,7 +5,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -60,6 +64,11 @@ fun QuickAccessCard(
                     .background(Brush.linearGradient(gradientColors)),
                 contentAlignment = Alignment.Center
             ) {
+                val iconSize = when (icon) {
+                    Icons.Default.Schedule -> 36.dp
+                    Icons.Default.History -> 40.dp
+                    else -> 44.dp
+                }
                 if (artUri != null) {
                     SubcomposeAsyncImage(
                         model = ImageRequest.Builder(context).data(artUri).crossfade(true).build(),
@@ -68,15 +77,41 @@ fun QuickAccessCard(
                         modifier = Modifier.fillMaxSize()
                     ) {
                         val state = painter.state
-                        if (state is AsyncImagePainter.State.Error) {
-                            Icon(imageVector = icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
+                        if (state is AsyncImagePainter.State.Error || state is AsyncImagePainter.State.Loading) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(iconSize)
+                            )
                         } else {
                             SubcomposeAsyncImageContent()
                         }
                     }
                 } else {
-                    Icon(imageVector = icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(iconSize)
+                    )
                 }
+
+                // Glossy overlay: White highlight at the top
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.35f),
+                                    Color.White.copy(alpha = 0.1f),
+                                    Color.Transparent,
+                                    Color.Transparent
+                                )
+                            )
+                        )
+                )
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(

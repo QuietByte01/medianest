@@ -39,6 +39,7 @@ fun AdaptiveBottomSheet(
     contentColor: Color = Color.White,
     backgroundImage: Any? = null,
     hue: Float? = null,
+    isSolidGlossy: Boolean = false,
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -49,9 +50,8 @@ fun AdaptiveBottomSheet(
     // Obsidian for dark, frosted white for light
     val resolvedColor = when {
         containerColor != Color.Unspecified -> containerColor
-        hue != null -> Color.Unspecified // Let GlassSurface handle hue-based color
         isDark -> Color(0xCC08090E)
-        else   -> Color(0xCCE3E3E3)
+        else   -> Color(0xBFFFFFFF)
     }
 
 
@@ -66,7 +66,7 @@ fun AdaptiveBottomSheet(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.45f))
+                    .background(Color.Black.copy(alpha = 0.55f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -74,28 +74,49 @@ fun AdaptiveBottomSheet(
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
-                GlassSurface(
-                    modifier = modifier
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            enabled = false
-                        ) {}
-                        .fillMaxWidth(0.70f),
-                    shape = RoundedCornerShape(24.dp),
-                    backgroundColor = if (containerColor == Color.Transparent) resolvedColor else resolvedColor,
-                    borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
-                    backgroundImage = backgroundImage,
-                    enableBlur = true,
-                    blurRadius = 32.dp,
-                    hue = hue
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp)
+                if (isSolidGlossy) {
+                    SolidGlossySurface(
+                        modifier = modifier
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                enabled = false
+                            ) {}
+                            .fillMaxWidth(0.70f),
+                        shape = RoundedCornerShape(24.dp),
+                        backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color.Unspecified,
+                        borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.10f),
+                        borderWidth = 1.dp
                     ) {
-                        content()
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp)
+                        ) {
+                            content()
+                        }
+                    }
+                } else {
+                    GlassSurface(
+                        modifier = modifier
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                enabled = false
+                            ) {}
+                            .fillMaxWidth(0.70f),
+                        shape = RoundedCornerShape(24.dp),
+                        backgroundColor = resolvedColor,
+                        borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
+                        backgroundImage = backgroundImage
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp)
+                        ) {
+                            content()
+                        }
                     }
                 }
             }
@@ -107,28 +128,47 @@ fun AdaptiveBottomSheet(
             shape = shape,
             containerColor = Color.Transparent,
             contentColor = contentColor,
-            scrimColor = Color.Black.copy(alpha = 0.40f),
+            scrimColor = Color.Black.copy(alpha = 0.55f),
             dragHandle = null,
             content = {
-                GlassSurface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = shape,
-                    backgroundColor = resolvedColor,
-                    backgroundImage = backgroundImage,
-                    enableBlur = true,
-                    blurRadius = 32.dp,
-                    hue = hue
-                ) {
-                    Column(modifier = Modifier.navigationBarsPadding()) {
-                        if (dragHandle != null) {
-                            Box(
-                                modifier = Modifier.fillMaxWidth(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                dragHandle()
+                if (isSolidGlossy) {
+                    SolidGlossySurface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = shape,
+                        backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color.Unspecified,
+                        borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.10f),
+                        borderWidth = 1.dp
+                    ) {
+                        Column(modifier = Modifier.navigationBarsPadding()) {
+                            if (dragHandle != null) {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    dragHandle()
+                                }
                             }
+                            content()
                         }
-                        content()
+                    }
+                } else {
+                    GlassSurface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = shape,
+                        backgroundColor = resolvedColor,
+                        backgroundImage = backgroundImage
+                    ) {
+                        Column(modifier = Modifier.navigationBarsPadding()) {
+                            if (dragHandle != null) {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    dragHandle()
+                                }
+                            }
+                            content()
+                        }
                     }
                 }
             }

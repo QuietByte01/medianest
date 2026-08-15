@@ -83,11 +83,11 @@ fun SettingsScreen(
     var videoItems by remember { mutableStateOf<List<com.medianest.data.model.MediaItem>>(emptyList()) }
     var audioItems by remember { mutableStateOf<List<com.medianest.data.model.MediaItem>>(emptyList()) }
 
-    var showCombinedTrashSheet by remember { mutableStateOf(false) }
-
-    if (showCombinedTrashSheet) {
-        CombinedTrashSheet(onDismiss = { showCombinedTrashSheet = false })
-    }
+    // Combined Trash sheet commented out
+    // var showCombinedTrashSheet by remember { mutableStateOf(false) }
+    // if (showCombinedTrashSheet) {
+    //     CombinedTrashSheet(onDismiss = { showCombinedTrashSheet = false })
+    // }
 
     var hwAccelMode by remember { mutableStateOf("Enabled (Full GPU/DSP)") }
 
@@ -475,14 +475,29 @@ fun SettingsScreen(
                 SettingsRowItem(
                     title = "Import External Playlists",
                     subtitle = "Scan and import playlist files (.m3u, .m3u8, .pls)",
+                    stackedOnPhone = true,
                     control = {
-                        Button(
-                            onClick = { m3uPickerLauncher.launch(arrayOf("*/*")) },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3730A3)),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        GlassSurface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { m3uPickerLauncher.launch(arrayOf("*/*")) },
+                            shape = RoundedCornerShape(10.dp),
+                            backgroundColor = Color(0x33FFFFFF),
+                            borderColor = Color(0x33FFFFFF)
                         ) {
-                            Text("Import Files", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FileDownload,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text("Import Files", fontSize = 12.5.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 )
@@ -735,6 +750,29 @@ fun SettingsScreen(
                         )
                     }
                 )
+
+                // Storage & All Files Access Permission
+                val hasAllFiles = com.medianest.util.PermissionUtils.hasAllFilesAccess()
+                val hasStandard = com.medianest.util.PermissionUtils.hasStandardMediaPermissions(context)
+                SettingsRowItem(
+                    title = "Storage & All Files Access",
+                    subtitle = if (hasAllFiles) "Full access granted (all storage directories and files)" else if (hasStandard) "Standard MediaStore access granted. Tap to allow All Files Access for hidden folders" else "Storage permission required to load files",
+                    stackedOnPhone = true,
+                    control = {
+                        Button(
+                            onClick = { com.medianest.util.PermissionUtils.openStorageAccessSettings(context) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = if (hasAllFiles) Color(0x2234D399) else Color(0x3338BDF8))
+                        ) {
+                            Text(
+                                text = if (hasAllFiles) "Granted (Settings)" else "Open Settings",
+                                fontSize = 12.sp,
+                                color = if (hasAllFiles) Color(0xFF34D399) else Color(0xFF38BDF8),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                )
             }
 
             // SECTION 4: NOTIFICATIONS & DATA
@@ -767,37 +805,36 @@ fun SettingsScreen(
 
                 // Playback History & Cache removed as requested - merged into Clear All Cache button below
 
-                // Recycle Bin (Trash) Toggle
-                val enableTrash by settingsManager.enableTrash.collectAsState(initial = true)
-                SettingsRowItem(
-                    title = "Recycle Bin (Trash)",
-                    subtitle = "Store deleted media files in app trash bin before permanent removal",
-                    control = {
-                        Switch(
-                            checked = enableTrash,
-                            onCheckedChange = { scope.launch { settingsManager.setEnableTrash(it) } },
-                            colors = customSwitchColors
-                        )
-                    }
-                )
-
-                if (enableTrash) {
-                    val trashedCount = remember { com.medianest.util.TrashManager.getTrashedItems(context).size }
-                    SettingsRowItem(
-                        title = "Manage Recycle Bin ($trashedCount items)",
-                        subtitle = "View, restore or empty trashed media files",
-                        stackedOnPhone = true,
-                        control = {
-                            Button(
-                                onClick = { showCombinedTrashSheet = true },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0x3338BDF8))
-                            ) {
-                                Text("Open Trash", fontSize = 12.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                    )
-                }
+                // Recycle Bin (Trash) commented out
+                // val enableTrash by settingsManager.enableTrash.collectAsState(initial = true)
+                // SettingsRowItem(
+                //     title = "Recycle Bin (Trash)",
+                //     subtitle = "Store deleted media files in app trash bin before permanent removal",
+                //     control = {
+                //         Switch(
+                //             checked = enableTrash,
+                //             onCheckedChange = { scope.launch { settingsManager.setEnableTrash(it) } },
+                //             colors = customSwitchColors
+                //         )
+                //     }
+                // )
+                // if (enableTrash) {
+                //     val trashedCount = remember { com.medianest.util.TrashManager.getTrashedItems(context).size }
+                //     SettingsRowItem(
+                //         title = "Manage Recycle Bin ($trashedCount items)",
+                //         subtitle = "View, restore or empty trashed media files",
+                //         stackedOnPhone = true,
+                //         control = {
+                //             Button(
+                //                 onClick = { showCombinedTrashSheet = true },
+                //                 shape = RoundedCornerShape(12.dp),
+                //                 colors = ButtonDefaults.buttonColors(containerColor = Color(0x3338BDF8))
+                //             ) {
+                //                 Text("Open Trash", fontSize = 12.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.SemiBold)
+                //             }
+                //         }
+                //     )
+                // }
 
                 // SECTION: PICTURE MODE
                 val pictureModeEnabled by settingsManager.pictureModeEnabled.collectAsState(initial = true)

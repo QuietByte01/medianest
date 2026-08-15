@@ -159,10 +159,9 @@ fun SortRow(
                     )
                 }
 
-                DropdownMenu(
+                GlassDropdownMenu(
                     expanded = showSortMenu,
                     onDismissRequest = { showSortMenu = false },
-                    containerColor = if (LocalDarkTheme.current) Color(0xEE08090E) else Color(0xBFFFFFFF),
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     options.forEach { field ->

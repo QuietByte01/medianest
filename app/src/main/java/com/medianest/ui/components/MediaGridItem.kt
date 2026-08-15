@@ -88,13 +88,6 @@ fun MediaGridItem(
     }
 
     var fallbackBitmap by remember(item.uri) { mutableStateOf<android.graphics.Bitmap?>(null) }
-    var menuHue by remember { mutableStateOf<Float?>(null) }
-
-    LaunchedEffect(showMenu) {
-        if (showMenu && menuHue == null) {
-            menuHue = com.medianest.ui.components.extractBaseHueFromArt(context, item.uri)
-        }
-    }
 
     Card(
         modifier = modifier
@@ -195,11 +188,6 @@ fun MediaGridItem(
                     }
                 }
             }
-//                            )
-//                        }
-//                    }
-//                }
-//            }
 
             // Selection checkbox overlay
             if (isSelectionMode) {
@@ -252,83 +240,72 @@ fun MediaGridItem(
                     val isDark = com.medianest.ui.theme.LocalDarkTheme.current
                     val menuBg = if (com.medianest.ui.theme.LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF)
 
-                    DropdownMenu(
+                    GlassDropdownMenu(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false },
-                        containerColor = Color.Transparent, // Transparent because we use GlassSurface
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.width(180.dp)
                     ) {
-                        com.medianest.ui.components.GlassSurface(
-                            backgroundImage = item.uri,
-                            backgroundColor = menuBg,
-                            shape = RoundedCornerShape(16.dp),
-                            enableBlur = true,
-                            hue = menuHue
-                        ) {
-                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                                if (onInfo != null) {
-                                    DropdownMenuItem(
-                                        text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
-                                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                        onClick = {
-                                            showMenu = false
-                                            onInfo()
-                                        }
-                                    )
+                        if (onInfo != null) {
+                            DropdownMenuItem(
+                                text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                onClick = {
+                                    showMenu = false
+                                    onInfo()
                                 }
-                                if (onOpenFolder != null) {
-                                    DropdownMenuItem(
-                                        text = { Text(if (showInGallery) "Open with" else "Show in Folder", color = if (isDark) Color.White else Color.Black) },
-                                        leadingIcon = { 
-                                            Icon(
-                                                imageVector = if (showInGallery) Icons.Default.Image else Icons.Default.Folder, 
-                                                contentDescription = null, 
-                                                tint = if (isDark) Color.White else Color.Black
-                                            ) 
-                                        },
-                                        onClick = {
-                                            showMenu = false
-                                            if (showInGallery) {
-                                                com.medianest.util.IntentUtils.openInGallery(context, item)
-                                            } else {
-                                                val folderKey = item.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (item.bucketName ?: "Folder")
-                                                onOpenFolder(folderKey)
-                                            }
-                                        }
-                                    )
+                            )
+                        }
+                        if (onOpenFolder != null) {
+                            DropdownMenuItem(
+                                text = { Text(if (showInGallery) "Open with" else "Show in Folder", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { 
+                                    Icon(
+                                        imageVector = if (showInGallery) Icons.Default.Image else Icons.Default.Folder, 
+                                        contentDescription = null, 
+                                        tint = if (isDark) Color.White else Color.Black
+                                    ) 
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    if (showInGallery) {
+                                        com.medianest.util.IntentUtils.openInGallery(context, item)
+                                    } else {
+                                        val folderKey = item.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (item.bucketName ?: "Folder")
+                                        onOpenFolder(folderKey)
+                                    }
                                 }
-                                if (onRename != null) {
-                                    DropdownMenuItem(
-                                        text = { Text("Rename", color = if (isDark) Color.White else Color.Black) },
-                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                        onClick = {
-                                            showMenu = false
-                                            onRename()
-                                        }
-                                    )
+                            )
+                        }
+                        if (onRename != null) {
+                            DropdownMenuItem(
+                                text = { Text("Rename", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                onClick = {
+                                    showMenu = false
+                                    onRename()
                                 }
-                                if (showRemoveOption && onRemoveFromCategory != null) {
-                                    DropdownMenuItem(
-                                        text = { Text("Remove", color = MaterialTheme.colorScheme.error) },
-                                        leadingIcon = { Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                                        onClick = {
-                                            showMenu = false
-                                            onRemoveFromCategory()
-                                        }
-                                    )
+                            )
+                        }
+                        if (showRemoveOption && onRemoveFromCategory != null) {
+                            DropdownMenuItem(
+                                text = { Text("Remove", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                onClick = {
+                                    showMenu = false
+                                    onRemoveFromCategory()
                                 }
-                                if (onDelete != null) {
-                                    DropdownMenuItem(
-                                        text = { Text("Delete File", color = MaterialTheme.colorScheme.error) },
-                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                                        onClick = {
-                                            showMenu = false
-                                            onDelete()
-                                        }
-                                    )
+                            )
+                        }
+                        if (onDelete != null) {
+                            DropdownMenuItem(
+                                text = { Text("Delete File", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                onClick = {
+                                    showMenu = false
+                                    onDelete()
                                 }
-                            }
+                            )
                         }
                     }
                 }

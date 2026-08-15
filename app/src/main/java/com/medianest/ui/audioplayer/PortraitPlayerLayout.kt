@@ -389,13 +389,15 @@ fun PortraitPlayerLayout(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 2.dp),
+                .padding(horizontal = 20.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
                 onClick = onToggleAlbumSongsPortraitBox,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier
+                    .size(40.dp)
+                    .offset(x = (-8).dp)
             ) {
                 CustomPlaylistIcon(
                     modifier = Modifier.size(24.dp),
@@ -417,7 +419,9 @@ fun PortraitPlayerLayout(
 
             IconButton(
                 onClick = onOpenAddPlaylist,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier
+                    .size(40.dp)
+                    .offset(x = 8.dp)
             ) {
                 CustomPlusIcon(
                     modifier = Modifier.size(24.dp),
@@ -481,7 +485,7 @@ fun PortraitPlayerLayout(
             style = ControlButtonStyle.GLASS_SQUIRCLE,
             playButtonSize = 68.dp,
             secondaryButtonSize = 48.dp,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
         )
         Spacer(modifier = Modifier.height(16.dp))
     }

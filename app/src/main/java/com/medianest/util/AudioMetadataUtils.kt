@@ -47,12 +47,47 @@ object AudioMetadataUtils {
 
         val cleanedTitle = resolveTitle(context, uri, title, rawTitleHint)
 
+        // Dynamically infer MIME type if generic or missing
+        val effectiveMime = if (mimeTypeHint.isBlank() || mimeTypeHint == "*/*" || mimeTypeHint == "application/octet-stream") {
+            val fromResolver = runCatching { context.contentResolver.getType(uri) }.getOrNull()
+            if (!fromResolver.isNullOrBlank() && fromResolver != "*/*") {
+                fromResolver
+            } else {
+                val path = (uri.path ?: uri.toString()).lowercase()
+                when {
+                    path.endsWith(".mp4") || path.endsWith(".mkv") || path.endsWith(".webm") || path.endsWith(".3gp") || path.endsWith(".avi") || path.endsWith(".mov") || path.endsWith(".ts") || path.endsWith(".flv") || path.endsWith(".wmv") || path.endsWith(".m4v") -> "video/mp4"
+                    path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".png") || path.endsWith(".webp") || path.endsWith(".gif") || path.endsWith(".bmp") || path.endsWith(".heic") -> "image/jpeg"
+                    path.endsWith(".mp3") || path.endsWith(".wav") || path.endsWith(".flac") || path.endsWith(".aac") || path.endsWith(".m4a") || path.endsWith(".ogg") || path.endsWith(".opus") || path.endsWith(".wma") -> "audio/mpeg"
+                    else -> mimeTypeHint
+                }
+            }
+        } else {
+            mimeTypeHint
+        }
+
+        // Accurately determine MediaType (VIDEO vs AUDIO vs IMAGE)
+        val determinedType = when {
+            effectiveMime.startsWith("video/", ignoreCase = true) -> com.medianest.data.db.MediaType.VIDEO
+            effectiveMime.startsWith("image/", ignoreCase = true) -> com.medianest.data.db.MediaType.IMAGE
+            effectiveMime.startsWith("audio/", ignoreCase = true) -> com.medianest.data.db.MediaType.AUDIO
+            else -> {
+                val path = (uri.path ?: uri.toString()).lowercase()
+                if (path.endsWith(".mp4") || path.endsWith(".mkv") || path.endsWith(".webm") || path.endsWith(".3gp") || path.endsWith(".avi") || path.endsWith(".mov") || path.endsWith(".ts") || path.endsWith(".flv") || path.endsWith(".wmv") || path.endsWith(".m4v")) {
+                    com.medianest.data.db.MediaType.VIDEO
+                } else if (path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".png") || path.endsWith(".webp") || path.endsWith(".gif") || path.endsWith(".bmp") || path.endsWith(".heic")) {
+                    com.medianest.data.db.MediaType.IMAGE
+                } else {
+                    com.medianest.data.db.MediaType.AUDIO
+                }
+            }
+        }
+
         return MediaItem(
             id = uri.hashCode().toLong(),
             uri = uri,
             title = cleanedTitle,
-            mimeType = mimeTypeHint,
-            type = com.medianest.data.db.MediaType.AUDIO,
+            mimeType = effectiveMime,
+            type = determinedType,
             durationMs = durationMs,
             artist = artist?.takeIf { it.isNotBlank() && it != "<unknown>" },
             album = album?.takeIf { it.isNotBlank() && it != "<unknown>" },

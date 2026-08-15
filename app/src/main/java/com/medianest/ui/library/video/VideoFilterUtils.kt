@@ -10,30 +10,14 @@ import java.io.File
 import java.util.Locale
 
 fun filterVideoList(videos: List<MediaItem>, filterTab: String): List<MediaItem> {
-    if (filterTab == "TRASH") {
-        val trashed = TrashManager.getTrashedItems(MediaNestApp.instance)
-            .filter { it.mimeType.startsWith("video") }
-        return trashed.map { info ->
-            MediaItem(
-                id = info.originalPath.hashCode().toLong(),
-                uri = Uri.fromFile(File(info.trashedPath)),
-                title = info.title,
-                durationMs = 0L,
-                size = info.size,
-                dateAdded = info.trashedTimestamp,
-                mimeType = info.mimeType,
-                type = MediaType.VIDEO,
-                bucketName = "Trash"
-            )
-        }
-    }
+    val sharedWords = if (filterTab == "SERIES" || filterTab == "MOVIES") computeSharedTitleWords(videos) else emptySet()
     return when (filterTab) {
         "ALL" -> videos
         "CLIPS" -> videos.filter { isClipsAndRecordings(it) }
         "SHORTS" -> videos.filter { isShorts(it) }
-        "SERIES" -> videos.filter { isTVSeries(it) }
+        "SERIES" -> videos.filter { isTVSeries(it, sharedWords) }
         "MUSIC" -> videos.filter { isMusicVideo(it) }
-        "MOVIES" -> videos.filter { isMovie(it) }
+        "MOVIES" -> videos.filter { isMovie(it, sharedWords) }
         "DOWNLOADED" -> videos.filter { isDownloaded(it) }
         "SOCIAL" -> videos.filter { isSocialMediaVideo(it) }
         "EDITED" -> videos.filter { isEditedVideo(it) }
@@ -177,42 +161,55 @@ fun extractSeasonName(item: MediaItem): String {
     return "Season 01"
 }
 
-fun isTVSeries(item: MediaItem, allItems: List<MediaItem> = emptyList()): Boolean {
+/**
+ * Pre-computes distinct significant words that appear in 2 or more videos in O(N) time.
+ */
+fun computeSharedTitleWords(items: List<MediaItem>): Set<String> {
+    if (items.size < 2) return emptySet()
+    val wordCounts = HashMap<String, Int>(items.size * 2)
+    for (item in items) {
+        val words = extractSignificantWords(item.title)
+        for (w in words) {
+            wordCounts[w] = (wordCounts[w] ?: 0) + 1
+        }
+    }
+    return wordCounts.filterValues { it >= 2 }.keys
+}
+
+fun isTVSeries(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean {
     // Construct a comprehensive lowercase string combining relative path, title, and URI for pattern matching
     val path = ((item.relativePath ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
 
-    // Define regular expressions for standard TV show naming conventions (e.g., S01E02 or 1x02)
+    // Define regular expressions for standard TV show naming conventions
     val patternSeasonEpisode = Regex("(?i)s\\d{1,2}e\\d{1,2}")
     val patternNumberXNumber = Regex("(?i)\\d{1,2}x\\d{1,2}")
+    
+    // Anime/Series episode patterns: "Episode 10", "Ep 10", "E10", or " - 10 " (common in anime)
+    val patternEpisodeExplicit = Regex("(?i)(?:episode|ep|e)[\\s._-]*(\\d{1,3})\\b")
+    val patternAnimeEpisode = Regex("(?i)[_\\-\\s]+(\\d{1,3})(?:\\s*[(\\[]|\\s*$)")
 
     // Check if path or title contains explicit episode/season formatting
-    val hasPattern = patternSeasonEpisode.containsMatchIn(path) || patternNumberXNumber.containsMatchIn(path)
+    val hasPattern = patternSeasonEpisode.containsMatchIn(path) || 
+                     patternNumberXNumber.containsMatchIn(path) ||
+                     patternEpisodeExplicit.containsMatchIn(path) ||
+                     patternAnimeEpisode.containsMatchIn(item.title)
 
     // Check if the file resides in a designated directory for television content
-    val isSeriesFolder = path.contains("/series/") || path.contains("/tv/") || path.contains("/shows/") || path.contains("/web series/")
+    val isSeriesFolder = path.contains("/series/") || path.contains("/tv/") || path.contains("/shows/") || 
+                         path.contains("/web series/") || path.contains("/anime/")
 
-    // Enforce duration constraints (at least 20 minutes, or 0L if duration is unknown/unprocessed)
-    val isAtLeast20Min = item.durationMs >= 1_200_000L || item.durationMs == 0L
+    // Enforce duration constraints (at least 10 minutes, or 0L if duration is unknown/unprocessed)
+    val isAtLeast10Min = item.durationMs >= 600_000L || item.durationMs == 0L
 
     // Evaluate explicit television markers combined with duration rules
-    val matchesExplicitCriteria = isAtLeast20Min && (hasPattern || isSeriesFolder || path.contains("season") || path.contains("episode"))
+    val matchesExplicitCriteria = isAtLeast10Min && (hasPattern || isSeriesFolder || path.contains("season"))
 
     if (matchesExplicitCriteria) return true
 
-    // Fallback: Check if multiple videos share significant repeated words, indicating a series batch
-    if (allItems.isNotEmpty()) {
+    // Fallback: Check if this video shares significant repeated words with other videos in O(1)
+    if (sharedWords.isNotEmpty() && isAtLeast10Min) {
         val cleanedTitleWords = extractSignificantWords(item.title)
-
-        // Count how many other media items share significant words with this item
-        val matchingItemsCount = allItems.count { other ->
-            if (other.uri == item.uri) return@count false
-            val otherWords = extractSignificantWords(other.title)
-            // If they share significant words, it's likely a series of episodes
-            cleanedTitleWords.intersect(otherWords).isNotEmpty()
-        }
-
-        // If one or more other items share these terms, treat it as part of a TV series
-        if (matchingItemsCount >= 3) {
+        if (cleanedTitleWords.any { it in sharedWords }) {
             return true
         }
     }
@@ -220,7 +217,12 @@ fun isTVSeries(item: MediaItem, allItems: List<MediaItem> = emptyList()): Boolea
     return false
 }
 
-fun isMovie(item: MediaItem, allItems: List<MediaItem> = emptyList()): Boolean {
+// Backward compatibility overload
+fun isTVSeries(item: MediaItem, allItems: List<MediaItem>): Boolean {
+    return isTVSeries(item, computeSharedTitleWords(allItems))
+}
+
+fun isMovie(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean {
     val title = item.title.lowercase()
     val path = ((item.relativePath ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
 
@@ -228,30 +230,21 @@ fun isMovie(item: MediaItem, allItems: List<MediaItem> = emptyList()): Boolean {
     val exclusionKeywords = listOf("recording", "screen_recording", "live", "test", "interview", "webinar", "zoom", "meeting", "tutorial", "presentation")
     if (exclusionKeywords.any { title.contains(it) || path.contains(it) }) return false
 
-    val isLong = item.durationMs >= 2_400_000L
-    val isAtLeast20Min = item.durationMs >= 1_200_000L
+    // Check if it's a TV Series (including repeated word series batches) or other non-movie media
+    if (isTVSeries(item, sharedWords) || isClipsAndRecordings(item) || isShorts(item) || isMusicVideo(item) || isSocialMediaVideo(item)) return false
 
-    if (isLong && !isTVSeries(item)) return true
-    if (isTVSeries(item) || isClipsAndRecordings(item) || isShorts(item)) return false
+    val isAtLeast20Min = item.durationMs >= 1_200_000L
     if (!isAtLeast20Min) return false
 
-    // 2. Check for repeated words across titles (Series detection)
-    if (allItems.isNotEmpty()) {
+    // 2. Check for repeated words across titles (Series detection exclusion in O(1))
+    if (sharedWords.isNotEmpty()) {
         val cleanedTitleWords = extractSignificantWords(item.title)
-
-        // Count how many other media items share significant words with this item
-        val matchingItemsCount = allItems.count { other ->
-            if (other.uri == item.uri) return@count false
-            val otherWords = extractSignificantWords(other.title)
-            // If they share significant words, it's likely a series/batch of episodes
-            cleanedTitleWords.intersect(otherWords).isNotEmpty()
-        }
-
-        // If multiple videos share these words, treat them as a TV series and exclude
-        if (matchingItemsCount >= 1) {
+        if (cleanedTitleWords.any { it in sharedWords }) {
             return false
         }
     }
+
+    val isLong = item.durationMs >= 2_400_000L
 
     val inMovieFolder = path.contains("/movies/") ||
             path.contains("/movie/") ||
@@ -266,30 +259,40 @@ fun isMovie(item: MediaItem, allItems: List<MediaItem> = emptyList()): Boolean {
             path.contains("/download/") ||
             path.contains("/downloads/")
 
-    return inMovieFolder || hasMovieQualityTag || (inGeneralFolder && isLong)
+    return inMovieFolder || hasMovieQualityTag || (inGeneralFolder && isLong) || isLong
+}
+
+// Backward compatibility overload
+fun isMovie(item: MediaItem, allItems: List<MediaItem>): Boolean {
+    return isMovie(item, computeSharedTitleWords(allItems))
 }
 
 /**
  * Helper function to tokenize a title and filter out allowed exceptions
- * like quality tags and "dual audio".
+ * like quality tags, generic words, and codecs.
  */
 private fun extractSignificantWords(title: String): Set<String> {
     val normalized = title.lowercase()
 
     // Define terms to ignore during comparison
     val ignoredTerms = setOf(
-        // Quality tags
+        // Quality tags & codecs
         "1080p", "720p", "480p", "2160p", "4k", "bluray", "webrip",
-        "web-dl", "x264", "x265", "hevc", "hdrip", "hdr", "camrip",
-        // Specific exception mentioned
-        "dual", "audio",
-        // Common stop words or file artifacts that might create false positives
-        "the", "and", "a", "an", "of", "in", "to", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"
+        "web-dl", "webdl", "x264", "x265", "h264", "h265", "hevc", "hdrip", "hdr", "camrip", "dvdrip", "brrip",
+        "mkv", "mp4", "avi", "aac", "ac3", "dts", "10bit",
+        // Subtitle / audio terms
+        "dual", "audio", "esub", "sub", "subs", "dub", "dubbed", "multi", "clean",
+        // Common languages
+        "hindi", "english", "tamil", "telugu", "korean", "japanese", "spanish", "french", "german", "chinese",
+        // Common generic words
+        "movie", "film", "video", "full", "download", "hd", "hq", "part", "vol", "volume", "episode", "season", "ep", "trailer", "teaser", "official", "uncut", "remastered", "extended", "complete",
+        // Stop words
+        "the", "and", "a", "an", "of", "in", "to", "for", "with", "on", "at", "by", "from", "is", "it", "or", "as"
     )
 
-    // Split title into words, remove punctuation, and filter out ignored terms
-    return normalized.split(Regex("\\W+"))
-        .filter { it.isNotBlank() && it !in ignoredTerms }
+    // Split title into alphanumeric words, filter out short tokens (<3 chars), stop words, and numbers
+    return normalized.split(Regex("[^a-zA-Z0-9]+"))
+        .filter { it.length >= 3 && it !in ignoredTerms && !it.all { char -> char.isDigit() } }
         .toSet()
 }
 

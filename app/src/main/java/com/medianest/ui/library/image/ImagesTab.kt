@@ -40,6 +40,7 @@ import com.medianest.util.TrashManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -88,17 +89,27 @@ fun ImagesTab(
     }
 
     val trashUris by remember { mutableStateOf(setOf<String>()) }
-    val trashedItems = remember { TrashManager.getTrashedItems(currentContext) }
+    // Trash functionality commented out
+    // var trashedItems by remember { mutableStateOf<List<com.medianest.util.TrashedMediaItem>>(emptyList()) }
+    // LaunchedEffect(currentContext) {
+    //     withContext(Dispatchers.IO) {
+    //         trashedItems = TrashManager.getTrashedItems(currentContext)
+    //     }
+    // }
 
-    val filterCounts = remember(imagesList, favoriteUris, trashedItems) {
-        val counts = mutableMapOf<String, Int>()
-        val ids = listOf("CAMERA", "FAVORITES", "NOTES", "SCREENSHOTS", "GIFS", "SOCIAL", "PNG_SVG", "EDITED", "AI_GENERATED", "ANIME", "WALLPAPERS")
-        
-        ids.forEach { id ->
-            counts[id] = filterImageList(imagesList, id, favoriteUris, emptySet()).size
+    var filterCounts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+
+    LaunchedEffect(imagesList, favoriteUris) {
+        kotlinx.coroutines.delay(600)
+        withContext(Dispatchers.Default) {
+            val counts = mutableMapOf<String, Int>()
+            val ids = listOf("CAMERA", "FAVORITES", "NOTES", "SCREENSHOTS", "GIFS", "SOCIAL", "PNG_SVG", "EDITED", "AI_GENERATED", "ANIME", "WALLPAPERS")
+            ids.forEach { id ->
+                counts[id] = filterImageList(imagesList, id, favoriteUris, emptySet()).size
+            }
+            // counts["TRASH"] = 0
+            filterCounts = counts
         }
-        counts["TRASH"] = trashedItems.size
-        counts
     }
 
     var isFolderSelectionActive by remember { mutableStateOf(false) }
@@ -131,15 +142,26 @@ fun ImagesTab(
     val collectionsGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState()
 
     // Smooth Scroll on Sort Change
+    var isInitialSortEffect by remember { mutableStateOf(true) }
     LaunchedEffect(sortField, isAscending) {
+        if (isInitialSortEffect) {
+            isInitialSortEffect = false
+            return@LaunchedEffect
+        }
         scope.launch {
             try {
                 when {
-                    selectedCategory != null || viewMode == 2 -> collectionsGridState.animateScrollToItem(0)
-                    viewMode == 1 && selectedFolder == null -> folderGridState.animateScrollToItem(0)
-                    else -> mainGridState.animateScrollToItem(0)
+                    selectedCategory != null || viewMode == 2 -> {
+                        if (collectionsGridState.layoutInfo.totalItemsCount > 0) collectionsGridState.animateScrollToItem(0)
+                    }
+                    viewMode == 1 && selectedFolder == null -> {
+                        if (folderGridState.layoutInfo.totalItemsCount > 0) folderGridState.animateScrollToItem(0)
+                    }
+                    else -> {
+                        if (mainGridState.layoutInfo.totalItemsCount > 0) mainGridState.animateScrollToItem(0)
+                    }
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 // Ignore if list is not yet ready
             }
         }
@@ -165,19 +187,23 @@ fun ImagesTab(
 
     val showHiddenSetting by settingsManager.showHiddenFiles.collectAsState(initial = false)
 
-    val folderGroups = remember(imagesList, showHiddenSetting) {
-        val filteredList = if (showHiddenSetting) {
-            imagesList
+    val folderGroups = remember(imagesList, showHiddenSetting, viewMode, activeFilterTab) {
+        if (viewMode != 1 && activeFilterTab != "FOLDERS" && activeFilterTab != "HIDDEN") {
+            emptyMap()
         } else {
-            imagesList.filter { item ->
-                val relPath = item.relativePath?.trim('/') ?: ""
-                !relPath.split('/').any { it.startsWith(".") && it.length > 1 }
+            val filteredList = if (showHiddenSetting) {
+                imagesList
+            } else {
+                imagesList.filter { item ->
+                    val relPath = item.relativePath?.trim('/') ?: ""
+                    !relPath.split('/').any { it.startsWith(".") && it.length > 1 }
+                }
             }
-        }
 
-        filteredList.groupBy { item ->
-            val relPath = item.relativePath?.trim('/')
-            if (!relPath.isNullOrBlank()) relPath else item.bucketName ?: "Pictures"
+            filteredList.groupBy { item ->
+                val relPath = item.relativePath?.trim('/')
+                if (!relPath.isNullOrBlank()) relPath else item.bucketName ?: "Pictures"
+            }
         }
     }
 
@@ -208,10 +234,13 @@ fun ImagesTab(
     }
 
     val sortedFolderNames = remember(folderGroups, allHiddenImageFolders) {
-        folderGroups.keys.sortedWith(
-            compareByDescending<String> { fn -> isFolderHidden(fn, folderGroups[fn]) }
-                .thenBy { it.lowercase() }
-        )
+        if (folderGroups.isEmpty()) emptyList()
+        else {
+            folderGroups.keys.sortedWith(
+                compareByDescending<String> { fn -> isFolderHidden(fn, folderGroups[fn]) }
+                    .thenBy { it.lowercase() }
+            )
+        }
     }
 
     val categoryFolderMap = remember(effectiveCrossRefs) {
@@ -250,11 +279,15 @@ fun ImagesTab(
                 onBack = when {
                     selectedCategory != null -> ({ selectedCategory = null })
                     selectedFolder != null -> ({ selectedFolder = null })
+                    activeFilterTab != "ALL" -> ({ activeFilterTab = "ALL" })
+                    viewMode == 1 -> ({ viewMode = 0 })
                     else -> null
                 },
                 backLabel = when {
                     selectedCategory != null -> selectedCategory!!.name
                     selectedFolder != null -> selectedFolder!!.substringAfterLast('/')
+                    activeFilterTab != "ALL" -> "All Photos"
+                    viewMode == 1 -> "All Photos"
                     else -> null
                 }
             )
@@ -270,7 +303,11 @@ fun ImagesTab(
                 }
 
                 val displayList = remember(imagesList, activeFilterTab, favoriteUris, trashUris) {
-                    filterImageList(imagesList, activeFilterTab, favoriteUris, trashUris)
+                    if (activeFilterTab == "ALL") {
+                        imagesList
+                    } else {
+                        filterImageList(imagesList, activeFilterTab, favoriteUris, trashUris)
+                    }
                 }
 
                 val currentDisplayList = if (viewMode == 1 && selectedFolder != null) {
@@ -280,13 +317,17 @@ fun ImagesTab(
                 }
 
                 val sortedDisplayList = remember(currentDisplayList, sortField, isAscending) {
-                    val comp = when (sortField) {
-                        "Name" -> compareBy<MediaItem> { it.title.lowercase() }
-                        "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
-                        "Size" -> compareBy<MediaItem> { it.size }
-                        else -> compareBy<MediaItem> { it.dateAdded }
+                    if (sortField == "Date" && !isAscending) {
+                        currentDisplayList
+                    } else {
+                        val comp = when (sortField) {
+                            "Name" -> compareBy<MediaItem> { it.title.lowercase() }
+                            "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
+                            "Size" -> compareBy<MediaItem> { it.size }
+                            else -> compareBy<MediaItem> { it.dateAdded }
+                        }
+                        if (isAscending) currentDisplayList.sortedWith(comp) else currentDisplayList.sortedWith(comp).reversed()
                     }
-                    if (isAscending) currentDisplayList.sortedWith(comp) else currentDisplayList.sortedWith(comp).reversed()
                 }
 
                 when {

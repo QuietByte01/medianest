@@ -37,6 +37,7 @@ import com.medianest.ui.components.MediaLoadingAnimation
 import com.medianest.ui.components.formatDuration
 import com.medianest.ui.components.translucentScrollBar
 import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.theme.LocalDarkTheme
 import com.medianest.util.FolderHiddenUtils
 import com.medianest.util.formatBytesReport
@@ -52,6 +53,7 @@ fun SongsList(
     onSongLongClick: (MediaItem) -> Unit,
     isLoading: Boolean = false,
     showDeleteOption: Boolean = false,
+    onRemoveFromPlaylist: ((MediaItem) -> Unit)? = null,
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?) -> Unit = { _, _, _, _ -> },
     onAddToPlaylist: (MediaItem) -> Unit = {},
@@ -108,7 +110,7 @@ fun SongsList(
             ) {
                 items(songs, key = { it.id }) { item ->
                     var showMenu by remember { mutableStateOf(false) }
-                    val albumArtModel = item.albumArtUri
+                    val albumArtModel = item.albumArtUri ?: item.uri
                     val isCurrentlyPlaying = item.uri.toString() == currentlyPlayingUri
 
                     GlassSurface(
@@ -141,7 +143,7 @@ fun SongsList(
                                     modifier = Modifier.fillMaxSize()
                                 ) {
                                     val state = painter.state
-                                    if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error || albumArtModel == null) {
+                                    if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
                                         GlassSurface(
                                             modifier = Modifier.fillMaxSize(),
                                             shape = RoundedCornerShape(14.dp),
@@ -225,12 +227,10 @@ fun SongsList(
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
-                                DropdownMenu(
+                                GlassDropdownMenu(
                                     expanded = showMenu,
                                     onDismissRequest = { showMenu = false },
-                                    containerColor = if (LocalDarkTheme.current) Color(0xBF0F1015) else Color(0xA6FFFFFF),
-                                    shape = RoundedCornerShape(16.dp),
-                                    modifier = Modifier.border(1.dp, if (LocalDarkTheme.current) Color(0x28FFFFFF) else Color(0x33000000), RoundedCornerShape(16.dp))
+                                    shape = RoundedCornerShape(16.dp)
                                 ) {
                                     DropdownMenuItem(
                                         text = { Text("Add to Playlist") },
@@ -240,6 +240,16 @@ fun SongsList(
                                             onAddToPlaylist(item)
                                         }
                                     )
+                                    if (onRemoveFromPlaylist != null) {
+                                        DropdownMenuItem(
+                                            text = { Text("Remove from Playlist") },
+                                            leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, contentDescription = null) },
+                                            onClick = {
+                                                showMenu = false
+                                                onRemoveFromPlaylist(item)
+                                            }
+                                        )
+                                    }
                                     DropdownMenuItem(
                                         text = { Text("File Info") },
                                         leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },

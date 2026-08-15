@@ -3,10 +3,12 @@ package com.medianest
 import android.Manifest
 import android.content.Context
 import android.content.Intent
-
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -44,6 +46,7 @@ import com.medianest.ui.quickview.QuickViewActivity
 import com.medianest.ui.settings.SettingsScreen
 import com.medianest.ui.theme.MediaNestTheme
 import com.medianest.ui.videoplayer.VideoPlayerActivity
+import com.medianest.util.PermissionUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -64,6 +67,12 @@ class MainActivity : ComponentActivity() {
     private val targetAudioFolder = MutableStateFlow<String?>(null)
     private val targetVideoFolder = MutableStateFlow<String?>(null)
     private val targetImageFolder = MutableStateFlow<String?>(null)
+    private val resumeTrigger = MutableStateFlow(0)
+
+    override fun onResume() {
+        super.onResume()
+        resumeTrigger.value += 1
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -143,7 +152,8 @@ class MainActivity : ComponentActivity() {
                     }
 
                     // Observe hidden folders and scan MediaStore
-                    LaunchedEffect(showHiddenFiles) {
+                    val resumeCount by resumeTrigger.collectAsState()
+                    LaunchedEffect(showHiddenFiles, resumeCount) {
                         combine(
                             db.selectiveHiddenFolderDao().getAllHiddenFolders(),
                             settingsManager.hiddenFolders,
@@ -410,42 +420,32 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestMediaPermissions() {
-        val prefs = getSharedPreferences("medianest_perms", Context.MODE_PRIVATE)
-        val hasAskedOptional = prefs.getBoolean("has_asked_optional_perms", false)
-
         val permissions = mutableListOf<String>()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.READ_MEDIA_IMAGES)
             permissions.add(Manifest.permission.READ_MEDIA_VIDEO)
             permissions.add(Manifest.permission.READ_MEDIA_AUDIO)
-            if (!hasAskedOptional) {
-                permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-            }
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         } else {
             permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
+        // RECORD_AUDIO is required by the Android Visualizer API to attach to any audio session.
+        // Without it, Visualizer creation is blocked and all FFT-based visualizers show nothing.
+        permissions.add(Manifest.permission.RECORD_AUDIO)
 
         val ungranted = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
 
         if (ungranted.isNotEmpty()) {
-            if (!hasAskedOptional) {
-                prefs.edit().putBoolean("has_asked_optional_perms", true).apply()
-            }
             ActivityCompat.requestPermissions(this, ungranted.toTypedArray(), 100)
         }
     }
 
-
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 100) {
-            // Trigger intent/scan refresh when permission result is returned
-            val intent = Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            startActivity(intent)
+            resumeTrigger.value += 1
         }
     }
 

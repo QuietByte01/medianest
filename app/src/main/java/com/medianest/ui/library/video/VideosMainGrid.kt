@@ -50,28 +50,56 @@ fun VideosMainGrid(
     val isWideStyle = activeFilterTab in listOf("MUSIC", "MOVIES", "SERIES", "EDITED")
 
     if (isWideStyle) {
-        LazyVerticalGrid(
-            state = gridState,
-            columns = GridCells.Adaptive(minSize = 280.dp),
-            modifier = Modifier
-                .fillMaxSize()
-                .translucentScrollBarGrid(gridState),
-            contentPadding = PaddingValues(Dp(gridGapDp.toFloat())),
-            horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
-            verticalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat()))
-        ) {
-            items(sortedDisplayList, key = { it.id }) { item ->
-                WideVideoCard(
-                    item = item,
-                    isSelected = selectedUris.contains(item.uri.toString()),
-                    isSelectionMode = isSelectionMode,
-                    onClick = { onVideoClick(item) },
-                    onLongClick = { onVideoLongClick(item) },
-                    placeName = null,
-                    onDelete = { onVideoDelete(item) },
-                    onRemoveFromCategory = if (selectedCategory != null) { { onRemoveFromCategory(item) } } else null,
-                    onRename = { onRename(item) }
-                )
+        if (activeFilterTab == "EDITED") {
+            LazyVerticalStaggeredGrid(
+                state = staggeredGridState,
+                columns = StaggeredGridCells.Adaptive(minSize = 260.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .translucentScrollBarStaggeredGrid(staggeredGridState),
+                contentPadding = PaddingValues(Dp(gridGapDp.toFloat())),
+                horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
+                verticalItemSpacing = Dp(gridGapDp.toFloat())
+            ) {
+                items(sortedDisplayList, key = { it.id }) { item ->
+                    WideVideoCard(
+                        item = item,
+                        isSelected = selectedUris.contains(item.uri.toString()),
+                        isSelectionMode = isSelectionMode,
+                        onClick = { onVideoClick(item) },
+                        onLongClick = { onVideoLongClick(item) },
+                        placeName = null,
+                        onDelete = { onVideoDelete(item) },
+                        onRemoveFromCategory = if (selectedCategory != null) { { onRemoveFromCategory(item) } } else null,
+                        onRename = { onRename(item) },
+                        useRealRatio = true
+                    )
+                }
+            }
+        } else {
+            LazyVerticalGrid(
+                state = gridState,
+                columns = GridCells.Adaptive(minSize = 280.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .translucentScrollBarGrid(gridState),
+                contentPadding = PaddingValues(Dp(gridGapDp.toFloat())),
+                horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
+                verticalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat()))
+            ) {
+                items(sortedDisplayList, key = { it.id }) { item ->
+                    WideVideoCard(
+                        item = item,
+                        isSelected = selectedUris.contains(item.uri.toString()),
+                        isSelectionMode = isSelectionMode,
+                        onClick = { onVideoClick(item) },
+                        onLongClick = { onVideoLongClick(item) },
+                        placeName = null,
+                        onDelete = { onVideoDelete(item) },
+                        onRemoveFromCategory = if (selectedCategory != null) { { onRemoveFromCategory(item) } } else null,
+                        onRename = { onRename(item) }
+                    )
+                }
             }
         }
     } else {

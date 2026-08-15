@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,6 +27,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
+import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
 import com.medianest.data.db.MediaCategory
 import com.medianest.data.model.MediaItem
@@ -47,7 +51,7 @@ fun UserPlaylistCard(
     LaunchedEffect(pl.id, audioList) {
         db.categoryDao().getMediaUrisForCategory(pl.id).collect { uris ->
             trackCount = uris.size
-            artUri = audioList.firstOrNull { uris.contains(it.uri.toString()) && it.albumArtUri != null }?.albumArtUri
+            artUri = audioList.firstOrNull { uris.contains(it.uri.toString()) }?.let { it.albumArtUri ?: it.uri }
         }
     }
 
@@ -73,17 +77,31 @@ fun UserPlaylistCard(
                 contentAlignment = Alignment.Center
             ) {
                 if (artUri != null) {
-                    AsyncImage(
+                    SubcomposeAsyncImage(
                         model = ImageRequest.Builder(context).data(artUri).crossfade(true).build(),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
-                    )
+                    ) {
+                        val state = painter.state
+                        if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.MusicNote,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                        } else {
+                            SubcomposeAsyncImageContent()
+                        }
+                    }
                 } else {
                     Icon(
-                        imageVector = Icons.Default.QueueMusic,
+                        imageVector = Icons.Default.MusicNote,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = Color.White.copy(alpha = 0.7f),
                         modifier = Modifier.size(32.dp)
                     )
                 }

@@ -85,11 +85,11 @@ fun ChronologicalCategoryVideoGrid(
                         val context = androidx.compose.ui.platform.LocalContext.current
                         
                         // Asynchronously fetch place name from embedded GPS metadata with Room caching
-                        var placeName by remember(item.id) { mutableStateOf<String?>(null) }
+                        var locationResult by remember(item.id) { mutableStateOf<com.medianest.util.VideoLocationResult?>(null) }
                         val db = remember { com.medianest.MediaNestApp.instance.database }
 
                         LaunchedEffect(item.uri) {
-                            placeName = com.medianest.util.LocationUtils.getPlaceNameFromVideo(
+                            locationResult = com.medianest.util.LocationUtils.getVideoLocationResult(
                                 context = context,
                                 uri = item.uri,
                                 fallbackCategory = item.bucketName ?: category.name,
@@ -104,7 +104,8 @@ fun ChronologicalCategoryVideoGrid(
                             onClick = { onVideoClick(item) },
                             onLongClick = { onVideoLongClick(item) },
                             modifier = Modifier.width(280.dp),
-                            placeName = placeName,
+                            placeName = locationResult?.placeName,
+                            isLocationFallback = locationResult?.isLocationFallback ?: true,
                             onDelete = { onDelete(item) },
                             onRemoveFromCategory = { onRemoveFromCategory(item) },
                             onShowInfo = onShowInfo?.let { cb -> { cb(item) } }

@@ -1,37 +1,27 @@
 package com.medianest.ui.components
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 
 /**
  * Reusable vertical slider:
- * - Defaults to THIN track (2.5dp) exclusively for vertical sliders (EQ, Gain, Pitch).
- * - Thumb head is dead-center aligned with the track axis.
+ * - Direct Canvas rendering for 100% dead-center circular head alignment.
+ * - Solid/Glossy track and head without hollow cutout gaps.
+ * - Responsive tap & vertical drag gesture detection.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppVerticalSlider(
     value: Float,
@@ -47,95 +37,160 @@ fun AppVerticalSlider(
     activeTrackColor: Color = if (style == AppSliderStyle.Solid) Color(0xFF6366F1) else accentColor,
     inactiveTrackColor: Color = if (style == AppSliderStyle.Solid) Color(0x336366F1) else Color.White.copy(alpha = 0.15f),
     thumbColor: Color = if (style == AppSliderStyle.Solid) Color(0xFF818CF8) else Color.White,
-    activeTickColor: Color = Color.White,
-    inactiveTickColor: Color = if (style == AppSliderStyle.Solid) Color(0xFF475569) else Color.White.copy(alpha = 0.3f),
     customTrackHeight: Dp? = null,
     customThumbSize: DpSize? = null,
     onValueChangeFinished: (() -> Unit)? = null
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
+    val currentOnValueChange by rememberUpdatedState(onValueChange)
+    val currentOnValueChangeFinished by rememberUpdatedState(onValueChangeFinished)
+    val minVal = valueRange.start
+    val maxVal = valueRange.endInclusive
+    val rangeSpan = (maxVal - minVal).coerceAtLeast(0.0001f)
 
-    val resolvedTrackHeight = customTrackHeight ?: 8.dp
-    val resolvedThumbDpSize = customThumbSize ?: when (headStyle) {
-        AppSliderHeadStyle.Bar -> DpSize(14.dp, 8.dp) // unrotated: physical height=14, physical width=8
-        AppSliderHeadStyle.Circular -> DpSize(12.dp, 12.dp)
+    val trackWidthDp = customTrackHeight ?: if (thickness == AppSliderThickness.Thin) 3.5.dp else 6.dp
+    val thumbSizeDp = customThumbSize ?: when (headStyle) {
+        AppSliderHeadStyle.Bar -> DpSize(14.dp, 6.dp)
+        AppSliderHeadStyle.Circular -> DpSize(13.dp, 13.dp)
     }
 
     Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center
-    ) {
-        Layout(
-            content = {
-                Slider(
-                    value = value,
-                    onValueChange = onValueChange,
-                    modifier = Modifier.fillMaxWidth(), // In Layout, this is the unrotated width (physical height)
-                    enabled = enabled,
-                    valueRange = valueRange,
-                    steps = steps,
-                    onValueChangeFinished = onValueChangeFinished,
-                    interactionSource = interactionSource,
-                    thumb = {
-                        val shape = if (headStyle == AppSliderHeadStyle.Bar) RoundedCornerShape(1.5.dp) else CircleShape
-                        Box(
-                            modifier = Modifier
-                                .size(resolvedThumbDpSize.width, resolvedThumbDpSize.height)
-                                .clip(shape)
-                                .background(thumbColor)
-                                .then(
-                                    if (style == AppSliderStyle.Glossy) {
-                                        Modifier.border(BorderStroke(0.5.dp, Color.White.copy(alpha = 0.6f)), shape)
-                                    } else Modifier
-                                )
-                        )
-                    },
-                    track = { sliderState ->
-                        SliderDefaults.Track(
-                            sliderState = sliderState,
-                            modifier = Modifier.height(resolvedTrackHeight),
-                            colors = SliderDefaults.colors(
-                                activeTrackColor = activeTrackColor,
-                                inactiveTrackColor = inactiveTrackColor,
-                                activeTickColor = activeTickColor,
-                                inactiveTickColor = inactiveTickColor
-                            )
-                        )
-                    }
-                )
+        modifier = modifier
+            .pointerInput(enabled, minVal, maxVal) {
+                if (!enabled) return@pointerInput
+                detectTapGestures { offset ->
+                    val thumbRadius = thumbSizeDp.height.toPx() / 2f
+                    val trackTop = thumbRadius
+                    val trackBottom = size.height - thumbRadius
+                    val usableHeight = (trackBottom - trackTop).coerceAtLeast(1f)
+
+                    val clampedY = offset.y.coerceIn(trackTop, trackBottom)
+                    val fraction = 1f - ((clampedY - trackTop) / usableHeight)
+                    val newValue = minVal + fraction * rangeSpan
+                    currentOnValueChange(newValue.coerceIn(minVal, maxVal))
+                    currentOnValueChangeFinished?.invoke()
+                }
             }
-        ) { measurables, constraints ->
-            // In a vertical slider rotated -90deg:
-            // physical width = constraints.maxWidth
-            // physical height = constraints.maxHeight
-            
-            // The unrotated slider's width should be the physical height.
-            val sliderUnrotatedWidth = constraints.maxHeight
-            // The unrotated slider's height should be the physical width.
-            val sliderUnrotatedHeight = constraints.maxWidth.coerceAtLeast(1)
-            
-            val sliderConstraints = androidx.compose.ui.unit.Constraints.fixed(
-                width = sliderUnrotatedWidth,
-                height = sliderUnrotatedHeight
+            .pointerInput(enabled, minVal, maxVal) {
+                if (!enabled) return@pointerInput
+                detectVerticalDragGestures(
+                    onDragEnd = { currentOnValueChangeFinished?.invoke() },
+                    onDragCancel = { currentOnValueChangeFinished?.invoke() }
+                ) { change, _ ->
+                    change.consume()
+                    val thumbRadius = thumbSizeDp.height.toPx() / 2f
+                    val trackTop = thumbRadius
+                    val trackBottom = size.height - thumbRadius
+                    val usableHeight = (trackBottom - trackTop).coerceAtLeast(1f)
+
+                    val clampedY = change.position.y.coerceIn(trackTop, trackBottom)
+                    val fraction = 1f - ((clampedY - trackTop) / usableHeight)
+                    val newValue = minVal + fraction * rangeSpan
+                    currentOnValueChange(newValue.coerceIn(minVal, maxVal))
+                }
+            }
+    ) {
+        androidx.compose.foundation.Canvas(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            val width = size.width
+            val height = size.height
+            val centerX = width / 2f
+
+            val thumbRadius = thumbSizeDp.height.toPx() / 2f
+            val thumbRadiusX = thumbSizeDp.width.toPx() / 2f
+            val trackTop = thumbRadius
+            val trackBottom = height - thumbRadius
+            val usableHeight = (trackBottom - trackTop).coerceAtLeast(1f)
+
+            val trackWidthPx = trackWidthDp.toPx()
+            val trackCornerRadius = CornerRadius(trackWidthPx / 2f, trackWidthPx / 2f)
+
+            // 1. Draw Inactive Background Track (Dead Center)
+            drawRoundRect(
+                color = inactiveTrackColor,
+                topLeft = Offset(centerX - trackWidthPx / 2f, trackTop),
+                size = Size(trackWidthPx, usableHeight),
+                cornerRadius = trackCornerRadius
             )
-            val placeable = measurables.first().measure(sliderConstraints)
-            
-            layout(constraints.maxWidth, constraints.maxHeight) {
-                // To center a -90deg rotated item correctly:
-                // We place the unrotated item such that its center aligns with the container's physical center.
-                // physical center = (constraints.maxWidth / 2, constraints.maxHeight / 2)
-                // unrotated item center = (x + placeable.width / 2, y + placeable.height / 2)
-                val x = (constraints.maxWidth - placeable.width) / 2
-                val y = (constraints.maxHeight - placeable.height) / 2
-                
-                placeable.placeWithLayer(
-                    x = x,
-                    y = y,
-                    zIndex = 0f,
-                    layerBlock = {
-                        rotationZ = -90f
-                    }
+
+            // 2. Compute Thumb Center Y
+            val clampedValue = value.coerceIn(minVal, maxVal)
+            val fraction = ((clampedValue - minVal) / rangeSpan).coerceIn(0f, 1f)
+            val thumbY = trackBottom - (fraction * usableHeight)
+
+            // 3. Draw Active Fill
+            if (minVal < 0f && maxVal > 0f) {
+                // Centered 0dB mode (e.g. -10dB to +10dB EQ)
+                val zeroFraction = ((0f - minVal) / rangeSpan).coerceIn(0f, 1f)
+                val zeroY = trackBottom - (zeroFraction * usableHeight)
+
+                val activeTop = minOf(thumbY, zeroY)
+                val activeHeight = kotlin.math.abs(thumbY - zeroY).coerceAtLeast(0f)
+
+                if (activeHeight > 0f) {
+                    drawRoundRect(
+                        color = activeTrackColor,
+                        topLeft = Offset(centerX - trackWidthPx / 2f, activeTop),
+                        size = Size(trackWidthPx, activeHeight),
+                        cornerRadius = trackCornerRadius
+                    )
+                }
+
+                // Subtle zero dB center tick
+                drawLine(
+                    color = Color.White.copy(alpha = 0.35f),
+                    start = Offset(centerX - trackWidthPx - 1.5.dp.toPx(), zeroY),
+                    end = Offset(centerX + trackWidthPx + 1.5.dp.toPx(), zeroY),
+                    strokeWidth = 1.dp.toPx()
                 )
+            } else {
+                // Bottom-to-thumb mode
+                val activeHeight = (trackBottom - thumbY).coerceAtLeast(0f)
+                if (activeHeight > 0f) {
+                    drawRoundRect(
+                        color = activeTrackColor,
+                        topLeft = Offset(centerX - trackWidthPx / 2f, thumbY),
+                        size = Size(trackWidthPx, activeHeight),
+                        cornerRadius = trackCornerRadius
+                    )
+                }
+            }
+
+            // 4. Draw Thumb Head (Dead Center, No Hollow Artifacts)
+            if (headStyle == AppSliderHeadStyle.Bar) {
+                val barW = thumbSizeDp.width.toPx()
+                val barH = thumbSizeDp.height.toPx()
+                drawRoundRect(
+                    color = thumbColor,
+                    topLeft = Offset(centerX - barW / 2f, thumbY - barH / 2f),
+                    size = Size(barW, barH),
+                    cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx())
+                )
+                if (style == AppSliderStyle.Glossy) {
+                    drawRoundRect(
+                        color = Color.White.copy(alpha = 0.8f),
+                        topLeft = Offset(centerX - barW / 2f, thumbY - barH / 2f),
+                        size = Size(barW, barH),
+                        cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx()),
+                        style = Stroke(width = 0.75.dp.toPx())
+                    )
+                }
+            } else {
+                // Circular Solid/Glossy Head
+                val radius = thumbRadius.coerceAtLeast(thumbRadiusX)
+                drawCircle(
+                    color = thumbColor,
+                    radius = radius,
+                    center = Offset(centerX, thumbY)
+                )
+                if (style == AppSliderStyle.Glossy) {
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.85f),
+                        radius = radius,
+                        center = Offset(centerX, thumbY),
+                        style = Stroke(width = 1.dp.toPx())
+                    )
+                }
             }
         }
     }

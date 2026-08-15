@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -272,7 +273,7 @@ fun VideoPlayerScreen(
                             act.window.attributes = lp
                         }
                     },
-                    onScaleChange = { zoom -> scale = (scale * zoom).coerceIn(1f, 10f) },
+                    onScaleChange = { zoom -> scale = (scale * zoom).coerceIn(0.25f, 10f) },
                     onSeekBackward = { playerManager.seekBackward(10000L); gestureFeedbackText = "-10s" },
                     onSeekForward = { playerManager.seekForward(10000L); gestureFeedbackText = "+10s" },
                     onTogglePlayPause = { playerManager.togglePlayPause() },
@@ -298,25 +299,34 @@ fun VideoPlayerScreen(
                 )
         ) {
             // Video Surface Container with Aspect Ratio Bounds
+            val density = LocalDensity.current
+            val videoFormat = remember(playerState.currentItem) {
+                try { playerManager.exoPlayer.videoFormat } catch (_: Exception) { null }
+            }
+            val videoWidth = (videoFormat?.width?.takeIf { it > 0 } ?: playerState.currentItem?.width?.takeIf { it > 0 } ?: 1920)
+            val videoHeight = (videoFormat?.height?.takeIf { it > 0 } ?: playerState.currentItem?.height?.takeIf { it > 0 } ?: 1080)
+            val videoAspectRatio = (videoWidth.toFloat() / videoHeight.toFloat().coerceAtLeast(1f)).coerceIn(0.2f, 5.0f)
+
+            val contentModifier = when (cropMode.uppercase()) {
+                "CROP" -> Modifier.fillMaxSize()
+                "STRETCH" -> Modifier.fillMaxSize()
+                "16:9" -> Modifier.aspectRatio(16f / 9f, matchHeightConstraintsFirst = false)
+                "16:10" -> Modifier.aspectRatio(16f / 10f, matchHeightConstraintsFirst = false)
+                "4:3" -> Modifier.aspectRatio(4f / 3f, matchHeightConstraintsFirst = false)
+                "ORIGINAL" -> {
+                    with(density) {
+                        Modifier.size(videoWidth.toDp(), videoHeight.toDp())
+                    }
+                }
+                else -> Modifier.aspectRatio(videoAspectRatio, matchHeightConstraintsFirst = false)
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer(scaleX = scale, scaleY = scale),
                 contentAlignment = Alignment.Center
             ) {
-                val videoFormat = remember(playerState.currentItem) {
-                    try { playerManager.exoPlayer.videoFormat } catch (_: Exception) { null }
-                }
-                val videoWidth = videoFormat?.width ?: 16
-                val videoHeight = videoFormat?.height ?: 9
-                val videoAspectRatio = videoWidth.toFloat() / videoHeight.toFloat().coerceAtLeast(1f)
-
-                val contentModifier = when (cropMode) {
-                    "CROP" -> Modifier.fillMaxSize()
-                    "STRETCH" -> Modifier.fillMaxSize()
-                    else -> Modifier.aspectRatio(videoAspectRatio, matchHeightConstraintsFirst = false)
-                }
-
                 Box(
                     modifier = contentModifier,
                     contentAlignment = Alignment.Center
@@ -345,10 +355,10 @@ fun VideoPlayerScreen(
                                         Log.e("VideoPlayerScreen", "Error syncing player", e)
                                     }
                                     
-                                    view.resizeMode = when (cropMode) {
+                                    view.resizeMode = when (cropMode.uppercase()) {
                                         "CROP" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                        "STRETCH" -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                                        "ORIGINAL" -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+                                        "STRETCH", "16:9", "16:10", "4:3" -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                        "ORIGINAL" -> AspectRatioFrameLayout.RESIZE_MODE_FIT
                                         else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
                                     }
                                     try {
@@ -447,9 +457,10 @@ fun VideoPlayerScreen(
             VerticalGestureHUD(value = currentVolume, icon = Icons.Default.VolumeUp, color = Color.White)
         }
 
-        AnimatedVisibility(visible = isHorizontalDragging, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut(), modifier = Modifier.align(Alignment.Center)) {
-            SeekHUD(deltaMs = seekDeltaMs, targetPositionMs = seekTargetPositionMs, durationMs = playerState.durationMs)
-        }
+        // Center Seek HUD commented out as requested
+        // AnimatedVisibility(visible = isHorizontalDragging, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut(), modifier = Modifier.align(Alignment.Center)) {
+        //     SeekHUD(deltaMs = seekDeltaMs, targetPositionMs = seekTargetPositionMs, durationMs = playerState.durationMs)
+        // }
 
         AnimatedVisibility(visible = gestureFeedbackText != null, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut(), modifier = Modifier.align(Alignment.Center)) {
             gestureFeedbackText?.let { GestureFeedbackHUD(text = it) }
@@ -486,7 +497,16 @@ fun VideoPlayerScreen(
                 },
                 onSpeedLongPress = { showSpeedMenu = true }, onPipClick = onEnterPip,
                 onAspectRatioClick = {
-                    cropMode = when (cropMode) { "FIT" -> "CROP"; "CROP" -> "STRETCH"; "STRETCH" -> "ORIGINAL"; else -> "FIT" }
+                    cropMode = when (cropMode.uppercase()) {
+                        "FIT" -> "CROP"
+                        "CROP" -> "16:9"
+                        "16:9" -> "16:10"
+                        "16:10" -> "4:3"
+                        "4:3" -> "ORIGINAL"
+                        "ORIGINAL" -> "STRETCH"
+                        else -> "FIT"
+                    }
+                    scale = 1f
                     gestureFeedbackText = "Aspect Ratio: $cropMode"
                 },
                 onAspectRatioLongPress = { showAspectRatioMenu = true }
@@ -580,7 +600,10 @@ fun VideoPlayerScreen(
             VideoPostProcessingPanel(
                 currentEffect = pictureMode,
                 onEffectChange = { newMode ->
-                    scope.launch { settingsManager.setPictureMode(newMode) }
+                    scope.launch {
+                        settingsManager.setPictureMode(newMode)
+                        settingsManager.setPictureModeEnabled(true)
+                    }
                     gestureFeedbackText = "Video FX: $newMode"
                 },
                 onDismiss = { showVideoFxSheet = false }
@@ -611,6 +634,7 @@ fun VideoPlayerScreen(
         
         if (showAspectRatioMenu) AspectRatioModal(currentMode = cropMode, onModeChange = { 
             cropMode = it
+            scale = 1f
             gestureFeedbackText = "Aspect Ratio: $cropMode"
         }, onDismiss = { showAspectRatioMenu = false })
         

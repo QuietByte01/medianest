@@ -42,6 +42,48 @@ enum class PictureMode(
         subtitle = "Warm filmic aesthetic",
         description = "Imparts a soft amber warmth, filmic shadow contrast, and cinematic highlight tones."
     ),
+    BW(
+        key = "BW",
+        displayName = "B&W",
+        subtitle = "Black & White (Monochrome)",
+        description = "Clean grayscale conversion using standard photometric luminance weights."
+    ),
+    SEPIA(
+        key = "SEPIA",
+        displayName = "Sepia Film",
+        subtitle = "Classic warm sepia tone",
+        description = "Applies a vintage warm golden-brown sepia tone matrix."
+    ),
+    HIGH_CONTRAST(
+        key = "HIGH_CONTRAST",
+        displayName = "High Contrast",
+        subtitle = "Deep shadows & bright highlights",
+        description = "Expands dynamic range and contrast for punchy visuals."
+    ),
+    NIGHT_VISION(
+        key = "NIGHT_VISION",
+        displayName = "Night Vision",
+        subtitle = "Phosphor green surveillance",
+        description = "Transforms media with a military-grade phosphor green night vision filter."
+    ),
+    VINTAGE_CRT(
+        key = "VINTAGE_CRT",
+        displayName = "Vintage CRT",
+        subtitle = "Retro film & CRT warmth",
+        description = "Recreates retro cathode-ray tube warmth and film color shifts."
+    ),
+    SHARPEN(
+        key = "SHARPEN",
+        displayName = "Sharpen",
+        subtitle = "Clarity & edge enhancement",
+        description = "Boosts micro-contrast for sharp, high-definition perception."
+    ),
+    TRUE_COLOR(
+        key = "TRUE_COLOR",
+        displayName = "Natural Balance (Rec.709)",
+        subtitle = "Industrial studio calibration",
+        description = "Neutralizes oversaturated channels, restores blown highlights, and balances RGB to natural studio standard."
+    ),
     CUSTOM(
         key = "CUSTOM",
         displayName = "Custom Profile",
@@ -51,7 +93,13 @@ enum class PictureMode(
 
     companion object {
         fun fromKey(key: String): PictureMode =
-            entries.firstOrNull { it.key.equals(key, ignoreCase = true) } ?: DEVICE_DEFAULT
+            entries.firstOrNull { 
+                it.key.equals(key, ignoreCase = true) || 
+                (it == BW && (key.equals("B&W", ignoreCase = true) || key.equals("MONOCHROME", ignoreCase = true) || key.equals("BLACK_AND_WHITE", ignoreCase = true))) ||
+                (it == TRUE_COLOR && (key.equals("NATURAL_BALANCE", ignoreCase = true) || key.equals("REC709", ignoreCase = true) || key.equals("DE_SATURATE", ignoreCase = true))) ||
+                (it == NATURAL && key.equals("NORMAL", ignoreCase = true)) ||
+                (it == VINTAGE_CRT && key.equals("VINTAGE", ignoreCase = true))
+            } ?: DEVICE_DEFAULT
     }
 }
 
@@ -68,54 +116,131 @@ object PictureModeUtils {
         customWarmth: Float = 0.03f
     ): FloatArray {
         return try {
-            val (rawSat, rawCon, rawWarmth) = when (mode) {
-                PictureMode.DEVICE_DEFAULT, PictureMode.NATURAL -> Triple(1.0f, 1.0f, 0.0f)
-                PictureMode.BALANCED -> Triple(1.18f, 1.06f, 0.03f)
-                PictureMode.VIVID -> Triple(1.42f, 1.15f, 0.0f)
-                PictureMode.CINEMATIC -> Triple(1.05f, 1.10f, 0.08f)
-                PictureMode.CUSTOM -> Triple(customSat, customCon, customWarmth)
+            when (mode) {
+                PictureMode.DEVICE_DEFAULT, PictureMode.NATURAL -> {
+                    floatArrayOf(
+                        1f, 0f, 0f, 0f, 0f,
+                        0f, 1f, 0f, 0f, 0f,
+                        0f, 0f, 1f, 0f, 0f,
+                        0f, 0f, 0f, 1f, 0f
+                    )
+                }
+                PictureMode.BW -> {
+                    // Photometric luminance weights (Rec.709 sRGB)
+                    floatArrayOf(
+                        0.2126f, 0.7152f, 0.0722f, 0f, 0f,
+                        0.2126f, 0.7152f, 0.0722f, 0f, 0f,
+                        0.2126f, 0.7152f, 0.0722f, 0f, 0f,
+                        0f,      0f,      0f,      1f, 0f
+                    )
+                }
+                PictureMode.SEPIA -> {
+                    // Standard W3C / Photoshop Sepia Transformation Matrix
+                    floatArrayOf(
+                        0.393f, 0.769f, 0.189f, 0f, 0f,
+                        0.349f, 0.686f, 0.168f, 0f, 0f,
+                        0.272f, 0.534f, 0.131f, 0f, 0f,
+                        0f,     0f,     0f,     1f, 0f
+                    )
+                }
+                PictureMode.NIGHT_VISION -> {
+                    // Phosphor green night vision transform
+                    floatArrayOf(
+                        0.10f, 0.40f, 0.10f, 0f, -20f,
+                        0.25f, 0.75f, 0.25f, 0f,  30f,
+                        0.10f, 0.30f, 0.10f, 0f, -20f,
+                        0f,    0f,    0f,    1f,   0f
+                    )
+                }
+                PictureMode.VINTAGE_CRT -> {
+                    // Retro film / CRT warm highlights with teal shadow shift
+                    floatArrayOf(
+                        0.90f, 0.10f, 0.10f, 0f,  15f,
+                        0.05f, 0.85f, 0.10f, 0f,  10f,
+                        0.05f, 0.10f, 0.75f, 0f, -10f,
+                        0f,    0f,    0f,    1f,   0f
+                    )
+                }
+                PictureMode.SHARPEN, PictureMode.HIGH_CONTRAST -> {
+                    val con = if (mode == PictureMode.HIGH_CONTRAST) 1.45f else 1.25f
+                    val sat = if (mode == PictureMode.HIGH_CONTRAST) 1.25f else 1.05f
+                    val rw = 0.2126f; val gw = 0.7152f; val bw = 0.0722f
+                    val invSat = 1f - sat
+                    val rSat = rw * invSat; val gSat = gw * invSat; val bSat = bw * invSat
+                    val contrastOffset = 128f * (1f - con)
+                    floatArrayOf(
+                        (rSat + sat) * con, gSat * con, bSat * con, 0f, contrastOffset,
+                        rSat * con, (gSat + sat) * con, bSat * con, 0f, contrastOffset,
+                        rSat * con, gSat * con, (bSat + sat) * con, 0f, contrastOffset,
+                        0f, 0f, 0f, 1f, 0f
+                    )
+                }
+                PictureMode.TRUE_COLOR -> {
+                    // Studio-calibrated Rec.709 de-saturation and balanced dynamic range
+                    val sat = 0.84f
+                    val con = 0.98f
+                    val rw = 0.2126f; val gw = 0.7152f; val bw = 0.0722f
+                    val invSat = 1f - sat
+                    val rSat = rw * invSat; val gSat = gw * invSat; val bSat = bw * invSat
+                    val contrastOffset = 128f * (1f - con)
+                    floatArrayOf(
+                        (rSat + sat) * con, gSat * con, bSat * con, 0f, contrastOffset,
+                        rSat * con, (gSat + sat) * con, bSat * con, 0f, contrastOffset,
+                        rSat * con, gSat * con, (bSat + sat) * con, 0f, contrastOffset,
+                        0f, 0f, 0f, 1f, 0f
+                    )
+                }
+                else -> {
+                    val (rawSat, rawCon, rawWarmth) = when (mode) {
+                        PictureMode.BALANCED -> Triple(1.18f, 1.06f, 0.03f)
+                        PictureMode.VIVID -> Triple(1.42f, 1.15f, 0.0f)
+                        PictureMode.CINEMATIC -> Triple(1.05f, 1.10f, 0.08f)
+                        PictureMode.CUSTOM -> Triple(customSat, customCon, customWarmth)
+                        else -> Triple(1.0f, 1.0f, 0.0f)
+                    }
+
+                    // Sanitize and clamp values to safe bounds
+                    val sat = rawSat.coerceIn(0.0f, 3.0f)
+                    val con = rawCon.coerceIn(0.1f, 3.0f)
+                    val warmth = rawWarmth.coerceIn(-0.5f, 0.5f)
+
+                    // Standard sRGB luminance weights
+                    val rw = 0.2126f
+                    val gw = 0.7152f
+                    val bw = 0.0722f
+
+                    val invSat = 1f - sat
+                    val rSat = rw * invSat
+                    val gSat = gw * invSat
+                    val bSat = bw * invSat
+
+                    // Contrast scaling centered around midtone 128 (0.5 normalized)
+                    val contrastOffset = 128f * (1f - con)
+
+                    // Warmth channel offsets
+                    val redWarmth = warmth * 255f
+                    val blueWarmth = -warmth * 255f
+
+                    val rRowR = (rSat + sat) * con
+                    val rRowG = gSat * con
+                    val rRowB = bSat * con
+
+                    val gRowR = rSat * con
+                    val gRowG = (gSat + sat) * con
+                    val gRowB = bSat * con
+
+                    val bRowR = rSat * con
+                    val bRowG = gSat * con
+                    val bRowB = (bSat + sat) * con
+
+                    floatArrayOf(
+                        rRowR, rRowG, rRowB, 0f, contrastOffset + redWarmth,
+                        gRowR, gRowG, gRowB, 0f, contrastOffset,
+                        bRowR, bRowG, bRowB, 0f, contrastOffset + blueWarmth,
+                        0f,    0f,    0f,    1f, 0f
+                    )
+                }
             }
-
-            // Sanitize and clamp values to safe bounds
-            val sat = rawSat.coerceIn(0.0f, 3.0f)
-            val con = rawCon.coerceIn(0.1f, 3.0f)
-            val warmth = rawWarmth.coerceIn(-0.5f, 0.5f)
-
-            // Standard sRGB luminance weights
-            val rw = 0.2126f
-            val gw = 0.7152f
-            val bw = 0.0722f
-
-            val invSat = 1f - sat
-            val rSat = rw * invSat
-            val gSat = gw * invSat
-            val bSat = bw * invSat
-
-            // Contrast scaling centered around midtone 128 (0.5 normalized)
-            val contrastOffset = 128f * (1f - con)
-
-            // Warmth channel offsets
-            val redWarmth = warmth * 255f
-            val blueWarmth = -warmth * 255f
-
-            val rRowR = (rSat + sat) * con
-            val rRowG = gSat * con
-            val rRowB = bSat * con
-
-            val gRowR = rSat * con
-            val gRowG = (gSat + sat) * con
-            val gRowB = bSat * con
-
-            val bRowR = rSat * con
-            val bRowG = gSat * con
-            val bRowB = (bSat + sat) * con
-
-            floatArrayOf(
-                rRowR, rRowG, rRowB, 0f, contrastOffset + redWarmth,
-                gRowR, gRowG, gRowB, 0f, contrastOffset,
-                bRowR, bRowG, bRowB, 0f, contrastOffset + blueWarmth,
-                0f,    0f,    0f,    1f, 0f
-            )
         } catch (e: Throwable) {
             Log.e(TAG, "Error calculating color matrix values, falling back to identity matrix", e)
             // Identity 4x5 matrix
@@ -141,7 +266,7 @@ object PictureModeUtils {
         if (!enabled) return null
         return try {
             val mode = PictureMode.fromKey(modeKey)
-            if (mode == PictureMode.NATURAL || mode == PictureMode.DEVICE_DEFAULT) return null
+            if (mode == PictureMode.DEVICE_DEFAULT) return null
             val matrixValues = createColorMatrixValues(mode, customSat, customCon, customWarmth)
             ColorFilter.colorMatrix(ComposeColorMatrix(matrixValues))
         } catch (e: Throwable) {
@@ -163,7 +288,7 @@ object PictureModeUtils {
         if (!enabled) return null
         return try {
             val mode = PictureMode.fromKey(modeKey)
-            if (mode == PictureMode.NATURAL || mode == PictureMode.DEVICE_DEFAULT) return null
+            if (mode == PictureMode.DEVICE_DEFAULT) return null
             val matrixValues = createColorMatrixValues(mode, customSat, customCon, customWarmth)
             AndroidColorMatrixColorFilter(AndroidColorMatrix(matrixValues))
         } catch (e: Throwable) {
@@ -188,6 +313,13 @@ object PictureModeUtils {
                 PictureMode.BALANCED -> Triple(1.18f, 1.06f, 0.03f)
                 PictureMode.VIVID -> Triple(1.42f, 1.15f, 0.0f)
                 PictureMode.CINEMATIC -> Triple(1.05f, 1.10f, 0.08f)
+                PictureMode.BW -> Triple(0.0f, 1.0f, 0.0f)
+                PictureMode.SEPIA -> Triple(0.8f, 1.0f, 0.25f)
+                PictureMode.HIGH_CONTRAST -> Triple(1.25f, 1.45f, 0.0f)
+                PictureMode.NIGHT_VISION -> Triple(0.5f, 1.5f, -0.3f)
+                PictureMode.VINTAGE_CRT -> Triple(0.85f, 1.15f, 0.15f)
+                PictureMode.SHARPEN -> Triple(1.05f, 1.25f, 0.0f)
+                PictureMode.TRUE_COLOR -> Triple(0.84f, 0.98f, 0.0f)
                 PictureMode.CUSTOM -> Triple(customSat, customCon, customWarmth)
             }
         } catch (e: Throwable) {

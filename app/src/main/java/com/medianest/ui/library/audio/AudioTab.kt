@@ -46,9 +46,11 @@ fun AudioTab(
     initialFolder: String? = null
 ) {
     var subTabState by remember(initialSubTab) { mutableIntStateOf(initialSubTab) }
+    var previousSubTabState by remember { mutableStateOf<Int?>(null) }
     var targetAlbum by remember(initialAlbum) { mutableStateOf(initialAlbum) }
     var targetArtist by remember(initialArtist) { mutableStateOf(initialArtist) }
     var targetFolder by remember(initialFolder) { mutableStateOf(initialFolder) }
+    var targetPlaylist by remember { mutableStateOf<MediaCategory?>(null) }
     var itemToAddToPlaylist by remember { mutableStateOf<MediaItem?>(null) }
 
     val settingsManager = MediaNestApp.instance.settingsManager
@@ -158,8 +160,19 @@ fun AudioTab(
         mostPlayedStates.mapNotNull { state -> audioMap[state.mediaUri] }
     }
 
-    BackHandler(enabled = subTabState != 0) {
-        subTabState = 0
+    BackHandler(enabled = subTabState != 0 || targetAlbum != null || targetArtist != null || targetFolder != null || targetPlaylist != null || previousSubTabState != null) {
+        if (targetPlaylist != null) {
+            targetPlaylist = null
+        } else if (targetAlbum != null || targetArtist != null || targetFolder != null) {
+            targetAlbum = null
+            targetArtist = null
+            targetFolder = null
+        } else if (previousSubTabState != null) {
+            subTabState = previousSubTabState!!
+            previousSubTabState = null
+        } else {
+            subTabState = 0
+        }
     }
 
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
@@ -299,8 +312,11 @@ fun AudioTab(
                 onCreatePlaylistClick = onCreatePlaylistClick,
                 onSongClick = onSongClick,
                 isLoading = isLoading,
+                initialSelectedPlaylist = targetPlaylist,
+                onSelectPlaylist = { targetPlaylist = it },
                 onAddToPlaylist = { itemToAddToPlaylist = it },
                 onNavigateSubTab = { tab: Int, album: String?, artist: String?, folder: String? ->
+                    previousSubTabState = subTabState
                     subTabState = tab
                     if (album != null) targetAlbum = album
                     if (artist != null) targetArtist = artist
@@ -339,7 +355,14 @@ fun AudioTab(
                                 .fillMaxWidth()
                                 .height(44.dp)
                                 .clip(RoundedCornerShape(14.dp))
-                                .clickable { subTabState = item.index },
+                                .clickable { 
+                                    subTabState = item.index
+                                    previousSubTabState = null
+                                    targetAlbum = null
+                                    targetArtist = null
+                                    targetFolder = null
+                                    targetPlaylist = null
+                                },
                             shape = RoundedCornerShape(14.dp),
                             color = if (isSelected) Color(0x3DFFFFFF) else Color.Transparent
                         ) {
@@ -373,18 +396,28 @@ fun AudioTab(
                         onSortFieldChange = { scope.launch { settingsManager.setAudioSortField(it) } },
                         isAscending = isAscending,
                         onIsAscendingChange = { scope.launch { settingsManager.setAudioSortAscending(it) } },
-                        isVisible = isSortVisible.value && (subTabState in listOf(0, 3, 4, 5, 6)),
+                        isVisible = isSortVisible.value && (subTabState in listOf(0, 3, 4, 5, 6) || previousSubTabState != null),
                         options = sortOptions,
-                        onBack = when (subTabState) {
-                            3 -> if (targetAlbum != null) ({ targetAlbum = null }) else null
-                            4 -> if (targetArtist != null) ({ targetArtist = null }) else null
-                            5 -> if (targetFolder != null) ({ targetFolder = null }) else null
+                        onBack = when {
+                            targetPlaylist != null -> ({ targetPlaylist = null })
+                            targetAlbum != null -> ({ targetAlbum = null })
+                            targetArtist != null -> ({ targetArtist = null })
+                            targetFolder != null -> ({ targetFolder = null })
+                            previousSubTabState != null -> ({
+                                subTabState = previousSubTabState!!
+                                previousSubTabState = null
+                            })
+                            subTabState != 0 -> ({ subTabState = 0 })
                             else -> null
                         },
-                        backLabel = when (subTabState) {
-                            3 -> targetAlbum
-                            4 -> targetArtist
-                            5 -> targetFolder?.substringAfterLast('/')
+                        backLabel = when {
+                            targetPlaylist != null -> targetPlaylist?.name
+                            targetAlbum != null -> targetAlbum
+                            targetArtist != null -> targetArtist
+                            targetFolder != null -> targetFolder?.substringAfterLast('/')
+                            previousSubTabState == 6 -> "Playlists"
+                            previousSubTabState != null -> visibleCategories.firstOrNull { it.index == previousSubTabState }?.label
+                            subTabState != 0 -> "All Songs"
                             else -> null
                         }
                     )
@@ -407,7 +440,14 @@ fun AudioTab(
                         modifier = Modifier
                             .height(38.dp)
                             .clip(RoundedCornerShape(20.dp))
-                            .clickable { subTabState = item.index },
+                            .clickable { 
+                                subTabState = item.index
+                                previousSubTabState = null
+                                targetAlbum = null
+                                targetArtist = null
+                                targetFolder = null
+                                targetPlaylist = null
+                            },
                         shape = RoundedCornerShape(20.dp),
                         backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
                         borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF)
@@ -439,18 +479,28 @@ fun AudioTab(
                 onSortFieldChange = { scope.launch { settingsManager.setAudioSortField(it) } },
                 isAscending = isAscending,
                 onIsAscendingChange = { scope.launch { settingsManager.setAudioSortAscending(it) } },
-                isVisible = isSortVisible.value && (subTabState in listOf(0, 3, 4, 5, 6)),
+                isVisible = isSortVisible.value && (subTabState in listOf(0, 3, 4, 5, 6) || previousSubTabState != null),
                 options = sortOptions,
-                onBack = when (subTabState) {
-                    3 -> if (targetAlbum != null) ({ targetAlbum = null }) else null
-                    4 -> if (targetArtist != null) ({ targetArtist = null }) else null
-                    5 -> if (targetFolder != null) ({ targetFolder = null }) else null
+                onBack = when {
+                    targetPlaylist != null -> ({ targetPlaylist = null })
+                    targetAlbum != null -> ({ targetAlbum = null })
+                    targetArtist != null -> ({ targetArtist = null })
+                    targetFolder != null -> ({ targetFolder = null })
+                    previousSubTabState != null -> ({
+                        subTabState = previousSubTabState!!
+                        previousSubTabState = null
+                    })
+                    subTabState != 0 -> ({ subTabState = 0 })
                     else -> null
                 },
-                backLabel = when (subTabState) {
-                    3 -> targetAlbum
-                    4 -> targetArtist
-                    5 -> targetFolder?.substringAfterLast('/')
+                backLabel = when {
+                    targetPlaylist != null -> targetPlaylist?.name
+                    targetAlbum != null -> targetAlbum
+                    targetArtist != null -> targetArtist
+                    targetFolder != null -> targetFolder?.substringAfterLast('/')
+                    previousSubTabState == 6 -> "Playlists"
+                    previousSubTabState != null -> visibleCategories.firstOrNull { it.index == previousSubTabState }?.label
+                    subTabState != 0 -> "All Songs"
                     else -> null
                 }
             )

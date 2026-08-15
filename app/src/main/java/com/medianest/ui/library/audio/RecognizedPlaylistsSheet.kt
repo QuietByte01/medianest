@@ -1,13 +1,16 @@
 package com.medianest.ui.library.audio
 
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -18,6 +21,7 @@ import com.medianest.data.db.CategoryMediaCrossRef
 import com.medianest.data.db.MediaCategory
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.AdaptiveBottomSheet
+import com.medianest.ui.components.GlassSurface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -199,18 +203,24 @@ fun RecognizedPlaylistsSheet(
                                 Text(text = pl.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 Text(text = pl.path, fontSize = 11.sp, color = Color(0xFF94A3B8), maxLines = 1)
                             }
-                            Button(
-                                onClick = {
-                                    scope.launch {
-                                        isImporting = true
-                                        val count = processImportPlaylist(pl)
-                                        isImporting = false
-                                        Toast.makeText(context, "Imported \"${pl.name}\" ($count tracks)", Toast.LENGTH_SHORT).show()
-                                        onDismiss()
+                            GlassSurface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        scope.launch {
+                                            isImporting = true
+                                            val count = processImportPlaylist(pl)
+                                            isImporting = false
+                                            Toast.makeText(context, "Imported \"${pl.name}\" ($count tracks)", Toast.LENGTH_SHORT).show()
+                                            onDismiss()
+                                        }
                                     }
-                                }
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                backgroundColor = Color(0x33FFFFFF),
+                                borderColor = Color(0x33FFFFFF)
                             ) {
-                                Text("Import", fontSize = 11.sp)
+                                Text("Import", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
                             }
                         }
                     }

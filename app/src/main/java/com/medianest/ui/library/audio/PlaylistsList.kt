@@ -45,17 +45,25 @@ fun PlaylistsList(
     onCreatePlaylistClick: () -> Unit,
     onSongClick: (MediaItem) -> Unit,
     isLoading: Boolean = false,
+    initialSelectedPlaylist: MediaCategory? = null,
+    onSelectPlaylist: (MediaCategory?) -> Unit = {},
     onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?) -> Unit = { _, _, _, _ -> },
     onAddToPlaylist: (MediaItem) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var selectedPlaylist by remember { mutableStateOf<MediaCategory?>(null) }
+    var selectedPlaylist by remember(initialSelectedPlaylist) { mutableStateOf(initialSelectedPlaylist) }
+
+    LaunchedEffect(initialSelectedPlaylist) {
+        selectedPlaylist = initialSelectedPlaylist
+    }
+
     var playlistUris by remember { mutableStateOf<List<String>>(emptyList()) }
     var playlistToDelete by remember { mutableStateOf<MediaCategory?>(null) }
 
     BackHandler(enabled = selectedPlaylist != null) {
         selectedPlaylist = null
+        onSelectPlaylist(null)
     }
 
     var isPlaylistLoading by remember(selectedPlaylist?.id) { mutableStateOf(selectedPlaylist != null) }
@@ -74,11 +82,6 @@ fun PlaylistsList(
         }
     }
 
-    val latestAddedArtUri = remember(audioList) {
-        audioList.sortedByDescending { it.dateAdded }.firstOrNull { it.albumArtUri != null }?.albumArtUri
-            ?: audioList.firstOrNull { it.albumArtUri != null }?.albumArtUri
-    }
-
     val favPlaylist = remember(playlists) {
         playlists.firstOrNull { it.name.equals("Favourites", ignoreCase = true) || it.name.equals("Favorites", ignoreCase = true) }
     }
@@ -90,26 +93,25 @@ fun PlaylistsList(
             val db = com.medianest.MediaNestApp.instance.database
             db.categoryDao().getMediaUrisForCategory(favPlaylist.id).collectLatest { uris ->
                 favCount = uris.size
-                val favTracksWithArt = audioList.filter { uris.contains(it.uri.toString()) && it.albumArtUri != null }
-                favArtUri = favTracksWithArt.maxByOrNull { it.dateAdded }?.albumArtUri ?: latestAddedArtUri
+                val favTracks = audioList.filter { uris.contains(it.uri.toString()) }
+                favArtUri = favTracks.maxByOrNull { it.dateAdded }?.let { it.albumArtUri ?: it.uri }
             }
         } else {
-            favArtUri = latestAddedArtUri
+            favArtUri = null
             favCount = 0
         }
     }
 
     val mostPlayedArtUri = remember(mostPlayedSongs) {
-        mostPlayedSongs.firstOrNull { it.albumArtUri != null }?.albumArtUri
+        mostPlayedSongs.firstOrNull()?.let { it.albumArtUri ?: it.uri }
     }
 
     val recentlyPlayedArtUri = remember(recentSongs) {
-        recentSongs.firstOrNull { it.albumArtUri != null }?.albumArtUri
+        recentSongs.firstOrNull()?.let { it.albumArtUri ?: it.uri }
     }
 
     val recentlyAddedArtUri = remember(audioList) {
-        audioList.sortedByDescending { it.dateAdded }
-            .firstOrNull { it.albumArtUri != null }?.albumArtUri
+        audioList.maxByOrNull { it.dateAdded }?.let { it.albumArtUri ?: it.uri }
     }
 
     val userPlaylists = remember(playlists) {
@@ -125,32 +127,6 @@ fun PlaylistsList(
         val playlistSongs = audioList.filter { playlistUris.contains(it.uri.toString()) }
 
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = selectedPlaylist!!.name,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = Color.White
-                )
-                IconButton(
-                    onClick = {
-                        exportPlaylistToM3u(context, selectedPlaylist!!, audioList)
-                    }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FileDownload,
-                        contentDescription = "Export Playlist",
-                        tint = Color(0xFF38BDF8)
-                    )
-                }
-            }
-
             if (isPlaylistLoading || (isLoading && playlistSongs.isEmpty())) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     MediaLoadingAnimation(
@@ -171,7 +147,13 @@ fun PlaylistsList(
                     onSongClick = onSongClick,
                     onSongLongClick = {},
                     onNavigateSubTab = onNavigateSubTab,
-                    onAddToPlaylist = onAddToPlaylist
+                    onAddToPlaylist = onAddToPlaylist,
+                    onRemoveFromPlaylist = { item ->
+                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            val db = com.medianest.MediaNestApp.instance.database
+                            db.categoryDao().removeMediaFromCategory(selectedPlaylist!!.id, item.uri.toString())
+                        }
+                    }
                 )
             }
         }
@@ -204,7 +186,14 @@ fun PlaylistsList(
                                     icon = Icons.Default.Favorite,
                                     artUri = favArtUri,
                                     gradientColors = listOf(Color(0xFFFF5252), Color(0xFFFF7A00)),
-                                    onClick = { if (favPlaylist != null) selectedPlaylist = favPlaylist else onNavigateSubTab(2, null, null, null) }
+                                    onClick = { 
+                                        if (favPlaylist != null) {
+                                            selectedPlaylist = favPlaylist
+                                            onSelectPlaylist(favPlaylist)
+                                        } else {
+                                            onNavigateSubTab(2, null, null, null)
+                                        }
+                                    }
                                 )
                             }
                             item {
@@ -254,17 +243,36 @@ fun PlaylistsList(
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                IconButton(
-                                    onClick = { showRecognizedPlaylistsSheet = true },
-                                    modifier = Modifier.size(36.dp)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                GlassSurface(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable { showRecognizedPlaylistsSheet = true }
+                                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    backgroundColor = Color(0x33FFFFFF),
+                                    borderColor = Color(0x33FFFFFF)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.FileDownload,
-                                        contentDescription = "Import Playlist File",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.FileDownload,
+                                            contentDescription = "Import Playlist File",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Text(
+                                            text = "Import",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
                                 }
                                 IconButton(
                                     onClick = { onCreatePlaylistClick() },
@@ -301,7 +309,10 @@ fun PlaylistsList(
                             UserPlaylistCard(
                                 pl = pl,
                                 audioList = audioList,
-                                onClick = { selectedPlaylist = pl },
+                                onClick = {
+                                    selectedPlaylist = pl
+                                    onSelectPlaylist(pl)
+                                },
                                 onDelete = { playlistToDelete = pl }
                             )
                         }

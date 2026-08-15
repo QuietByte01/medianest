@@ -44,6 +44,14 @@ class VideoPlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        if (android.os.Build.VERSION.SDK_INT >= 34) {
+            overrideActivityTransition(
+                OVERRIDE_TRANSITION_OPEN,
+                com.medianest.R.anim.viewer_open_enter,
+                com.medianest.R.anim.viewer_open_exit
+            )
+        }
+
         playerManager = ExoPlayerManager.getInstance(applicationContext)
         activePlayerManager = playerManager
 

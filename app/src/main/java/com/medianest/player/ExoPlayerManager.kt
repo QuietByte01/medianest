@@ -163,6 +163,10 @@ class ExoPlayerManager private constructor(private val context: Context) {
                 val engine = activeEngine
                 if (engine != null) {
                     val diag = engine.diagnosticState.value
+                    // Grab the live session ID from the underlying ExoPlayer instance.
+                    // This ensures the correct (non-zero) session ID is always exposed
+                    // to AudioVisualizer, which requires it on Android 11+.
+                    val liveSessionId = (engine as? Media3PlaybackEngine)?.player?.audioSessionId ?: 0
                     _playerState.value = _playerState.value.copy(
                         currentPositionMs = engine.currentPositionMs,
                         durationMs = engine.durationMs,
@@ -174,7 +178,8 @@ class ExoPlayerManager private constructor(private val context: Context) {
                         videoCodec = diag.videoCodec,
                         audioCodec = diag.audioCodec,
                         activeDecoderName = diag.decoderName,
-                        isHardwareAccelerated = diag.isHardwareAccelerated
+                        isHardwareAccelerated = diag.isHardwareAccelerated,
+                        audioSessionId = if (liveSessionId != 0 && liveSessionId != C.AUDIO_SESSION_ID_UNSET) liveSessionId else _playerState.value.audioSessionId
                     )
                 }
                 delay(200)
@@ -265,9 +270,18 @@ class ExoPlayerManager private constructor(private val context: Context) {
             }
             override fun onAudioSessionIdChanged(audioSessionId: Int) {
                 updateAndroidAudioEffects(audioSessionId)
+                // Propagate the real session ID to playerState so AudioVisualizer
+                // receives a valid (non-zero) session ID on Android 11+.
+                if (audioSessionId != 0 && audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
+                    _playerState.value = _playerState.value.copy(audioSessionId = audioSessionId)
+                }
             }
         })
         updateAndroidAudioEffects(player.audioSessionId)
+        // Seed playerState immediately with the session ID assigned at player creation.
+        if (player.audioSessionId != 0 && player.audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
+            _playerState.value = _playerState.value.copy(audioSessionId = player.audioSessionId)
+        }
         media3Engine = Media3PlaybackEngine(context, player)
         if (activeEngine == null) activeEngine = media3Engine
     }

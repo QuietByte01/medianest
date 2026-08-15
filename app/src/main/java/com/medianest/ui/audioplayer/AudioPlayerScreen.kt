@@ -209,14 +209,13 @@ fun AudioPlayerScreen(
     ) {
         val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         val isDark = LocalDarkTheme.current
-        val menuBg = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF)
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(horizontal = if (isLandscape) 32.dp else 20.dp, vertical = if (isLandscape) 8.dp else 10.dp),
+                .padding(horizontal = if (isLandscape) 16.dp else 20.dp, vertical = if (isLandscape) 8.dp else 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Top Bar
@@ -225,6 +224,7 @@ fun AudioPlayerScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                /*
                 Surface(
                     onClick = onClose,
                     shape = CircleShape,
@@ -240,6 +240,18 @@ fun AudioPlayerScreen(
                         )
                     }
                 }
+                */
+                IconButton(
+                    onClick = onClose,
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Close",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
 
                 Text(
                     text = "MediaNest Music",
@@ -249,6 +261,7 @@ fun AudioPlayerScreen(
                 )
 
                 Box {
+                    /*
                     Surface(
                         onClick = { showOverflowMenu = true },
                         shape = CircleShape,
@@ -264,101 +277,102 @@ fun AudioPlayerScreen(
                             )
                         }
                     }
-                    DropdownMenu(
+                    */
+                    IconButton(
+                        onClick = { showOverflowMenu = true },
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "More Options",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    com.medianest.ui.components.GlassDropdownMenu(
                         expanded = showOverflowMenu,
                         onDismissRequest = { showOverflowMenu = false },
-                        containerColor = Color.Transparent, // Use GlassSurface instead
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier
-                            .border(1.dp, if (isDark) Color(0x28FFFFFF) else Color(0x33000000), RoundedCornerShape(16.dp))
+                        shape = RoundedCornerShape(16.dp)
                     ) {
-                        com.medianest.ui.components.GlassSurface(
-                            backgroundImage = currentItem?.albumArtUri ?: currentItem?.uri,
-                            backgroundColor = menuBg,
-                            shape = RoundedCornerShape(16.dp),
-                            enableBlur = true,
-                            hue = albumArtHue
-                        ) {
-                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                                DropdownMenuItem(
-                                    text = { Text("Add to Playlist", color = if (isDark) Color.White else Color.Black) },
-                                    leadingIcon = { Icon(Icons.Default.PlaylistAdd, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        showAddAlbumToPlaylistDialog = true
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
-                                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        showDetailsSheet = true
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Edit Tag & Metadata", color = if (isDark) Color.White else Color.Black) },
-                                    leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        showMetadataModal = true
-                                    }
-                                )
-                                if (currentItem != null) {
-                                    DropdownMenuItem(
-                                        text = { Text("Show Album", color = if (isDark) Color.White else Color.Black) },
-                                        leadingIcon = { Icon(Icons.Default.Album, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                        onClick = {
-                                            showOverflowMenu = false
-                                            onClose()
-                                            onOpenAlbum(currentItem.album ?: "Unknown Album")
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Show Artist", color = if (isDark) Color.White else Color.Black) },
-                                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                        onClick = {
-                                            showOverflowMenu = false
-                                            onClose()
-                                            onOpenArtist(currentItem.artist ?: "Unknown Artist")
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Show In Folder", color = if (isDark) Color.White else Color.Black) },
-                                        leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                        onClick = {
-                                            showOverflowMenu = false
-                                            onClose()
-                                            onOpenFolder(currentItem.bucketName ?: currentItem.relativePath ?: "Music")
-                                        }
-                                    )
+                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                            DropdownMenuItem(
+                                text = { Text("Add to Playlist", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.PlaylistAdd, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    showAddAlbumToPlaylistDialog = true
                                 }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    showDetailsSheet = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Edit Tag & Metadata", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    showMetadataModal = true
+                                }
+                            )
+                            if (currentItem != null) {
                                 DropdownMenuItem(
-                                    text = { Text("Native Audio DSP", color = if (isDark) Color.White else Color.Black) },
-                                    leadingIcon = { Icon(Icons.Default.Equalizer, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        showDspSheet = true
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Settings", color = if (isDark) Color.White else Color.Black) },
-                                    leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                    text = { Text("Show Album", color = if (isDark) Color.White else Color.Black) },
+                                    leadingIcon = { Icon(Icons.Default.Album, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                                     onClick = {
                                         showOverflowMenu = false
                                         onClose()
-                                        onOpenSettings()
+                                        onOpenAlbum(currentItem.album ?: "Unknown Album")
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text(if (showAudioVisualizer) "Hide Audio Visualizer" else "Show Audio Visualizer", color = if (isDark) Color.White else Color.Black) },
-                                    leadingIcon = { Icon(Icons.Default.GraphicEq, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                    text = { Text("Show Artist", color = if (isDark) Color.White else Color.Black) },
+                                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                                     onClick = {
                                         showOverflowMenu = false
-                                        scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) }
+                                        onClose()
+                                        onOpenArtist(currentItem.artist ?: "Unknown Artist")
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Show In Folder", color = if (isDark) Color.White else Color.Black) },
+                                    leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        onClose()
+                                        onOpenFolder(currentItem.bucketName ?: currentItem.relativePath ?: "Music")
                                     }
                                 )
                             }
+                            DropdownMenuItem(
+                                text = { Text("Native Audio DSP", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Equalizer, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    showDspSheet = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Settings", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    onClose()
+                                    onOpenSettings()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (showAudioVisualizer) "Hide Audio Visualizer" else "Show Audio Visualizer", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.GraphicEq, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) }
+                                }
+                            )
                         }
                     }
                 }
@@ -392,7 +406,7 @@ fun AudioPlayerScreen(
                     currentItem = currentItem,
                     playerManager = playerManager,
                     showLyricsView = showLyricsView,
-                    showAudioVisualizer = showAudioVisualizer,
+                    showAudioVisualizer = showAudioVisualizer && !showFullscreenVisualizer,
                     showAlbumSongsInPanel = showAlbumSongsInPanel,
                     isLoadingLyrics = isLoadingLyrics,
                     lyricsLines = lyricsLines,
@@ -434,7 +448,7 @@ fun AudioPlayerScreen(
                     albumArtSize = albumArtSize,
                     isTablet = isTablet,
                     showLyricsView = showLyricsView,
-                    showAudioVisualizer = showAudioVisualizer,
+                    showAudioVisualizer = showAudioVisualizer && !showFullscreenVisualizer,
                     showAlbumSongsInPortraitBox = showAlbumSongsInPortraitBox,
                     isLoadingLyrics = isLoadingLyrics,
                     lyricsLines = lyricsLines,
@@ -582,8 +596,7 @@ fun AudioPlayerScreen(
         if (showDetailsSheet && currentItem != null) {
             MediaInfoBottomSheet(
                 item = currentItem,
-                onDismiss = { showDetailsSheet = false },
-                hue = albumArtHue
+                onDismiss = { showDetailsSheet = false }
             )
         }
 
@@ -608,13 +621,12 @@ fun AudioPlayerScreen(
                 playerState = playerState,
                 playerManager = playerManager,
                 onDismiss = { showDspSheet = false },
-                backgroundImage = currentItem?.albumArtUri ?: currentItem?.uri,
-                hue = albumArtHue
+                backgroundImage = currentItem?.albumArtUri ?: currentItem?.uri
             )
         }
 
         if (showFullscreenVisualizer) {
-            var selectedVisualizerStyle by remember { mutableStateOf<VisualizerStyle>(VisualizerStyle.GLOSSY_SPECTRUM_BARS) }
+            var selectedVisualizerStyle by remember { mutableStateOf<VisualizerStyle>(VisualizerStyle.ENERGY_PARTICLES /* VisualizerStyle.AUDIO_REACTIVE_DANCER */) }
 
             androidx.compose.ui.window.Dialog(
                 onDismissRequest = { showFullscreenVisualizer = false },
@@ -648,7 +660,9 @@ fun AudioPlayerScreen(
                         audioSessionId = playerState.audioSessionId,
                         hue = albumArtHue,
                         style = selectedVisualizerStyle,
+                        onStyleChange = { selectedVisualizerStyle = it },
                         showControls = false,
+//                        isFullscreen = true,
                         modifier = Modifier.fillMaxSize()
                     )
 

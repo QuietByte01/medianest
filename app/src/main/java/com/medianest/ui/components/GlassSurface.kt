@@ -1,36 +1,31 @@
 package com.medianest.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.medianest.MediaNestApp
 import com.medianest.ui.theme.LocalDarkTheme
 
 /**
- * Glassmorphic Surface component using Modifier.blur() on the background image.
+ * Transparent Glassmorphic Surface component for cards and UI items.
  *
- * Dark mode  → Obsidian tint (0xCC08090E) frosted overlay
- * Light mode → Frosted white glass overlay (0xBFFFFFFF)
+ * Dark mode  → Obsidian tint (0xCC08090E)
+ * Light mode → Frosted white tint (0xCCE3E3E3)
  */
 @Composable
 fun GlassSurface(
@@ -40,48 +35,32 @@ fun GlassSurface(
     borderColor: Color = Color.Unspecified,
     borderWidth: Dp = 0.5.dp,
     backgroundImage: Any? = null,
-    enableBlur: Boolean = true,
+    enableBlur: Boolean = false,
     blurRadius: Dp = 24.dp,
-    hue: Float? = null,
+    backgroundBrush: Brush? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
     val isDark = LocalDarkTheme.current
-    val settingsManager = MediaNestApp.instance.settingsManager
-    val glassEnabled by settingsManager.glassmorphismEnabled.collectAsState(initial = true)
+    val context = LocalContext.current
 
     // Dark → Obsidian tint; Light → Frosted #E3E3E3
-    val defaultBg = if (backgroundColor != Color.Unspecified) {
+    val effectiveBg = if (backgroundColor != Color.Unspecified) {
         backgroundColor
-    } else if (hue != null) {
-        if (isDark) {
-            // Obsidian Tint: Low saturation (35%), very low value (12%)
-            Color.hsv(hue, 0.35f, 0.12f, alpha = 0.85f)
-        } else {
-            // Frosted White Tint: Very low saturation (8%), high value (92%)
-            Color.hsv(hue, 0.08f, 0.92f, alpha = 0.85f)
-        }
     } else {
-        if (isDark) Color(0xCC08090E) else Color(0xCCE3E3E3)
+        if (isDark) Color(0xCC08090E) else Color(0xBFFFFFFF)
     }
 
-    val defaultBorder = if (borderColor != Color.Unspecified) {
+    val effectiveBorder = if (borderColor != Color.Unspecified) {
         borderColor
-    } else if (hue != null) {
-        Color.hsv(hue, 0.20f, if (isDark) 0.8f else 0.2f, alpha = 0.25f)
     } else {
         if (isDark) Color(0x28FFFFFF) else Color(0x28000000)
     }
 
-    val effectiveBg = defaultBg
-    val effectiveBorder = defaultBorder
-
-    val context = LocalContext.current
-    val shouldApplyBlur = enableBlur && glassEnabled
-
-    val animatedBlurRadius by animateFloatAsState(
-        targetValue = if (shouldApplyBlur) blurRadius.value else 0f,
-        animationSpec = tween(durationMillis = 300),
-        label = "GlassBlurAnimation"
+    val finalBgBrush = backgroundBrush ?: Brush.verticalGradient(
+        colors = listOf(
+            effectiveBg,
+            effectiveBg.copy(alpha = (effectiveBg.alpha * 0.7f).coerceIn(0f, 1f))
+        )
     )
 
     Box(
@@ -98,7 +77,6 @@ fun GlassSurface(
                 shape = shape
             )
     ) {
-        // 1. BACKGROUND IMAGE WITH Modifier.blur() (if provided)
         if (backgroundImage != null) {
             AsyncImage(
                 model = ImageRequest.Builder(context)
@@ -109,30 +87,16 @@ fun GlassSurface(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .matchParentSize()
-                    .graphicsLayer { clip = true }
-                    .then(
-                        if (animatedBlurRadius > 0f) Modifier.blur(animatedBlurRadius.dp)
-                        else Modifier
-                    )
+                    .blur(blurRadius)
             )
         }
 
-        // 2. FROSTED TINT OVERLAY — Obsidian in dark, frosted white in light
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            effectiveBg,
-                            effectiveBg.copy(alpha = (effectiveBg.alpha * 0.7f).coerceIn(0f, 1f))
-                        )
-                    ),
-                    shape = shape
-                )
+                .background(brush = finalBgBrush, shape = shape)
         )
 
-        // 3. UI CONTENT LAYER
         content()
     }
 }

@@ -14,7 +14,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
-enum class SwipeEdge { NONE, LEFT, RIGHT }
+enum class SwipeEdge { NONE, LEFT }
 
 fun Modifier.videoPlayerGestures(
     playerState: PlayerState,
@@ -49,10 +49,8 @@ fun Modifier.videoPlayerGestures(
             val initialX = down.position.x
 
             val isTouchNearLeftEdge = initialX < edgeThresholdPx
-            val isTouchNearRightEdge = initialX > (size.width - edgeThresholdPx)
             val initialEdge = when {
                 isTouchNearLeftEdge -> SwipeEdge.LEFT
-                isTouchNearRightEdge -> SwipeEdge.RIGHT
                 else -> SwipeEdge.NONE
             }
 
@@ -139,8 +137,8 @@ fun Modifier.videoPlayerGestures(
 
                         // --- Gesture Action Execution ---
                         if (dragType == 3) {
-                            // Track edge swipe progress without consuming events (allows system back swipe)
-                            val pullDistance = if (initialEdge == SwipeEdge.LEFT) totalDragOffset.x else -totalDragOffset.x
+                            // Track left edge swipe progress without consuming events (allows system back swipe)
+                            val pullDistance = totalDragOffset.x
                             val progress = (pullDistance / maxEdgeSwipeDistancePx).coerceIn(0f, 1.2f)
                             onEdgeSwipeProgress(initialEdge, progress)
                         } else if (dragType == 1 && !isControlsLocked) {

@@ -85,6 +85,7 @@ import com.medianest.util.TrashManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 private fun InfoRow(label: String, value: String) {
@@ -237,18 +238,20 @@ fun VideosTab(
         }
     }
 
+    val sharedTitleWords = remember(videosList) { computeSharedTitleWords(videosList) }
     val musicCount = remember(videosList) { videosList.count { isMusicVideo(it) } }
-    val moviesCount = remember(videosList) { videosList.count { isMovie(it) } }
-    val seriesCount = remember(videosList) { videosList.count { isTVSeries(it) } }
+    val moviesCount = remember(videosList, sharedTitleWords) { videosList.count { isMovie(it, sharedTitleWords) } }
+    val seriesCount = remember(videosList, sharedTitleWords) { videosList.count { isTVSeries(it, sharedTitleWords) } }
     val clipsCount = remember(videosList) { videosList.count { isClipsAndRecordings(it) } }
     val shortsCount = remember(videosList) { videosList.count { isShorts(it) } }
     val socialCount = remember(videosList) { videosList.count { isSocialMediaVideo(it) } }
     val editedCount = remember(videosList) { videosList.count { isEditedVideo(it) } }
     val downloadedCount = remember(videosList) { videosList.count { isDownloaded(it) } }
-    val trashedVideoItems = remember(activeFilterTab) {
-        TrashManager.getTrashedItems(currentContext)
-            .filter { it.mimeType.startsWith("video") }
-    }
+    // Trash functionality commented out
+    // val trashedVideoItems = remember(videosList) {
+    //     TrashManager.getTrashedItems(currentContext)
+    //         .filter { it.mimeType.startsWith("video") }
+    // }
 
     Box(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection)) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -265,7 +268,7 @@ fun VideosTab(
             socialCount = socialCount,
             editedCount = editedCount,
             downloadedCount = downloadedCount,
-            trashedCount = trashedVideoItems.size,
+            trashedCount = 0,
             onFilterSelect = { tab ->
                 when (tab) {
                     "FOLDERS" -> {
@@ -321,6 +324,8 @@ fun VideosTab(
                 selectedCategory != null -> ({ onCategorySelect(null) })
                 activeFilterTab == "SERIES" && selectedSeasonName != null -> ({ selectedSeasonName = null })
                 activeFilterTab == "SERIES" && selectedSeriesName != null -> ({ selectedSeriesName = null })
+                isFolderViewActive -> ({ isFolderViewActive = false })
+                activeFilterTab != "ALL" -> ({ activeFilterTab = "ALL" })
                 else -> null
             },
             backLabel = when {
@@ -328,6 +333,8 @@ fun VideosTab(
                 selectedCategory != null -> selectedCategory.name
                 activeFilterTab == "SERIES" && selectedSeasonName != null -> selectedSeasonName
                 activeFilterTab == "SERIES" && selectedSeriesName != null -> selectedSeriesName
+                isFolderViewActive -> "All Videos"
+                activeFilterTab != "ALL" -> "All Videos"
                 else -> null
             }
         )

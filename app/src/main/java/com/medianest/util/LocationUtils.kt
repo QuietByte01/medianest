@@ -9,30 +9,37 @@ import android.os.Build
 import com.medianest.data.db.LocationCache
 import com.medianest.data.db.LocationCacheDao
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import kotlin.coroutines.resume
+
+data class VideoLocationResult(
+    val placeName: String,
+    val isLocationFallback: Boolean
+)
 
 object LocationUtils {
 
     /**
      * Extracts embedded GPS location from a video and resolves it to a human-readable place name.
-     * Leverages Room database for caching to avoid repeated Geocoder and MetadataRetriever calls.
+     * Returns VideoLocationResult indicating whether it resolved a real GPS place or fell back to category/folder.
      */
-    suspend fun getPlaceNameFromVideo(
+    suspend fun getVideoLocationResult(
         context: Context,
         uri: Uri,
         fallbackCategory: String,
         locationCacheDao: LocationCacheDao? = null
-    ): String = withContext(Dispatchers.IO) {
+    ): VideoLocationResult = withContext(Dispatchers.IO) {
         val uriStr = uri.toString()
 
         // 1. Check Cache First
-        if (locationCacheDao != null) {
-            val cached = locationCacheDao.getLocation(uriStr)
-            if (cached != null) return@withContext cached.placeName
+        locationCacheDao?.getLocation(uriStr)?.let { cached ->
+            val isFallback = cached.latitude == null || cached.longitude == null
+            return@withContext VideoLocationResult(cached.placeName, isLocationFallback = isFallback)
         }
 
-        // 2. Not in cache, proceed to extract metadata
+        // 2. Extract metadata
         val retriever = MediaMetadataRetriever()
         var locationString: String? = null
 
@@ -48,11 +55,10 @@ object LocationUtils {
 
         // 3. Handle absence of location data
         if (locationString.isNullOrBlank()) {
-            // Save fallback result to cache if it doesn't exist to avoid re-scanning metadata
             if (locationCacheDao != null) {
                 locationCacheDao.saveLocation(LocationCache(uriStr, fallbackCategory))
             }
-            return@withContext fallbackCategory
+            return@withContext VideoLocationResult(fallbackCategory, isLocationFallback = true)
         }
 
         // 4. Parse and Geocode
@@ -61,6 +67,7 @@ object LocationUtils {
             reverseGeocode(context, coords.first, coords.second)
         } else null
 
+        val isFallback = resolvedName == null
         val finalPlaceName = resolvedName ?: fallbackCategory
 
         // 5. Save to Cache
@@ -75,49 +82,74 @@ object LocationUtils {
             )
         }
 
-        return@withContext finalPlaceName
+        return@withContext VideoLocationResult(finalPlaceName, isLocationFallback = isFallback)
     }
+
+
 
     /**
-     * Parses ISO-6709 format: "+37.7510-122.4200/" into Pair(Latitude, Longitude)
+     * Parses ISO-6709 format: "+37.7510-122.4200/" or "+37.7510-122.4200+10.0/" into Pair(Latitude, Longitude)
      */
-    private fun parseIso6709Location(location: String): Pair<Double, Double>? {
+    fun parseIso6709Location(location: String): Pair<Double, Double>? {
         return runCatching {
             val clean = location.trimEnd('/')
-            // Match ISO-6709 format like +37.7510-122.4200 or +37.7510-122.4200+10.00
-            val regex = Regex("([+-]\\d+\\.\\d+)([+-]\\d+\\.\\d+)")
+            // Match ISO-6709 coordinates: +lat-lon with optional +alt
+            val regex = Regex("([+-]\\d+(?:\\.\\d+)?)([+-]\\d+(?:\\.\\d+)?)")
             val match = regex.find(clean) ?: return null
 
-            val lat = match.groupValues[1].toDouble()
-            val lon = match.groupValues[2].toDouble()
-            Pair(lat, lon)
+            val lat = match.groupValues[1].toDoubleOrNull() ?: return null
+            val lon = match.groupValues[2].toDoubleOrNull() ?: return null
+
+            if (lat in -90.0..90.0 && lon in -180.0..180.0) {
+                Pair(lat, lon)
+            } else null
         }.getOrNull()
     }
 
-    private fun reverseGeocode(context: Context, lat: Double, lon: Double): String? {
+    suspend fun reverseGeocode(context: Context, lat: Double, lon: Double): String? {
         if (!Geocoder.isPresent()) return null
 
-        return runCatching {
-            val geocoder = Geocoder(context, Locale.getDefault())
-            val addresses: List<Address>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                var asyncAddresses: List<Address>? = null
-                geocoder.getFromLocation(lat, lon, 1) { asyncAddresses = it }
-                asyncAddresses
-            } else {
-                @Suppress("DEPRECATION")
-                geocoder.getFromLocation(lat, lon, 1)
-            }
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val geocoder = Geocoder(context, Locale.getDefault())
+                val addresses: List<Address>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    suspendCancellableCoroutine { continuation ->
+                        try {
+                            geocoder.getFromLocation(lat, lon, 1, object : Geocoder.GeocodeListener {
+                                override fun onGeocode(addresses: MutableList<Address>) {
+                                    if (continuation.isActive) {
+                                        continuation.resume(addresses)
+                                    }
+                                }
 
-            val address = addresses?.firstOrNull() ?: return null
-            val locality = address.locality ?: address.subAdminArea
-            val country = address.countryName ?: address.adminArea
+                                override fun onError(errorMessage: String?) {
+                                    if (continuation.isActive) {
+                                        continuation.resume(null)
+                                    }
+                                }
+                            })
+                        } catch (e: Exception) {
+                            if (continuation.isActive) {
+                                continuation.resume(null)
+                            }
+                        }
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    geocoder.getFromLocation(lat, lon, 1)
+                }
 
-            when {
-                !locality.isNullOrBlank() && !country.isNullOrBlank() -> "$locality, $country"
-                !locality.isNullOrBlank() -> locality
-                !country.isNullOrBlank() -> country
-                else -> address.featureName
-            }
-        }.getOrNull()
+                val address = addresses?.firstOrNull() ?: return@runCatching null
+                val locality = address.locality ?: address.subAdminArea
+                val country = address.countryName ?: address.adminArea
+
+                when {
+                    !locality.isNullOrBlank() && !country.isNullOrBlank() -> "$locality, $country"
+                    !locality.isNullOrBlank() -> locality
+                    !country.isNullOrBlank() -> country
+                    else -> address.featureName
+                }
+            }.getOrNull()
+        }
     }
 }

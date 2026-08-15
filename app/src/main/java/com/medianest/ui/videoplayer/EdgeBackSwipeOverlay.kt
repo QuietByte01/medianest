@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -29,7 +28,7 @@ fun EdgeBackSwipeOverlay(
     swipeProgress: Float,
     modifier: Modifier = Modifier
 ) {
-    if (activeEdge == SwipeEdge.NONE || swipeProgress <= 0f) return
+    if (activeEdge != SwipeEdge.LEFT || swipeProgress <= 0f) return
 
     val animatedScale = animateFloatAsState(
         targetValue = (0.6f + (swipeProgress * 0.4f)).coerceIn(0.6f, 1.0f),
@@ -43,13 +42,11 @@ fun EdgeBackSwipeOverlay(
         label = "edge_swipe_alpha"
     ).value
 
-    val isLeft = activeEdge == SwipeEdge.LEFT
-
     Box(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
-        contentAlignment = if (isLeft) Alignment.CenterStart else Alignment.CenterEnd
+        contentAlignment = Alignment.CenterStart
     ) {
         Box(
             modifier = Modifier
@@ -65,15 +62,6 @@ fun EdgeBackSwipeOverlay(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                if (!isLeft) {
-                    Text(
-                        text = "Next Video",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.size(36.dp)
@@ -87,21 +75,19 @@ fun EdgeBackSwipeOverlay(
                     )
 
                     Icon(
-                        imageVector = if (isLeft) Icons.AutoMirrored.Filled.ArrowBack else Icons.AutoMirrored.Filled.ArrowForward,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Edge Gesture",
                         tint = Color.White,
                         modifier = Modifier.size(18.dp)
                     )
                 }
 
-                if (isLeft) {
-                    Text(
-                        text = if (swipeProgress >= 1.0f) "Release to Exit" else "Swipe to Exit",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+                Text(
+                    text = if (swipeProgress >= 1.0f) "Release to Exit" else "Swipe to Exit",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }

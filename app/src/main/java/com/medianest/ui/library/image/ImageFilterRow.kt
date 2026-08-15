@@ -53,15 +53,19 @@ fun ImageFilterRow(
             FilterItem("AI Generated", "AI_GENERATED", Icons.Default.AutoAwesome, 0),
             FilterItem("Anime", "ANIME", Icons.Default.Brush, 0),
             FilterItem("Wallpapers", "WALLPAPERS", Icons.Default.Wallpaper, 0),
-            FilterItem("Hidden Folders", "HIDDEN", Icons.Default.FolderZip, 1),
-            FilterItem("Trash", "TRASH", Icons.Default.Delete, 0)
+            FilterItem("Hidden Folders", "HIDDEN", Icons.Default.FolderZip, 1)
+            // FilterItem("Trash", "TRASH", Icons.Default.Delete, 0)
         )
 
-        // Filter out empty categories unless they are selected
-        val visibleFilters = allFilters.filter { filter ->
-            val count = filterCounts[filter.id] ?: 0
-            val isAlwaysVisible = filter.id in listOf("ALL", "FOLDERS", "HIDDEN")
-            isAlwaysVisible || count > 0 || activeFilterTab == filter.id
+        // Filter out empty categories unless they are selected (or if counts are not yet computed)
+        val visibleFilters = if (filterCounts.isEmpty()) {
+            allFilters
+        } else {
+            allFilters.filter { filter ->
+                val count = filterCounts[filter.id] ?: 0
+                val isAlwaysVisible = filter.id in listOf("ALL", "FOLDERS", "HIDDEN")
+                isAlwaysVisible || count > 0 || activeFilterTab == filter.id
+            }
         }
 
         visibleFilters.forEach { filter ->

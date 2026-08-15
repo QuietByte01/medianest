@@ -37,13 +37,12 @@ fun NativeAudioDspSheet(
     playerState: PlayerState,
     playerManager: ExoPlayerManager,
     onDismiss: () -> Unit,
-    backgroundImage: Any? = null,
-    hue: Float? = null
+    backgroundImage: Any? = null
 ) {
     AdaptiveBottomSheet(
         onDismissRequest = onDismiss,
         backgroundImage = backgroundImage,
-        hue = hue,
+        isSolidGlossy = true,
         dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.3f)) }
     ) {
         Column(
@@ -136,7 +135,7 @@ private fun DspSheetContent(
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth().height(125.dp),
+                modifier = Modifier.fillMaxWidth().height(165.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 val labels = listOf("60Hz", "230Hz", "910Hz", "3.6kHz", "14kHz")
@@ -215,8 +214,14 @@ private fun EqBandSlider(
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
+        Text(
+            text = "${if (gain > 0) "+" else ""}${gain.toInt()}dB",
+            fontSize = 10.sp,
+            color = if (gain != 0f) Color(0xFFF1F5F9) else Color(0xFF64748B),
+            fontWeight = if (gain != 0f) FontWeight.Bold else FontWeight.Normal
+        )
         AppVerticalSlider(
             value = gain,
             onValueChange = onGainChange,
@@ -228,7 +233,7 @@ private fun EqBandSlider(
                 .weight(1f)
                 .fillMaxWidth()
         )
-        Text(label, fontSize = 9.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Medium)
+        Text(label, fontSize = 9.5.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.SemiBold)
     }
 }
 

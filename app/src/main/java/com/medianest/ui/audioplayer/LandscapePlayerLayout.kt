@@ -73,18 +73,18 @@ fun LandscapePlayerLayout(
     val artworkWidthFraction = if (isTablet) 0.85f else 0.68f
 
     Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
+        modifier = modifier.padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Left Side: Artwork / Visualizer / Lyrics & Track Title below
+        // Left Side: Artwork / Visualizer / Lyrics & Track Title below (Left-aligned, vertically centered, 45% width)
         Column(
             modifier = Modifier
                 .weight(0.45f)
                 .fillMaxHeight()
-                .padding(top = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Top
+                .padding(start = 24.dp, end = 6.dp),
+            horizontalAlignment = Alignment.Start,
+            verticalArrangement = Arrangement.Center
         ) {
             if (showLyricsView) {
                 LyricsView(
@@ -218,18 +218,20 @@ fun LandscapePlayerLayout(
         }
 
 
-        // Right Side: UP NEXT queue / Album Songs panel & Player Transport
+        // Right Side: UP NEXT queue / Album Songs panel & Player Transport (55% max width, increased right padding)
         Column(
             modifier = Modifier
-                .weight(0.45f)
-                .fillMaxHeight(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .weight(0.55f)
+                .fillMaxHeight()
+                .padding(start = 6.dp, end = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Standalone Glass Card for Queue / Album Songs
             GlassSurface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.65f),
+                    .weight(0.60f),
                 shape = RoundedCornerShape(16.dp),
                 backgroundColor = Color(0x1F24293A),
                 borderColor = Color(0x2EFFFFFF)
@@ -430,53 +432,54 @@ fun LandscapePlayerLayout(
                 }
             }
 
-            // Bottom controls
+            // Bottom controls: Bound strictly within queue width
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.35f),
-                verticalArrangement = Arrangement.Center
+                    .weight(0.40f),
+                verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Actions Row
+                // Actions Row (Aligned with queue bounds)
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
                         onClick = onToggleAlbumSongsPanel,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(34.dp)
                     ) {
                         CustomPlaylistIcon(
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(19.dp),
                             tint = if (showAlbumSongsInPanel) Color(0xFF64B5F6) else Color.White
                         )
                     }
 
                     IconButton(
                         onClick = onToggleFavorite,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(34.dp)
                     ) {
                         Icon(
                             imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = "Favorite",
                             tint = if (isFavorite) Color.Red else Color.White,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(19.dp)
                         )
                     }
 
                     IconButton(
                         onClick = onOpenAddPlaylist,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(34.dp)
                     ) {
                         CustomPlusIcon(
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(19.dp),
                             tint = Color.White
                         )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
 
                 // Seek Slider
                 val currentPosMsLs = playerState.currentPositionMs
@@ -500,8 +503,7 @@ fun LandscapePlayerLayout(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 2.dp)
-                            .padding(top = 2.dp),
+                            .padding(horizontal = 2.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(formatDuration(effectiveSliderValLs.toLong()), fontSize = 11.sp, color = Color.White.copy(alpha = 0.70f))
@@ -509,31 +511,36 @@ fun LandscapePlayerLayout(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 // Transport Row (Custom Android 13/14 Rounded Controls)
-                MaterialYouPlayerControlBar(
-                    isPlaying = playerState.isPlaying,
-                    onPlayPauseToggle = { playerManager.togglePlayPause() },
-                    onPrevious = { playerManager.previous() },
-                    onNext = { playerManager.next() },
-                    isShuffle = playerState.isShuffle,
-                    onShuffleToggle = { playerManager.setShuffleMode(!playerState.isShuffle) },
-                    repeatMode = playerState.repeatMode,
-                    onRepeatToggle = {
-                        val nextRepeat = when (playerState.repeatMode) {
-                            androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
-                            androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
-                            else -> androidx.media3.common.Player.REPEAT_MODE_OFF
-                        }
-                        playerManager.setRepeatMode(nextRepeat)
-                    },
-                    hasPrevious = playerState.queue.size > 1 || playerState.currentPositionMs > 3000L,
-                    hasNext = playerState.queue.size > 1,
-                    style = ControlButtonStyle.GLASS_SQUIRCLE,
-                    playButtonSize = 56.dp,
-                    secondaryButtonSize = 40.dp
-                )
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    MaterialYouPlayerControlBar(
+                        isPlaying = playerState.isPlaying,
+                        onPlayPauseToggle = { playerManager.togglePlayPause() },
+                        onPrevious = { playerManager.previous() },
+                        onNext = { playerManager.next() },
+                        isShuffle = playerState.isShuffle,
+                        onShuffleToggle = { playerManager.setShuffleMode(!playerState.isShuffle) },
+                        repeatMode = playerState.repeatMode,
+                        onRepeatToggle = {
+                            val nextRepeat = when (playerState.repeatMode) {
+                                androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
+                                androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
+                                else -> androidx.media3.common.Player.REPEAT_MODE_OFF
+                            }
+                            playerManager.setRepeatMode(nextRepeat)
+                        },
+                        hasPrevious = playerState.queue.size > 1 || playerState.currentPositionMs > 3000L,
+                        hasNext = playerState.queue.size > 1,
+                        style = ControlButtonStyle.GLASS_SQUIRCLE,
+                        playButtonSize = 52.dp,
+                        secondaryButtonSize = 38.dp
+                    )
+                }
             }
         }
     }
