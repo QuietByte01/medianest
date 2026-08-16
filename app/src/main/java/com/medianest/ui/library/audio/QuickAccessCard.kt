@@ -61,7 +61,7 @@ fun QuickAccessCard(
                     .fillMaxWidth()
                     .aspectRatio(1f)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Brush.linearGradient(gradientColors)),
+                    .background(Brush.linearGradient(gradientColors.map { it.copy(alpha = 0.10f) })),
                 contentAlignment = Alignment.Center
             ) {
                 if (artUri != null) {
@@ -76,7 +76,7 @@ fun QuickAccessCard(
                             Icon(
                                 imageVector = icon,
                                 contentDescription = null,
-                                tint = Color.White,
+                                tint = Color.White.copy(alpha = 0.30f),
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
@@ -87,7 +87,7 @@ fun QuickAccessCard(
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = Color.White.copy(alpha = 0.30f),
                         modifier = Modifier.fillMaxSize()
                     )
                 }

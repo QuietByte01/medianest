@@ -89,6 +89,8 @@ fun VideoPlayerScreen(
     val scope = rememberCoroutineScope()
 
     val playerState by playerManager.playerState.collectAsState()
+    // Explicitly filter current item to only show VIDEO in this screen
+    val currentItem = playerState.currentItem?.takeIf { it.type == com.medianest.data.db.MediaType.VIDEO }
     val settingsManager = MediaNestApp.instance.settingsManager
 
     val showStatusBar by settingsManager.showStatusBarInPlayback.collectAsState(initial = false)
@@ -152,7 +154,7 @@ fun VideoPlayerScreen(
     var subtitleBgColor by remember { mutableStateOf(Color(0x99000000)) }
     var subtitleHasShadow by remember { mutableStateOf(true) }
 
-    val embeddedTracks = remember(playerState.currentItem) {
+    val embeddedTracks = remember(currentItem) {
         val list = mutableListOf<com.medianest.data.model.SubtitleItem>()
         try {
             val tracks = playerManager.exoPlayer.currentTracks
@@ -300,11 +302,11 @@ fun VideoPlayerScreen(
         ) {
             // Video Surface Container with Aspect Ratio Bounds
             val density = LocalDensity.current
-            val videoFormat = remember(playerState.currentItem) {
+            val videoFormat = remember(currentItem) {
                 try { playerManager.exoPlayer.videoFormat } catch (_: Exception) { null }
             }
-            val videoWidth = (videoFormat?.width?.takeIf { it > 0 } ?: playerState.currentItem?.width?.takeIf { it > 0 } ?: 1920)
-            val videoHeight = (videoFormat?.height?.takeIf { it > 0 } ?: playerState.currentItem?.height?.takeIf { it > 0 } ?: 1080)
+            val videoWidth = (videoFormat?.width?.takeIf { it > 0 } ?: currentItem?.width?.takeIf { it > 0 } ?: 1920)
+            val videoHeight = (videoFormat?.height?.takeIf { it > 0 } ?: currentItem?.height?.takeIf { it > 0 } ?: 1080)
             val videoAspectRatio = (videoWidth.toFloat() / videoHeight.toFloat().coerceAtLeast(1f)).coerceIn(0.2f, 5.0f)
 
             val contentModifier = when (cropMode.uppercase()) {
@@ -475,7 +477,7 @@ fun VideoPlayerScreen(
                 },
                 onDrawerClick = { showDrawer = true }, onSubtitleClick = { showSubtitleSheet = true },
                 onInfoClick = { showDetailsSheet = true }, onMenuClick = { showOverflowMenu = true },
-                onCaptureClick = { captureVideoFrame(context, playerState.currentItem, playerState.currentPositionMs) },
+                onCaptureClick = { captureVideoFrame(context, currentItem, playerState.currentPositionMs) },
                 isControlsLocked = isControlsLocked
             )
         }
@@ -552,7 +554,7 @@ fun VideoPlayerScreen(
                         // We reset the list when searching a specific provider to avoid confusion
                         subtitleList = emptyList() 
                         subtitleList = networkRepository.searchOnlineSubtitles(
-                            playerState.currentItem?.title ?: "", 
+                            currentItem?.title ?: "", 
                             "en", 
                             offlineMode,
                             provider
@@ -610,9 +612,9 @@ fun VideoPlayerScreen(
             )
         }
 
-        if (showVideoEditorSheet && playerState.currentItem != null) {
+        if (showVideoEditorSheet && currentItem != null) {
             VideoEditorStudioSheet(
-                mediaItem = playerState.currentItem!!,
+                mediaItem = currentItem!!,
                 onDismiss = { showVideoEditorSheet = false }
             )
         }
@@ -640,13 +642,13 @@ fun VideoPlayerScreen(
         
         if (showSpeedMenu) PlaybackSpeedModal(currentSpeed = playerState.playbackSpeed, onSpeedChange = { playerManager.setPlaybackSpeed(it) }, onDismiss = { showSpeedMenu = false })
         
-        if (showDetailsSheet && playerState.currentItem != null) MediaInfoBottomSheet(item = playerState.currentItem, onDismiss = { showDetailsSheet = false })
+        if (showDetailsSheet && currentItem != null) MediaInfoBottomSheet(item = currentItem, onDismiss = { showDetailsSheet = false })
         
         if (showOverflowMenu) {
             VideoPlayerOverflowMenu(
                 onDismiss = { showOverflowMenu = false },
                 onOpenWith = {
-                    playerState.currentItem?.let { item ->
+                    currentItem?.let { item ->
                         val sharingUri = com.medianest.util.ContentUriUtils.getSharingUri(context, item.uri)
                         val openIntent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
                             setDataAndType(sharingUri, item.mimeType.ifEmpty { "video/*" })
@@ -658,7 +660,7 @@ fun VideoPlayerScreen(
                     }
                 },
                 onShowInFolder = {
-                    playerState.currentItem?.let { item ->
+                    currentItem?.let { item ->
                         val folderKey = item.relativePath?.trim('/') ?: item.bucketName ?: "Videos"
                         val mainIntent = android.content.Intent(context, com.medianest.MainActivity::class.java).apply {
                             putExtra("open_screen", "VIDEOS_FOLDER")
@@ -671,7 +673,7 @@ fun VideoPlayerScreen(
                 },
                 onDelete = { showDeleteDialog = true },
                 onShare = {
-                    playerState.currentItem?.let { item ->
+                    currentItem?.let { item ->
                         val sharingUri = com.medianest.util.ContentUriUtils.getSharingUri(context, item.uri)
                         val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                             type = item.mimeType.ifEmpty { "video/*" }
@@ -708,7 +710,7 @@ fun VideoPlayerScreen(
         }
 
         if (showDeleteDialog) {
-            val item = playerState.currentItem
+            val item = currentItem
             AlertDialog(
                 onDismissRequest = { showDeleteDialog = false },
                 title = { Text("Delete Video") },
@@ -718,7 +720,7 @@ fun VideoPlayerScreen(
                         onClick = {
                             showDeleteDialog = false
                             scope.launch {
-                                playerState.currentItem?.uri?.let { com.medianest.util.FolderHiddenUtils.deleteMediaUri(context, it) }
+                                currentItem?.uri?.let { com.medianest.util.FolderHiddenUtils.deleteMediaUri(context, it) }
                                 onClose()
                             }
                         },

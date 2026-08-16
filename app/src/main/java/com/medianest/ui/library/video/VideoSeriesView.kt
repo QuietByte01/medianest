@@ -30,8 +30,11 @@ import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.WideVideoCard
 import com.medianest.ui.components.translucentScrollBarGrid
-
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.platform.LocalDensity
 
 @Composable
 fun VideoSeriesView(
@@ -109,16 +112,20 @@ fun VideoSeriesView(
         }
     } else {
         // Master-Detail layout when series is selected
+        val scrollState = rememberScrollState()
+        val columnWidth = if (isTablet) Dp.Unspecified else (screenWidthDp * 0.85f).dp
+
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(16.dp)
+                .then(if (!isTablet) Modifier.horizontalScroll(scrollState) else Modifier),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Column 1: SERIES LIST (Master)
             Column(
                 modifier = Modifier
-                    .weight(if (isTablet) 0.8f else 1f)
+                    .then(if (isTablet) Modifier.weight(0.8f) else Modifier.width(columnWidth))
                     .fillMaxHeight()
             ) {
                 Row(
@@ -161,7 +168,7 @@ fun VideoSeriesView(
             // Column 2: SEASONS
             Column(
                 modifier = Modifier
-                    .weight(if (isTablet) 0.8f else 1f)
+                    .then(if (isTablet) Modifier.weight(0.8f) else Modifier.width(columnWidth))
                     .fillMaxHeight()
             ) {
                 Row(
@@ -204,7 +211,7 @@ fun VideoSeriesView(
             // Column 3: EPISODES
             Column(
                 modifier = Modifier
-                    .weight(1.4f)
+                    .then(if (isTablet) Modifier.weight(1.4f) else Modifier.width(columnWidth))
                     .fillMaxHeight()
             ) {
                 Row(

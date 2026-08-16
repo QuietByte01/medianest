@@ -44,7 +44,7 @@ import com.medianest.ui.components.CustomMoreVertIcon
 import com.medianest.ui.components.ControlButtonStyle
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.MaterialYouPlayerControlBar
-import com.medianest.ui.components.ThinSeekBar
+import com.medianest.ui.components.WavySeekBar
 import com.medianest.ui.components.formatDuration
 
 @Composable
@@ -65,8 +65,6 @@ fun PortraitPlayerLayout(
     isFavorite: Boolean,
     albumSongs: List<MediaItem>,
     albumArtHue: Float?,
-    isSeeking: Boolean,
-    sliderPos: Float,
     onSeekChange: (Float) -> Unit,
     onSeekFinished: () -> Unit,
     onToggleShowLyrics: (Boolean) -> Unit,
@@ -92,6 +90,8 @@ fun PortraitPlayerLayout(
         ) {
             if (showLyricsView) {
                 LyricsView(
+                    songTitle = currentItem?.title ?: "Unknown Track",
+                    songArtist = currentItem?.artist ?: "Unknown Artist",
                     isLoadingLyrics = isLoadingLyrics,
                     lyricsLines = lyricsLines,
                     rawLyricsText = rawLyricsText,
@@ -310,6 +310,7 @@ fun PortraitPlayerLayout(
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
+                            /*
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -338,6 +339,24 @@ fun PortraitPlayerLayout(
                                     contentDescription = null,
                                     tint = Color.White,
                                     modifier = Modifier.size(if (isTablet) 96.dp else 72.dp)
+                                )
+                            }
+                            */
+                            GlassSurface(
+                                modifier = Modifier.fillMaxSize(),
+                                shape = RoundedCornerShape(16.dp),
+                                backgroundColor = Color.White.copy(alpha = 0.10f), // 90% Transparent
+                                borderColor = Color.White.copy(alpha = 0.25f),
+                                backgroundImage = currentItem?.uri, // Use blurred media context as backdrop
+                                blurRadius = 32.dp
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MusicNote,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.9f),
+                                    modifier = Modifier
+                                        .size(if (isTablet) 96.dp else 72.dp)
+                                        .align(Alignment.Center)
                                 )
                             }
                         }
@@ -432,32 +451,39 @@ fun PortraitPlayerLayout(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Seek Slider
+// Seek Slider
         val currentPosMs = playerState.currentPositionMs
         val durationMs = if (playerState.durationMs > 0) playerState.durationMs else currentItem?.durationMs ?: 0L
-        val effectiveSliderVal = if (isSeeking) sliderPos else currentPosMs.toFloat()
         val maxSliderVal = durationMs.coerceAtLeast(1L).toFloat()
 
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-            ThinSeekBar(
-                value = effectiveSliderVal.coerceIn(0f, maxSliderVal),
+
+            WavySeekBar(
+                value = currentPosMs.toFloat().coerceIn(0f, maxSliderVal),
                 onValueChange = onSeekChange,
                 onValueChangeFinished = onSeekFinished,
                 valueRange = 0f..maxSliderVal,
-                activeTrackColor = Color.White,
-                inactiveTrackColor = Color.White.copy(alpha = 0.20f),
-                thumbColor = Color.White,
-                trackHeight = 3.5.dp,
-                thumbRadius = 5.dp,
+                isPlaying = playerState.isPlaying,
+                activeColor = Color.White,
                 modifier = Modifier.fillMaxWidth()
             )
+
             Spacer(modifier = Modifier.height(4.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(formatDuration(effectiveSliderVal.toLong()), fontSize = 12.sp, color = Color.White.copy(alpha = 0.70f))
-                Text(formatDuration(durationMs), fontSize = 12.sp, color = Color.White.copy(alpha = 0.70f))
+                Text(
+                    text = formatDuration(currentPosMs),
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.70f)
+                )
+                Text(
+                    text = formatDuration(durationMs),
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.70f)
+                )
             }
         }
 

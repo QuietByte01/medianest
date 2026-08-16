@@ -18,7 +18,7 @@ import androidx.room.RoomDatabase
         LocationCache::class,
         SubtitleCache::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

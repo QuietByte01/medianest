@@ -6,7 +6,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -27,11 +26,11 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun AlphabetScroller(
-    songs: List<MediaItem>,
-    listState: LazyListState,
+    items: List<String>,
+    onScrollTo: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    if (songs.size < 5) return
+    if (items.size < 30) return
 
     val alphabetList = remember {
         listOf("#") + ('A'..'Z').map { it.toString() }
@@ -42,22 +41,20 @@ fun AlphabetScroller(
 
     fun scrollToLetter(letter: String) {
         val targetIndex = if (letter == "#") {
-            songs.indexOfFirst { song ->
-                val firstChar = song.title.trim().firstOrNull()?.uppercaseChar() ?: ' '
+            items.indexOfFirst { name ->
+                val firstChar = name.trim().firstOrNull()?.uppercaseChar() ?: ' '
                 !firstChar.isLetter()
             }.takeIf { it >= 0 } ?: 0
         } else {
-            songs.indexOfFirst { song ->
-                song.title.trim().startsWith(letter, ignoreCase = true)
-            }.takeIf { it >= 0 } ?: songs.indexOfFirst { song ->
-                song.title.trim().lowercase() > letter.lowercase()
+            items.indexOfFirst { name ->
+                name.trim().startsWith(letter, ignoreCase = true)
+            }.takeIf { it >= 0 } ?: items.indexOfFirst { name ->
+                name.trim().lowercase() > letter.lowercase()
             }.takeIf { it >= 0 } ?: 0
         }
 
         activeLetter = letter
-        CoroutineScope(Dispatchers.Main).launch {
-            listState.scrollToItem(targetIndex)
-        }
+        onScrollTo(targetIndex)
     }
 
     Box(
@@ -102,7 +99,7 @@ fun AlphabetScroller(
                 .onGloballyPositioned { layoutCoordinates ->
                     columnHeightPx = layoutCoordinates.size.height.toFloat().coerceAtLeast(1f)
                 }
-                .pointerInput(songs, alphabetList) {
+                .pointerInput(items, alphabetList) {
                     detectVerticalDragGestures(
                         onDragStart = { offset ->
                             val fraction = (offset.y / columnHeightPx).coerceIn(0f, 0.99f)

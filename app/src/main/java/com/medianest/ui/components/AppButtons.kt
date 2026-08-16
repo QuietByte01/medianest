@@ -18,6 +18,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -179,20 +181,26 @@ fun AppPillButton(
     enabled: Boolean = true,
     style: AppButtonStyle = AppButtonStyle.Glossy,
     accentColor: Color = Color(0xFF38BDF8),
-    cornerRadius: Dp = 14.dp
+    cornerRadius: Dp = 14.dp,
+    forceTransparentBg: Boolean = false,
+    contentPadding: PaddingValues? = null
 ) {
-    val bgAlpha = if (isSelected) (if (style == AppButtonStyle.Solid) 0.9f else 0.35f) else 0.15f
+    val bgAlpha = if (isSelected) {
+        if (style == AppButtonStyle.Solid) 0.9f else 0.35f
+    } else {
+        if (forceTransparentBg) 0.01f else 0.05f
+    }
     val finalBgBrush = Brush.verticalGradient(
         colors = listOf(
             accentColor.copy(alpha = bgAlpha),
-            accentColor.copy(alpha = bgAlpha * 0.6f)
+            accentColor.copy(alpha = bgAlpha * 0.4f)
         )
     )
 
     val finalBorderBrush = Brush.verticalGradient(
         colors = listOf(
-            (if (isSelected) accentColor else Color.White).copy(alpha = 0.5f),
-            (if (isSelected) accentColor else Color.White).copy(alpha = 0.2f)
+            (if (isSelected) accentColor else Color.White).copy(alpha = if (isSelected) 0.5f else 0.25f),
+            (if (isSelected) accentColor else Color.White).copy(alpha = if (isSelected) 0.2f else 0.10f)
         )
     )
     
@@ -202,41 +210,45 @@ fun AppPillButton(
         Color.White.copy(alpha = 0.75f)
     }
 
-    Surface(
-        onClick = onClick,
-        enabled = enabled,
-        shape = RoundedCornerShape(cornerRadius),
-        color = Color.Transparent,
-        modifier = modifier.clip(RoundedCornerShape(cornerRadius))
-            .background(finalBgBrush)
-            .border(
-                width = if (isSelected) 1.2.dp else 0.8.dp,
-                brush = finalBorderBrush,
-                shape = RoundedCornerShape(cornerRadius)
-            )
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(horizontal = 14.dp, vertical = 7.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            if (icon != null) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = textColor,
-                    modifier = Modifier.size(15.dp)
+    val resolvedPadding = contentPadding ?: PaddingValues(horizontal = 14.dp, vertical = 7.dp)
+
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+        Surface(
+            onClick = onClick,
+            enabled = enabled,
+            shape = RoundedCornerShape(cornerRadius),
+            color = Color.Transparent,
+            modifier = modifier.clip(RoundedCornerShape(cornerRadius))
+                .background(finalBgBrush)
+                .border(
+                    width = if (isSelected) 1.dp else 0.5.dp,
+                    brush = finalBorderBrush,
+                    shape = RoundedCornerShape(cornerRadius)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
+        ) {
+            Row(
+                modifier = Modifier
+                    .padding(resolvedPadding),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                if (icon != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = textColor,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                }
+                Text(
+                    text = text,
+                    fontSize = 11.sp, // Slightly smaller text for compact pills
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    color = textColor,
+                    maxLines = 1
+                )
             }
-            Text(
-                text = text,
-                fontSize = 12.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = textColor
-            )
         }
     }
 }

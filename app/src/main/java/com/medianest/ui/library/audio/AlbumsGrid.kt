@@ -29,9 +29,11 @@ import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
 import com.medianest.data.model.MediaItem
+import com.medianest.ui.components.AlphabetScroller
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.formatDuration
 import com.medianest.ui.components.translucentScrollBarGrid
+import kotlinx.coroutines.launch
 
 @Composable
 fun AlbumsGrid(
@@ -49,6 +51,7 @@ fun AlbumsGrid(
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var selectedAlbum by remember(initialSelectedAlbum) { mutableStateOf(initialSelectedAlbum) }
 
     BackHandler(enabled = selectedAlbum != null) {
@@ -56,7 +59,7 @@ fun AlbumsGrid(
     }
 
     val db = remember { com.medianest.MediaNestApp.instance.database }
-    val recentlyPlayedStates by db.playbackStateDao().getRecentlyPlayed().collectAsState(initial = emptyList())
+    val recentlyPlayedStates by db.playbackStateDao().getRecentlyPlayed("AUDIO").collectAsState(initial = emptyList())
     val currentlyPlayingUri = recentlyPlayedStates.firstOrNull()?.mediaUri
     val currentlyPlayingAlbum = remember(currentlyPlayingUri, songs) {
         songs.firstOrNull { it.uri.toString() == currentlyPlayingUri }?.album
@@ -82,6 +85,10 @@ fun AlbumsGrid(
         }
         
         if (isAscending) keys.sortedWith(comp) else keys.sortedWith(comp).reversed()
+    }
+
+    val isAlphabetical = remember(sortedAlbumNames, sortField, isAscending) {
+        sortField == "Name" && isAscending && sortedAlbumNames.size >= 30
     }
 
     if (selectedAlbum != null) {
@@ -232,126 +239,137 @@ fun AlbumsGrid(
     } else {
         val screenWidthDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
         val baseColumns = if (screenWidthDp >= 840) 5 else if (screenWidthDp >= 600) 4 else 2
-        val gridColumns = when (gridSizeLevel) {
-            0 -> (baseColumns * 1.5f).toInt()
-            1 -> baseColumns
-            2 -> (baseColumns * 0.75f).toInt().coerceAtLeast(1)
-            3 -> (baseColumns * 0.5f).toInt().coerceAtLeast(1)
-            else -> baseColumns
-        }
+        val gridColumns = baseColumns
         
-        LazyVerticalGrid(
-            state = gridState,
-            columns = GridCells.Fixed(gridColumns),
-            modifier = Modifier
-                .fillMaxSize()
-                .translucentScrollBarGrid(gridState),
-            contentPadding = PaddingValues(bottom = 90.dp, start = 16.dp, end = 16.dp, top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            items(sortedAlbumNames, key = { it }) { albumName ->
-                val albumSongs = albumsMap[albumName] ?: emptyList()
-                val coverItem = albumSongs.firstOrNull()
-                val isCurrentlyPlaying = currentlyPlayingAlbum != null && currentlyPlayingAlbum == albumName
+        Box(modifier = Modifier.fillMaxSize()) {
+            LazyVerticalGrid(
+                state = gridState,
+                columns = GridCells.Fixed(gridColumns),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .translucentScrollBarGrid(gridState),
+                contentPadding = PaddingValues(
+                    bottom = 90.dp, 
+                    start = if (isAlphabetical) 20.dp else 16.dp, 
+                    end = if (isAlphabetical) 20.dp else 16.dp, 
+                    top = 8.dp
+                ),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(sortedAlbumNames, key = { it }) { albumName ->
+                    val albumSongs = albumsMap[albumName] ?: emptyList()
+                    val coverItem = albumSongs.firstOrNull()
+                    val isCurrentlyPlaying = currentlyPlayingAlbum != null && currentlyPlayingAlbum == albumName
 
-                GlassSurface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { selectedAlbum = albumName },
-                    shape = RoundedCornerShape(22.dp),
-                    backgroundColor = if (isCurrentlyPlaying) Color(0x33FFFFFF) else Color(0x221C1F2B),
-                    borderColor = if (isCurrentlyPlaying) Color(0x66FFFFFF) else Color(0x2EFFFFFF)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(10.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                    GlassSurface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedAlbum = albumName },
+                        shape = RoundedCornerShape(22.dp),
+                        backgroundColor = if (isCurrentlyPlaying) Color(0x33FFFFFF) else Color(0x221C1F2B),
+                        borderColor = if (isCurrentlyPlaying) Color(0x66FFFFFF) else Color(0x2EFFFFFF)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(1f)
-                                .clip(RoundedCornerShape(16.dp)),
-                            contentAlignment = Alignment.Center
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            val albumArtModel = coverItem?.albumArtUri
-                            SubcomposeAsyncImage(
-                                model = ImageRequest.Builder(context).data(albumArtModel).crossfade(true).build(),
-                                contentDescription = albumName,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(16.dp)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                val state = painter.state
-                                if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error || albumArtModel == null) {
-                                    GlassSurface(
-                                        modifier = Modifier.fillMaxSize(),
-                                        shape = RoundedCornerShape(16.dp),
-                                        backgroundColor = Color.Transparent,
-                                        borderColor = Color(0x22FFFFFF)
-                                    ) {
-                                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.Default.Album,
-                                                contentDescription = null,
-                                                tint = Color.White.copy(alpha = 0.85f),
-                                                modifier = Modifier.size(48.dp) // Increased from 32.dp
-                                            )
-                                        }
-                                    }
-                                } else {
-                                    SubcomposeAsyncImageContent()
-                                }
-                            }
-
-                            if (isCurrentlyPlaying) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(Color(0x77000000)),
-                                    contentAlignment = Alignment.Center
+                                val albumArtModel = coverItem?.albumArtUri
+                                SubcomposeAsyncImage(
+                                    model = ImageRequest.Builder(context).data(albumArtModel).crossfade(true).build(),
+                                    contentDescription = albumName,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = "Currently Playing",
-                                        tint = Color(0xEEFFFFFF),
-                                        modifier = Modifier.size(28.dp)
-                                    )
+                                    val state = painter.state
+                                    if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error || albumArtModel == null) {
+                                        GlassSurface(
+                                            modifier = Modifier.fillMaxSize(),
+                                            shape = RoundedCornerShape(16.dp),
+                                            backgroundColor = Color.Transparent,
+                                            borderColor = Color(0x22FFFFFF)
+                                        ) {
+                                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Album,
+                                                    contentDescription = null,
+                                                    tint = Color.White.copy(alpha = 0.85f),
+                                                    modifier = Modifier.size(48.dp) // Increased from 32.dp
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        SubcomposeAsyncImageContent()
+                                    }
+                                }
+
+                                if (isCurrentlyPlaying) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color(0x77000000)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.PlayArrow,
+                                            contentDescription = "Currently Playing",
+                                            tint = Color(0xEEFFFFFF),
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                    }
                                 }
                             }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Text(
+                                text = albumName,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(1.dp))
+                            Text(
+                                text = coverItem?.artist ?: "Unknown Artist",
+                                fontSize = 11.5.sp,
+                                color = Color(0xFF9EA3B0),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(1.dp))
+                            Text(
+                                text = "${albumSongs.size} Tracks",
+                                fontSize = 10.5.sp,
+                                color = Color(0xFF686C7A),
+                                maxLines = 1,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Text(
-                            text = albumName,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(1.dp))
-                        Text(
-                            text = coverItem?.artist ?: "Unknown Artist",
-                            fontSize = 11.5.sp,
-                            color = Color(0xFF9EA3B0),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(1.dp))
-                        Text(
-                            text = "${albumSongs.size} Tracks",
-                            fontSize = 10.5.sp,
-                            color = Color(0xFF686C7A),
-                            maxLines = 1,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
                     }
+                }
+            }
+            if (isAlphabetical) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+                    AlphabetScroller(
+                        items = sortedAlbumNames,
+                        onScrollTo = { targetIndex ->
+                            scope.launch { gridState.scrollToItem(targetIndex) }
+                        }
+                    )
                 }
             }
         }

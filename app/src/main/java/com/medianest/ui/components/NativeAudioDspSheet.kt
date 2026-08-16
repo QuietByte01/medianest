@@ -32,6 +32,8 @@ import androidx.compose.ui.layout.Layout
 import com.medianest.player.ExoPlayerManager
 import com.medianest.player.PlayerState
 
+import androidx.compose.foundation.horizontalScroll
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NativeAudioDspSheet(
@@ -50,7 +52,7 @@ fun NativeAudioDspSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
-                .padding(bottom = 8.dp)
+                .padding(bottom = 32.dp) // Extra bottom padding
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
@@ -84,7 +86,9 @@ private fun DspSheetContent(
             isSelected = playerState.isVocalMuteEnabled,
             onClick = { playerManager.setVocalMute(!playerState.isVocalMuteEnabled) },
             accentColor = Color(0xFF0EA5E9),
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            forceTransparentBg = true,
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
         )
 
         AppPillButton(
@@ -93,20 +97,33 @@ private fun DspSheetContent(
             isSelected = playerState.isLoudnessNormalizerEnabled,
             onClick = { playerManager.setLoudnessNormalizer(!playerState.isLoudnessNormalizerEnabled) },
             accentColor = Color(0xFF06B6D4),
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            forceTransparentBg = true,
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
         )
     }
 
-    // 2. Pitch Shifter (-12 to +12 Semitones, Sky Blue accent)
-    DspSliderItem(
-        title = "Key / Pitch Shift",
-        value = playerState.pitchSemitones.toFloat(),
-        onValueChange = { playerManager.setPitchSemitones(it.toInt()) },
-        valueRange = -12f..12f,
-        icon = Icons.Default.Hearing,
-        accentColor = Color(0xFFF1F5F9),
-        unit = " semitones"
-    )
+    // 2. Super Volume Boost (Swapped to Top)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        DspSliderItem(
+            title = "Super Volume Boost",
+            value = playerState.volumeBoostPercent.toFloat(),
+            onValueChange = { playerManager.setVolumeBoost(it.toInt()) },
+            valueRange = 0f..100f,
+            icon = Icons.Default.VolumeUp,
+            accentColor = Color(0xFFF59E0B),
+            unit = "%",
+            enabled = playerState.isSystemVolumeMaxed
+        )
+        if (!playerState.isSystemVolumeMaxed) {
+            Text(
+                "Enable by turning system volume to max",
+                color = Color(0xFF94A3B8),
+                fontSize = 11.sp,
+                modifier = Modifier.padding(start = 28.dp)
+            )
+        }
+    }
 
     // 3. High Bass Boost
     DspSliderItem(
@@ -119,7 +136,7 @@ private fun DspSheetContent(
         unit = "%"
     )
 
-    // 4. 5-Band Equalizer in Glossy Glass Surface
+    // 4. 5-Band Equalizer with Presets
     GlassSurface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -130,41 +147,93 @@ private fun DspSheetContent(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Color(0xFFF1F5F9), modifier = Modifier.size(18.dp))
-                Text("5-Band Native Equalizer", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Color(0xFFF1F5F9), modifier = Modifier.size(18.dp))
+                    Text("5-Band Native Equalizer", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+
+                AppSwitch(
+                    checked = playerState.isEqEnabled,
+                    onCheckedChange = { playerManager.setEqEnabled(it) },
+                    style = AppSwitchStyle.Glossy,
+                    accentColor = Color(0xFF38BDF8)
+                )
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth().height(165.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                val labels = listOf("60Hz", "230Hz", "910Hz", "3.6kHz", "14kHz")
-                playerState.eqBands.forEachIndexed { index, gain ->
-                    EqBandSlider(
-                        gain = gain,
-                        label = labels[index],
-                        onGainChange = { newGain ->
-                            val newBands = playerState.eqBands.toMutableList()
-                            newBands[index] = newGain
-                            playerManager.setEqBands(newBands)
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
+            if (playerState.isEqEnabled) {
+                // Presets Row
+                val presets = listOf(
+                    "Flat" to listOf(0f, 0f, 0f, 0f, 0f),
+                    "Balanced" to listOf(2f, 1f, 0f, 1f, 2f),
+                    "Dynamic" to listOf(4f, 2f, 1f, 3f, 5f),
+                    "Bass+Treble" to listOf(6f, 2f, -1f, 3f, 7f),
+                    "Acoustic" to listOf(3f, 1f, 2f, 3f, 2f),
+                    "Bass Boost" to listOf(6f, 4f, 0f, 0f, 0f),
+                    "Classical" to listOf(3f, 2f, 0f, 2f, 3f),
+                    "Electronic" to listOf(4f, -1f, 1f, 3f, 4f),
+                    "Hip-Hop" to listOf(5f, 3f, 0f, 1f, 3f),
+                    "Pop" to listOf(-1f, 2f, 4f, 3f, 1f),
+                    "Rock" to listOf(4f, 2f, -1f, 3f, 4f),
+                    "Vocal" to listOf(-2f, 1f, 5f, 4f, 0f)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    presets.forEach { preset ->
+                        val isSelected = playerState.eqBands == preset.second
+                        AppPillButton(
+                            text = preset.first,
+                            isSelected = isSelected,
+                            onClick = { playerManager.setEqBands(preset.second) },
+                            accentColor = Color(0xFF38BDF8),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                            cornerRadius = 6.dp
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(165.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    val labels = listOf("60Hz", "230Hz", "910Hz", "3.6kHz", "14kHz")
+                    playerState.eqBands.forEachIndexed { index, gain ->
+                        EqBandSlider(
+                            gain = gain,
+                            label = labels[index],
+                            onGainChange = { newGain ->
+                                val newBands = playerState.eqBands.toMutableList()
+                                newBands[index] = newGain
+                                playerManager.setEqBands(newBands)
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
         }
     }
 
-    // 5. Super Volume Boost
+    // 5. Pitch Shifter (Moved to Bottom)
     DspSliderItem(
-        title = "Super Volume Boost",
-        value = playerState.volumeBoostPercent.toFloat(),
-        onValueChange = { playerManager.setVolumeBoost(it.toInt()) },
-        valueRange = 0f..100f,
-        icon = Icons.Default.VolumeUp,
-        accentColor = Color(0xFFF59E0B),
-        unit = "%"
+        title = "Key / Pitch Shift",
+        value = playerState.pitchSemitones.toFloat(),
+        onValueChange = { playerManager.setPitchSemitones(it.toInt()) },
+        valueRange = -12f..12f,
+        steps = 23, // 24 discrete values from -12 to 12
+        icon = Icons.Default.Hearing,
+        accentColor = Color(0xFF6366F1), // Indigo to match Settings
+        unit = " semitones",
+        style = AppSliderStyle.Solid,
+        headStyle = AppSliderHeadStyle.Bar,
+        thickness = AppSliderThickness.Thick
     )
 
     // 6. Engine Status Chip at the bottom (clearly visible)
@@ -179,9 +248,14 @@ private fun DspSliderItem(
     valueRange: ClosedFloatingPointRange<Float>,
     icon: ImageVector,
     accentColor: Color,
-    unit: String
+    unit: String,
+    enabled: Boolean = true,
+    steps: Int = 0,
+    style: AppSliderStyle = AppSliderStyle.Glossy,
+    headStyle: AppSliderHeadStyle = AppSliderHeadStyle.Circular,
+    thickness: AppSliderThickness = AppSliderThickness.Thin
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.graphicsLayer { alpha = if (enabled) 1f else 0.5f }) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -192,15 +266,18 @@ private fun DspSliderItem(
                 Text(title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
             val displayVal = if (unit == " semitones" && value.toInt() > 0) "+${value.toInt()}" else "${value.toInt()}"
-            Text("$displayVal$unit", color = accentColor, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text("$displayVal$unit", color = if (enabled) accentColor else Color.Gray, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
         AppSlider(
             value = value,
             onValueChange = onValueChange,
             valueRange = valueRange,
-            style = AppSliderStyle.Glossy,
-            customTrackHeight = 8.dp,
-            accentColor = accentColor
+            steps = steps,
+            style = style,
+            headStyle = headStyle,
+            thickness = thickness,
+            accentColor = accentColor,
+            enabled = enabled
         )
     }
 }

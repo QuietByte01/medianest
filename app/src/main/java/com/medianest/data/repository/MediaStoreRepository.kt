@@ -47,6 +47,8 @@ class MediaStoreRepository(private val context: Context) {
             MediaStore.Images.Media.HEIGHT,
             MediaStore.Images.Media.SIZE,
             MediaStore.Images.Media.DATE_ADDED,
+            MediaStore.Images.Media.DATE_MODIFIED,
+            "datetaken",
             MediaStore.Images.Media.BUCKET_ID,
             MediaStore.Images.Media.BUCKET_DISPLAY_NAME
         ).apply {
@@ -86,6 +88,8 @@ class MediaStoreRepository(private val context: Context) {
                 val heightColumn = c.getColumnIndex(MediaStore.Images.Media.HEIGHT)
                 val sizeColumn = c.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)
                 val dateColumn = c.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
+                val dateModifiedColumn = c.getColumnIndex(MediaStore.Images.Media.DATE_MODIFIED)
+                val dateTakenColumn = c.getColumnIndex("datetaken")
                 val bucketIdColumn = c.getColumnIndex(MediaStore.Images.Media.BUCKET_ID)
                 val bucketNameColumn = c.getColumnIndex(MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
                 val relPathColumn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) c.getColumnIndex(MediaStore.Images.Media.RELATIVE_PATH) else -1
@@ -120,6 +124,8 @@ class MediaStoreRepository(private val context: Context) {
                     val height = if (heightColumn >= 0) c.getInt(heightColumn) else 0
                     val size = c.getLong(sizeColumn)
                     val dateAdded = c.getLong(dateColumn)
+                    val dateModified = if (dateModifiedColumn >= 0) c.getLong(dateModifiedColumn) else dateAdded
+                    val dateTaken = if (dateTakenColumn >= 0) c.getLong(dateTakenColumn) / 1000 else dateModified
 
                     val contentUri = ContentUris.withAppendedId(collection, id)
 
@@ -134,6 +140,8 @@ class MediaStoreRepository(private val context: Context) {
                             height = height,
                             size = size,
                             dateAdded = dateAdded,
+                            dateModified = dateModified,
+                            dateCreated = dateTaken,
                             bucketId = bucketId,
                             bucketName = folderName,
                             relativePath = relativePath
@@ -184,6 +192,8 @@ class MediaStoreRepository(private val context: Context) {
             MediaStore.Video.Media.DURATION,
             MediaStore.Video.Media.SIZE,
             MediaStore.Video.Media.DATE_ADDED,
+            MediaStore.Video.Media.DATE_MODIFIED,
+            "datetaken",
             MediaStore.Video.Media.BUCKET_ID,
             MediaStore.Video.Media.BUCKET_DISPLAY_NAME
         ).apply {
@@ -225,6 +235,8 @@ class MediaStoreRepository(private val context: Context) {
                 val durationColumn = c.getColumnIndex(MediaStore.Video.Media.DURATION)
                 val sizeColumn = c.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE)
                 val dateColumn = c.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_ADDED)
+                val dateModifiedColumn = c.getColumnIndex(MediaStore.Video.Media.DATE_MODIFIED)
+                val dateTakenColumn = c.getColumnIndex("datetaken")
                 val bucketIdColumn = c.getColumnIndex(MediaStore.Video.Media.BUCKET_ID)
                 val bucketNameColumn = c.getColumnIndex(MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
                 val relPathColumn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) c.getColumnIndex(MediaStore.Video.Media.RELATIVE_PATH) else -1
@@ -267,6 +279,8 @@ class MediaStoreRepository(private val context: Context) {
                     val duration = if (durationColumn >= 0) c.getLong(durationColumn) else 0L
                     val size = c.getLong(sizeColumn)
                     val dateAdded = c.getLong(dateColumn)
+                    val dateModified = if (dateModifiedColumn >= 0) c.getLong(dateModifiedColumn) else dateAdded
+                    val dateTaken = if (dateTakenColumn >= 0) c.getLong(dateTakenColumn) / 1000 else dateModified
 
                     val contentUri = ContentUris.withAppendedId(collection, id)
 
@@ -282,6 +296,8 @@ class MediaStoreRepository(private val context: Context) {
                             durationMs = duration,
                             size = size,
                             dateAdded = dateAdded,
+                            dateModified = dateModified,
+                            dateCreated = dateTaken,
                             bucketId = bucketId,
                             bucketName = folderName,
                             relativePath = relativePath
@@ -332,6 +348,7 @@ class MediaStoreRepository(private val context: Context) {
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.SIZE,
             MediaStore.Audio.Media.DATE_ADDED,
+            MediaStore.Audio.Media.DATE_MODIFIED,
             MediaStore.Audio.Media.ARTIST,
             MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.ALBUM_ID
@@ -374,6 +391,7 @@ class MediaStoreRepository(private val context: Context) {
                 val durationColumn = c.getColumnIndex(MediaStore.Audio.Media.DURATION)
                 val sizeColumn = c.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
                 val dateColumn = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+                val dateModifiedColumn = c.getColumnIndex(MediaStore.Audio.Media.DATE_MODIFIED)
                 val artistColumn = c.getColumnIndex(MediaStore.Audio.Media.ARTIST)
                 val albumColumn = c.getColumnIndex(MediaStore.Audio.Media.ALBUM)
                 val albumIdColumn = c.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID)
@@ -410,6 +428,8 @@ class MediaStoreRepository(private val context: Context) {
                     val duration = if (durationColumn >= 0) c.getLong(durationColumn) else 0L
                     val size = c.getLong(sizeColumn)
                     val dateAdded = c.getLong(dateColumn)
+                    val dateModified = if (dateModifiedColumn >= 0) c.getLong(dateModifiedColumn) else dateAdded
+
                     val artist = if (artistColumn >= 0) c.getString(artistColumn) else null
                     val album = if (albumColumn >= 0) c.getString(albumColumn) else null
                     val albumId = if (albumIdColumn >= 0) c.getLong(albumIdColumn) else -1L
@@ -437,6 +457,8 @@ class MediaStoreRepository(private val context: Context) {
                             durationMs = duration,
                             size = size,
                             dateAdded = dateAdded,
+                            dateModified = dateModified,
+                            dateCreated = dateModified, // Audio usually doesn't have datetaken, use modified
                             artist = artist?.takeIf { it != "<unknown>" },
                             album = album?.takeIf { it != "<unknown>" },
                             bucketId = bucketId,
@@ -678,8 +700,8 @@ class MediaStoreRepository(private val context: Context) {
                             val fileUri = Uri.fromFile(file)
                             val folderName = if (dirName.isNotBlank()) dirName else (file.parentFile?.name ?: "Hidden")
                             val relPath = file.parentFile?.absolutePath?.removePrefix(rootDir.absolutePath)?.trim('/')?.let { "$it/" } ?: "$folderName/"
-                            val itemWidth = 0
-                            val itemHeight = 0
+                            
+                            val meta = com.medianest.util.MediaMetadataUtils.extractBasicMetadata(context, fileUri)
 
                             hiddenItems.add(
                                 MediaItem(
@@ -692,12 +714,17 @@ class MediaStoreRepository(private val context: Context) {
                                         MediaType.AUDIO -> "audio/$ext"
                                     },
                                     type = mediaType,
-                                    width = itemWidth,
-                                    height = itemHeight,
+                                    width = meta.width,
+                                    height = meta.height,
+                                    durationMs = meta.durationMs,
                                     size = file.length(),
-                                    dateAdded = file.lastModified() / 1000,
+                                    dateAdded = if (meta.dateCreated > 0) meta.dateCreated else (file.lastModified() / 1000),
+                                    dateModified = meta.dateModified,
+                                    dateCreated = meta.dateCreated,
                                     bucketName = folderName,
-                                    relativePath = relPath
+                                    relativePath = relPath,
+                                    artist = meta.artist,
+                                    album = meta.album
                                 )
                             )
                         }
@@ -777,6 +804,9 @@ class MediaStoreRepository(private val context: Context) {
                 if (extensions.contains(ext) && (showHidden || !isHiddenFile)) {
                     val folderName = if (dirName.isNotBlank()) dirName else "Hidden"
                     val relPath = currentRelativePath.ifBlank { "$folderName/" }
+                    
+                    val meta = com.medianest.util.MediaMetadataUtils.extractBasicMetadata(context, child.uri)
+                    
                     hiddenItems.add(
                         MediaItem(
                             id = child.uri.toString().hashCode().toLong(),
@@ -788,10 +818,17 @@ class MediaStoreRepository(private val context: Context) {
                                 MediaType.AUDIO -> "audio/$ext"
                             },
                             type = mediaType,
+                            width = meta.width,
+                            height = meta.height,
+                            durationMs = meta.durationMs,
                             size = child.length(),
                             dateAdded = child.lastModified() / 1000,
+                            dateModified = child.lastModified() / 1000,
+                            dateCreated = if (meta.dateCreated > 0) meta.dateCreated else (child.lastModified() / 1000),
                             bucketName = folderName,
-                            relativePath = relPath
+                            relativePath = relPath,
+                            artist = meta.artist,
+                            album = meta.album
                         )
                     )
                 }

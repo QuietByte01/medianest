@@ -444,6 +444,8 @@ fun VideosTab(
                 db = db,
                 roundedCornersEnabled = roundedCornersEnabled,
                 cornerRadiusDp = cornerRadiusDp,
+                sortField = sortField,
+                isAscending = isAscending,
                 onFolderClick = { selectedFolder = it },
                 onFolderDelete = { folderToDelete = it },
                 onFolderInfo = { folderForInfo = it },

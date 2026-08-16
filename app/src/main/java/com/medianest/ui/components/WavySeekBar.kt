@@ -2,8 +2,9 @@ package com.medianest.ui.components
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -11,12 +12,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -25,9 +24,8 @@ import kotlin.math.PI
 import kotlin.math.sin
 
 /**
- * Android 13/14 Media Notification style Wavy Seekbar.
- * The active track oscillates smoothly when [isPlaying] is true,
- * reacting animatedly to music playback, and flattens out when paused.
+ * Samsung One UI Media Notification style Dual-Wavy Seekbar.
+ * Features fast liquid movement and graceful tapering on both ends.
  */
 @Composable
 fun WavySeekBar(
@@ -38,136 +36,189 @@ fun WavySeekBar(
     onValueChangeFinished: (() -> Unit)? = null,
     isPlaying: Boolean = false,
     activeColor: Color = Color(0xFFA8C7FA),
-    inactiveColor: Color = Color.White.copy(alpha = 0.25f),
+    inactiveColor: Color = Color.White.copy(alpha = 0.20f),
     thumbColor: Color = Color.White,
-    waveAmplitudeDp: Dp = 6.dp,
-    waveLengthDp: Dp = 30.dp,
-    strokeWidthDp: Dp = 9.dp,
-    heightDp: Dp = 36.dp
+    // TWEAKED: Lower amplitude, faster, and tighter
+    waveAmplitudeDp: Dp = 6.5.dp,  // Lowered from 10dp so it doesn't get too high
+    waveLengthDp: Dp = 56.dp,      // Slightly tighter hills
+    activeTrackHeightDp: Dp = 6.dp,
+    inactiveTrackHeightDp: Dp = 4.dp,
+    heightDp: Dp = 48.dp
 ) {
     val density = LocalDensity.current
-    val strokeWidthPx = with(density) { strokeWidthDp.toPx() }
     val waveAmplitudePx = with(density) { waveAmplitudeDp.toPx() }
-    val waveLengthPx = with(density) { waveLengthDp.toPx() }
-    val thumbRadiusPx = with(density) { 7.dp.toPx() }
+    val activeBaseRadiusPx = with(density) { activeTrackHeightDp.toPx() } / 2f
+    val inactiveHeightPx = with(density) { inactiveTrackHeightDp.toPx() }
 
     val rangeSpan = (valueRange.endInclusive - valueRange.start).coerceAtLeast(0.0001f)
-    val currentFrac = ((value - valueRange.start) / rangeSpan).coerceIn(0f, 1f)
 
-    // Phase animation for wave movement when music plays
-    val infiniteTransition = rememberInfiniteTransition(label = "wavy_seek_phase")
-    val phase by infiniteTransition.animateFloat(
+    // TWEAKED: Much faster animation speed (cut duration from 3500ms to 1600ms)
+    val infiniteTransition = rememberInfiniteTransition(label = "samsung_dual_wave")
+    val basePhase by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = (2 * PI).toFloat(),
+        targetValue = (4 * PI).toFloat(),
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1000, easing = LinearEasing),
+            animation = tween(durationMillis = 1600, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "phase"
     )
 
-    // Smooth transition between active wavy state and paused flat state
+    // Smooth transition between wavy (playing) and flat (paused)
     val amplitudeFactor by animateFloatAsState(
-        targetValue = if (isPlaying) 1f else 0.15f,
-        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+        targetValue = if (isPlaying) 1f else 0f,
+        animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
         label = "amplitudeFactor"
     )
 
     var isDragging by remember { mutableStateOf(false) }
+    var internalValue by remember { mutableFloatStateOf(value) }
+
+    LaunchedEffect(value) {
+        if (!isDragging) internalValue = value
+    }
+
+    val currentFrac = ((internalValue - valueRange.start) / rangeSpan).coerceIn(0f, 1f)
+
+    val thumbRadius by animateDpAsState(
+        targetValue = if (isDragging) 10.dp else 7.dp,
+        label = "ThumbRadius"
+    )
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(heightDp)
             .pointerInput(valueRange) {
-                detectTapGestures(
-                    onPress = { offset ->
-                        val newFrac = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
-                        val newValue = valueRange.start + newFrac * (valueRange.endInclusive - valueRange.start)
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    isDragging = true
+                    down.consume()
+
+                    val updateValue = { x: Float, trackPaddingPx: Float ->
+                        val trackWidth = size.width - (trackPaddingPx * 2)
+                        val newFrac = ((x - trackPaddingPx) / trackWidth).coerceIn(0f, 1f)
+                        val newValue = valueRange.start + newFrac * rangeSpan
+                        internalValue = newValue
                         onValueChange(newValue)
-                        onValueChangeFinished?.invoke()
                     }
-                )
-            }
-            .pointerInput(valueRange) {
-                detectHorizontalDragGestures(
-                    onDragStart = { isDragging = true },
-                    onDragEnd = {
-                        isDragging = false
-                        onValueChangeFinished?.invoke()
-                    },
-                    onDragCancel = {
-                        isDragging = false
-                        onValueChangeFinished?.invoke()
-                    },
-                    onHorizontalDrag = { change, _ ->
+
+                    val padding = thumbRadius.toPx()
+                    updateValue(down.position.x, padding)
+
+                    drag(down.id) { change ->
                         change.consume()
-                        val newFrac = (change.position.x / size.width.toFloat()).coerceIn(0f, 1f)
-                        val newValue = valueRange.start + newFrac * (valueRange.endInclusive - valueRange.start)
-                        onValueChange(newValue)
+                        updateValue(change.position.x, padding)
                     }
-                )
+
+                    isDragging = false
+                    onValueChangeFinished?.invoke()
+                }
             }
     ) {
         Canvas(modifier = Modifier.matchParentSize()) {
             val width = size.width
-            val height = size.height
-            val centerY = height / 2f
-            val activeX = (width * currentFrac).coerceIn(0f, width)
+            val centerY = size.height / 2f
 
-            val pillWidthPx = with(density) { (if (isDragging) 8.dp else 6.dp).toPx() }
-            val pillHeightPx = with(density) { (if (isDragging) 24.dp else 20.dp).toPx() }
+            val trackPadding = thumbRadius.toPx()
+            val trackWidth = width - trackPadding * 2
+            val activeX = trackPadding + (trackWidth * currentFrac)
 
-            // 1. Draw Inactive Track
-            val inactiveStartX = (activeX + pillWidthPx / 2f).coerceAtMost(width)
-            if (inactiveStartX < width) {
-                val inactiveHeight = strokeWidthPx * 0.5f
+            // 1. INACTIVE TRACK
+            if (activeX < width - trackPadding) {
+                val inactiveRadius = inactiveHeightPx / 2f
                 drawRoundRect(
                     color = inactiveColor,
-                    topLeft = Offset(inactiveStartX, centerY - inactiveHeight / 2f),
-                    size = Size(width - inactiveStartX, inactiveHeight),
-                    cornerRadius = CornerRadius(inactiveHeight / 2f, inactiveHeight / 2f)
+                    topLeft = Offset(activeX, centerY - inactiveRadius),
+                    size = Size(width - trackPadding - activeX, inactiveHeightPx),
+                    cornerRadius = CornerRadius(inactiveRadius, inactiveRadius)
                 )
             }
 
-            // 2. Draw Active Wavy Track
-            if (activeX > 0f) {
+            // 2. HELPER FUNCTION TO DRAW FILLED WAVES
+            fun drawLiquidWave(
+                wavelengthDp: Dp,
+                amplitudeMultiplier: Float,
+                phaseShift: Float,
+                waveColor: Color
+            ) {
                 val path = Path()
-                val step = 1.5f
-                var x = 0f
-                val effectiveAmp = waveAmplitudePx * amplitudeFactor
+                val wavelengthPx = wavelengthDp.toPx()
+                val effectiveAmp = waveAmplitudePx * amplitudeFactor * amplitudeMultiplier
 
-                path.moveTo(0f, centerY)
+                path.moveTo(activeX, centerY + activeBaseRadiusPx)
+                path.lineTo(trackPadding, centerY + activeBaseRadiusPx)
+
+                path.arcTo(
+                    rect = Rect(
+                        left = trackPadding - activeBaseRadiusPx,
+                        top = centerY - activeBaseRadiusPx,
+                        right = trackPadding + activeBaseRadiusPx,
+                        bottom = centerY + activeBaseRadiusPx
+                    ),
+                    startAngleDegrees = 90f,
+                    sweepAngleDegrees = 180f,
+                    forceMoveTo = false
+                )
+
+                val step = 2.dp.toPx()
+                var x = trackPadding
+
+                // TWEAKED: Massive left taper zone (48dp). The wave now ramps up
+                // very gradually from the far left so it doesn't start instantly high.
+                val rightTaperZone = 40.dp.toPx()
+                val leftTaperZone = 48.dp.toPx()
 
                 while (x <= activeX) {
-                    // Taper wave height near activeX so it joins the thumb center smoothly
-                    val endDist = activeX - x
-                    val taper = if (endDist < waveLengthPx * 0.8f) (endDist / (waveLengthPx * 0.8f)).coerceIn(0f, 1f) else 1f
+                    val rightDist = activeX - x
+                    val leftDist = x - trackPadding
 
-                    val angle = (x / waveLengthPx) * (2 * PI) + phase
-                    val y = centerY + (sin(angle).toFloat() * effectiveAmp * taper)
+                    val rightTaperRaw = (rightDist / rightTaperZone).coerceIn(0f, 1f)
+                    val leftTaperRaw = (leftDist / leftTaperZone).coerceIn(0f, 1f)
 
-                    path.lineTo(x, y)
+                    // Smoothstep equation
+                    val rightTaper = rightTaperRaw * rightTaperRaw * (3 - 2 * rightTaperRaw)
+                    val leftTaper = leftTaperRaw * leftTaperRaw * (3 - 2 * leftTaperRaw)
+                    val overallTaper = rightTaper * leftTaper
+
+                    val angle = (x / wavelengthPx) * (2 * PI) - phaseShift
+
+                    val hillMultiplier = (sin(angle).toFloat() + 1f) / 2f
+                    val topY = centerY - activeBaseRadiusPx - (hillMultiplier * effectiveAmp * overallTaper)
+
+                    path.lineTo(x, topY)
                     x += step
                 }
 
-                drawPath(
-                    path = path,
-                    color = activeColor,
-                    style = Stroke(
-                        width = strokeWidthPx,
-                        cap = StrokeCap.Round,
-                        join = StrokeJoin.Round
-                    )
+                path.lineTo(activeX, centerY - activeBaseRadiusPx)
+                path.close()
+
+                drawPath(path = path, color = waveColor)
+            }
+
+            if (activeX > trackPadding) {
+                // 3. DRAW BACK WAVE (Translucent, faster)
+                drawLiquidWave(
+                    wavelengthDp = waveLengthDp * 0.85f,
+                    amplitudeMultiplier = 0.85f,
+                    phaseShift = basePhase * 1.4f,
+                    waveColor = activeColor.copy(alpha = 0.40f)
+                )
+
+                // 4. DRAW FRONT WAVE (Solid)
+                drawLiquidWave(
+                    wavelengthDp = waveLengthDp,
+                    amplitudeMultiplier = 1.0f,
+                    phaseShift = basePhase,
+                    waveColor = activeColor
                 )
             }
 
-            // 3. Draw Iconic Android 13/14 System Media Notification Pill Thumb
-            drawRoundRect(
+            // 5. THUMB (Classic Circular Thumb)
+            drawCircle(
                 color = thumbColor,
-                topLeft = Offset((activeX - pillWidthPx / 2f).coerceIn(0f, width - pillWidthPx), centerY - pillHeightPx / 2f),
-                size = Size(pillWidthPx, pillHeightPx),
-                cornerRadius = CornerRadius(pillWidthPx / 2f, pillWidthPx / 2f)
+                radius = thumbRadius.toPx(),
+                center = Offset(activeX, centerY)
             )
         }
     }

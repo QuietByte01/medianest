@@ -179,6 +179,11 @@ fun computeSharedTitleWords(items: List<MediaItem>): Set<String> {
 fun isTVSeries(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean {
     // Construct a comprehensive lowercase string combining relative path, title, and URI for pattern matching
     val path = ((item.relativePath ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
+    val title = item.title.lowercase()
+
+    // 1. Exclusion keywords for non-series content
+    val exclusionKeywords = listOf("recording", "screen_recording", "live", "test", "interview", "webinar", "zoom", "meeting", "tutorial", "presentation", "exam")
+    if (exclusionKeywords.any { title.contains(it) || path.contains(it) }) return false
 
     // Define regular expressions for standard TV show naming conventions
     val patternSeasonEpisode = Regex("(?i)s\\d{1,2}e\\d{1,2}")
@@ -227,7 +232,7 @@ fun isMovie(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean {
     val path = ((item.relativePath ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
 
     // 1. Exclusion keywords for non-movie content
-    val exclusionKeywords = listOf("recording", "screen_recording", "live", "test", "interview", "webinar", "zoom", "meeting", "tutorial", "presentation")
+    val exclusionKeywords = listOf("recording", "screen_recording", "live", "test", "interview", "webinar", "zoom", "meeting", "tutorial", "presentation", "exam")
     if (exclusionKeywords.any { title.contains(it) || path.contains(it) }) return false
 
     // 2. Fundamental duration requirement (User specified: 20 min is right)

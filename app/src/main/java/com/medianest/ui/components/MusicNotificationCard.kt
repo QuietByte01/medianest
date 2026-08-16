@@ -57,10 +57,6 @@ fun MusicNotificationCard(
     val currentPosMs = playerState.currentPositionMs
     val durationMs = if (playerState.durationMs > 0) playerState.durationMs else currentItem.durationMs
 
-    var isSeeking by remember { mutableStateOf(false) }
-    var sliderPos by remember { mutableFloatStateOf(0f) }
-
-    val effectiveSliderVal = if (isSeeking) sliderPos else currentPosMs.toFloat()
     val maxSliderVal = durationMs.coerceAtLeast(1L).toFloat()
 
     // Soft glow pulse behind the card
@@ -248,15 +244,8 @@ fun MusicNotificationCard(
 
             // Wavy Squiggly Seekbar reacting to music
             WavySeekBar(
-                value = effectiveSliderVal.coerceIn(0f, maxSliderVal),
-                onValueChange = {
-                    isSeeking = true
-                    sliderPos = it
-                },
-                onValueChangeFinished = {
-                    isSeeking = false
-                    exoPlayerManager.seekTo(sliderPos.toLong())
-                },
+                value = currentPosMs.toFloat().coerceIn(0f, maxSliderVal),
+                onValueChange = { exoPlayerManager.seekTo(it.toLong()) },
                 valueRange = 0f..maxSliderVal,
                 isPlaying = isPlaying,
                 activeColor = Color(0xFFA8C7FA),
@@ -264,7 +253,7 @@ fun MusicNotificationCard(
                 thumbColor = Color(0xFFA8C7FA),
                 waveAmplitudeDp = 6.dp,
                 waveLengthDp = 30.dp,
-                strokeWidthDp = 9.dp,
+                activeTrackHeightDp = 9.dp,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -276,7 +265,7 @@ fun MusicNotificationCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = formatDuration(effectiveSliderVal.toLong()),
+                    text = formatDuration(currentPosMs),
                     color = Color.White.copy(alpha = 0.70f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium

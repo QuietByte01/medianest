@@ -86,7 +86,7 @@ fun AudioTab(
             0 -> listOf("Name", "Date Added", "Artist")
             3 -> listOf("Name", "Release Year", "Artist")
             4 -> listOf("Name", "Date Added")
-            5 -> listOf("Name", "Date Added")
+            5 -> listOf("Name", "Date Added", "Size")
             6 -> listOf("Custom Order", "Name", "Date Added", "Date Played")
             else -> listOf("Name", "Date Added")
         }
@@ -137,8 +137,8 @@ fun AudioTab(
         }
     }
 
-    val recentlyPlayedStates by db.playbackStateDao().getRecentlyPlayed().collectAsState(initial = emptyList())
-    val mostPlayedStates by db.playbackStateDao().getMostPlayed().collectAsState(initial = emptyList())
+    val recentlyPlayedStates by db.playbackStateDao().getRecentlyPlayed("AUDIO").collectAsState(initial = emptyList())
+    val mostPlayedStates by db.playbackStateDao().getMostPlayed("AUDIO").collectAsState(initial = emptyList())
 
     val sortedPlaylists = remember(playlists, sortField, isAscending, subTabState, recentlyPlayedStates) {
         if (subTabState != 6) return@remember playlists
@@ -261,7 +261,6 @@ fun AudioTab(
                 isSelectionMode = isSelectionMode,
                 onSongClick = onSongClick,
                 onSongLongClick = onSongLongClick,
-                gridSizeLevel = gridSizeLevel,
                 initialSelectedAlbum = targetAlbum,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
                 sortField = sortField,
@@ -275,7 +274,6 @@ fun AudioTab(
                 isSelectionMode = isSelectionMode,
                 onSongClick = onSongClick,
                 onSongLongClick = onSongLongClick,
-                gridSizeLevel = gridSizeLevel,
                 initialSelectedArtist = targetArtist,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
                 onNavigateSubTab = { tab, album, artist, folder ->
@@ -365,7 +363,7 @@ fun AudioTab(
                                     targetPlaylist = null
                                 },
                             shape = RoundedCornerShape(14.dp),
-                            color = if (isSelected) Color(0x3DFFFFFF) else Color.Transparent
+                            color = if (isSelected) Color(0x1AFFFFFF) else Color.Transparent
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),

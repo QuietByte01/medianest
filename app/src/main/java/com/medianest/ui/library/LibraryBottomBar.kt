@@ -33,7 +33,7 @@ fun LibraryBottomBar(
 ) {
     Column {
         // Persistent Mini Player above bottom bar only in Audio tab
-        if (isAudioTab && playerState.currentItem != null) {
+        if (isAudioTab && playerState.currentItem?.type == com.medianest.data.db.MediaType.AUDIO) {
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center

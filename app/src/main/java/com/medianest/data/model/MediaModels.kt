@@ -14,6 +14,8 @@ data class MediaItem(
     val durationMs: Long = 0L,
     val size: Long = 0L,
     val dateAdded: Long = 0L,
+    val dateModified: Long = 0L,
+    val dateCreated: Long = 0L,
     val bucketId: String? = null,
     val bucketName: String? = null,
     val relativePath: String? = null,

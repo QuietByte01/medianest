@@ -72,6 +72,7 @@ fun VideosMainGrid(
                         onDelete = { onVideoDelete(item) },
                         onRemoveFromCategory = if (selectedCategory != null) { { onRemoveFromCategory(item) } } else null,
                         onRename = { onRename(item) },
+                        onShowInfo = { onInfoItem(item) },
                         useRealRatio = true
                     )
                 }
@@ -97,7 +98,8 @@ fun VideosMainGrid(
                         placeName = null,
                         onDelete = { onVideoDelete(item) },
                         onRemoveFromCategory = if (selectedCategory != null) { { onRemoveFromCategory(item) } } else null,
-                        onRename = { onRename(item) }
+                        onRename = { onRename(item) },
+                        onShowInfo = { onInfoItem(item) }
                     )
                 }
             }

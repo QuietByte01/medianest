@@ -104,7 +104,12 @@ fun MediaGridItem(
                 onLongClick = onLongClick
             ),
         shape = itemShape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(
+            containerColor = if (com.medianest.ui.theme.LocalDarkTheme.current) 
+                Color.White.copy(alpha = 0.10f) 
+            else 
+                Color.Black.copy(alpha = 0.10f)
+        )
     ) {
         val imageRequest = remember(item.uri, item.type, item.durationMs, context, item.size, item.dateAdded, isTablet) {
             val builder = ImageRequest.Builder(context)
@@ -113,7 +118,6 @@ fun MediaGridItem(
                 .diskCacheKey("${item.uri}_${item.size}_${item.dateAdded}")
                 .memoryCacheKey("${item.uri}_${item.size}_${item.dateAdded}")
                 .crossfade(true)
-                .placeholder(com.medianest.R.drawable.ic_launcher_foreground) // Use a subtle app-themed placeholder
                 .precision(Precision.INEXACT)
 
             if (isTablet) {
@@ -264,16 +268,14 @@ fun MediaGridItem(
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.width(180.dp)
                     ) {
-                        if (onInfo != null) {
-                            DropdownMenuItem(
-                                text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                onClick = {
-                                    showMenu = false
-                                    onInfo()
-                                }
-                            )
-                        }
+                        DropdownMenuItem(
+                            text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
+                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                            onClick = {
+                                showMenu = false
+                                if (onInfo != null) onInfo()
+                            }
+                        )
                         if (onOpenFolder != null) {
                             DropdownMenuItem(
                                 text = { Text(if (showInGallery) "Open with" else "Show in Folder", color = if (isDark) Color.White else Color.Black) },

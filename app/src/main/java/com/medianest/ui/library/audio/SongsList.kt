@@ -62,7 +62,7 @@ fun SongsList(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val db = remember { com.medianest.MediaNestApp.instance.database }
-    val recentlyPlayedStates by db.playbackStateDao().getRecentlyPlayed().collectAsState(initial = emptyList())
+    val recentlyPlayedStates by db.playbackStateDao().getRecentlyPlayed("AUDIO").collectAsState(initial = emptyList())
     val currentlyPlayingUri = recentlyPlayedStates.firstOrNull()?.mediaUri
 
     var infoItem by remember { mutableStateOf<MediaItem?>(null) }
@@ -83,7 +83,7 @@ fun SongsList(
         }
     } else {
         val isAlphabetical = remember(songs) {
-            if (songs.size < 10) false 
+            if (songs.size < 30) false 
             else {
                 // Check if list is sorted alphabetically by title (A-Z)
                 var sorted = true
@@ -105,7 +105,7 @@ fun SongsList(
                     .then(if (isAlphabetical) Modifier else Modifier.translucentScrollBar(listState)),
                 contentPadding = PaddingValues(
                     bottom = 80.dp,
-                    end = if (isAlphabetical) 16.dp else 4.dp // Reduced space
+                    end = if (isAlphabetical) 20.dp else 4.dp
                 )
             ) {
                 items(songs, key = { it.id }) { item ->
@@ -116,7 +116,12 @@ fun SongsList(
                     GlassSurface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 16.dp, end = if (isAlphabetical) 4.dp else 16.dp, top = 5.dp, bottom = 5.dp)
+                            .padding(
+                                start = if (isAlphabetical) 20.dp else 16.dp,
+                                end = if (isAlphabetical) 0.dp else 16.dp,
+                                top = 5.dp,
+                                bottom = 5.dp
+                            )
                             .clip(RoundedCornerShape(20.dp))
                             .clickable { onSongClick(item) },
                         shape = RoundedCornerShape(20.dp),
@@ -317,7 +322,12 @@ fun SongsList(
             }
             if (isAlphabetical) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
-                    AlphabetScroller(songs = songs, listState = listState)
+                    AlphabetScroller(
+                        items = remember(songs) { songs.map { it.title } },
+                        onScrollTo = { targetIndex ->
+                            scope.launch { listState.scrollToItem(targetIndex) }
+                        }
+                    )
                 }
             }
         }

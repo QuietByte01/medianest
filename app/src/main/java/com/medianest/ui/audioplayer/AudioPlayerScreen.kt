@@ -4,7 +4,9 @@ import android.content.Context
 import android.content.res.Configuration
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -59,7 +61,8 @@ fun AudioPlayerScreen(
     onOpenSettings: () -> Unit = {}
 ) {
     val playerState by playerManager.playerState.collectAsState()
-    val currentItem = playerState.currentItem
+    // Explicitly filter current item to only show AUDIO in this screen
+    val currentItem = playerState.currentItem?.takeIf { it.type == com.medianest.data.db.MediaType.AUDIO }
 
     val settingsManager = MediaNestApp.instance.settingsManager
     val offlineMode by settingsManager.offlineMode.collectAsState(initial = false)
@@ -209,21 +212,35 @@ fun AudioPlayerScreen(
         }
     }
 
-    val playerBgBrush = remember(albumArtHue) {
-        val hue = albumArtHue
-        if (hue != null) {
-            val topColor = Color.hsv(hue, 0.55f, 0.22f)
-            val midColor = Color.hsv((hue + 15f) % 360f, 0.42f, 0.14f)
-            val bottomColor = Color(0xFF0D0F12)
-            Brush.verticalGradient(colors = listOf(topColor, midColor, bottomColor))
-        } else {
-            Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xFF232830),
-                    Color(0xFF121418)
-                )
-            )
-        }
+// 1. Define the target colors based on the hue (or fallback)
+    val targetTopColor = albumArtHue?.let {
+        Color.hsv(it, 0.55f, 0.22f)
+    } ?: Color(0xFF232830)
+
+    val targetMidColor = albumArtHue?.let {
+        Color.hsv((it + 15f) % 360f, 0.42f, 0.14f)
+    } ?: Color(0xFF1A1D23) // A smooth mid-step for the fallback
+
+    val targetBottomColor = Color(0xFF0D0F12)
+
+// 2. Wrap them in animateColorAsState for a smooth 1-second transition
+    val topColor by animateColorAsState(
+        targetValue = targetTopColor,
+        animationSpec = tween(durationMillis = 1000, easing = LinearOutSlowInEasing),
+        label = "BgTopColor"
+    )
+
+    val midColor by animateColorAsState(
+        targetValue = targetMidColor,
+        animationSpec = tween(durationMillis = 1000, easing = LinearOutSlowInEasing),
+        label = "BgMidColor"
+    )
+
+// 3. Build the brush using the animated colors!
+    val playerBgBrush = remember(topColor, midColor) {
+        Brush.verticalGradient(
+            colors = listOf(topColor, midColor, targetBottomColor)
+        )
     }
 
     Box(
@@ -231,7 +248,8 @@ fun AudioPlayerScreen(
             .fillMaxSize()
             .background(playerBgBrush)
     ) {
-        if (isPhoneLandscape) {
+        if (isLandscape) {
+            // Unified immersive landscape for both phone and tablet
             LandscapePlayerLayout(
                 playerState = playerState,
                 currentItem = currentItem,
@@ -248,8 +266,6 @@ fun AudioPlayerScreen(
                 isTablet = isTablet,
                 albumSongs = albumSongs,
                 albumArtHue = albumArtHue,
-                isSeeking = isSeeking,
-                sliderPos = sliderPos,
                 onSeekChange = {
                     sliderPos = it
                     isSeeking = true
@@ -279,10 +295,10 @@ fun AudioPlayerScreen(
                     .statusBarsPadding()
                     .navigationBarsPadding()
                     .padding(
-                    start = if (isLandscape) 16.dp else 20.dp,
-                    end = if (isLandscape) 16.dp else 20.dp,
-                    top = if (isLandscape) 8.dp else 24.dp,
-                    bottom = if (isLandscape) 8.dp else 10.dp
+                    start = 20.dp,
+                    end = 20.dp,
+                    top = 24.dp,
+                    bottom = 10.dp
                 ),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -309,19 +325,19 @@ fun AudioPlayerScreen(
                         ) {
                             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                                 DropdownMenuItem(
-                                    text = { Text("Add to Playlist", color = if (isDark) Color.White else Color.Black) },
-                                    leadingIcon = { Icon(Icons.Default.PlaylistAdd, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        showAddAlbumToPlaylistDialog = true
-                                    }
-                                )
-                                DropdownMenuItem(
                                     text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
                                     leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                                     onClick = {
                                         showOverflowMenu = false
                                         showDetailsSheet = true
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Add to Playlist", color = if (isDark) Color.White else Color.Black) },
+                                    leadingIcon = { Icon(Icons.Default.PlaylistAdd, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        showAddAlbumToPlaylistDialog = true
                                     }
                                 )
                                 DropdownMenuItem(
@@ -370,6 +386,14 @@ fun AudioPlayerScreen(
                                     }
                                 )
                                 DropdownMenuItem(
+                                    text = { Text(if (showAudioVisualizer) "Hide Audio Visualizer" else "Show Audio Visualizer", color = if (isDark) Color.White else Color.Black) },
+                                    leadingIcon = { Icon(Icons.Default.GraphicEq, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) }
+                                    }
+                                )
+                                DropdownMenuItem(
                                     text = { Text("Settings", color = if (isDark) Color.White else Color.Black) },
                                     leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                                     onClick = {
@@ -378,101 +402,47 @@ fun AudioPlayerScreen(
                                         onOpenSettings()
                                     }
                                 )
-                                DropdownMenuItem(
-                                    text = { Text(if (showAudioVisualizer) "Hide Audio Visualizer" else "Show Audio Visualizer", color = if (isDark) Color.White else Color.Black) },
-                                    leadingIcon = { Icon(Icons.Default.GraphicEq, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) }
-                                    }
-                                )
                             }
                         }
                     }
                 }
 
-                if (isLandscape) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    LandscapePlayerLayout(
-                        playerState = playerState,
-                        currentItem = currentItem,
-                        playerManager = playerManager,
-                        showLyricsView = showLyricsView,
-                        showAudioVisualizer = showAudioVisualizer && !showFullscreenVisualizer,
-                        showAlbumSongsInPanel = showAlbumSongsInPanel,
-                        isLoadingLyrics = isLoadingLyrics,
-                        lyricsLines = lyricsLines,
-                        rawLyricsText = rawLyricsText,
-                        activeLyricIndex = activeLyricIndex,
-                        listState = listState,
-                        isFavorite = isFavorite,
-                        isTablet = isTablet,
-                        albumSongs = albumSongs,
-                        albumArtHue = albumArtHue,
-                        isSeeking = isSeeking,
-                        sliderPos = sliderPos,
-                        onSeekChange = {
-                            sliderPos = it
-                            isSeeking = true
-                        },
-                        onSeekFinished = {
-                            isSeeking = false
-                            playerManager.seekTo(sliderPos.toLong())
-                        },
-                        onToggleShowLyrics = { showLyricsView = it },
-                        onToggleAlbumSongsPanel = { showAlbumSongsInPanel = !showAlbumSongsInPanel },
-                        onToggleFavorite = { toggleFavoriteLambda() },
-                        onOpenAddPlaylist = { showAddAlbumToPlaylistDialog = true },
-                        onEditLyrics = {
-                            manualLyricsInput = rawLyricsText ?: ""
-                            showManualLyricsDialog = true
-                        },
-                        onToggleVisualizer = {
-                            scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) }
-                        },
-                        onFullscreenVisualizerClick = { showFullscreenVisualizer = true },
-                        modifier = Modifier.fillMaxSize().weight(1f)
-                    )
-                } else {
-                    PortraitPlayerLayout(
-                        playerState = playerState,
-                        currentItem = currentItem,
-                        playerManager = playerManager,
-                        albumArtSize = albumArtSize,
-                        isTablet = isTablet,
-                        showLyricsView = showLyricsView,
-                        showAudioVisualizer = showAudioVisualizer && !showFullscreenVisualizer,
-                        showAlbumSongsInPortraitBox = showAlbumSongsInPortraitBox,
-                        isLoadingLyrics = isLoadingLyrics,
-                        lyricsLines = lyricsLines,
-                        rawLyricsText = rawLyricsText,
-                        activeLyricIndex = activeLyricIndex,
-                        listState = listState,
-                        isFavorite = isFavorite,
-                        albumSongs = albumSongs,
-                        albumArtHue = albumArtHue,
-                        isSeeking = isSeeking,
-                        sliderPos = sliderPos,
-                        onSeekChange = {
-                            sliderPos = it
-                            isSeeking = true
-                        },
-                        onSeekFinished = {
-                            isSeeking = false
-                            playerManager.seekTo(sliderPos.toLong())
-                        },
-                        onToggleShowLyrics = { showLyricsView = it },
-                        onToggleAlbumSongsPortraitBox = { showAlbumSongsInPortraitBox = !showAlbumSongsInPortraitBox },
-                        onToggleFavorite = { toggleFavoriteLambda() },
-                        onOpenAddPlaylist = { showAddAlbumToPlaylistDialog = true },
-                        onEditLyrics = {
-                            manualLyricsInput = rawLyricsText ?: ""
-                            showManualLyricsDialog = true
-                        },
-                        onFullscreenVisualizerClick = { showFullscreenVisualizer = true },
-                        modifier = Modifier.fillMaxSize().weight(1f)
-                    )
-                }
+                PortraitPlayerLayout(
+                    playerState = playerState,
+                    currentItem = currentItem,
+                    playerManager = playerManager,
+                    albumArtSize = albumArtSize,
+                    isTablet = isTablet,
+                    showLyricsView = showLyricsView,
+                    showAudioVisualizer = showAudioVisualizer && !showFullscreenVisualizer,
+                    showAlbumSongsInPortraitBox = showAlbumSongsInPortraitBox,
+                    isLoadingLyrics = isLoadingLyrics,
+                    lyricsLines = lyricsLines,
+                    rawLyricsText = rawLyricsText,
+                    activeLyricIndex = activeLyricIndex,
+                    listState = listState,
+                    isFavorite = isFavorite,
+                    albumSongs = albumSongs,
+                    albumArtHue = albumArtHue,
+                    onSeekChange = {
+                        sliderPos = it
+                        isSeeking = true
+                    },
+                    onSeekFinished = {
+                        isSeeking = false
+                        playerManager.seekTo(sliderPos.toLong())
+                    },
+                    onToggleShowLyrics = { showLyricsView = it },
+                    onToggleAlbumSongsPortraitBox = { showAlbumSongsInPortraitBox = !showAlbumSongsInPortraitBox },
+                    onToggleFavorite = { toggleFavoriteLambda() },
+                    onOpenAddPlaylist = { showAddAlbumToPlaylistDialog = true },
+                    onEditLyrics = {
+                        manualLyricsInput = rawLyricsText ?: ""
+                        showManualLyricsDialog = true
+                    },
+                    onFullscreenVisualizerClick = { showFullscreenVisualizer = true },
+                    modifier = Modifier.fillMaxSize().weight(1f)
+                )
             }
         }
 
@@ -677,7 +647,9 @@ fun AudioPlayerScreen(
                         Spacer(modifier = Modifier.height(18.dp))
                         StyleSelectorBar(
                             currentStyle = selectedVisualizerStyle,
-                            onSelectStyle = { selectedVisualizerStyle = it }
+                            onSelectStyle = { selectedVisualizerStyle = it },
+                            isFullscreen = true,
+                            hue = albumArtHue ?: 210f
                         )
                     }
 

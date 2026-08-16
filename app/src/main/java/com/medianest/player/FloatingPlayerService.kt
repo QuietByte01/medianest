@@ -34,6 +34,7 @@ class FloatingPlayerService : Service() {
         const val ACTION_PLAY_PAUSE = "PLAY_PAUSE"
         const val ACTION_NEXT = "NEXT"
         const val ACTION_SHUFFLE = "SHUFFLE"
+        const val ACTION_REPEAT = "REPEAT"
         const val ACTION_STOP = "STOP"
         const val CHANNEL_ID = "media_playback_channel"
         const val NOTIF_ID = 101
@@ -130,6 +131,21 @@ class FloatingPlayerService : Service() {
                         m.setShuffleMode(shuffleMode != PlaybackStateCompat.SHUFFLE_MODE_NONE)
                         updateNotification()
                     }
+
+                    override fun onSetRepeatMode(repeatMode: Int) {
+                        val m = mgr()
+                        val nextExoMode = when (repeatMode) {
+                            PlaybackStateCompat.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ONE
+                            PlaybackStateCompat.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ALL
+                            else -> Player.REPEAT_MODE_OFF
+                        }
+                        m.setRepeatMode(nextExoMode)
+                        updateNotification()
+                    }
+
+                    override fun onStop() {
+                        stopService(applicationContext)
+                    }
                 })
                 isActive = true
             }
@@ -202,6 +218,17 @@ class FloatingPlayerService : Service() {
                 activeManager?.setShuffleMode(!activeManager.playerState.value.isShuffle)
                 updateNotification()
             }
+            ACTION_REPEAT -> {
+                if (activeManager != null) {
+                    val nextMode = when (activeManager.playerState.value.repeatMode) {
+                        Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                        Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                        else -> Player.REPEAT_MODE_OFF
+                    }
+                    activeManager.setRepeatMode(nextMode)
+                }
+                updateNotification()
+            }
             ACTION_STOP -> {
                 val isVideoActive = com.medianest.ui.videoplayer.VideoPlayerActivity.activePlayerManager != null
                 if (!isVideoActive) {
@@ -272,9 +299,20 @@ class FloatingPlayerService : Service() {
                 }
             }
 
-            currentArtworkBitmap = bitmap
+            currentArtworkBitmap = bitmap?.let { blurBitmap(it, 8) }
             updateNotification()
         }
+    }
+
+    private fun blurBitmap(bitmap: Bitmap, radius: Int): Bitmap {
+        if (radius <= 0) return bitmap
+        
+        val width = bitmap.width
+        val height = bitmap.height
+        
+        // Very minimal blur (0.85 scale)
+        val smallBitmap = Bitmap.createScaledBitmap(bitmap, (width * 0.85f).toInt().coerceAtLeast(1), (height * 0.85f).toInt().coerceAtLeast(1), true)
+        return Bitmap.createScaledBitmap(smallBitmap, width, height, true)
     }
 
     private fun updateNotification() {
@@ -341,6 +379,12 @@ class FloatingPlayerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
         )
 
+        val repeatIntent = Intent(this, FloatingPlayerService::class.java).apply { action = ACTION_REPEAT }
+        val repeatPendingIntent = PendingIntent.getService(
+            this, 6, repeatIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+        )
+
         val playPauseIcon = if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
         val playPauseTitle = if (isPlaying) "Pause" else "Play"
 
@@ -365,11 +409,24 @@ class FloatingPlayerService : Service() {
                     PlaybackStateCompat.ACTION_PAUSE or
                     PlaybackStateCompat.ACTION_SKIP_TO_NEXT or
                     PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
-                    PlaybackStateCompat.ACTION_SEEK_TO
+                    PlaybackStateCompat.ACTION_SEEK_TO or
+                    PlaybackStateCompat.ACTION_SET_SHUFFLE_MODE or
+                    PlaybackStateCompat.ACTION_SET_REPEAT_MODE
                 )
                 .setState(stateVal, posMs, speed, SystemClock.elapsedRealtime())
                 .build()
             session.setPlaybackState(playbackState)
+
+            if (activeManager != null) {
+                val sMode = if (activeManager.playerState.value.isShuffle) PlaybackStateCompat.SHUFFLE_MODE_ALL else PlaybackStateCompat.SHUFFLE_MODE_NONE
+                val rMode = when (activeManager.playerState.value.repeatMode) {
+                    Player.REPEAT_MODE_ONE -> PlaybackStateCompat.REPEAT_MODE_ONE
+                    Player.REPEAT_MODE_ALL -> PlaybackStateCompat.REPEAT_MODE_ALL
+                    else -> PlaybackStateCompat.REPEAT_MODE_NONE
+                }
+                session.setShuffleMode(sMode)
+                session.setRepeatMode(rMode)
+            }
 
             val metaBuilder = MediaMetadataCompat.Builder()
                 .putString(MediaMetadataCompat.METADATA_KEY_TITLE, currentTitle)
@@ -379,6 +436,14 @@ class FloatingPlayerService : Service() {
                 metaBuilder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, currentArtworkBitmap)
             }
             session.setMetadata(metaBuilder.build())
+            
+            // Critical for Android 11+ System Media UI to show shuffle/repeat
+            session.setShuffleMode(if (activeManager?.playerState?.value?.isShuffle == true) PlaybackStateCompat.SHUFFLE_MODE_ALL else PlaybackStateCompat.SHUFFLE_MODE_NONE)
+            session.setRepeatMode(when (activeManager?.playerState?.value?.repeatMode) {
+                Player.REPEAT_MODE_ONE -> PlaybackStateCompat.REPEAT_MODE_ONE
+                Player.REPEAT_MODE_ALL -> PlaybackStateCompat.REPEAT_MODE_ALL
+                else -> PlaybackStateCompat.REPEAT_MODE_NONE
+            })
         }
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
@@ -395,7 +460,7 @@ class FloatingPlayerService : Service() {
             .addAction(android.R.drawable.ic_media_previous, "Previous", prevPendingIntent) // Action 1
             .addAction(playPauseIcon, playPauseTitle, playPausePendingIntent) // Action 2
             .addAction(android.R.drawable.ic_media_next, "Next", nextPendingIntent) // Action 3
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent) // Action 4
+            .addAction(android.R.drawable.ic_menu_revert, "Repeat", repeatPendingIntent) // Action 4
 
         if (currentArtworkBitmap != null) {
             // Show album art ONLY

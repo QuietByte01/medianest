@@ -234,13 +234,23 @@ fun ImagesTab(
         }
     }
 
-    val sortedFolderNames = remember(folderGroups, allHiddenImageFolders) {
+    val sortedFolderNames = remember(folderGroups, allHiddenImageFolders, sortField, isAscending) {
         if (folderGroups.isEmpty()) emptyList()
         else {
-            folderGroups.keys.sortedWith(
-                compareByDescending<String> { fn -> isFolderHidden(fn, folderGroups[fn]) }
-                    .thenBy { it.lowercase() }
-            )
+            val keys = folderGroups.keys.toList()
+            val comp = when (sortField) {
+                "Name" -> compareBy<String> { it.lowercase() }
+                "Date" -> compareBy<String> { folderName ->
+                    folderGroups[folderName]?.maxOfOrNull { maxOf(it.dateAdded, it.dateCreated) } ?: 0L
+                }
+                "Size" -> compareBy<String> { folderName ->
+                    folderGroups[folderName]?.sumOf { it.size } ?: 0L
+                }
+                else -> compareBy<String> { it.lowercase() }
+            }
+
+            val baseSorted = if (isAscending) keys.sortedWith(comp) else keys.sortedWith(comp).reversed()
+            baseSorted.sortedBy { fn -> isFolderHidden(fn, folderGroups[fn]) && activeFilterTab != "HIDDEN" }
         }
     }
 
@@ -564,6 +574,15 @@ fun ImagesTab(
                 HorizontalDivider(color = if (isDark) Color(0x1AFFFFFF) else Color(0x1A000000))
 
                 DropdownMenuItem(
+                    text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
+                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                    onClick = {
+                        val target = activeItem
+                        contextSheetItem = null
+                        infoItem = target
+                    }
+                )
+                DropdownMenuItem(
                     text = { Text("View Image", color = if (isDark) Color.White else Color.Black) },
                     leadingIcon = { Icon(Icons.Default.Image, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                     onClick = {
@@ -575,15 +594,6 @@ fun ImagesTab(
                             else -> imagesList
                         }
                         onImageClick(target, listForContext)
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
-                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
-                    onClick = {
-                        val target = activeItem
-                        contextSheetItem = null
-                        infoItem = target
                     }
                 )
                 DropdownMenuItem(

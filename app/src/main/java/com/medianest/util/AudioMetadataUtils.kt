@@ -11,41 +11,18 @@ import java.io.File
 object AudioMetadataUtils {
 
     fun extractMetadata(context: Context, uri: Uri, rawTitleHint: String? = null, mimeTypeHint: String = "audio/*"): MediaItem {
-        var title: String? = null
-        var artist: String? = null
-        var album: String? = null
-        var durationMs: Long = 0L
+        val meta = MediaMetadataUtils.extractBasicMetadata(context, uri, includePicture = true)
+        
         var albumArtUri: Uri? = null
-
-        val retriever = MediaMetadataRetriever()
-        try {
-            retriever.setDataSource(context, uri)
-            title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
-            artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
-            album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
-            val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-            durationMs = durationStr?.toLongOrNull() ?: 0L
-
-            val artBytes = retriever.embeddedPicture
-
-            if (artBytes != null && artBytes.isNotEmpty()) {
-                val cacheFile = File(context.cacheDir, "album_art_${uri.toString().hashCode()}.jpg")
-                if (!cacheFile.exists()) {
-                    cacheFile.writeBytes(artBytes)
-                }
-                albumArtUri = Uri.fromFile(cacheFile)
+        if (meta.embeddedPicture != null && meta.embeddedPicture.isNotEmpty()) {
+            val cacheFile = File(context.cacheDir, "album_art_${uri.toString().hashCode()}.jpg")
+            if (!cacheFile.exists()) {
+                cacheFile.writeBytes(meta.embeddedPicture)
             }
-        } catch (e: Exception) {
-            Log.e("AudioMetadataUtils", "Failed to retrieve metadata for $uri", e)
-        } finally {
-            try {
-                retriever.release()
-            } catch (e: Exception) {
-                // ignore
-            }
+            albumArtUri = Uri.fromFile(cacheFile)
         }
 
-        val cleanedTitle = resolveTitle(context, uri, title, rawTitleHint)
+        val cleanedTitle = resolveTitle(context, uri, meta.title, rawTitleHint)
 
         // Dynamically infer MIME type if generic or missing
         val effectiveMime = if (mimeTypeHint.isBlank() || mimeTypeHint == "*/*" || mimeTypeHint == "application/octet-stream") {
@@ -88,9 +65,12 @@ object AudioMetadataUtils {
             title = cleanedTitle,
             mimeType = effectiveMime,
             type = determinedType,
-            durationMs = durationMs,
-            artist = artist?.takeIf { it.isNotBlank() && it != "<unknown>" },
-            album = album?.takeIf { it.isNotBlank() && it != "<unknown>" },
+            durationMs = meta.durationMs,
+            dateAdded = meta.dateCreated,
+            dateModified = meta.dateModified,
+            dateCreated = meta.dateCreated,
+            artist = meta.artist,
+            album = meta.album,
             albumArtUri = albumArtUri
         )
     }

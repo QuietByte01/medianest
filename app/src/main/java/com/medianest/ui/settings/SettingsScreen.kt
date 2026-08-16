@@ -254,6 +254,8 @@ fun SettingsScreen(
                                 },
                                 valueRange = 0f..3f,
                                 steps = 2,
+                                headStyle = com.medianest.ui.components.AppSliderHeadStyle.Bar,
+                                thickness = com.medianest.ui.components.AppSliderThickness.Thick,
                                 modifier = Modifier.height(24.dp)
                             )
 
@@ -294,6 +296,8 @@ fun SettingsScreen(
                                 },
                                 valueRange = 0f..3f,
                                 steps = 2,
+                                headStyle = com.medianest.ui.components.AppSliderHeadStyle.Bar,
+                                thickness = com.medianest.ui.components.AppSliderThickness.Thick,
                                 modifier = Modifier.height(24.dp)
                             )
 

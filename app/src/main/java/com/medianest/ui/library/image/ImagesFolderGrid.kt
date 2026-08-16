@@ -192,7 +192,7 @@ fun ImagesFolderGrid(
                                         .fillMaxWidth()
                                         .aspectRatio(coverRatio)
                                         .clip(RoundedCornerShape(12.dp))
-                                        .background(Color(0xFF181B26)),
+                                        .background(if (LocalDarkTheme.current) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.10f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     if (folderItems.size >= 4) {

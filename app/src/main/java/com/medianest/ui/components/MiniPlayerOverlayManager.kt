@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.DpSize
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -153,6 +154,7 @@ object MiniPlayerOverlayManager {
         try {
             val intent = Intent(
                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+
                 Uri.parse("package:${context.packageName}")
             ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
@@ -177,7 +179,7 @@ fun FloatingMiniPlayerBar(
 ) {
     val activeManager = ExoPlayerManager.activeManager ?: return
     val playerState by activeManager.playerState.collectAsState()
-    val currentItem = playerState.currentItem ?: return
+    val currentItem = playerState.currentItem?.takeIf { it.type == com.medianest.data.db.MediaType.AUDIO } ?: return
     val context = LocalContext.current
     val isPlaying = playerState.isPlaying
 
@@ -238,29 +240,6 @@ fun FloatingMiniPlayerBar(
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
 
-    var albumArtHue by remember { mutableStateOf<Float?>(null) }
-    LaunchedEffect(currentItem.albumArtUri, currentItem.uri) {
-        val artUri = currentItem.albumArtUri ?: currentItem.uri
-        albumArtHue = extractBaseHueFromArt(context, artUri)
-    }
-
-    val ambientHueBrush = remember(albumArtHue) {
-        val hue = albumArtHue
-        if (hue != null) {
-            val topColor = Color.hsv(hue, 0.65f, 0.35f).copy(alpha = 0.82f)
-            val midColor = Color.hsv((hue + 15f) % 360f, 0.48f, 0.22f).copy(alpha = 0.85f)
-            val bottomColor = Color(0xEB111418)
-            Brush.verticalGradient(listOf(topColor, midColor, bottomColor))
-        } else {
-            Brush.verticalGradient(
-                listOf(
-                    Color(0xCC28303C),
-                    Color(0xEB111418)
-                )
-            )
-        }
-    }
-
     GlassSurface(
         modifier = Modifier
             .then(if (isTablet) Modifier.width(380.dp) else Modifier.fillMaxWidth())
@@ -271,8 +250,7 @@ fun FloatingMiniPlayerBar(
         backgroundColor = Color(0x66181C20),
         borderColor = Color.White.copy(alpha = 0.35f),
         backgroundImage = currentItem.albumArtUri ?: currentItem.uri,
-        blurRadius = 24.dp,
-        backgroundBrush = ambientHueBrush
+        blurRadius = 24.dp
     ) {
         var isDraggingSeek by remember { mutableStateOf(false) }
         var dragProgress by remember { mutableFloatStateOf(0f) }
@@ -372,16 +350,20 @@ fun FloatingMiniPlayerBar(
 
                     IconButton(
                         onClick = { activeManager.togglePlayPause() },
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(32.dp),
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = Color.White
+                        )
                     ) {
                         if (isPlaying) {
                             RoundedPauseIcon(
-                                modifier = Modifier.size(20.dp),
+                                modifier = Modifier.size(22.dp),
                                 tint = Color.White
                             )
                         } else {
                             RoundedPlayIcon(
-                                modifier = Modifier.size(20.dp),
+                                modifier = Modifier.size(22.dp),
                                 tint = Color.White
                             )
                         }
@@ -397,7 +379,7 @@ fun FloatingMiniPlayerBar(
                 )
 
                 // Seekbar with perfectly centered circular head
-                Slider(
+                AppSlider(
                     value = progress,
                     onValueChange = {
                         isDraggingSeek = true
@@ -413,38 +395,10 @@ fun FloatingMiniPlayerBar(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(18.dp),
-                    colors = SliderDefaults.colors(
-                        thumbColor = Color.White,
-                        activeTrackColor = Color.White,
-                        inactiveTrackColor = Color.White.copy(alpha = 0.25f)
-                    ),
-                    thumb = {
-                        Box(
-                            modifier = Modifier.size(14.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .background(Color.White, shape = androidx.compose.foundation.shape.CircleShape)
-                            )
-                        }
-                    },
-                    track = { sliderState ->
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            SliderDefaults.Track(
-                                sliderState = sliderState,
-                                modifier = Modifier.height(3.dp),
-                                colors = SliderDefaults.colors(
-                                    activeTrackColor = Color.White,
-                                    inactiveTrackColor = Color.White.copy(alpha = 0.25f)
-                                )
-                            )
-                        }
-                    }
+                    style = AppSliderStyle.Solid,
+                    thickness = AppSliderThickness.Thin,
+                    accentColor = Color.White,
+                    customThumbSize = DpSize(12.dp, 12.dp)
                 )
 
                 Row(

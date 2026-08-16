@@ -24,6 +24,8 @@ import com.medianest.ui.components.GlassSurface
 
 @Composable
 fun LyricsView(
+    songTitle: String,
+    songArtist: String,
     isLoadingLyrics: Boolean,
     lyricsLines: List<LyricLine>,
     rawLyricsText: String?,
@@ -38,6 +40,8 @@ fun LyricsView(
     glassSurfaceModifier: Modifier = Modifier,
     cardShapeRadius: Dp = 24.dp
 ) {
+    val showEditButton = lyricsLines.isEmpty() && rawLyricsText == null
+
     GlassSurface(
         modifier = glassSurfaceModifier,
         shape = androidx.compose.foundation.shape.RoundedCornerShape(cardShapeRadius),
@@ -52,24 +56,42 @@ fun LyricsView(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(horizontal = 8.dp)
             ) {
-                Text(
-                    text = "Synced Lyrics",
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFF5F5F5),
-                    fontSize = titleFontSize.sp
-                )
-                IconButton(
-                    onClick = onEditLyrics,
-                    modifier = Modifier.size(28.dp)
+                Column(
+                    modifier = Modifier.weight(1f, fill = false),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit Lyrics",
-                        tint = Color.White.copy(alpha = 0.8f),
-                        modifier = Modifier.size(16.dp)
+                    Text(
+                        text = songTitle,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = titleFontSize.sp,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
+                    Text(
+                        text = songArtist,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White.copy(alpha = 0.65f),
+                        fontSize = (titleFontSize - 1).sp,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+                if (showEditButton) {
+                    IconButton(
+                        onClick = onEditLyrics,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit Lyrics",
+                            tint = Color.White.copy(alpha = 0.8f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -104,16 +126,11 @@ fun LyricsView(
                 ) {
                     Text(
                         text = rawLyricsText,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = Color.White.copy(alpha = 0.9f),
                         fontSize = 14.sp,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 8.dp)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedButton(onClick = onEditLyrics) {
-                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Edit Lyrics")
-                    }
                 }
             } else {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {

@@ -1,6 +1,7 @@
 package com.medianest.ui.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -94,6 +95,7 @@ fun WideVideoCard(
                 Box(
                     modifier = thumbModifier
                         .clip(RoundedCornerShape(14.dp))
+                        .background(if (LocalDarkTheme.current) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.10f))
                 ) {
                     if (fallbackBitmap != null) {
                         androidx.compose.foundation.Image(
@@ -217,16 +219,14 @@ fun WideVideoCard(
                     onDismissRequest = { menuExpanded = false },
                     shape = RoundedCornerShape(16.dp)
                 ) {
-                    if (onShowInfo != null) {
-                        DropdownMenuItem(
-                            text = { Text("File Info") },
-                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                            onClick = {
-                                menuExpanded = false
-                                onShowInfo()
-                            }
-                        )
-                    }
+                    DropdownMenuItem(
+                        text = { Text("File Info") },
+                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                        onClick = {
+                            menuExpanded = false
+                            if (onShowInfo != null) onShowInfo()
+                        }
+                    )
                     if (onRemoveFromCategory != null) {
                         DropdownMenuItem(
                             text = { Text("Remove from Category") },

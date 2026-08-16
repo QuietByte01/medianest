@@ -143,7 +143,6 @@ class QuickViewActivity : ComponentActivity() {
                                     }
                                 } else {
                                     val resolved = mediaStoreRepository.resolveSiblingsForUri(intentData, mimeType)
-                                    // ... existing sibling resolution logic
                                     if (resolved.isNotEmpty()) {
                                         val firstType = resolved.first().type
                                         if (firstType == com.medianest.data.db.MediaType.VIDEO) {
@@ -157,14 +156,26 @@ class QuickViewActivity : ComponentActivity() {
                                         } else if (firstType == com.medianest.data.db.MediaType.AUDIO) {
                                             val exoPlayerManager = ExoPlayerManager.getInstance(applicationContext)
                                             exoPlayerManager.playMediaList(resolved, 0)
-                                            MiniPlayerOverlayManager.show(applicationContext)
+                                            com.medianest.ui.components.MiniPlayerOverlayManager.show(applicationContext)
                                             finish()
                                             return@launch
                                         }
+                                        
+                                        mediaList = resolved
+                                        val idx = resolved.indexOfFirst { it.uri.toString() == intentData.toString() || it.uri == intentData }
+                                        initialIndex = if (idx != -1) idx else 0
+                                    } else {
+                                        // Fallback to single item if resolution failed
+                                        val single = MediaItem(
+                                            id = System.currentTimeMillis(),
+                                            uri = intentData,
+                                            title = intentData.lastPathSegment ?: "Image",
+                                            mimeType = mimeType ?: "image/*",
+                                            type = com.medianest.data.db.MediaType.IMAGE
+                                        )
+                                        mediaList = listOf(single)
+                                        initialIndex = 0
                                     }
-                                    mediaList = resolved
-                                    val idx = resolved.indexOfFirst { it.uri == intentData || it.uri.toString() == intentData.toString() }
-                                    initialIndex = if (idx != -1) idx else 0
                                 }
                             }
                         }

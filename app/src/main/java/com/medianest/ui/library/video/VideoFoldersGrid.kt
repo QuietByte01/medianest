@@ -48,6 +48,8 @@ fun VideoFoldersGrid(
     onFolderDelete: (String) -> Unit,
     onFolderInfo: (String) -> Unit,
     onCreateCategoryClick: () -> Unit,
+    sortField: String = "Date",
+    isAscending: Boolean = false,
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
 ) {
     val scope = rememberCoroutineScope()
@@ -86,11 +88,21 @@ fun VideoFoldersGrid(
         }
     }
 
-    val sortedFolderNames = remember(videoFolderGroups) {
-        videoFolderGroups.keys.sortedWith(
-            compareByDescending<String> { fn -> checkFolderHidden(fn, videoFolderGroups[fn]) }
-                .thenBy { it.lowercase() }
-        )
+    val sortedFolderNames = remember(videoFolderGroups, sortField, isAscending) {
+        val keys = videoFolderGroups.keys.toList()
+        val comp = when (sortField) {
+            "Name" -> compareBy<String> { it.lowercase() }
+            "Date" -> compareBy<String> { folderName ->
+                videoFolderGroups[folderName]?.maxOfOrNull { maxOf(it.dateAdded, it.dateCreated) } ?: 0L
+            }
+            "Size" -> compareBy<String> { folderName ->
+                videoFolderGroups[folderName]?.sumOf { it.size } ?: 0L
+            }
+            else -> compareBy<String> { it.lowercase() }
+        }
+
+        val baseSorted = if (isAscending) keys.sortedWith(comp) else keys.sortedWith(comp).reversed()
+        baseSorted.sortedBy { fn -> checkFolderHidden(fn, videoFolderGroups[fn]) && activeFilterTab != "HIDDEN" }
     }
 
     val visibleFolders = remember(sortedFolderNames, videoFolderGroups, activeFilterTab) {
@@ -292,7 +304,7 @@ fun VideoFoldersGrid(
                                                 .weight(1f)
                                                 .fillMaxHeight()
                                                 .clip(RoundedCornerShape(10.dp))
-                                                .background(Color(0xFF181B26))
+                                                .background(if (LocalDarkTheme.current) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.10f))
                                         ) {
                                             AsyncImage(
                                                 model = item.uri,

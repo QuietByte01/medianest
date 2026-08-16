@@ -86,7 +86,9 @@ fun AdaptiveBottomSheet(
                         shape = RoundedCornerShape(24.dp),
                         backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color.Unspecified,
                         borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.10f),
-                        borderWidth = 1.dp
+                        borderWidth = 1.dp,
+                        drawBottomBorder = false,
+                        showTopSheen = false
                     ) {
                         Column(
                             modifier = Modifier
@@ -137,7 +139,9 @@ fun AdaptiveBottomSheet(
                         shape = shape,
                         backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color.Unspecified,
                         borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.10f),
-                        borderWidth = 1.dp
+                        borderWidth = 1.dp,
+                        drawBottomBorder = false,
+                        showTopSheen = false
                     ) {
                         Column(modifier = Modifier.navigationBarsPadding()) {
                             if (dragHandle != null) {

@@ -31,6 +31,7 @@ data class CategoryMediaCrossRef(
 @Entity(tableName = "playback_states")
 data class PlaybackState(
     @PrimaryKey val mediaUri: String,
+    val mediaType: String,                // "AUDIO" or "VIDEO"
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
     val lastPlayedAt: Long = System.currentTimeMillis(),

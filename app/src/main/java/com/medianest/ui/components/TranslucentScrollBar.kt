@@ -95,7 +95,11 @@ fun Modifier.translucentScrollBar(
         if (totalItemsCount > visibleItems.size && visibleItems.isNotEmpty()) {
             val firstVisibleElementIndex = visibleItems.first().index
             val visibleRatio = visibleItems.size.toFloat() / totalItemsCount
-            val scrollBarHeight = (size.height * visibleRatio).coerceIn(36.dp.toPx(), size.height * 0.7f)
+            
+            val minH = 36.dp.toPx().coerceAtMost(size.height)
+            val maxH = (size.height * 0.7f).coerceAtLeast(minH)
+            val scrollBarHeight = (size.height * visibleRatio).coerceIn(minH, maxH)
+            
             val maxIndex = (totalItemsCount - visibleItems.size).coerceAtLeast(1)
             val scrollProgress = (firstVisibleElementIndex.toFloat() / maxIndex).coerceIn(0f, 1f)
             val scrollBarOffsetY = scrollProgress * (size.height - scrollBarHeight)
@@ -147,7 +151,11 @@ fun Modifier.translucentScrollBarGrid(
         if (totalItemsCount > visibleItems.size && visibleItems.isNotEmpty()) {
             val firstVisibleElementIndex = visibleItems.first().index
             val visibleRatio = visibleItems.size.toFloat() / totalItemsCount
-            val scrollBarHeight = (size.height * visibleRatio).coerceIn(36.dp.toPx(), size.height * 0.7f)
+            
+            val minH = 36.dp.toPx().coerceAtMost(size.height)
+            val maxH = (size.height * 0.7f).coerceAtLeast(minH)
+            val scrollBarHeight = (size.height * visibleRatio).coerceIn(minH, maxH)
+            
             val maxIndex = (totalItemsCount - visibleItems.size).coerceAtLeast(1)
             val scrollProgress = (firstVisibleElementIndex.toFloat() / maxIndex).coerceIn(0f, 1f)
             val scrollBarOffsetY = scrollProgress * (size.height - scrollBarHeight)
@@ -199,7 +207,11 @@ fun Modifier.translucentScrollBarStaggeredGrid(
         if (totalItemsCount > visibleItems.size && visibleItems.isNotEmpty()) {
             val firstVisibleElementIndex = visibleItems.first().index
             val visibleRatio = visibleItems.size.toFloat() / totalItemsCount
-            val scrollBarHeight = (size.height * visibleRatio).coerceIn(36.dp.toPx(), size.height * 0.7f)
+            
+            val minH = 36.dp.toPx().coerceAtMost(size.height)
+            val maxH = (size.height * 0.7f).coerceAtLeast(minH)
+            val scrollBarHeight = (size.height * visibleRatio).coerceIn(minH, maxH)
+            
             val maxIndex = (totalItemsCount - visibleItems.size).coerceAtLeast(1)
             val scrollProgress = (firstVisibleElementIndex.toFloat() / maxIndex).coerceIn(0f, 1f)
             val scrollBarOffsetY = scrollProgress * (size.height - scrollBarHeight)

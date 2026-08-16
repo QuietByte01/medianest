@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -177,69 +178,65 @@ fun MiniPlayerBar(
                     )
                 }
 
-                // Playback Action Buttons (Glass Pills with Custom Rounded Controls)
+                // Playback Action Buttons (Naked Icons with no background/border)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    GlassSurface(
+                    Box(
                         modifier = Modifier
                             .size(32.dp)
-                            .clip(CircleShape)
-                            .clickable {
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
                                 onPrevious?.invoke() ?: com.medianest.player.ExoPlayerManager.activeManager?.previous()
                             },
-                        shape = CircleShape,
-                        backgroundColor = Color(0x26FFFFFF),
-                        borderColor = Color(0x33FFFFFF)
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            RoundedSkipPreviousIcon(
-                                modifier = Modifier.size(16.dp),
-                                tint = Color.White
-                            )
-                        }
+                        RoundedSkipPreviousIcon(
+                            modifier = Modifier.size(20.dp),
+                            tint = Color.White
+                        )
                     }
 
-                    GlassSurface(
+                    Box(
                         modifier = Modifier
                             .size(38.dp)
-                            .clip(CircleShape)
-                            .clickable(onClick = onPlayPauseToggle),
-                        shape = CircleShape,
-                        backgroundColor = Color(0x4DFFFFFF),
-                        borderColor = Color(0x60FFFFFF)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = onPlayPauseToggle
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            if (playerState.isPlaying) {
-                                RoundedPauseIcon(
-                                    modifier = Modifier.size(18.dp),
-                                    tint = Color.White
-                                )
-                            } else {
-                                RoundedPlayIcon(
-                                    modifier = Modifier.size(18.dp),
-                                    tint = Color.White
-                                )
-                            }
-                        }
-                    }
-
-                    GlassSurface(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .clickable(onClick = onNext),
-                        shape = CircleShape,
-                        backgroundColor = Color(0x26FFFFFF),
-                        borderColor = Color(0x33FFFFFF)
-                    ) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            RoundedSkipNextIcon(
-                                modifier = Modifier.size(16.dp),
+                        if (playerState.isPlaying) {
+                            RoundedPauseIcon(
+                                modifier = Modifier.size(24.dp),
+                                tint = Color.White
+                            )
+                        } else {
+                            RoundedPlayIcon(
+                                modifier = Modifier.size(24.dp),
                                 tint = Color.White
                             )
                         }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = onNext
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        RoundedSkipNextIcon(
+                            modifier = Modifier.size(20.dp),
+                            tint = Color.White
+                        )
                     }
                 }
             }

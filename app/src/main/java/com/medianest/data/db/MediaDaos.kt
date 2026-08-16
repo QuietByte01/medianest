@@ -67,11 +67,11 @@ interface PlaybackStateDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun savePlaybackState(state: PlaybackState)
 
-    @Query("SELECT * FROM playback_states ORDER BY lastPlayedAt DESC LIMIT 100")
-    fun getRecentlyPlayed(): Flow<List<PlaybackState>>
+    @Query("SELECT * FROM playback_states WHERE (:type IS NULL OR mediaType = :type) ORDER BY lastPlayedAt DESC LIMIT 100")
+    fun getRecentlyPlayed(type: String? = null): Flow<List<PlaybackState>>
 
-    @Query("SELECT * FROM playback_states WHERE playCount > 0 ORDER BY playCount DESC, lastPlayedAt DESC LIMIT 100")
-    fun getMostPlayed(): Flow<List<PlaybackState>>
+    @Query("SELECT * FROM playback_states WHERE (:type IS NULL OR mediaType = :type) AND playCount > 0 ORDER BY playCount DESC, lastPlayedAt DESC LIMIT 100")
+    fun getMostPlayed(type: String? = null): Flow<List<PlaybackState>>
 
     @Query("DELETE FROM playback_states")
     suspend fun clearAllHistory()

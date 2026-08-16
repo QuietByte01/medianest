@@ -51,29 +51,6 @@ fun ImagesMainGrid(
     gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState()
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        if (viewMode == 1 && selectedFolder != null) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { onSelectedFolderChange(null) }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to folders")
-                }
-                Text(
-                    text = selectedFolder.substringAfterLast('/'),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "${images.size} items",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
 
         if (isLoading && images.isEmpty()) {
             Box(

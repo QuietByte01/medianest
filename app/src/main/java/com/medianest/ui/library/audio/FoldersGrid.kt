@@ -109,16 +109,16 @@ fun FoldersGrid(
         val comp = when (sortField) {
             "Name" -> compareBy<String> { it.lowercase() }
             "Date Added" -> compareBy<String> { folderName ->
-                folderMap[folderName]?.maxByOrNull { it.dateAdded }?.dateAdded ?: 0L
+                folderMap[folderName]?.maxOfOrNull { maxOf(it.dateAdded, it.dateCreated) } ?: 0L
+            }
+            "Size" -> compareBy<String> { folderName ->
+                folderMap[folderName]?.sumOf { it.size } ?: 0L
             }
             else -> compareBy<String> { it.lowercase() }
         }
         
-        val sorted = if (isAscending) keys.sortedWith(comp) else keys.sortedWith(comp).reversed()
-        
-        // Secondary sort to keep hidden folders at bottom/top if relevant, 
-        // but here we just follow the requested sort field.
-        sorted
+        val baseSorted = if (isAscending) keys.sortedWith(comp) else keys.sortedWith(comp).reversed()
+        baseSorted.sortedBy { fn -> isFolderHidden(fn, folderMap[fn]) && !showAllFoldersMode }
     }
 
     var selectedFolder by remember(initialSelectedFolder) {

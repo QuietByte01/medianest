@@ -58,8 +58,14 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -92,8 +98,8 @@ enum class VisualizerStyle {
     ENERGY_PARTICLES;
 
     fun is3D(): Boolean = this == INDIGO_HYPERSPACE ||
-                         this == PARTICLE_GLOBE_SPHERE ||
-                         this == WAVE_GRID_TERRAIN
+            this == PARTICLE_GLOBE_SPHERE ||
+            this == WAVE_GRID_TERRAIN
 }
 
 class VisualizerDataState(val numBands: Int = 256) {
@@ -105,7 +111,7 @@ class VisualizerDataState(val numBands: Int = 256) {
     var midEnergy = 0f
     var trebleEnergy = 0f
     var overallAmplitude = 0f
-    var artBaseHue = 210f
+    val artBaseHue = mutableFloatStateOf(210f)
 }
 
 suspend fun extractBaseHueFromArt(context: Context, artUri: Uri): Float? {
@@ -117,6 +123,7 @@ suspend fun extractBaseHueFromArt(context: Context, artUri: Uri): Float? {
                 .size(64, 64)
                 .allowHardware(false)
                 .build()
+
             val drawable = (loader.execute(request) as? SuccessResult)?.drawable
             val bitmap = (drawable as? BitmapDrawable)?.bitmap ?: return@withContext null
 
@@ -127,24 +134,37 @@ suspend fun extractBaseHueFromArt(context: Context, artUri: Uri): Float? {
 
             val hsv = FloatArray(3)
             val hueBins = FloatArray(12)
+            val hueSums = FloatArray(12) // Tracks the exact hues for averaging
             var count = 0
 
             for (pixel in pixels) {
                 val r = (pixel shr 16) and 0xFF
                 val g = (pixel shr 8) and 0xFF
                 val b = pixel and 0xFF
+
                 android.graphics.Color.RGBToHSV(r, g, b, hsv)
-                if (hsv[2] > 0.12f && (hsv[1] > 0.12f || hsv[2] < 0.88f)) {
-                    val bin = ((hsv[0] / 30f).toInt()) % 12
-                    hueBins[bin] += (hsv[1] * hsv[2]) + 0.1f
+
+                val hue = hsv[0]
+                val sat = hsv[1]
+                val value = hsv[2]
+
+                // STRICT FILTER: Ignore darks (<15% brightness) and neutrals (<15% saturation)
+                if (value > 0.15f && sat > 0.15f) {
+                    val bin = ((hue / 30f).toInt()) % 12
+                    val weight = (sat * value) + 0.1f
+
+                    hueBins[bin] += weight
+                    hueSums[bin] += hue * weight // Weight the exact hue
                     count++
                 }
             }
 
+            // If the image was entirely black/white/gray, return null
             if (count == 0) return@withContext null
 
             var bestBin = 0
             var maxWeight = -1f
+
             for (i in 0 until 12) {
                 if (hueBins[i] > maxWeight) {
                     maxWeight = hueBins[i]
@@ -152,8 +172,15 @@ suspend fun extractBaseHueFromArt(context: Context, artUri: Uri): Float? {
                 }
             }
 
-            bestBin * 30f + 15f
-        } catch (_: Exception) { null }
+            // RETURN OPTION 1: The exact weighted average hue of the dominant color
+            return@withContext hueSums[bestBin] / hueBins[bestBin]
+
+            // RETURN OPTION 2: If you prefer the 12 "locked" colors, use your original return:
+            // return@withContext bestBin * 30f + 15f
+
+        } catch (_: Exception) {
+            null
+        }
     }
 }
 
@@ -190,7 +217,7 @@ class AudioVisualizerGLSurfaceView(
         renderer.updateAudio(bassEnergy, midEnergy, trebleEnergy, amplitude, timeSec, bands)
         renderer.updatePeakCaps(peakCaps)
         canvasView.updateAudio(bassEnergy, midEnergy, trebleEnergy, amplitude, timeSec, bands, artBaseHue, renderer.currentPeakCaps())
-        
+
         val currentStyle = styleProvider()
         if (currentStyle != lastStyle) {
             updateMode(currentStyle)
@@ -383,6 +410,30 @@ private class AudioVisualizer2DView(context: Context) : View(context) {
         }
     }
 
+    // Helper to generate the smooth synthetic sine-wave envelope (the "paused" look)
+    private fun getSyntheticWave(index: Int): Float {
+        val freq = 1.1f + index * 0.045f
+        val phase = index * 0.38f
+        val raw = kotlin.math.sin((timeSec * freq + phase).toDouble()).toFloat() * 0.5f + 0.5f
+        return raw * (0.15f + 0.25f * kotlin.math.abs(kotlin.math.sin((timeSec * 0.35f + index * 0.12f).toDouble()).toFloat()))
+    }
+
+    // New function specifically for Bars, Dots, and Wave to give them the
+    // smooth "paused" wavy look but highly reactive to live music.
+    private fun wavyReactBand(index: Int): Float {
+        val real = boostedBand(index)
+        val synthetic = getSyntheticWave(index)
+
+        return if (real > 0.005f) {
+            // Modulate the smooth synthetic wave with the real audio data.
+            // It uses the curvy shape of the synthetic wave as a base envelope,
+            // but scales its height and intensity dynamically with the live music.
+            (synthetic * (0.5f + real * 2.5f) + (real * 0.15f)).coerceIn(0f, 1f)
+        } else {
+            synthetic
+        }
+    }
+
     private fun drawBars(c: Canvas, s: Float) {
         val spacing = 4f
         val barW = (s - spacing * 31f) / 32f
@@ -390,7 +441,8 @@ private class AudioVisualizer2DView(context: Context) : View(context) {
 
         for (i in 0 until 32) {
             val idx = (i * 8).coerceIn(0, 255)
-            val v = activeBand(idx)
+            // Uses the new blended wavy band for the beautiful rolling bar shape
+            val v = wavyReactBand(idx)
             val barH = maxOf(4f, s * v * 0.88f)
             val x = i * (barW + spacing)
             val top = s - barH
@@ -410,12 +462,7 @@ private class AudioVisualizer2DView(context: Context) : View(context) {
             c.drawRoundRect(RectF(x, top, x + barW, s), barW / 2f, barW / 2f, fillPaint)
             fillPaint.shader = null
 
-            val peak = peaks[idx].coerceIn(0f, 1f)
-            if (peak > 0.05f) {
-                val py = maxOf(0f, s - s * peak * 0.88f)
-                fillPaint.color = android.graphics.Color.WHITE
-                c.drawCircle(x + barW / 2f, py, barW / 2f, fillPaint)
-            }
+            // Note: Bouncing peak dots have been intentionally removed from here.
         }
     }
 
@@ -450,6 +497,7 @@ private class AudioVisualizer2DView(context: Context) : View(context) {
 
         for (i in 0 until totalSpikes) {
             val bandIdx = if (i < 32) i else (63 - i)
+            // Left unchanged as requested (Ring remains pure FFT shape)
             val mag = activeBand(bandIdx)
             val angle = i * angleStep + rotationOffset
             val spikeLen = maxOf(3f, mag * 50f)
@@ -483,7 +531,8 @@ private class AudioVisualizer2DView(context: Context) : View(context) {
         val dx = s / 31f
         val pts = Array(32) { i ->
             val idx = (i * 4).coerceIn(0, 255)
-            val amp = maxOf(2f, activeBand(idx) * (s * 0.4f))
+            // Uses the new blended wavy band
+            val amp = maxOf(2f, wavyReactBand(idx) * (s * 0.4f))
             android.graphics.PointF(i * dx, if (i % 2 == 0) cy - amp else cy + amp)
         }
 
@@ -531,7 +580,8 @@ private class AudioVisualizer2DView(context: Context) : View(context) {
         val bw = s / cols
         val bh = s / rows
         for (i in 0 until cols) {
-            val fft = activeBand(((i / cols.toFloat()) * 256f).toInt().coerceIn(0, 255))
+            // Uses the new blended wavy band for the flowing dotted wave look
+            val fft = wavyReactBand(((i / cols.toFloat()) * 256f).toInt().coerceIn(0, 255))
             val activeRows = (fft * rows + bass * 2f).toInt().coerceIn(0, rows)
             fillPaint.color = rgba(hue + i * 2f, 80f, 60f, 1f)
             for (j in 0 until activeRows) {
@@ -834,7 +884,7 @@ fun AudioVisualizer(
 
     LaunchedEffect(style) { internalStyle = style }
     LaunchedEffect(albumArtUri) {
-        state.artBaseHue = albumArtUri?.let { extractBaseHueFromArt(context, it) ?: 210f } ?: 210f
+        state.artBaseHue.floatValue = albumArtUri?.let { extractBaseHueFromArt(context, it) ?: 210f } ?: 210f
     }
 
     val cycleToNextStyle = {
@@ -895,8 +945,6 @@ fun AudioVisualizer(
         onDispose { try { androidVisualizer?.enabled = false; androidVisualizer?.release() } catch (_: Exception) {} }
     }
 
-    var lastNanos by remember { mutableFloatStateOf(0f) }
-
     LaunchedEffect(Unit) {
         while (true) {
             withFrameNanos { frameNanos ->
@@ -954,17 +1002,14 @@ fun AudioVisualizer(
                     state.overallAmplitude,
                     nowSeconds,
                     state.smoothedBands,
-                    state.artBaseHue,
+                    state.artBaseHue.floatValue,
                     state.peakCaps
                 )
-                lastNanos = frameNanos.toFloat()
             }
         }
     }
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        val animNanos = lastNanos
-
         AndroidView(
             factory = { ctx ->
                 AudioVisualizerGLSurfaceView(ctx) { internalStyle }.also { view ->
@@ -987,6 +1032,8 @@ fun AudioVisualizer(
             StyleSelectorBar(
                 currentStyle = internalStyle,
                 onSelectStyle = { internalStyle = it; onStyleChange?.invoke(it) },
+                isFullscreen = isFullscreen,
+                hue = state.artBaseHue.floatValue,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp).zIndex(2f)
             )
         }
@@ -994,7 +1041,13 @@ fun AudioVisualizer(
 }
 
 @Composable
-fun StyleSelectorBar(currentStyle: VisualizerStyle, onSelectStyle: (VisualizerStyle) -> Unit, modifier: Modifier = Modifier) {
+fun StyleSelectorBar(
+    currentStyle: VisualizerStyle,
+    onSelectStyle: (VisualizerStyle) -> Unit,
+    isFullscreen: Boolean = false,
+    hue: Float = 210f,
+    modifier: Modifier = Modifier
+) {
     val styles = listOf(
         Triple(VisualizerStyle.GLOSSY_SPECTRUM_BARS,  Icons.Default.BarChart, "Bars"),
         Triple(VisualizerStyle.CIRCULAR_RING_WAVE,    Icons.Default.Lens,     "Ring"),
@@ -1025,10 +1078,10 @@ fun StyleSelectorBar(currentStyle: VisualizerStyle, onSelectStyle: (VisualizerSt
     LazyRow(
         state = listState,
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
         // Equal padding on both sides so the first/last items can be centered
-        contentPadding = PaddingValues(horizontal = 120.dp)
+        contentPadding = PaddingValues(horizontal = 16.dp)
     ) {
         items(styles.size) { idx ->
             val (styleVal, icon, label) = styles[idx]
@@ -1037,6 +1090,8 @@ fun StyleSelectorBar(currentStyle: VisualizerStyle, onSelectStyle: (VisualizerSt
                 icon = icon,
                 label = label,
                 isSelected = isSelected,
+                isFullscreen = isFullscreen,
+                hue = hue,
                 onClick = {
                     onSelectStyle(styleVal)
                     scope.launch {
@@ -1052,11 +1107,27 @@ fun StyleSelectorBar(currentStyle: VisualizerStyle, onSelectStyle: (VisualizerSt
 }
 
 @Composable
-private fun VisualizerStyleItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, isSelected: Boolean, onClick: () -> Unit) {
+private fun VisualizerStyleItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    isSelected: Boolean,
+    isFullscreen: Boolean,
+    hue: Float,
+    onClick: () -> Unit
+) {
+    val brush = remember(hue) {
+        Brush.linearGradient(
+            colors = listOf(
+                Color.hsv(hue, 0.8f, 1f),
+                Color.hsv((hue + 40f) % 360f, 0.7f, 1f)
+            )
+        )
+    }
+
     Box(
         modifier = Modifier
             .clip(CircleShape)
-            .background(if (isSelected) Color(0x55FFFFFF) else Color.Transparent)
+            .background(if (isSelected && !isFullscreen) Color(0x55FFFFFF) else Color.Transparent)
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
@@ -1066,10 +1137,25 @@ private fun VisualizerStyleItem(icon: androidx.compose.ui.graphics.vector.ImageV
                 imageVector = icon,
                 contentDescription = label,
                 tint = Color.White,
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier
+                    .size(16.dp)
+                    .then(
+                        if (isSelected) {
+                            Modifier
+                                .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                                .drawWithContent {
+                                    drawContent()
+                                    drawRect(brush = brush, blendMode = BlendMode.SrcIn)
+                                }
+                        } else Modifier
+                    )
             )
             if (isSelected) {
-                Text(text = label, fontSize = 12.sp, color = Color.White)
+                Text(
+                    text = label,
+                    fontSize = 12.sp,
+                    style = TextStyle(brush = brush)
+                )
             }
         }
     }

@@ -77,7 +77,8 @@ data class PlayerState(
     val isDolbyEnabled: Boolean = false,
     val pitchSemitones: Int = 0,
     val isVocalMuteEnabled: Boolean = false,
-    val isLoudnessNormalizerEnabled: Boolean = false
+    val isLoudnessNormalizerEnabled: Boolean = false,
+    val isSystemVolumeMaxed: Boolean = false
 )
 
 @OptIn(UnstableApi::class)
@@ -157,6 +158,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
 
         setupTelephonyListener()
         setupBluetoothReceiver()
+        setupVolumeReceiver()
 
         scope.launch {
             while (isActive) {
@@ -167,9 +169,17 @@ class ExoPlayerManager private constructor(private val context: Context) {
                     // This ensures the correct (non-zero) session ID is always exposed
                     // to AudioVisualizer, which requires it on Android 11+.
                     val liveSessionId = (engine as? Media3PlaybackEngine)?.player?.audioSessionId ?: 0
+                    
+                    val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                    val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                    val isMaxed = currentVol >= maxVol
+
+                    val newPos = engine.currentPositionMs
+                    val newDur = engine.durationMs
+                    
                     _playerState.value = _playerState.value.copy(
-                        currentPositionMs = engine.currentPositionMs,
-                        durationMs = engine.durationMs,
+                        currentPositionMs = newPos,
+                        durationMs = newDur,
                         isPlaying = engine.isPlaying,
                         droppedFrames = diag.droppedFrames,
                         audioDecodeErrors = diag.audioDecodeErrors,
@@ -179,10 +189,40 @@ class ExoPlayerManager private constructor(private val context: Context) {
                         audioCodec = diag.audioCodec,
                         activeDecoderName = diag.decoderName,
                         isHardwareAccelerated = diag.isHardwareAccelerated,
-                        audioSessionId = if (liveSessionId != 0 && liveSessionId != C.AUDIO_SESSION_ID_UNSET) liveSessionId else _playerState.value.audioSessionId
+                        audioSessionId = if (liveSessionId != 0 && liveSessionId != C.AUDIO_SESSION_ID_UNSET) liveSessionId else _playerState.value.audioSessionId,
+                        isSystemVolumeMaxed = isMaxed
                     )
+
+                    // Periodically save progress to DB (every ~5 seconds)
+                    if (engine.isPlaying && System.currentTimeMillis() % 5000 < 200) {
+                        savePlaybackProgress()
+                    }
                 }
                 delay(200)
+            }
+        }
+    }
+
+    private fun savePlaybackProgress() {
+        val state = _playerState.value
+        val item = state.currentItem ?: return
+        val db = com.medianest.MediaNestApp.instance.database
+        
+        scope.launch(Dispatchers.IO) {
+            try {
+                val existing = db.playbackStateDao().getPlaybackState(item.uri.toString())
+                val newState = com.medianest.data.db.PlaybackState(
+                    mediaUri = item.uri.toString(),
+                    mediaType = item.type.name,
+                    positionMs = state.currentPositionMs,
+                    durationMs = state.durationMs,
+                    lastPlayedAt = System.currentTimeMillis(),
+                    playbackSpeed = state.playbackSpeed,
+                    playCount = (existing?.playCount ?: 0) + (if (state.currentPositionMs < 1000) 1 else 0) // Basic play count increment
+                )
+                db.playbackStateDao().savePlaybackState(newState)
+            } catch (e: Exception) {
+                Log.e("ExoPlayerManager", "Failed to save playback progress", e)
             }
         }
     }
@@ -274,6 +314,11 @@ class ExoPlayerManager private constructor(private val context: Context) {
                 // receives a valid (non-zero) session ID on Android 11+.
                 if (audioSessionId != 0 && audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
                     _playerState.value = _playerState.value.copy(audioSessionId = audioSessionId)
+                }
+            }
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) {
+                    onEnginePlaybackEnded()
                 }
             }
         })
@@ -371,6 +416,29 @@ class ExoPlayerManager private constructor(private val context: Context) {
             val filter = IntentFilter(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) context.registerReceiver(bluetoothReceiver, filter, Context.RECEIVER_EXPORTED)
             else context.registerReceiver(bluetoothReceiver, filter)
+        } catch (_: Exception) {}
+    }
+
+    private val volumeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == "android.media.VOLUME_CHANGED_ACTION") {
+                val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                val isMaxed = currentVol >= maxVol
+                _playerState.value = _playerState.value.copy(isSystemVolumeMaxed = isMaxed)
+                
+                // Reset Super Volume Boost if volume is lowered
+                if (!isMaxed && _playerState.value.volumeBoostPercent > 0) {
+                    setVolumeBoost(0)
+                }
+            }
+        }
+    }
+
+    private fun setupVolumeReceiver() {
+        try {
+            val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION")
+            context.registerReceiver(volumeReceiver, filter)
         } catch (_: Exception) {}
     }
 
@@ -480,6 +548,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
 
     fun pause() {
         activeEngine?.pause()
+        savePlaybackProgress()
         abandonAudioFocus()
         // State is confirmed by the 200ms polling loop
     }

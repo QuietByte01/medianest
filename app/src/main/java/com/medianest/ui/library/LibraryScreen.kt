@@ -145,37 +145,45 @@ fun LibraryScreen(
             audioList = audioList
         )
 
+        val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+        val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
         Scaffold(
             containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0), // Eliminate automatic padding
             topBar = {
-                LibraryTopBar(
-                    searchQuery = searchQuery,
-                    onSearchQueryChange = { searchQuery = it },
-                    isSearchActive = isSearchActive,
-                    onSearchActiveChange = { isSearchActive = it },
-                    isDashboardTab = isDashboardTab,
-                    isImagesTab = isImagesTab,
-                    isVideosTab = isVideosTab,
-                    isAudioTab = isAudioTab,
-                    onOpenSettings = onOpenSettings
-                )
+                if (!isLandscape) {
+                    LibraryTopBar(
+                        searchQuery = searchQuery,
+                        onSearchQueryChange = { searchQuery = it },
+                        isSearchActive = isSearchActive,
+                        onSearchActiveChange = { isSearchActive = it },
+                        isDashboardTab = isDashboardTab,
+                        isImagesTab = isImagesTab,
+                        isVideosTab = isVideosTab,
+                        isAudioTab = isAudioTab,
+                        onOpenSettings = onOpenSettings
+                    )
+                }
             },
             bottomBar = {
-                LibraryBottomBar(
-                    currentTab = currentTab,
-                    onTabSelected = { currentTab = it },
-                    enableAnalyticsTab = enableAnalyticsTab,
-                    isAudioTab = isAudioTab,
-                    playerState = playerState,
-                    exoPlayerManager = exoPlayerManager,
-                    onOpenAudioPlayer = onOpenAudioPlayer
-                )
+                if (!isLandscape) {
+                    LibraryBottomBar(
+                        currentTab = currentTab,
+                        onTabSelected = { currentTab = it },
+                        enableAnalyticsTab = enableAnalyticsTab,
+                        isAudioTab = isAudioTab,
+                        playerState = playerState,
+                        exoPlayerManager = exoPlayerManager,
+                        onOpenAudioPlayer = onOpenAudioPlayer
+                    )
+                }
             }
         ) { innerPadding ->
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
+                    .then(if (isLandscape) Modifier else Modifier.padding(innerPadding))
             ) {
                 when {
                     isDashboardTab -> AnalyticsScreen(

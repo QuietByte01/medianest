@@ -26,11 +26,11 @@ fun AppSwitch(
     style: AppSwitchStyle = AppSwitchStyle.Solid,
     accentColor: Color = Color(0xFF6366F1),
     checkedThumbColor: Color = Color.White,
-    checkedTrackColor: Color = if (style == AppSwitchStyle.Glossy) accentColor.copy(alpha = 0.5f) else accentColor,
-    uncheckedThumbColor: Color = Color(0xFF717D96),
-    uncheckedTrackColor: Color = if (style == AppSwitchStyle.Glossy) Color(0x1AFFFFFF) else Color(0x3D2D3748),
-    checkedBorderColor: Color = if (style == AppSwitchStyle.Glossy) accentColor else Color.Transparent,
-    uncheckedBorderColor: Color = if (style == AppSwitchStyle.Glossy) Color(0x33FFFFFF) else Color.Transparent
+    checkedTrackColor: Color = if (style == AppSwitchStyle.Glossy) accentColor.copy(alpha = 0.4f) else accentColor,
+    uncheckedThumbColor: Color = if (style == AppSwitchStyle.Glossy) Color.White.copy(alpha = 0.6f) else Color(0xFF717D96),
+    uncheckedTrackColor: Color = if (style == AppSwitchStyle.Glossy) Color.White.copy(alpha = 0.08f) else Color(0x3D2D3748),
+    checkedBorderColor: Color = if (style == AppSwitchStyle.Glossy) accentColor.copy(alpha = 0.5f) else Color.Transparent,
+    uncheckedBorderColor: Color = if (style == AppSwitchStyle.Glossy) Color.White.copy(alpha = 0.15f) else Color.Transparent
 ) {
     Switch(
         checked = checked,
