@@ -42,6 +42,9 @@ import androidx.compose.material.icons.filled.Edit
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.launch
 
+import androidx.compose.ui.platform.LocalConfiguration
+import coil.size.Precision
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun MediaGridItem(
@@ -63,6 +66,9 @@ fun MediaGridItem(
     showInGallery: Boolean = false
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp >= 600
+
     var showMenu by remember { mutableStateOf(false) }
     var dynamicRatio by remember(item.id, item.width, item.height) {
         mutableFloatStateOf(item.aspectRatio.coerceIn(0.45f, 2.2f))
@@ -100,10 +106,22 @@ fun MediaGridItem(
         shape = itemShape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        val imageRequest = remember(item.uri, item.type, item.durationMs, context) {
+        val imageRequest = remember(item.uri, item.type, item.durationMs, context, item.size, item.dateAdded, isTablet) {
             val builder = ImageRequest.Builder(context)
                 .data(item.uri)
+                // Use size and date in cache keys for instant invalidation if file changes
+                .diskCacheKey("${item.uri}_${item.size}_${item.dateAdded}")
+                .memoryCacheKey("${item.uri}_${item.size}_${item.dateAdded}")
                 .crossfade(true)
+                .placeholder(com.medianest.R.drawable.ic_launcher_foreground) // Use a subtle app-themed placeholder
+                .precision(Precision.INEXACT)
+
+            if (isTablet) {
+                builder.size(600)
+            } else {
+                builder.size(400)
+            }
+
             if (item.type == com.medianest.data.db.MediaType.VIDEO) {
                 builder.decoderFactory(VideoFrameDecoder.Factory())
                 val seekMicros = if (item.durationMs > 5000) 2_000_000L else if (item.durationMs > 2000) 1_000_000L else 0L
