@@ -1,14 +1,9 @@
 package com.medianest.ui.components
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -18,6 +13,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -184,31 +181,39 @@ fun AppPillButton(
     accentColor: Color = Color(0xFF38BDF8),
     cornerRadius: Dp = 14.dp
 ) {
-    val bgColor = if (isSelected) {
-        accentColor.copy(alpha = if (style == AppButtonStyle.Solid) 0.9f else 0.25f)
-    } else {
-        Color(0x14FFFFFF)
-    }
-    
-    val borderColor = if (isSelected) {
-        accentColor
-    } else {
-        Color(0x22FFFFFF)
-    }
+    val bgAlpha = if (isSelected) (if (style == AppButtonStyle.Solid) 0.9f else 0.35f) else 0.15f
+    val finalBgBrush = Brush.verticalGradient(
+        colors = listOf(
+            accentColor.copy(alpha = bgAlpha),
+            accentColor.copy(alpha = bgAlpha * 0.6f)
+        )
+    )
+
+    val finalBorderBrush = Brush.verticalGradient(
+        colors = listOf(
+            (if (isSelected) accentColor else Color.White).copy(alpha = 0.5f),
+            (if (isSelected) accentColor else Color.White).copy(alpha = 0.2f)
+        )
+    )
     
     val textColor = if (isSelected) {
-        if (style == AppButtonStyle.Solid) Color.Black else accentColor
+        if (style == AppButtonStyle.Solid) Color.Black else Color.White
     } else {
-        Color.White.copy(alpha = 0.85f)
+        Color.White.copy(alpha = 0.75f)
     }
 
     Surface(
         onClick = onClick,
         enabled = enabled,
         shape = RoundedCornerShape(cornerRadius),
-        color = bgColor,
-        border = BorderStroke(if (isSelected) 1.0.dp else 0.5.dp, borderColor),
-        modifier = modifier
+        color = Color.Transparent,
+        modifier = modifier.clip(RoundedCornerShape(cornerRadius))
+            .background(finalBgBrush)
+            .border(
+                width = if (isSelected) 1.2.dp else 0.8.dp,
+                brush = finalBorderBrush,
+                shape = RoundedCornerShape(cornerRadius)
+            )
     ) {
         Row(
             modifier = Modifier

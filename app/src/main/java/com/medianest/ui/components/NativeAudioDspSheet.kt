@@ -1,7 +1,7 @@
 package com.medianest.ui.components
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -239,19 +240,27 @@ private fun EqBandSlider(
 
 @Composable
 private fun EngineStatusBadge(engine: String) {
-    Surface(
-        color = if (engine == "FFmpeg") Color(0x33F59E0B) else Color(0x1A10B981),
-        shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(0.5.dp, if (engine == "FFmpeg") Color(0xFFF59E0B).copy(alpha = 0.4f) else Color(0xFF10B981).copy(alpha = 0.4f))
+    val isFFmpeg = engine == "FFmpeg"
+    val accentColor = if (isFFmpeg) Color(0xFFF59E0B) else Color(0xFF10B981)
+    
+    val bgBrush = Brush.verticalGradient(
+        colors = listOf(
+            accentColor.copy(alpha = 0.25f),
+            accentColor.copy(alpha = 0.10f)
+        )
+    )
+    
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(bgBrush)
+            .border(0.5.dp, accentColor.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(if (engine == "FFmpeg") Color(0xFFF59E0B) else Color(0xFF10B981)))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(accentColor))
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Active Processing Engine: $engine",

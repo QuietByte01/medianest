@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -106,12 +107,33 @@ fun AppVerticalSlider(
             val trackCornerRadius = CornerRadius(trackWidthPx / 2f, trackWidthPx / 2f)
 
             // 1. Draw Inactive Background Track (Dead Center)
-            drawRoundRect(
-                color = inactiveTrackColor,
-                topLeft = Offset(centerX - trackWidthPx / 2f, trackTop),
-                size = Size(trackWidthPx, usableHeight),
-                cornerRadius = trackCornerRadius
-            )
+            if (style == AppSliderStyle.Glossy) {
+                drawRoundRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            inactiveTrackColor.copy(alpha = 0.25f),
+                            inactiveTrackColor.copy(alpha = 0.1f)
+                        )
+                    ),
+                    topLeft = Offset(centerX - trackWidthPx / 2f, trackTop),
+                    size = Size(trackWidthPx, usableHeight),
+                    cornerRadius = trackCornerRadius
+                )
+                drawRoundRect(
+                    color = Color.White.copy(alpha = 0.15f),
+                    topLeft = Offset(centerX - trackWidthPx / 2f, trackTop),
+                    size = Size(trackWidthPx, usableHeight),
+                    cornerRadius = trackCornerRadius,
+                    style = Stroke(width = 0.5.dp.toPx())
+                )
+            } else {
+                drawRoundRect(
+                    color = inactiveTrackColor,
+                    topLeft = Offset(centerX - trackWidthPx / 2f, trackTop),
+                    size = Size(trackWidthPx, usableHeight),
+                    cornerRadius = trackCornerRadius
+                )
+            }
 
             // 2. Compute Thumb Center Y
             val clampedValue = value.coerceIn(minVal, maxVal)
@@ -128,12 +150,26 @@ fun AppVerticalSlider(
                 val activeHeight = kotlin.math.abs(thumbY - zeroY).coerceAtLeast(0f)
 
                 if (activeHeight > 0f) {
-                    drawRoundRect(
-                        color = activeTrackColor,
-                        topLeft = Offset(centerX - trackWidthPx / 2f, activeTop),
-                        size = Size(trackWidthPx, activeHeight),
-                        cornerRadius = trackCornerRadius
-                    )
+                    if (style == AppSliderStyle.Glossy) {
+                        drawRoundRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    activeTrackColor,
+                                    activeTrackColor.copy(alpha = 0.7f)
+                                )
+                            ),
+                            topLeft = Offset(centerX - trackWidthPx / 2f, activeTop),
+                            size = Size(trackWidthPx, activeHeight),
+                            cornerRadius = trackCornerRadius
+                        )
+                    } else {
+                        drawRoundRect(
+                            color = activeTrackColor,
+                            topLeft = Offset(centerX - trackWidthPx / 2f, activeTop),
+                            size = Size(trackWidthPx, activeHeight),
+                            cornerRadius = trackCornerRadius
+                        )
+                    }
                 }
 
                 // Subtle zero dB center tick
@@ -147,12 +183,26 @@ fun AppVerticalSlider(
                 // Bottom-to-thumb mode
                 val activeHeight = (trackBottom - thumbY).coerceAtLeast(0f)
                 if (activeHeight > 0f) {
-                    drawRoundRect(
-                        color = activeTrackColor,
-                        topLeft = Offset(centerX - trackWidthPx / 2f, thumbY),
-                        size = Size(trackWidthPx, activeHeight),
-                        cornerRadius = trackCornerRadius
-                    )
+                    if (style == AppSliderStyle.Glossy) {
+                        drawRoundRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    activeTrackColor,
+                                    activeTrackColor.copy(alpha = 0.7f)
+                                )
+                            ),
+                            topLeft = Offset(centerX - trackWidthPx / 2f, thumbY),
+                            size = Size(trackWidthPx, activeHeight),
+                            cornerRadius = trackCornerRadius
+                        )
+                    } else {
+                        drawRoundRect(
+                            color = activeTrackColor,
+                            topLeft = Offset(centerX - trackWidthPx / 2f, thumbY),
+                            size = Size(trackWidthPx, activeHeight),
+                            cornerRadius = trackCornerRadius
+                        )
+                    }
                 }
             }
 

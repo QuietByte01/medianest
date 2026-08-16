@@ -199,32 +199,33 @@ fun LibraryScreen(
                         searchQuery = searchQuery
                     )
 
-                    isImagesTab -> ImagesTab(
-                        imagesList = filteredImages,
-                        imageCollections = imageCollections,
-                        categoryCrossRefs = categoryCrossRefs,
-                        selectedUris = selectedUris,
-                        isSelectionMode = isSelectionMode,
-                        gridGapDp = gridGapDp,
-                        gridSizeLevel = gridSizeLevel,
-                        cornerRadiusDp = cornerRadiusDp,
-                        roundedCornersEnabled = roundedCornersEnabled,
-                        isLoading = isLoading,
-                        onCreateCollection = onCreateImageCollection,
-                        onUpdateCollection = onUpdateImageCollection,
-                        onDeleteCollection = onDeleteImageCollection,
-                        onImageClick = { item, currentList ->
-                            if (isSelectionMode) {
-                                val uriStr = item.uri.toString()
-                                selectedUris = if (selectedUris.contains(uriStr)) selectedUris - uriStr else selectedUris + uriStr
-                            } else {
-                                onOpenQuickView(item, currentList)
-                            }
-                        },
-                        onImageLongClick = { item ->
-                            selectedUris = selectedUris + item.uri.toString()
-                        }
-                    )
+                        isImagesTab -> ImagesTab(
+                            imagesList = filteredImages,
+                            imageCollections = imageCollections,
+                            categoryCrossRefs = categoryCrossRefs,
+                            selectedUris = selectedUris,
+                            isSelectionMode = isSelectionMode,
+                            gridGapDp = gridGapDp,
+                            gridSizeLevel = gridSizeLevel,
+                            cornerRadiusDp = cornerRadiusDp,
+                            roundedCornersEnabled = roundedCornersEnabled,
+                            isLoading = isLoading,
+                            onCreateCollection = onCreateImageCollection,
+                            onUpdateCollection = onUpdateImageCollection,
+                            onDeleteCollection = onDeleteImageCollection,
+                            onImageClick = { item, currentList ->
+                                if (isSelectionMode) {
+                                    val uriStr = item.uri.toString()
+                                    selectedUris = if (selectedUris.contains(uriStr)) selectedUris - uriStr else selectedUris + uriStr
+                                } else {
+                                    onOpenQuickView(item, currentList)
+                                }
+                            },
+                            onImageLongClick = { item ->
+                                selectedUris = selectedUris + item.uri.toString()
+                            },
+                            onBackToDashboard = { currentTab = 0 }
+                        )
 
                     isVideosTab -> VideosTab(
                         videosList = filteredVideos,
@@ -253,7 +254,8 @@ fun LibraryScreen(
                         showAddVideosDialog = showAddVideosToCategoryModal,
                         onDismissAddVideosDialog = { showAddVideosToCategoryModal = false },
                         onClearSelection = { selectedUris = emptySet() },
-                        initialFolder = initialVideoFolder
+                        initialFolder = initialVideoFolder,
+                        onBackToDashboard = { currentTab = 0 }
                     )
 
                     isAudioTab -> AudioTab(
@@ -274,7 +276,8 @@ fun LibraryScreen(
                         initialSubTab = audioSubTab,
                         initialAlbum = audioAlbum,
                         initialArtist = audioArtist,
-                        initialFolder = audioFolder
+                        initialFolder = audioFolder,
+                        onBackToDashboard = { currentTab = 0 }
                     )
                 }
 

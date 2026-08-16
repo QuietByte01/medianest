@@ -119,7 +119,8 @@ fun VideosTab(
     showAddVideosDialog: Boolean = false,
     onDismissAddVideosDialog: () -> Unit = {},
     onClearSelection: () -> Unit = {},
-    initialFolder: String? = null
+    initialFolder: String? = null,
+    onBackToDashboard: () -> Unit = {}
 ) {
     val currentContext = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -326,7 +327,7 @@ fun VideosTab(
                 activeFilterTab == "SERIES" && selectedSeriesName != null -> ({ selectedSeriesName = null })
                 isFolderViewActive -> ({ isFolderViewActive = false })
                 activeFilterTab != "ALL" -> ({ activeFilterTab = "ALL" })
-                else -> null
+                else -> onBackToDashboard
             },
             backLabel = when {
                 isFolderViewActive && selectedFolder != null -> selectedFolder?.substringAfterLast('/')
@@ -335,7 +336,7 @@ fun VideosTab(
                 activeFilterTab == "SERIES" && selectedSeriesName != null -> selectedSeriesName
                 isFolderViewActive -> "All Videos"
                 activeFilterTab != "ALL" -> "All Videos"
-                else -> null
+                else -> "Dashboard"
             }
         )
 

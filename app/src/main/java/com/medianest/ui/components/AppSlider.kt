@@ -99,10 +99,19 @@ fun AppSlider(
             track = { sliderState ->
                 SliderDefaults.Track(
                     sliderState = sliderState,
-                    modifier = Modifier.height(resolvedTrackHeight),
+                    modifier = Modifier.height(resolvedTrackHeight)
+                        .then(
+                            if (style == AppSliderStyle.Glossy) {
+                                Modifier.border(BorderStroke(0.5.dp, Color.White.copy(alpha = 0.2f)), RoundedCornerShape(resolvedTrackHeight / 2))
+                            } else Modifier
+                        ),
                     colors = SliderDefaults.colors(
-                        activeTrackColor = activeTrackColor,
-                        inactiveTrackColor = inactiveTrackColor,
+                        activeTrackColor = if (style == AppSliderStyle.Glossy) {
+                            accentColor.copy(alpha = 0.85f)
+                        } else activeTrackColor,
+                        inactiveTrackColor = if (style == AppSliderStyle.Glossy) {
+                            Color.White.copy(alpha = 0.12f)
+                        } else inactiveTrackColor,
                         activeTickColor = activeTickColor,
                         inactiveTickColor = inactiveTickColor
                     )

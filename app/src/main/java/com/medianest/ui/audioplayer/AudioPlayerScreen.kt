@@ -66,11 +66,14 @@ fun AudioPlayerScreen(
     val showAudioVisualizer by settingsManager.showAudioVisualizer.collectAsState(initial = true)
 
     val configuration = LocalConfiguration.current
-    val isTablet = configuration.screenWidthDp >= 600
+    val isTablet = configuration.smallestScreenWidthDp >= 600
 
     val screenWidthDp = configuration.screenWidthDp
 
-    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val isDark = LocalDarkTheme.current
+    val isPhoneLandscape = isLandscape && !isTablet
+
     val baseArtSize = if (isTablet && !isLandscape) (screenWidthDp * 0.75f).coerceAtMost(620f).dp else if (isTablet) (screenWidthDp * 0.55f).coerceAtMost(520f).dp else (screenWidthDp - 80f).dp
 
     val albumArtSize by animateDpAsState(
@@ -114,6 +117,27 @@ fun AudioPlayerScreen(
             playerState.queue.filter {
                 it.album == currentItem.album || (currentItem.album == null && it.artist == currentItem.artist)
             }.ifEmpty { listOf(currentItem) }
+        }
+    }
+
+    val toggleFavoriteLambda = {
+        val item = currentItem
+        if (item != null) {
+            scope.launch {
+                val categories = db.categoryDao().getCategoriesByType("AUDIO").first()
+                var favCat = categories.find { it.name.equals("Favorites", ignoreCase = true) }
+                if (favCat == null) {
+                    val newId = db.categoryDao().insertCategory(
+                        MediaCategory(name = "Favorites", type = "AUDIO")
+                    )
+                    favCat = MediaCategory(id = newId, name = "Favorites", type = "AUDIO")
+                }
+                db.categoryDao().insertCategoryCrossRefs(
+                    listOf(CategoryMediaCrossRef(categoryId = favCat!!.id, mediaUri = item.uri.toString()))
+                )
+                isFavorite = !isFavorite
+                Toast.makeText(context, if (isFavorite) "Added to Favorites" else "Removed from Favorites", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -207,281 +231,248 @@ fun AudioPlayerScreen(
             .fillMaxSize()
             .background(playerBgBrush)
     ) {
-        val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        val isDark = LocalDarkTheme.current
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(horizontal = if (isLandscape) 16.dp else 20.dp, vertical = if (isLandscape) 8.dp else 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Top Bar
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        if (isPhoneLandscape) {
+            LandscapePlayerLayout(
+                playerState = playerState,
+                currentItem = currentItem,
+                playerManager = playerManager,
+                showLyricsView = showLyricsView,
+                showAudioVisualizer = showAudioVisualizer && !showFullscreenVisualizer,
+                showAlbumSongsInPanel = showAlbumSongsInPanel,
+                isLoadingLyrics = isLoadingLyrics,
+                lyricsLines = lyricsLines,
+                rawLyricsText = rawLyricsText,
+                activeLyricIndex = activeLyricIndex,
+                listState = listState,
+                isFavorite = isFavorite,
+                isTablet = isTablet,
+                albumSongs = albumSongs,
+                albumArtHue = albumArtHue,
+                isSeeking = isSeeking,
+                sliderPos = sliderPos,
+                onSeekChange = {
+                    sliderPos = it
+                    isSeeking = true
+                },
+                onSeekFinished = {
+                    isSeeking = false
+                    playerManager.seekTo(sliderPos.toLong())
+                },
+                onToggleShowLyrics = { showLyricsView = it },
+                onToggleAlbumSongsPanel = { showAlbumSongsInPanel = !showAlbumSongsInPanel },
+                onToggleFavorite = { toggleFavoriteLambda() },
+                onOpenAddPlaylist = { showAddAlbumToPlaylistDialog = true },
+                onEditLyrics = {
+                    manualLyricsInput = rawLyricsText ?: ""
+                    showManualLyricsDialog = true
+                },
+                onToggleVisualizer = {
+                    scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) }
+                },
+                onFullscreenVisualizerClick = { showFullscreenVisualizer = true },
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(
+                    start = if (isLandscape) 16.dp else 20.dp,
+                    end = if (isLandscape) 16.dp else 20.dp,
+                    top = if (isLandscape) 8.dp else 24.dp,
+                    bottom = if (isLandscape) 8.dp else 10.dp
+                ),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                /*
-                Surface(
-                    onClick = onClose,
-                    shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.12f),
-                    modifier = Modifier.size(42.dp)
+                // Top Bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = "Close",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
+                    IconButton(onClick = onClose, modifier = Modifier.size(42.dp)) {
+                        Icon(imageVector = Icons.Default.KeyboardArrowDown, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(24.dp))
                     }
-                }
-                */
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier.size(42.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Close",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
 
-                Text(
-                    text = "MediaNest Music",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                    Text(text = "MediaNest Music", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
 
-                Box {
-                    /*
-                    Surface(
-                        onClick = { showOverflowMenu = true },
-                        shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.12f),
-                        modifier = Modifier.size(42.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "More Options",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
+                    Box {
+                        IconButton(onClick = { showOverflowMenu = true }, modifier = Modifier.size(42.dp)) {
+                            Icon(imageVector = Icons.Default.MoreVert, contentDescription = "More Options", tint = Color.White, modifier = Modifier.size(20.dp))
                         }
-                    }
-                    */
-                    IconButton(
-                        onClick = { showOverflowMenu = true },
-                        modifier = Modifier.size(42.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "More Options",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    com.medianest.ui.components.GlassDropdownMenu(
-                        expanded = showOverflowMenu,
-                        onDismissRequest = { showOverflowMenu = false },
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                            DropdownMenuItem(
-                                text = { Text("Add to Playlist", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { Icon(Icons.Default.PlaylistAdd, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    showAddAlbumToPlaylistDialog = true
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    showDetailsSheet = true
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Edit Tag & Metadata", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    showMetadataModal = true
-                                }
-                            )
-                            if (currentItem != null) {
+                        com.medianest.ui.components.GlassDropdownMenu(
+                            expanded = showOverflowMenu,
+                            onDismissRequest = { showOverflowMenu = false },
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
                                 DropdownMenuItem(
-                                    text = { Text("Show Album", color = if (isDark) Color.White else Color.Black) },
-                                    leadingIcon = { Icon(Icons.Default.Album, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                    text = { Text("Add to Playlist", color = if (isDark) Color.White else Color.Black) },
+                                    leadingIcon = { Icon(Icons.Default.PlaylistAdd, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                                     onClick = {
                                         showOverflowMenu = false
-                                        onClose()
-                                        onOpenAlbum(currentItem.album ?: "Unknown Album")
+                                        showAddAlbumToPlaylistDialog = true
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Show Artist", color = if (isDark) Color.White else Color.Black) },
-                                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                    text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
+                                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                                     onClick = {
                                         showOverflowMenu = false
-                                        onClose()
-                                        onOpenArtist(currentItem.artist ?: "Unknown Artist")
+                                        showDetailsSheet = true
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Show In Folder", color = if (isDark) Color.White else Color.Black) },
-                                    leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                    text = { Text("Edit Tag & Metadata", color = if (isDark) Color.White else Color.Black) },
+                                    leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        showMetadataModal = true
+                                    }
+                                )
+                                if (currentItem != null) {
+                                    DropdownMenuItem(
+                                        text = { Text("Show Album", color = if (isDark) Color.White else Color.Black) },
+                                        leadingIcon = { Icon(Icons.Default.Album, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            onClose()
+                                            onOpenAlbum(currentItem.album ?: "Unknown Album")
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Show Artist", color = if (isDark) Color.White else Color.Black) },
+                                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            onClose()
+                                            onOpenArtist(currentItem.artist ?: "Unknown Artist")
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Show In Folder", color = if (isDark) Color.White else Color.Black) },
+                                        leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            onClose()
+                                            onOpenFolder(currentItem.bucketName ?: currentItem.relativePath ?: "Music")
+                                        }
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text("Native Audio DSP", color = if (isDark) Color.White else Color.Black) },
+                                    leadingIcon = { Icon(Icons.Default.Equalizer, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        showDspSheet = true
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Settings", color = if (isDark) Color.White else Color.Black) },
+                                    leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                                     onClick = {
                                         showOverflowMenu = false
                                         onClose()
-                                        onOpenFolder(currentItem.bucketName ?: currentItem.relativePath ?: "Music")
+                                        onOpenSettings()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (showAudioVisualizer) "Hide Audio Visualizer" else "Show Audio Visualizer", color = if (isDark) Color.White else Color.Black) },
+                                    leadingIcon = { Icon(Icons.Default.GraphicEq, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) }
                                     }
                                 )
                             }
-                            DropdownMenuItem(
-                                text = { Text("Native Audio DSP", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { Icon(Icons.Default.Equalizer, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    showDspSheet = true
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Settings", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    onClose()
-                                    onOpenSettings()
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(if (showAudioVisualizer) "Hide Audio Visualizer" else "Show Audio Visualizer", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { Icon(Icons.Default.GraphicEq, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) }
-                                }
-                            )
                         }
                     }
                 }
-            }
 
-            val toggleFavoriteLambda = {
-                val item = currentItem
-                if (item != null) {
-                    scope.launch {
-                        val categories = db.categoryDao().getCategoriesByType("AUDIO").first()
-                        var favCat = categories.find { it.name.equals("Favorites", ignoreCase = true) }
-                        if (favCat == null) {
-                            val newId = db.categoryDao().insertCategory(
-                                MediaCategory(name = "Favorites", type = "AUDIO")
-                            )
-                            favCat = MediaCategory(id = newId, name = "Favorites", type = "AUDIO")
-                        }
-                        db.categoryDao().insertCategoryCrossRefs(
-                            listOf(CategoryMediaCrossRef(categoryId = favCat!!.id, mediaUri = item.uri.toString()))
-                        )
-                        isFavorite = !isFavorite
-                        Toast.makeText(context, if (isFavorite) "Added to Favorites" else "Removed from Favorites", Toast.LENGTH_SHORT).show()
-                    }
+                if (isLandscape) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    LandscapePlayerLayout(
+                        playerState = playerState,
+                        currentItem = currentItem,
+                        playerManager = playerManager,
+                        showLyricsView = showLyricsView,
+                        showAudioVisualizer = showAudioVisualizer && !showFullscreenVisualizer,
+                        showAlbumSongsInPanel = showAlbumSongsInPanel,
+                        isLoadingLyrics = isLoadingLyrics,
+                        lyricsLines = lyricsLines,
+                        rawLyricsText = rawLyricsText,
+                        activeLyricIndex = activeLyricIndex,
+                        listState = listState,
+                        isFavorite = isFavorite,
+                        isTablet = isTablet,
+                        albumSongs = albumSongs,
+                        albumArtHue = albumArtHue,
+                        isSeeking = isSeeking,
+                        sliderPos = sliderPos,
+                        onSeekChange = {
+                            sliderPos = it
+                            isSeeking = true
+                        },
+                        onSeekFinished = {
+                            isSeeking = false
+                            playerManager.seekTo(sliderPos.toLong())
+                        },
+                        onToggleShowLyrics = { showLyricsView = it },
+                        onToggleAlbumSongsPanel = { showAlbumSongsInPanel = !showAlbumSongsInPanel },
+                        onToggleFavorite = { toggleFavoriteLambda() },
+                        onOpenAddPlaylist = { showAddAlbumToPlaylistDialog = true },
+                        onEditLyrics = {
+                            manualLyricsInput = rawLyricsText ?: ""
+                            showManualLyricsDialog = true
+                        },
+                        onToggleVisualizer = {
+                            scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) }
+                        },
+                        onFullscreenVisualizerClick = { showFullscreenVisualizer = true },
+                        modifier = Modifier.fillMaxSize().weight(1f)
+                    )
+                } else {
+                    PortraitPlayerLayout(
+                        playerState = playerState,
+                        currentItem = currentItem,
+                        playerManager = playerManager,
+                        albumArtSize = albumArtSize,
+                        isTablet = isTablet,
+                        showLyricsView = showLyricsView,
+                        showAudioVisualizer = showAudioVisualizer && !showFullscreenVisualizer,
+                        showAlbumSongsInPortraitBox = showAlbumSongsInPortraitBox,
+                        isLoadingLyrics = isLoadingLyrics,
+                        lyricsLines = lyricsLines,
+                        rawLyricsText = rawLyricsText,
+                        activeLyricIndex = activeLyricIndex,
+                        listState = listState,
+                        isFavorite = isFavorite,
+                        albumSongs = albumSongs,
+                        albumArtHue = albumArtHue,
+                        isSeeking = isSeeking,
+                        sliderPos = sliderPos,
+                        onSeekChange = {
+                            sliderPos = it
+                            isSeeking = true
+                        },
+                        onSeekFinished = {
+                            isSeeking = false
+                            playerManager.seekTo(sliderPos.toLong())
+                        },
+                        onToggleShowLyrics = { showLyricsView = it },
+                        onToggleAlbumSongsPortraitBox = { showAlbumSongsInPortraitBox = !showAlbumSongsInPortraitBox },
+                        onToggleFavorite = { toggleFavoriteLambda() },
+                        onOpenAddPlaylist = { showAddAlbumToPlaylistDialog = true },
+                        onEditLyrics = {
+                            manualLyricsInput = rawLyricsText ?: ""
+                            showManualLyricsDialog = true
+                        },
+                        onFullscreenVisualizerClick = { showFullscreenVisualizer = true },
+                        modifier = Modifier.fillMaxSize().weight(1f)
+                    )
                 }
-            }
-
-            if (isLandscape) {
-                Spacer(modifier = Modifier.height(6.dp))
-                LandscapePlayerLayout(
-                    playerState = playerState,
-                    currentItem = currentItem,
-                    playerManager = playerManager,
-                    showLyricsView = showLyricsView,
-                    showAudioVisualizer = showAudioVisualizer && !showFullscreenVisualizer,
-                    showAlbumSongsInPanel = showAlbumSongsInPanel,
-                    isLoadingLyrics = isLoadingLyrics,
-                    lyricsLines = lyricsLines,
-                    rawLyricsText = rawLyricsText,
-                    activeLyricIndex = activeLyricIndex,
-                    listState = listState,
-                    isFavorite = isFavorite,
-                    isTablet = isTablet,
-                    albumSongs = albumSongs,
-                    albumArtHue = albumArtHue,
-                    isSeeking = isSeeking,
-                    sliderPos = sliderPos,
-                    onSeekChange = {
-                        sliderPos = it
-                        isSeeking = true
-                    },
-                    onSeekFinished = {
-                        isSeeking = false
-                        playerManager.seekTo(sliderPos.toLong())
-                    },
-                    onToggleShowLyrics = { showLyricsView = it },
-                    onToggleAlbumSongsPanel = { showAlbumSongsInPanel = !showAlbumSongsInPanel },
-                    onToggleFavorite = { toggleFavoriteLambda() },
-                    onOpenAddPlaylist = { showAddAlbumToPlaylistDialog = true },
-                    onEditLyrics = {
-                        manualLyricsInput = rawLyricsText ?: ""
-                        showManualLyricsDialog = true
-                    },
-                    onToggleVisualizer = {
-                        scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) }
-                    },
-                    onFullscreenVisualizerClick = { showFullscreenVisualizer = true },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .weight(1f)
-                )
-            } else {
-                PortraitPlayerLayout(
-                    playerState = playerState,
-                    currentItem = currentItem,
-                    playerManager = playerManager,
-                    albumArtSize = albumArtSize,
-                    isTablet = isTablet,
-                    showLyricsView = showLyricsView,
-                    showAudioVisualizer = showAudioVisualizer && !showFullscreenVisualizer,
-                    showAlbumSongsInPortraitBox = showAlbumSongsInPortraitBox,
-                    isLoadingLyrics = isLoadingLyrics,
-                    lyricsLines = lyricsLines,
-                    rawLyricsText = rawLyricsText,
-                    activeLyricIndex = activeLyricIndex,
-                    listState = listState,
-                    isFavorite = isFavorite,
-                    albumSongs = albumSongs,
-                    albumArtHue = albumArtHue,
-                    isSeeking = isSeeking,
-                    sliderPos = sliderPos,
-                    onSeekChange = {
-                        sliderPos = it
-                        isSeeking = true
-                    },
-                    onSeekFinished = {
-                        isSeeking = false
-                        playerManager.seekTo(sliderPos.toLong())
-                    },
-                    onToggleShowLyrics = { showLyricsView = it },
-                    onToggleAlbumSongsPortraitBox = { showAlbumSongsInPortraitBox = !showAlbumSongsInPortraitBox },
-                    onToggleFavorite = { toggleFavoriteLambda() },
-                    onOpenAddPlaylist = { showAddAlbumToPlaylistDialog = true },
-                    onEditLyrics = {
-                        manualLyricsInput = rawLyricsText ?: ""
-                        showManualLyricsDialog = true
-                    },
-                    onFullscreenVisualizerClick = { showFullscreenVisualizer = true },
-                    modifier = Modifier.fillMaxSize()
-                )
             }
         }
 
@@ -495,10 +486,6 @@ fun AudioPlayerScreen(
 
         // Album Songs Sheet
         if (showAlbumSongsSheet && currentItem != null) {
-            val albumSongs = remember(playerState.queue, currentItem) {
-                playerState.queue.filter { it.album == currentItem.album || (currentItem.album == null && it.artist == currentItem.artist) }
-                    .ifEmpty { listOf(currentItem) }
-            }
             AdaptiveBottomSheet(
                 onDismissRequest = { showAlbumSongsSheet = false },
                 containerColor = Color(0xEB101114),
@@ -579,12 +566,6 @@ fun AudioPlayerScreen(
 
         // Add Album/Track to Playlist Dialog
         if (showAddAlbumToPlaylistDialog && currentItem != null) {
-            val albumSongs = remember(playerState.queue, currentItem) {
-                playerState.queue.filter {
-                    it.album == currentItem.album || (currentItem.album == null && it.artist == currentItem.artist)
-                }.ifEmpty { listOf(currentItem) }
-            }
-
             AddAlbumToPlaylistDialog(
                 albumSongs = albumSongs,
                 audioPlaylists = audioPlaylists,
@@ -629,7 +610,7 @@ fun AudioPlayerScreen(
         }
 
         if (showFullscreenVisualizer) {
-            var selectedVisualizerStyle by remember { mutableStateOf<VisualizerStyle>(VisualizerStyle.ENERGY_PARTICLES /* VisualizerStyle.AUDIO_REACTIVE_DANCER */) }
+            var selectedVisualizerStyle by remember { mutableStateOf<VisualizerStyle>(VisualizerStyle.ENERGY_PARTICLES) }
 
             androidx.compose.ui.window.Dialog(
                 onDismissRequest = { showFullscreenVisualizer = false },

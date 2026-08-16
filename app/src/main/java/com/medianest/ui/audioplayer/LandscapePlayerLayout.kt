@@ -17,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -76,16 +77,8 @@ fun LandscapePlayerLayout(
             playerState = playerState,
             currentItem = currentItem,
             playerManager = playerManager,
-            showLyricsView = showLyricsView,
             showAudioVisualizer = showAudioVisualizer,
-            isLoadingLyrics = isLoadingLyrics,
-            lyricsLines = lyricsLines,
-            rawLyricsText = rawLyricsText,
-            activeLyricIndex = activeLyricIndex,
-            listState = listState,
             albumArtHue = albumArtHue,
-            onToggleShowLyrics = onToggleShowLyrics,
-            onEditLyrics = onEditLyrics,
             onToggleVisualizer = onToggleVisualizer,
             modifier = modifier
         )
@@ -573,116 +566,111 @@ private fun PhoneMinimalLandscapeLayout(
     playerState: PlayerState,
     currentItem: MediaItem?,
     playerManager: ExoPlayerManager,
-    showLyricsView: Boolean,
     showAudioVisualizer: Boolean,
-    isLoadingLyrics: Boolean,
-    lyricsLines: List<LyricLine>,
-    rawLyricsText: String?,
-    activeLyricIndex: Int,
-    listState: LazyListState,
     albumArtHue: Float?,
-    onToggleShowLyrics: (Boolean) -> Unit,
-    onEditLyrics: () -> Unit,
     onToggleVisualizer: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier = modifier.fillMaxSize()) {
+    val artworkUri = currentItem?.albumArtUri ?: currentItem?.uri
+
+    Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         // 1. Background Content (Immersive)
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .clickable { onToggleShowLyrics(!showLyricsView) }
+                .clickable { onToggleVisualizer() }
         ) {
-            if (showLyricsView) {
-                LyricsView(
-                    isLoadingLyrics = isLoadingLyrics,
-                    lyricsLines = lyricsLines,
-                    rawLyricsText = rawLyricsText,
-                    activeLyricIndex = activeLyricIndex,
-                    listState = listState,
-                    onSeekTo = { playerManager.seekTo(it) },
-                    onEditLyrics = onEditLyrics,
-                    onHideLyrics = { onToggleShowLyrics(false) },
-                    titleFontSize = 14,
-                    activeLyricFontSize = 18,
-                    inactiveLyricFontSize = 14,
-                    glassSurfaceModifier = Modifier.fillMaxSize(),
-                    cardShapeRadius = 0.dp
+            // Blurred Background Artwork
+            if (artworkUri != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(artworkUri)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .blur(24.dp)
                 )
-            } else if (showAudioVisualizer) {
+            }
+
+            // Vignette for contrast
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.4f),
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.8f)
+                            )
+                        )
+                    )
+            )
+
+            if (showAudioVisualizer) {
                 AudioReactiveVisualizerPattern(
                     isPlaying = playerState.isPlaying,
                     audioSessionId = playerState.audioSessionId,
                     hue = albumArtHue,
                     modifier = Modifier.fillMaxSize()
                 )
-            } else {
-                if (currentItem?.albumArtUri != null) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(currentItem.albumArtUri)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = currentItem.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color(0xFF1A1C1E)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.MusicNote,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.2f),
-                            modifier = Modifier.size(100.dp)
-                        )
-                    }
-                }
-                // Add a subtle vignette/darkening to ensure controls and text are visible
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Black.copy(alpha = 0.4f),
-                                    Color.Transparent,
-                                    Color.Black.copy(alpha = 0.6f)
-                                )
-                            )
-                        )
-                )
             }
         }
 
-        // 2. Center Bottom Title & Artist
+        // 2. Center Content (Artwork + Text)
         Column(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 20.dp)
-                .padding(horizontal = 40.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxSize()
+                .padding(start = 24.dp, top = 16.dp, end = 24.dp, bottom = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Bottom
         ) {
-            Text(
-                text = currentItem?.title ?: "No Track",
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.basicMarquee()
-            )
-            Text(
-                text = currentItem?.artist ?: "Unknown Artist",
-                color = Color.White.copy(alpha = 0.8f),
-                fontSize = 14.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            // Main Artwork Card (Fit to height with padding)
+            if (!showAudioVisualizer && artworkUri != null) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxHeight(0.68f) // Fits mostly to height, leaving room for title below
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(16.dp)),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 15.dp)
+                ) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(artworkUri)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = currentItem?.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                Spacer(modifier = Modifier.height(18.dp)) // Padding between artwork and title
+            }
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = currentItem?.title ?: "No Track",
+                    color = Color.White,
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.basicMarquee()
+                )
+                Text(
+                    text = currentItem?.artist ?: "Unknown Artist",
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 13.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
 
         // 3. Top Right Controls
@@ -696,22 +684,22 @@ private fun PhoneMinimalLandscapeLayout(
             IconButton(
                 onClick = onToggleVisualizer,
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(42.dp)
                     .clip(CircleShape)
                     .background(Color.White.copy(alpha = 0.15f))
             ) {
                 Icon(
-                    imageVector = Icons.Default.BarChart,
+                    imageVector = Icons.Default.GraphicEq,
                     contentDescription = "Toggle Visualizer",
                     tint = if (showAudioVisualizer) Color(0xFF64B5F6) else Color.White,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
 
             IconButton(
                 onClick = { playerManager.togglePlayPause() },
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(46.dp)
                     .clip(CircleShape)
                     .background(Color.White.copy(alpha = 0.2f))
             ) {
@@ -719,7 +707,7 @@ private fun PhoneMinimalLandscapeLayout(
                     imageVector = if (playerState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = "Play/Pause",
                     tint = Color.White,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(26.dp)
                 )
             }
         }

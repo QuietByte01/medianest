@@ -263,8 +263,7 @@ fun QuickViewScreen(
             exit = fadeOut(),
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(16.dp)
+                .padding(top = 24.dp, start = 16.dp, end = 16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -455,8 +454,7 @@ fun QuickViewScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(bottom = 16.dp, start = 12.dp, end = 12.dp),
+                    .padding(bottom = 24.dp, start = 12.dp, end = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Horizontal Filmstrip / Thumbnail Carousel (Centered, transparent background)

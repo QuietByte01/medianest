@@ -503,10 +503,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
     fun onEnginePlaybackEnded() {
         scope.launch(Dispatchers.Main) {
             val state = _playerState.value
-            val isVideo = state.currentItem?.type == com.medianest.data.db.MediaType.VIDEO || state.currentItem?.mimeType?.startsWith("video") == true
-            val repeat = if (isVideo) state.videoRepeatMode else state.audioRepeatMode
-
-            when (repeat) {
+            when (state.repeatMode) {
                 Player.REPEAT_MODE_ONE -> {
                     seekTo(0L)
                     play()
@@ -514,16 +511,27 @@ class ExoPlayerManager private constructor(private val context: Context) {
                 Player.REPEAT_MODE_ALL -> {
                     next()
                 }
-                else -> {
-                    pause()
-                    seekTo(0L)
+                Player.REPEAT_MODE_OFF -> {
+                    if (state.queueIndex < state.queue.size - 1) {
+                        next()
+                    } else {
+                        pause()
+                        seekTo(0L)
+                    }
                 }
             }
         }
     }
 
     fun setPlaybackSpeed(speed: Float) { activeEngine?.setPlaybackSpeed(speed); _playerState.value = _playerState.value.copy(playbackSpeed = speed) }
-    fun setRepeatMode(repeatMode: Int) { activeEngine?.setRepeatMode(repeatMode); _playerState.value = _playerState.value.copy(repeatMode = repeatMode) }
+    fun setRepeatMode(repeatMode: Int) { 
+        activeEngine?.setRepeatMode(repeatMode)
+        _playerState.value = _playerState.value.copy(
+            repeatMode = repeatMode,
+            audioRepeatMode = repeatMode,
+            videoRepeatMode = repeatMode
+        )
+    }
     fun setShuffleMode(enabled: Boolean) { _playerState.value = _playerState.value.copy(isShuffle = enabled) }
     
     fun setVideoSurface(surface: Surface?) { 

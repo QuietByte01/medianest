@@ -59,7 +59,8 @@ fun ImagesTab(
     onUpdateCollection: (Long, String, List<String>, String?) -> Unit = { _, _, _, _ -> },
     onDeleteCollection: (Long) -> Unit = {},
     onImageClick: (MediaItem, List<MediaItem>) -> Unit,
-    onImageLongClick: (MediaItem) -> Unit
+    onImageLongClick: (MediaItem) -> Unit,
+    onBackToDashboard: () -> Unit = {}
 ) {
     val currentContext = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -281,14 +282,14 @@ fun ImagesTab(
                     selectedFolder != null -> ({ selectedFolder = null })
                     activeFilterTab != "ALL" -> ({ activeFilterTab = "ALL" })
                     viewMode == 1 -> ({ viewMode = 0 })
-                    else -> null
+                    else -> onBackToDashboard
                 },
                 backLabel = when {
                     selectedCategory != null -> selectedCategory!!.name
                     selectedFolder != null -> selectedFolder!!.substringAfterLast('/')
                     activeFilterTab != "ALL" -> "All Photos"
                     viewMode == 1 -> "All Photos"
-                    else -> null
+                    else -> "Dashboard"
                 }
             )
 

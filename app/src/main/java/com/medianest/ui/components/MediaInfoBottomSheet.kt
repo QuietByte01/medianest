@@ -1194,21 +1194,12 @@ private fun VideoFilePropertiesContent(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (item.albumArtUri != null) {
-                            AsyncImage(
-                                model = item.albumArtUri,
-                                contentDescription = currentItemTitle,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(42.dp)
-                            )
-                        }
+                        AsyncImage(
+                            model = imageRequest,
+                            contentDescription = currentItemTitle,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
 
                         // Dynamic Resolution Badge
                         if (!resBadgeText.isNullOrBlank()) {
@@ -1333,21 +1324,12 @@ private fun VideoFilePropertiesContent(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (item.albumArtUri != null) {
-                            AsyncImage(
-                                model = item.albumArtUri,
-                                contentDescription = currentItemTitle,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
+                        AsyncImage(
+                            model = imageRequest,
+                            contentDescription = currentItemTitle,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
 
                         // Dynamic Resolution Badge
                         if (!resBadgeText.isNullOrBlank()) {
@@ -1754,7 +1736,10 @@ private fun MediaDiagnosticsDialog(
 
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismissRequest,
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
         Box(
             modifier = Modifier
@@ -1910,10 +1895,32 @@ private fun MediaDiagnosticsDialog(
                                             report.techBadges.forEach { badge ->
                                                 DiagnosticTechChip(badge)
                                             }
+
+                                            // Share Button
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(Color(0x22FFFFFF))
+                                                    .clickable {
+                                                        val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                                            type = "text/plain"
+                                                            putExtra(android.content.Intent.EXTRA_TEXT, report.toShareText())
+                                                        }
+                                                        context.startActivity(android.content.Intent.createChooser(sendIntent, "Share Diagnostic Report"))
+                                                    }
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Share", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
                                         }
 
                                         Spacer(modifier = Modifier.height(2.dp))
 
+                                        /*
                                         DiagActionButtonsRow(
                                             report = report,
                                             currentItemTitle = currentItemTitle,
@@ -1921,6 +1928,7 @@ private fun MediaDiagnosticsDialog(
                                             onRename = onRename,
                                             context = context
                                         )
+                                        */
                                     }
                                 }
                             } else {
@@ -1988,8 +1996,30 @@ private fun MediaDiagnosticsDialog(
                                         report.techBadges.forEach { badge ->
                                             DiagnosticTechChip(badge)
                                         }
+
+                                        // Share Button
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(Color(0x22FFFFFF))
+                                                .clickable {
+                                                    val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                                        type = "text/plain"
+                                                        putExtra(android.content.Intent.EXTRA_TEXT, report.toShareText())
+                                                    }
+                                                    context.startActivity(android.content.Intent.createChooser(sendIntent, "Share Diagnostic Report"))
+                                                }
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Share", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
                                     }
 
+                                    /*
                                     DiagActionButtonsRow(
                                         report = report,
                                         currentItemTitle = currentItemTitle,
@@ -1997,6 +2027,7 @@ private fun MediaDiagnosticsDialog(
                                         onRename = onRename,
                                         context = context
                                     )
+                                    */
                                 }
                             }
                         }

@@ -64,11 +64,6 @@ fun QuickAccessCard(
                     .background(Brush.linearGradient(gradientColors)),
                 contentAlignment = Alignment.Center
             ) {
-                val iconSize = when (icon) {
-                    Icons.Default.Schedule -> 36.dp
-                    Icons.Default.History -> 40.dp
-                    else -> 44.dp
-                }
                 if (artUri != null) {
                     SubcomposeAsyncImage(
                         model = ImageRequest.Builder(context).data(artUri).crossfade(true).build(),
@@ -82,7 +77,7 @@ fun QuickAccessCard(
                                 imageVector = icon,
                                 contentDescription = null,
                                 tint = Color.White,
-                                modifier = Modifier.size(iconSize)
+                                modifier = Modifier.fillMaxSize()
                             )
                         } else {
                             SubcomposeAsyncImageContent()
@@ -93,25 +88,9 @@ fun QuickAccessCard(
                         imageVector = icon,
                         contentDescription = null,
                         tint = Color.White,
-                        modifier = Modifier.size(iconSize)
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
-
-                // Glossy overlay: White highlight at the top
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color.White.copy(alpha = 0.35f),
-                                    Color.White.copy(alpha = 0.1f),
-                                    Color.Transparent,
-                                    Color.Transparent
-                                )
-                            )
-                        )
-                )
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(

@@ -43,7 +43,8 @@ fun AudioTab(
     initialSubTab: Int = 0,
     initialAlbum: String? = null,
     initialArtist: String? = null,
-    initialFolder: String? = null
+    initialFolder: String? = null,
+    onBackToDashboard: () -> Unit = {}
 ) {
     var subTabState by remember(initialSubTab) { mutableIntStateOf(initialSubTab) }
     var previousSubTabState by remember { mutableStateOf<Int?>(null) }
@@ -408,7 +409,7 @@ fun AudioTab(
                                 previousSubTabState = null
                             })
                             subTabState != 0 -> ({ subTabState = 0 })
-                            else -> null
+                            else -> onBackToDashboard
                         },
                         backLabel = when {
                             targetPlaylist != null -> targetPlaylist?.name
@@ -418,7 +419,7 @@ fun AudioTab(
                             previousSubTabState == 6 -> "Playlists"
                             previousSubTabState != null -> visibleCategories.firstOrNull { it.index == previousSubTabState }?.label
                             subTabState != 0 -> "All Songs"
-                            else -> null
+                            else -> "Dashboard"
                         }
                     )
                     contentBlock()
@@ -491,7 +492,7 @@ fun AudioTab(
                         previousSubTabState = null
                     })
                     subTabState != 0 -> ({ subTabState = 0 })
-                    else -> null
+                    else -> onBackToDashboard
                 },
                 backLabel = when {
                     targetPlaylist != null -> targetPlaylist?.name
@@ -501,7 +502,7 @@ fun AudioTab(
                     previousSubTabState == 6 -> "Playlists"
                     previousSubTabState != null -> visibleCategories.firstOrNull { it.index == previousSubTabState }?.label
                     subTabState != 0 -> "All Songs"
-                    else -> null
+                    else -> "Dashboard"
                 }
             )
 
