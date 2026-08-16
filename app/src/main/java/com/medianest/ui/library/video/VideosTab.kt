@@ -453,6 +453,7 @@ fun VideosTab(
         } else if (activeFilterTab == "SERIES") {
             VideoSeriesView(
                 videosList = videosList,
+                sharedTitleWords = sharedTitleWords,
                 selectedSeriesName = selectedSeriesName,
                 selectedSeasonName = selectedSeasonName,
                 onSeriesClick = { selectedSeriesName = it },

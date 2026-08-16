@@ -226,40 +226,53 @@ fun isMovie(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean {
     val title = item.title.lowercase()
     val path = ((item.relativePath ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
 
-    // 1. Exclusion keywords
+    // 1. Exclusion keywords for non-movie content
     val exclusionKeywords = listOf("recording", "screen_recording", "live", "test", "interview", "webinar", "zoom", "meeting", "tutorial", "presentation")
     if (exclusionKeywords.any { title.contains(it) || path.contains(it) }) return false
 
-    // Check if it's a TV Series (including repeated word series batches) or other non-movie media
-    if (isTVSeries(item, sharedWords) || isClipsAndRecordings(item) || isShorts(item) || isMusicVideo(item) || isSocialMediaVideo(item)) return false
-
+    // 2. Fundamental duration requirement (User specified: 20 min is right)
     val isAtLeast20Min = item.durationMs >= 1_200_000L
     if (!isAtLeast20Min) return false
 
-    // 2. Check for repeated words across titles (Series detection exclusion in O(1))
-    if (sharedWords.isNotEmpty()) {
+    // 3. Strong Movie Markers (Override series detection if these are present)
+    val inMovieFolder = path.contains("/movies/") ||
+            path.contains("/movie/") ||
+            path.contains("/cinema/") ||
+            path.contains("/films/") ||
+            path.contains("film")
+
+    val hasMovieQualityTag = path.contains("1080p") || path.contains("720p") ||
+            path.contains("2160p") || path.contains("4k") ||
+            path.contains("bluray") || path.contains("webrip") ||
+            path.contains("web-dl") || path.contains("webdl") ||
+            path.contains("remux") || path.contains("bdrip") ||
+            path.contains("x264") || path.contains("x265") || path.contains("hdrip") ||
+            path.contains("h264") || path.contains("h265") || path.contains("hevc")
+
+    val isVeryLong = item.durationMs >= 2_400_000L // 40+ minutes
+
+    // If it has strong markers, it's likely a movie even if it shares words (e.g. sequels)
+    val hasStrongMarkers = inMovieFolder || hasMovieQualityTag
+
+    // 4. Exclude other specific types
+    if (isClipsAndRecordings(item) || isShorts(item) || isMusicVideo(item) || isSocialMediaVideo(item)) return false
+
+    // 5. TV Series Check (Sequels/Collections often share words, so don't exclude if markers are present)
+    if (!hasStrongMarkers && isTVSeries(item, sharedWords)) return false
+
+    // 6. Generic Word/Shared Words exclusion for non-marked items
+    if (!hasStrongMarkers && sharedWords.isNotEmpty()) {
         val cleanedTitleWords = extractSignificantWords(item.title)
         if (cleanedTitleWords.any { it in sharedWords }) {
             return false
         }
     }
 
-    val isLong = item.durationMs >= 2_400_000L
-
-    val inMovieFolder = path.contains("/movies/") ||
-            path.contains("/movie/") ||
-            path.contains("/cinema/") ||
-            path.contains("film")
-
-    val hasMovieQualityTag = path.contains("1080p") || path.contains("720p") ||
-            path.contains("bluray") || path.contains("webrip") ||
-            path.contains("x264") || path.contains("x265") || path.contains("hdrip")
-
     val inGeneralFolder = path.contains("/videos/") ||
             path.contains("/download/") ||
             path.contains("/downloads/")
 
-    return inMovieFolder || hasMovieQualityTag || (inGeneralFolder && isLong) || isLong
+    return hasStrongMarkers || (inGeneralFolder && isVeryLong) || isVeryLong
 }
 
 // Backward compatibility overload
