@@ -81,6 +81,7 @@ class FloatingPlayerService : Service() {
     private var isVideoState: Boolean = false
     private var currentArtworkUri: String? = null
     private var currentArtworkBitmap: Bitmap? = null
+    private var currentHue: Float? = null
     private var mediaSession: MediaSessionCompat? = null
 
     private val serviceJob = kotlinx.coroutines.Job()
@@ -300,9 +301,43 @@ class FloatingPlayerService : Service() {
             }
 
             currentArtworkBitmap = bitmap?.let { blurBitmap(it, 8) }
-            updateNotification()
-        }
+        
+        // Extract dominant hue for system notification tinting
+        currentHue = bitmap?.let { extractHueFromBitmap(it) }
+        
+        updateNotification()
     }
+}
+
+private fun extractHueFromBitmap(bitmap: Bitmap): Float? {
+    try {
+        val scaled = Bitmap.createScaledBitmap(bitmap, 40, 40, false)
+        val pixels = IntArray(scaled.width * scaled.height)
+        scaled.getPixels(pixels, 0, scaled.width, 0, 0, scaled.width, scaled.height)
+        
+        val hsv = FloatArray(3)
+        val hueBins = FloatArray(12)
+        
+        for (pixel in pixels) {
+            val r = (pixel shr 16) and 0xFF
+            val g = (pixel shr 8) and 0xFF
+            val b = pixel and 0xFF
+            android.graphics.Color.RGBToHSV(r, g, b, hsv)
+            
+            if (hsv[2] > 0.2f && hsv[1] > 0.2f) { // Ignore dark/desaturated
+                val bin = ((hsv[0] / 30f).toInt()) % 12
+                hueBins[bin] += hsv[1] * hsv[2]
+            }
+        }
+        
+        val maxBin = hueBins.indices.maxByOrNull { hueBins[it] } ?: return null
+        if (hueBins[maxBin] == 0f) return null
+        
+        return maxBin * 30f + 15f // Center of the bin
+    } catch (e: Exception) {
+        return null
+    }
+}
 
     private fun blurBitmap(bitmap: Bitmap, radius: Int): Bitmap {
         if (radius <= 0) return bitmap
@@ -446,6 +481,10 @@ class FloatingPlayerService : Service() {
             })
         }
 
+        val accentColor = currentHue?.let { 
+            android.graphics.Color.HSVToColor(floatArrayOf(it, 0.5f, 0.9f))
+        } ?: 0xFFA8C7FA.toInt()
+
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(currentTitle)
             .setContentText(subtitle)
@@ -454,6 +493,8 @@ class FloatingPlayerService : Service() {
             .setDeleteIntent(stopPendingIntent)
             .setOngoing(isPlaying)
             .setOnlyAlertOnce(true)
+            .setColor(accentColor)
+            .setColorized(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setStyle(mediaStyle)
             .addAction(android.R.drawable.ic_menu_rotate, "Shuffle", shufflePendingIntent) // Action 0

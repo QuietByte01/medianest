@@ -121,9 +121,10 @@ object MiniPlayerOverlayManager {
                             onExpand = {
                                 hide()
                                 val mgr = ExoPlayerManager.activeManager ?: ExoPlayerManager.getInstance(context)
-                                val currentItem = mgr.playerState.value.currentItem
-                                val isVideo = currentItem?.mimeType?.startsWith("video") == true || currentItem?.type == com.medianest.data.db.MediaType.VIDEO
-                                val targetClass = if (isVideo) com.medianest.ui.videoplayer.VideoPlayerActivity::class.java else AudioPlayerActivity::class.java
+                                val currentItem = mgr.playerState.value.currentItem?.takeIf { it.type == com.medianest.data.db.MediaType.AUDIO }
+                                if (currentItem == null) { hide(); return@FloatingMiniPlayerBar }
+                                val isVideo = false // Mini player is now strictly audio
+                                val targetClass = AudioPlayerActivity::class.java
                                 val intent = Intent(context, targetClass).apply {
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }

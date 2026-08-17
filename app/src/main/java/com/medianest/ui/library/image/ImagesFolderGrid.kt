@@ -98,8 +98,7 @@ fun ImagesFolderGrid(
             ) {
                 MediaLoadingAnimation(
                     mediaType = MediaType.IMAGE,
-                    iconSize = 52.dp,
-                    showLabel = true
+                    iconSize = 52.dp
                 )
             }
         } else if (visibleFolders.isEmpty()) {

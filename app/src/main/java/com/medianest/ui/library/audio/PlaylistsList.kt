@@ -131,8 +131,7 @@ fun PlaylistsList(
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     MediaLoadingAnimation(
                         mediaType = MediaType.AUDIO,
-                        iconSize = 52.dp,
-                        showLabel = true
+                        iconSize = 52.dp
                     )
                 }
             } else if (playlistSongs.isEmpty()) {
@@ -162,8 +161,7 @@ fun PlaylistsList(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 MediaLoadingAnimation(
                     mediaType = MediaType.AUDIO,
-                    iconSize = 52.dp,
-                    showLabel = true
+                    iconSize = 52.dp
                 )
             }
         } else {

@@ -456,6 +456,10 @@ fun PortraitPlayerLayout(
         val durationMs = if (playerState.durationMs > 0) playerState.durationMs else currentItem?.durationMs ?: 0L
         val maxSliderVal = durationMs.coerceAtLeast(1L).toFloat()
 
+        val seekbarColor = remember(albumArtHue) {
+            albumArtHue?.let { Color.hsv(it, 0.6f, 0.9f) } ?: Color.White
+        }
+
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
 
             WavySeekBar(
@@ -464,7 +468,10 @@ fun PortraitPlayerLayout(
                 onValueChangeFinished = onSeekFinished,
                 valueRange = 0f..maxSliderVal,
                 isPlaying = playerState.isPlaying,
-                activeColor = Color.White,
+                activeColor = seekbarColor,
+                inactiveColor = seekbarColor.copy(alpha = 0.10f),
+                thumbColor = seekbarColor,
+                fullTrackBackground = true,
                 modifier = Modifier.fillMaxWidth()
             )
 

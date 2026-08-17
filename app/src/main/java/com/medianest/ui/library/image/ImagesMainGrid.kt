@@ -18,6 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.itemKey
 import com.medianest.data.db.MediaCategory
 import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
@@ -48,7 +50,8 @@ fun ImagesMainGrid(
     selectedCategory: MediaCategory?,
     isLoading: Boolean,
     activeFilterTab: String,
-    gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState()
+    gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState(),
+    pagedImages: LazyPagingItems<MediaItem>? = null
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
 
@@ -59,8 +62,7 @@ fun ImagesMainGrid(
             ) {
                 MediaLoadingAnimation(
                     mediaType = MediaType.IMAGE,
-                    iconSize = 52.dp,
-                    showLabel = true
+                    iconSize = 52.dp
                 )
             }
         } else if (images.isEmpty()) {
@@ -126,26 +128,54 @@ fun ImagesMainGrid(
                 horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
                 verticalItemSpacing = Dp(gridGapDp.toFloat())
             ) {
-                items(images, key = { it.id }) { item ->
-                    MediaGridItem(
-                        item = item,
-                        isSelected = selectedUris.contains(item.uri.toString()),
-                        isSelectionMode = isSelectionMode,
-                        cornerRadiusDp = cornerRadiusDp,
-                        roundedCornersEnabled = roundedCornersEnabled,
-                        onClick = { onImageClick(item, images) },
-                        onLongClick = { onImageLongClick(item) },
-                        onInfo = { onInfoItemChange(item) },
-                        onDelete = { onImageToDeleteChange(item) },
-                        showRemoveOption = selectedCategory != null,
-                        onRemoveFromCategory = { onRemoveFromCategory(item) },
-                        onOpenFolder = { folderName ->
-                            onViewModeChange(1)
-                            onSelectedFolderChange(folderName)
-                        },
-                        onMoreClick = { onContextSheetItemChange(item) },
-                        showInGallery = (viewMode == 1 && selectedFolder != null)
-                    )
+                if (pagedImages != null) {
+                    items(
+                        count = pagedImages.itemCount,
+                        key = pagedImages.itemKey { it.id }
+                    ) { index ->
+                        val item = pagedImages[index] ?: return@items
+                        MediaGridItem(
+                            item = item,
+                            isSelected = selectedUris.contains(item.uri.toString()),
+                            isSelectionMode = isSelectionMode,
+                            cornerRadiusDp = cornerRadiusDp,
+                            roundedCornersEnabled = roundedCornersEnabled,
+                            onClick = { onImageClick(item, images) },
+                            onLongClick = { onImageLongClick(item) },
+                            onInfo = { onInfoItemChange(item) },
+                            onDelete = { onImageToDeleteChange(item) },
+                            showRemoveOption = selectedCategory != null,
+                            onRemoveFromCategory = { onRemoveFromCategory(item) },
+                            onOpenFolder = { folderName ->
+                                onViewModeChange(1)
+                                onSelectedFolderChange(folderName)
+                            },
+                            onMoreClick = { onContextSheetItemChange(item) },
+                            showInGallery = (viewMode == 1 && selectedFolder != null)
+                        )
+                    }
+                } else {
+                    items(images, key = { it.id }) { item ->
+                        MediaGridItem(
+                            item = item,
+                            isSelected = selectedUris.contains(item.uri.toString()),
+                            isSelectionMode = isSelectionMode,
+                            cornerRadiusDp = cornerRadiusDp,
+                            roundedCornersEnabled = roundedCornersEnabled,
+                            onClick = { onImageClick(item, images) },
+                            onLongClick = { onImageLongClick(item) },
+                            onInfo = { onInfoItemChange(item) },
+                            onDelete = { onImageToDeleteChange(item) },
+                            showRemoveOption = selectedCategory != null,
+                            onRemoveFromCategory = { onRemoveFromCategory(item) },
+                            onOpenFolder = { folderName ->
+                                onViewModeChange(1)
+                                onSelectedFolderChange(folderName)
+                            },
+                            onMoreClick = { onContextSheetItemChange(item) },
+                            showInGallery = (viewMode == 1 && selectedFolder != null)
+                        )
+                    }
                 }
             }
         }

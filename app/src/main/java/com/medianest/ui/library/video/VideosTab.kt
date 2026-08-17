@@ -64,6 +64,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.paging.compose.collectAsLazyPagingItems
 import com.medianest.MediaNestApp
 import com.medianest.data.db.MediaCategory
 import com.medianest.data.db.MediaType
@@ -120,11 +122,14 @@ fun VideosTab(
     onDismissAddVideosDialog: () -> Unit = {},
     onClearSelection: () -> Unit = {},
     initialFolder: String? = null,
-    onBackToDashboard: () -> Unit = {}
+    onBackToDashboard: () -> Unit = {},
+    viewModel: com.medianest.ui.MediaViewModel = viewModel()
 ) {
     val currentContext = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager(currentContext) }
+
+    val pagedVideos = viewModel.pagedVideosFlow.collectAsLazyPagingItems()
 
     val persistedSortField by settingsManager.videoSortField.collectAsState(initial = "Date")
     val persistedSortAscending by settingsManager.videoSortAscending.collectAsState(initial = false)
@@ -132,7 +137,18 @@ fun VideosTab(
     val sortField = persistedSortField
     val isAscending = persistedSortAscending
 
+    // Sync sort state to ViewModel
+    LaunchedEffect(sortField, isAscending) {
+        viewModel.updateVideoSort(sortField, isAscending)
+    }
+
     var activeFilterTab by remember(initialFolder) { mutableStateOf(if (initialFolder != null) "FOLDERS" else "ALL") }
+    
+    // Sync filter tab to ViewModel
+    LaunchedEffect(activeFilterTab) {
+        viewModel.updateVideoFilter(activeFilterTab)
+    }
+
     var isFolderViewActive by remember(initialFolder) { mutableStateOf(initialFolder != null) }
     var selectedFolder by remember(initialFolder) { mutableStateOf(initialFolder) }
     var infoItem by remember { mutableStateOf<MediaItem?>(null) }
@@ -196,21 +212,9 @@ fun VideosTab(
 
     val showHiddenSetting by settingsManager.showHiddenFiles.collectAsState(initial = false)
 
-    val videoFolderGroups = remember(videosList, showHiddenSetting) {
-        val filteredList = if (showHiddenSetting) {
-            videosList
-        } else {
-            videosList.filter { item ->
-                val relPath = item.relativePath?.trim('/') ?: ""
-                !relPath.split('/').any { it.startsWith(".") && it.length > 1 }
-            }
-        }
-
-        filteredList.groupBy { item ->
-            val relPath = item.relativePath?.trim('/')
-            if (!relPath.isNullOrBlank()) relPath else item.bucketName ?: "Videos"
-        }
-    }
+    val videoFolderGroups by viewModel.videoFolderGroups.collectAsState()
+    val sharedTitleWords by viewModel.sharedTitleWords.collectAsState()
+    val videoCounts by viewModel.videoCounts.collectAsState()
 
     val categoryUris = remember(allCrossRefs, selectedCategory, videosList) {
         if (selectedCategory != null) {
@@ -239,15 +243,14 @@ fun VideosTab(
         }
     }
 
-    val sharedTitleWords = remember(videosList) { computeSharedTitleWords(videosList) }
-    val musicCount = remember(videosList) { videosList.count { isMusicVideo(it) } }
-    val moviesCount = remember(videosList, sharedTitleWords) { videosList.count { isMovie(it, sharedTitleWords) } }
-    val seriesCount = remember(videosList, sharedTitleWords) { videosList.count { isTVSeries(it, sharedTitleWords) } }
-    val clipsCount = remember(videosList) { videosList.count { isClipsAndRecordings(it) } }
-    val shortsCount = remember(videosList) { videosList.count { isShorts(it) } }
-    val socialCount = remember(videosList) { videosList.count { isSocialMediaVideo(it) } }
-    val editedCount = remember(videosList) { videosList.count { isEditedVideo(it) } }
-    val downloadedCount = remember(videosList) { videosList.count { isDownloaded(it) } }
+    val musicCount = videoCounts.music
+    val moviesCount = videoCounts.movies
+    val seriesCount = videoCounts.series
+    val clipsCount = videoCounts.clips
+    val shortsCount = videoCounts.shorts
+    val socialCount = videoCounts.social
+    val editedCount = videoCounts.edited
+    val downloadedCount = videoCounts.downloaded
     // Trash functionality commented out
     // val trashedVideoItems = remember(videosList) {
     //     TrashManager.getTrashedItems(currentContext)
@@ -373,8 +376,7 @@ fun VideosTab(
             ) {
                 MediaLoadingAnimation(
                     mediaType = MediaType.VIDEO,
-                    iconSize = 52.dp,
-                    showLabel = true
+                    iconSize = 52.dp
                 )
             }
         } else if (videosList.isEmpty()) {
@@ -501,7 +503,8 @@ fun VideosTab(
                 selectedFolder = selectedFolder,
                 isFolderViewActive = isFolderViewActive,
                 gridState = wideGridState,
-                staggeredGridState = mainGridState
+                staggeredGridState = mainGridState,
+                pagedVideos = pagedVideos
             )
         }
 

@@ -24,6 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.paging.compose.LazyPagingItems
 import com.medianest.MediaNestApp
 import com.medianest.data.db.CategoryMediaCrossRef
 import com.medianest.data.db.MediaCategory
@@ -60,7 +62,9 @@ fun ImagesTab(
     onDeleteCollection: (Long) -> Unit = {},
     onImageClick: (MediaItem, List<MediaItem>) -> Unit,
     onImageLongClick: (MediaItem) -> Unit,
-    onBackToDashboard: () -> Unit = {}
+    onBackToDashboard: () -> Unit = {},
+    pagedImages: LazyPagingItems<MediaItem>? = null,
+    viewModel: com.medianest.ui.MediaViewModel = viewModel()
 ) {
     val currentContext = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -76,6 +80,10 @@ fun ImagesTab(
     
     val sortField = persistedSortField
     val isAscending = persistedSortAscending
+
+    LaunchedEffect(sortField, isAscending) {
+        viewModel.updateImageSort(sortField, isAscending)
+    }
 
     val db = remember { MediaNestApp.instance.database }
     val observedCrossRefs by db.categoryDao().getAllCrossRefs().collectAsState(initial = emptyList())
@@ -445,7 +453,8 @@ fun ImagesTab(
                             selectedCategory = selectedCategory,
                             isLoading = isLoading,
                             activeFilterTab = activeFilterTab,
-                            gridState = mainGridState
+                            gridState = mainGridState,
+                            pagedImages = pagedImages
                         )
                     }
                 }

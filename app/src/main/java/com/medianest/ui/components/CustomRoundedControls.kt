@@ -168,13 +168,13 @@ fun RoundedSkipPreviousIcon(
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
-        val pillWidth = w * 0.10f
-        val pillHeight = h * 0.60f
+        val pillWidth = w * 0.08f
+        val pillHeight = h * 0.50f
         val capRadius = pillWidth / 2f
-        val startX = w * 0.10f
+        val startX = w * 0.12f
         val startY = (h - pillHeight) / 2f
 
-        // 1. Left vertical rounded pill bar
+        // 1. Left vertical rounded pill bar (The "Head")
         drawRoundRect(
             color = tint,
             topLeft = Offset(startX, startY),
@@ -182,12 +182,12 @@ fun RoundedSkipPreviousIcon(
             cornerRadius = CornerRadius(capRadius, capRadius)
         )
 
-        // 2. Left-pointing rounded triangle
-        val triRadius = w * 0.16f
+        // 2. Left-pointing rounded triangle (Shrunk to match smaller head)
+        val triRadius = w * 0.14f
         val triVertices = listOf(
-            Offset(w * 0.88f, h * 0.20f), // Top-right
-            Offset(w * 0.32f, h * 0.50f), // Left tip
-            Offset(w * 0.88f, h * 0.20f + h * 0.60f)  // Bottom-right
+            Offset(w * 0.78f, h * 0.25f), // Top-right
+            Offset(w * 0.35f, h * 0.50f), // Left tip
+            Offset(w * 0.78f, h * 0.75f)  // Bottom-right
         )
         drawRoundedPolygon(triVertices, triRadius, tint)
     }
@@ -204,22 +204,22 @@ fun RoundedSkipNextIcon(
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
-        val pillWidth = w * 0.10f
-        val pillHeight = h * 0.60f
+        val pillWidth = w * 0.08f
+        val pillHeight = h * 0.50f
         val capRadius = pillWidth / 2f
         val pillX = w * 0.80f
         val pillY = (h - pillHeight) / 2f
 
-        // 1. Right-pointing rounded triangle
-        val triRadius = w * 0.16f
+        // 1. Right-pointing rounded triangle (Shrunk to match smaller head)
+        val triRadius = w * 0.14f
         val triVertices = listOf(
-            Offset(w * 0.12f, h * 0.20f), // Top-left
-            Offset(w * 0.68f, h * 0.50f), // Right tip
-            Offset(w * 0.12f, h * 0.80f)  // Bottom-left
+            Offset(w * 0.22f, h * 0.25f), // Top-left
+            Offset(w * 0.65f, h * 0.50f), // Right tip
+            Offset(w * 0.22f, h * 0.75f)  // Bottom-left
         )
         drawRoundedPolygon(triVertices, triRadius, tint)
 
-        // 2. Right vertical rounded pill bar
+        // 2. Right vertical rounded pill bar (The "Head")
         drawRoundRect(
             color = tint,
             topLeft = Offset(pillX, pillY),
@@ -246,17 +246,17 @@ fun RoundedDoubleSkipPreviousIcon(
         
         // Outer triangle
         val tri1Vertices = listOf(
-            Offset(w * 0.58f, h * 0.16f),
-            Offset(w * 0.30f, h * 0.50f),
-            Offset(w * 0.58f, h * 0.84f)
+            Offset(w * 0.73f, h * 0.16f), 
+            Offset(w * 0.28f, h * 0.50f), 
+            Offset(w * 0.73f, h * 0.84f)
         )
         drawRoundedPolygon(tri1Vertices, triRadius, tint)
         
         // Inner triangle
         val tri2Vertices = listOf(
-            Offset(w * 0.86f, h * 0.16f),
-            Offset(w * 0.58f, h * 0.50f),
-            Offset(w * 0.86f, h * 0.84f)
+            Offset(w * 0.93f, h * 0.16f), 
+            Offset(w * 0.48f, h * 0.50f), 
+            Offset(w * 0.93f, h * 0.84f)
         )
         drawRoundedPolygon(tri2Vertices, triRadius, tint)
 
@@ -293,17 +293,17 @@ fun RoundedDoubleSkipNextIcon(
         
         // Inner triangle
         val tri1Vertices = listOf(
-            Offset(w * 0.14f, h * 0.16f),
-            Offset(w * 0.42f, h * 0.50f),
-            Offset(w * 0.14f, h * 0.84f)
+            Offset(w * 0.07f, h * 0.16f), 
+            Offset(w * 0.52f, h * 0.50f), 
+            Offset(w * 0.07f, h * 0.84f)
         )
         drawRoundedPolygon(tri1Vertices, triRadius, tint)
         
         // Outer triangle
         val tri2Vertices = listOf(
-            Offset(w * 0.42f, h * 0.16f),
-            Offset(w * 0.70f, h * 0.50f),
-            Offset(w * 0.42f, h * 0.84f)
+            Offset(w * 0.27f, h * 0.16f), 
+            Offset(w * 0.72f, h * 0.50f), 
+            Offset(w * 0.27f, h * 0.84f)
         )
         drawRoundedPolygon(tri2Vertices, triRadius, tint)
 

@@ -71,6 +71,7 @@ import kotlinx.coroutines.launch
 fun QuickViewScreen(
     mediaList: List<MediaItem>,
     initialIndex: Int,
+    isLoading: Boolean = false,
     onClose: () -> Unit,
     onOpenFullPlayer: (MediaItem) -> Unit
 ) {
@@ -201,7 +202,14 @@ fun QuickViewScreen(
                 }
             }
     ) {
-        if (mutableMediaList.isNotEmpty()) {
+        if (isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = Color.White)
+            }
+        } else if (mutableMediaList.isNotEmpty()) {
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),

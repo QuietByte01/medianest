@@ -60,9 +60,9 @@ class QuickViewActivity : ComponentActivity() {
         if (mimeType.isNullOrBlank() || mimeType == "*/*") {
             val path = intentData.toString().lowercase()
             mimeType = when {
-                path.endsWith(".mp4") || path.endsWith(".mkv") || path.endsWith(".webm") || path.endsWith(".3gp") || path.endsWith(".avi") -> "video/*"
-                path.endsWith(".mp3") || path.endsWith(".wav") || path.endsWith(".flac") || path.endsWith(".aac") || path.endsWith(".m4a") || path.endsWith(".ogg") -> "audio/*"
-                path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".png") || path.endsWith(".webp") || path.endsWith(".gif") -> "image/*"
+                path.endsWith(".mp4") || path.endsWith(".mkv") || path.endsWith(".webm") || path.endsWith(".3gp") || path.endsWith(".avi") || path.endsWith(".mov") || path.endsWith(".ts") -> "video/*"
+                path.endsWith(".mp3") || path.endsWith(".wav") || path.endsWith(".flac") || path.endsWith(".aac") || path.endsWith(".m4a") || path.endsWith(".ogg") || path.endsWith(".opus") -> "audio/*"
+                path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".png") || path.endsWith(".webp") || path.endsWith(".gif") || path.endsWith(".heic") || path.endsWith(".bmp") || path.endsWith(".svg") -> "image/*"
                 else -> mimeType
             }
         }
@@ -131,9 +131,11 @@ class QuickViewActivity : ComponentActivity() {
                     MediaNestTheme(themeMode = themeMode) {
                         var mediaList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
                         var initialIndex by remember { mutableIntStateOf(0) }
+                        var isLoading by remember { mutableStateOf(true) }
 
                         LaunchedEffect(intentData) {
                             lifecycleScope.launch {
+                                isLoading = true
                                 val startIndex = intent.getIntExtra("start_index", -1)
 
                                 if (activeList != null) {
@@ -177,12 +179,14 @@ class QuickViewActivity : ComponentActivity() {
                                         initialIndex = 0
                                     }
                                 }
+                                isLoading = false
                             }
                         }
 
                         QuickViewScreen(
                             mediaList = mediaList,
                             initialIndex = initialIndex,
+                            isLoading = isLoading,
                             onClose = { finish() },
                             onOpenFullPlayer = { item ->
                                 val playerIntent = Intent(this@QuickViewActivity, VideoPlayerActivity::class.java).apply {

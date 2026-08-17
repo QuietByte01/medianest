@@ -47,7 +47,7 @@ fun MiniPlayerBar(
     shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(22.dp),
     modifier: Modifier = Modifier
 ) {
-    val currentItem = playerState.currentItem ?: return
+    val currentItem = playerState.currentItem?.takeIf { it.type == com.medianest.data.db.MediaType.AUDIO } ?: return
     val context = LocalContext.current
 
     val titleText = remember(currentItem.title, currentItem.uri) {

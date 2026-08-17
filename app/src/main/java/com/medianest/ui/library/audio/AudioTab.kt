@@ -20,6 +20,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.paging.compose.LazyPagingItems
 import com.medianest.MediaNestApp
 import com.medianest.data.db.MediaCategory
 import com.medianest.data.model.MediaItem
@@ -44,7 +46,9 @@ fun AudioTab(
     initialAlbum: String? = null,
     initialArtist: String? = null,
     initialFolder: String? = null,
-    onBackToDashboard: () -> Unit = {}
+    onBackToDashboard: () -> Unit = {},
+    pagedAudio: LazyPagingItems<MediaItem>? = null,
+    viewModel: com.medianest.ui.MediaViewModel = viewModel()
 ) {
     var subTabState by remember(initialSubTab) { mutableIntStateOf(initialSubTab) }
     var previousSubTabState by remember { mutableStateOf<Int?>(null) }
@@ -60,6 +64,10 @@ fun AudioTab(
     
     val sortField = persistedSortField
     val isAscending = persistedSortAscending
+    
+    LaunchedEffect(sortField, isAscending) {
+        viewModel.updateAudioSort(sortField, isAscending)
+    }
     
     val (isSortVisible, nestedScrollConnection) = rememberSortRevealConnection()
     val scope = rememberCoroutineScope()
@@ -221,7 +229,8 @@ fun AudioTab(
                     if (album != null) targetAlbum = album
                     if (artist != null) targetArtist = artist
                     if (folder != null) targetFolder = folder
-                }
+                },
+                pagedSongs = pagedAudio
             )
             1 -> SongsList(
                 songs = recentSongs,

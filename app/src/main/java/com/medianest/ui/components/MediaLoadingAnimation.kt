@@ -23,7 +23,7 @@ fun MediaLoadingAnimation(
     mediaType: MediaType,
     modifier: Modifier = Modifier,
     iconSize: Dp = 42.dp,
-    showLabel: Boolean = true,
+    showLabel: Boolean = false,
     customMessage: String? = null
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "media_loading_anim")
@@ -96,6 +96,7 @@ fun MediaLoadingAnimation(
                 )
             }
 
+            /*
             if (showLabel) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
@@ -104,6 +105,7 @@ fun MediaLoadingAnimation(
                     color = Color.White.copy(alpha = 0.75f)
                 )
             }
+            */
         }
     }
 }

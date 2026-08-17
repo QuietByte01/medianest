@@ -36,14 +36,16 @@ fun WavySeekBar(
     onValueChangeFinished: (() -> Unit)? = null,
     isPlaying: Boolean = false,
     activeColor: Color = Color(0xFFA8C7FA),
-    inactiveColor: Color = Color.White.copy(alpha = 0.20f),
+    inactiveColor: Color = Color.White.copy(alpha = 0.10f),
     thumbColor: Color = Color.White,
     // TWEAKED: Lower amplitude, faster, and tighter
     waveAmplitudeDp: Dp = 6.5.dp,  // Lowered from 10dp so it doesn't get too high
     waveLengthDp: Dp = 56.dp,      // Slightly tighter hills
     activeTrackHeightDp: Dp = 6.dp,
     inactiveTrackHeightDp: Dp = 4.dp,
-    heightDp: Dp = 48.dp
+    heightDp: Dp = 48.dp,
+    showThumb: Boolean = true,
+    fullTrackBackground: Boolean = false
 ) {
     val density = LocalDensity.current
     val waveAmplitudePx = with(density) { waveAmplitudeDp.toPx() }
@@ -103,7 +105,7 @@ fun WavySeekBar(
                         onValueChange(newValue)
                     }
 
-                    val padding = thumbRadius.toPx()
+                    val padding = if (showThumb) thumbRadius.toPx() else 0f
                     updateValue(down.position.x, padding)
 
                     drag(down.id) { change ->
@@ -120,17 +122,23 @@ fun WavySeekBar(
             val width = size.width
             val centerY = size.height / 2f
 
-            val trackPadding = thumbRadius.toPx()
+            val trackPadding = if (showThumb) thumbRadius.toPx() else 0f
             val trackWidth = width - trackPadding * 2
             val activeX = trackPadding + (trackWidth * currentFrac)
 
             // 1. INACTIVE TRACK
-            if (activeX < width - trackPadding) {
-                val inactiveRadius = inactiveHeightPx / 2f
+            val inactiveRadius = inactiveHeightPx / 2f
+            val (startX, trackWidthVal) = if (fullTrackBackground) {
+                trackPadding to (width - trackPadding * 2)
+            } else {
+                activeX to (width - trackPadding - activeX)
+            }
+            
+            if (trackWidthVal > 0) {
                 drawRoundRect(
                     color = inactiveColor,
-                    topLeft = Offset(activeX, centerY - inactiveRadius),
-                    size = Size(width - trackPadding - activeX, inactiveHeightPx),
+                    topLeft = Offset(startX, centerY - inactiveRadius),
+                    size = Size(trackWidthVal, inactiveHeightPx),
                     cornerRadius = CornerRadius(inactiveRadius, inactiveRadius)
                 )
             }
@@ -202,24 +210,26 @@ fun WavySeekBar(
                     wavelengthDp = waveLengthDp * 0.85f,
                     amplitudeMultiplier = 0.85f,
                     phaseShift = basePhase * 1.4f,
-                    waveColor = activeColor.copy(alpha = 0.40f)
+                    waveColor = activeColor.copy(alpha = 0.30f)
                 )
 
-                // 4. DRAW FRONT WAVE (Solid)
+                // 4. DRAW FRONT WAVE (Solid @ 50% opacity)
                 drawLiquidWave(
                     wavelengthDp = waveLengthDp,
                     amplitudeMultiplier = 1.0f,
                     phaseShift = basePhase,
-                    waveColor = activeColor
+                    waveColor = activeColor.copy(alpha = 0.50f)
                 )
             }
 
             // 5. THUMB (Classic Circular Thumb)
-            drawCircle(
-                color = thumbColor,
-                radius = thumbRadius.toPx(),
-                center = Offset(activeX, centerY)
-            )
+            if (showThumb) {
+                drawCircle(
+                    color = thumbColor,
+                    radius = thumbRadius.toPx(),
+                    center = Offset(activeX, centerY)
+                )
+            }
         }
     }
 }

@@ -10,7 +10,7 @@ import java.io.File
 
 object AudioMetadataUtils {
 
-    fun extractMetadata(context: Context, uri: Uri, rawTitleHint: String? = null, mimeTypeHint: String = "audio/*"): MediaItem {
+    fun extractMetadata(context: Context, uri: Uri, rawTitleHint: String? = null, mimeTypeHint: String = "*/*"): MediaItem {
         val meta = MediaMetadataUtils.extractBasicMetadata(context, uri, includePicture = true)
         
         var albumArtUri: Uri? = null
@@ -25,7 +25,14 @@ object AudioMetadataUtils {
         val cleanedTitle = resolveTitle(context, uri, meta.title, rawTitleHint)
 
         // Dynamically infer MIME type if generic or missing
-        val effectiveMime = if (mimeTypeHint.isBlank() || mimeTypeHint == "*/*" || mimeTypeHint == "application/octet-stream") {
+        val isGenericMime = mimeTypeHint.isBlank() || 
+                mimeTypeHint == "*/*" || 
+                mimeTypeHint == "application/octet-stream" ||
+                mimeTypeHint == "audio/*" || 
+                mimeTypeHint == "video/*" || 
+                mimeTypeHint == "image/*"
+
+        val effectiveMime = if (isGenericMime) {
             val fromResolver = runCatching { context.contentResolver.getType(uri) }.getOrNull()
             if (!fromResolver.isNullOrBlank() && fromResolver != "*/*") {
                 fromResolver

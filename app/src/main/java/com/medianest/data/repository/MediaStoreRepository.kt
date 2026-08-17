@@ -30,7 +30,8 @@ class MediaStoreRepository(private val context: Context) {
         hiddenFolders: Set<String> = emptySet(),
         showHidden: Boolean = false,
         limit: Int = -1,
-        offset: Int = 0
+        offset: Int = 0,
+        bucketId: String? = null
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val imagesList = mutableListOf<MediaItem>()
         val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -58,6 +59,13 @@ class MediaStoreRepository(private val context: Context) {
         }.toTypedArray()
 
         val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
+        var selection: String? = null
+        var selectionArgs: Array<String>? = null
+
+        if (bucketId != null) {
+            selection = "${MediaStore.Images.Media.BUCKET_ID} = ?"
+            selectionArgs = arrayOf(bucketId)
+        }
 
         try {
             val queryBundle = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -71,13 +79,17 @@ class MediaStoreRepository(private val context: Context) {
                         putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_INCLUDE)
                     }
                     putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
+                    if (selection != null) {
+                        putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+                        putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs)
+                    }
                 }
             } else null
 
             val cursor = if (queryBundle != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.contentResolver.query(collection, projection, queryBundle, null)
             } else {
-                context.contentResolver.query(collection, projection, null, null, sortOrder)
+                context.contentResolver.query(collection, projection, selection, selectionArgs, sortOrder)
             }
 
             cursor?.use { c ->
@@ -174,7 +186,8 @@ class MediaStoreRepository(private val context: Context) {
         hiddenFolders: Set<String> = emptySet(),
         showHidden: Boolean = false,
         limit: Int = -1,
-        offset: Int = 0
+        offset: Int = 0,
+        bucketId: String? = null
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val videosList = mutableListOf<MediaItem>()
         val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -204,6 +217,13 @@ class MediaStoreRepository(private val context: Context) {
         }.toTypedArray()
 
         val sortOrder = "${MediaStore.Video.Media.DATE_ADDED} DESC"
+        var selection: String? = null
+        var selectionArgs: Array<String>? = null
+
+        if (bucketId != null) {
+            selection = "${MediaStore.Video.Media.BUCKET_ID} = ?"
+            selectionArgs = arrayOf(bucketId)
+        }
 
         try {
             val queryBundle = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -217,13 +237,17 @@ class MediaStoreRepository(private val context: Context) {
                         putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_INCLUDE)
                     }
                     putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
+                    if (selection != null) {
+                        putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+                        putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs)
+                    }
                 }
             } else null
 
             val cursor = if (queryBundle != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.contentResolver.query(collection, projection, queryBundle, null)
             } else {
-                context.contentResolver.query(collection, projection, null, null, sortOrder)
+                context.contentResolver.query(collection, projection, selection, selectionArgs, sortOrder)
             }
 
             cursor?.use { c ->
@@ -330,7 +354,8 @@ class MediaStoreRepository(private val context: Context) {
         hiddenFolders: Set<String> = emptySet(),
         showHidden: Boolean = false,
         limit: Int = -1,
-        offset: Int = 0
+        offset: Int = 0,
+        bucketId: String? = null
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val audioList = mutableListOf<MediaItem>()
         val mediaStoreFileNames = mutableSetOf<String>()
@@ -361,6 +386,13 @@ class MediaStoreRepository(private val context: Context) {
         }.toTypedArray()
 
         val sortOrder = "${MediaStore.Audio.Media.DATE_ADDED} DESC"
+        var selection: String? = null
+        var selectionArgs: Array<String>? = null
+
+        if (bucketId != null) {
+            selection = "${MediaStore.Audio.Media.BUCKET_ID} = ?"
+            selectionArgs = arrayOf(bucketId)
+        }
 
         try {
             val queryBundle = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -374,13 +406,17 @@ class MediaStoreRepository(private val context: Context) {
                         putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_INCLUDE)
                     }
                     putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
+                    if (selection != null) {
+                        putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+                        putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs)
+                    }
                 }
             } else null
 
             val cursor = if (queryBundle != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.contentResolver.query(collection, projection, queryBundle, null)
             } else {
-                context.contentResolver.query(collection, projection, null, null, sortOrder)
+                context.contentResolver.query(collection, projection, selection, selectionArgs, sortOrder)
             }
 
             cursor?.use { c ->
@@ -558,11 +594,30 @@ class MediaStoreRepository(private val context: Context) {
         val resolvedMime = mimeType ?: context.contentResolver.getType(targetUri) ?: ""
         val isVideo = resolvedMime.startsWith("video")
         val isAudio = resolvedMime.startsWith("audio")
+
+        // 1. Try to find the bucket ID of the target URI first
+        var targetBucketId: String? = null
+        try {
+            val collection = when {
+                isVideo -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL) else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                isAudio -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL) else MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                else -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL) else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            }
+            val proj = arrayOf(MediaStore.MediaColumns.BUCKET_ID)
+            context.contentResolver.query(targetUri, proj, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val idx = cursor.getColumnIndex(MediaStore.MediaColumns.BUCKET_ID)
+                    if (idx != -1) targetBucketId = cursor.getString(idx)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         
         val fullList = when {
-            isVideo -> getVideos()
-            isAudio -> getAudio()
-            else -> getImages()
+            isVideo -> getVideos(bucketId = targetBucketId)
+            isAudio -> getAudio(bucketId = targetBucketId)
+            else -> getImages(bucketId = targetBucketId)
         }
 
         if (fullList.isEmpty()) {

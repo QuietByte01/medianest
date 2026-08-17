@@ -29,6 +29,8 @@ import coil.compose.AsyncImagePainter
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.itemKey
 import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.AlphabetScroller
@@ -57,7 +59,8 @@ fun SongsList(
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?) -> Unit = { _, _, _, _ -> },
     onAddToPlaylist: (MediaItem) -> Unit = {},
-    showInGallery: Boolean = false
+    showInGallery: Boolean = false,
+    pagedSongs: LazyPagingItems<MediaItem>? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -73,8 +76,7 @@ fun SongsList(
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             MediaLoadingAnimation(
                 mediaType = MediaType.AUDIO,
-                iconSize = 52.dp,
-                showLabel = true
+                iconSize = 52.dp
             )
         }
     } else if (songs.isEmpty()) {
@@ -108,215 +110,47 @@ fun SongsList(
                     end = if (isAlphabetical) 20.dp else 4.dp
                 )
             ) {
-                items(songs, key = { it.id }) { item ->
-                    var showMenu by remember { mutableStateOf(false) }
-                    val albumArtModel = item.albumArtUri ?: item.uri
-                    val isCurrentlyPlaying = item.uri.toString() == currentlyPlayingUri
-
-                    GlassSurface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(
-                                start = if (isAlphabetical) 20.dp else 16.dp,
-                                end = if (isAlphabetical) 0.dp else 16.dp,
-                                top = 5.dp,
-                                bottom = 5.dp
-                            )
-                            .clip(RoundedCornerShape(20.dp))
-                            .clickable { onSongClick(item) },
-                        shape = RoundedCornerShape(20.dp),
-                        backgroundColor = if (isCurrentlyPlaying) Color(0x33FFFFFF) else Color(0x221C1F2B),
-                        borderColor = if (isCurrentlyPlaying) Color(0x66FFFFFF) else Color(0x2EFFFFFF)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Artwork Container with Frosty Fallback
-                            Box(
-                                modifier = Modifier
-                                    .size(46.dp)
-                                    .clip(RoundedCornerShape(14.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                SubcomposeAsyncImage(
-                                    model = ImageRequest.Builder(context).data(albumArtModel).crossfade(true).build(),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                ) {
-                                    val state = painter.state
-                                    if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
-                                        GlassSurface(
-                                            modifier = Modifier.fillMaxSize(),
-                                            shape = RoundedCornerShape(14.dp),
-                                            backgroundColor = Color.Transparent, // Transparent as requested
-                                            borderColor = Color(0x22FFFFFF)
-                                        ) {
-                                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    imageVector = Icons.Default.MusicNote,
-                                                    contentDescription = null,
-                                                    tint = Color.White.copy(alpha = 0.7f),
-                                                    modifier = Modifier.size(28.dp) // Increased from 22.dp
-                                                )
-                                            }
-                                        }
-                                    } else {
-                                        SubcomposeAsyncImageContent()
-                                    }
-                                }
-
-                                if (isCurrentlyPlaying) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(Color(0x77000000)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.PlayArrow,
-                                            contentDescription = "Currently Playing",
-                                            tint = Color(0xEEFFFFFF),
-                                            modifier = Modifier.size(26.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-                                Text(
-                                    text = item.title,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                val artistStr = item.artist ?: "Unknown Artist"
-                                val formatTag = remember(item) {
-                                    val m = item.mimeType.lowercase()
-                                    val ext = item.uri.toString().substringAfterLast('.').lowercase().substringBefore('?')
-                                    when {
-                                        m.contains("flac") || ext == "flac" -> "FLAC"
-                                        m.contains("wav") || ext == "wav" -> "WAV"
-                                        m.contains("m4a") || m.contains("mp4a") || ext == "m4a" -> "M4A"
-                                        m.contains("aac") || ext == "aac" -> "AAC"
-                                        m.contains("ogg") || ext == "ogg" -> "OGG"
-                                        m.contains("opus") || ext == "opus" -> "OPUS"
-                                        m.contains("mpeg") || m.contains("mp3") || ext == "mp3" -> "MP3"
-                                        else -> ext.uppercase().ifEmpty { "AUDIO" }
-                                    }
-                                }
-                                val qualityStr = formatTag
-                                val sizeStr = if (item.size > 0) formatBytesReport(item.size) else formatDuration(item.durationMs)
-
-                                Text(
-                                    text = "$artistStr • $qualityStr • $sizeStr",
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF9EA3B0),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-
-                            Box {
-                                IconButton(onClick = { showMenu = true }) {
-                                    Icon(
-                                        imageVector = Icons.Default.MoreVert,
-                                        contentDescription = "Song options",
-                                        tint = Color(0xFF9EA3B0),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                GlassDropdownMenu(
-                                    expanded = showMenu,
-                                    onDismissRequest = { showMenu = false },
-                                    shape = RoundedCornerShape(16.dp)
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Add to Playlist") },
-                                        leadingIcon = { Icon(Icons.Default.PlaylistAdd, contentDescription = null) },
-                                        onClick = {
-                                            showMenu = false
-                                            onAddToPlaylist(item)
-                                        }
-                                    )
-                                    if (onRemoveFromPlaylist != null) {
-                                        DropdownMenuItem(
-                                            text = { Text("Remove from Playlist") },
-                                            leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, contentDescription = null) },
-                                            onClick = {
-                                                showMenu = false
-                                                onRemoveFromPlaylist(item)
-                                            }
-                                        )
-                                    }
-                                    DropdownMenuItem(
-                                        text = { Text("File Info") },
-                                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                                        onClick = {
-                                            showMenu = false
-                                            infoItem = item
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Edit Tag & Metadata") },
-                                        leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null) },
-                                        onClick = {
-                                            showMenu = false
-                                            editMetadataItem = item
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Show Album") },
-                                        leadingIcon = { Icon(Icons.Default.Album, contentDescription = null) },
-                                        onClick = {
-                                            showMenu = false
-                                            onNavigateSubTab(3, item.album ?: "Unknown Album", null, null)
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Show Artist") },
-                                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                                        onClick = {
-                                            showMenu = false
-                                            onNavigateSubTab(4, null, item.artist ?: "Unknown Artist", null)
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(if (showInGallery) "Open with" else "Show in Folder") },
-                                        leadingIcon = { 
-                                            Icon(
-                                                if (showInGallery) Icons.Default.MusicNote else Icons.Default.Folder, 
-                                                contentDescription = null
-                                            ) 
-                                        },
-                                        onClick = {
-                                            showMenu = false
-                                            if (showInGallery) {
-                                                com.medianest.util.IntentUtils.openInGallery(context, item)
-                                            } else {
-                                                onNavigateSubTab(5, null, null, item.bucketName ?: "Music")
-                                            }
-                                        }
-                                    )
-                                    if (showDeleteOption) {
-                                        DropdownMenuItem(
-                                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                                            onClick = {
-                                                showMenu = false
-                                                songToDelete = item
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                if (pagedSongs != null) {
+                    items(
+                        count = pagedSongs.itemCount,
+                        key = pagedSongs.itemKey { it.id }
+                    ) { index ->
+                        val item = pagedSongs[index] ?: return@items
+                        SongRow(
+                            item = item,
+                            currentlyPlayingUri = currentlyPlayingUri,
+                            isAlphabetical = isAlphabetical,
+                            isSelected = selectedUris.contains(item.uri.toString()),
+                            onSongClick = onSongClick,
+                            onAddToPlaylist = onAddToPlaylist,
+                            onRemoveFromPlaylist = onRemoveFromPlaylist,
+                            onInfoClick = { infoItem = it },
+                            onEditMetadataClick = { editMetadataItem = it },
+                            onDeleteClick = { songToDelete = it },
+                            onNavigateSubTab = onNavigateSubTab,
+                            showDeleteOption = showDeleteOption,
+                            showInGallery = showInGallery,
+                            context = context
+                        )
+                    }
+                } else {
+                    items(songs, key = { it.id }) { item ->
+                        SongRow(
+                            item = item,
+                            currentlyPlayingUri = currentlyPlayingUri,
+                            isAlphabetical = isAlphabetical,
+                            isSelected = selectedUris.contains(item.uri.toString()),
+                            onSongClick = onSongClick,
+                            onAddToPlaylist = onAddToPlaylist,
+                            onRemoveFromPlaylist = onRemoveFromPlaylist,
+                            onInfoClick = { infoItem = it },
+                            onEditMetadataClick = { editMetadataItem = it },
+                            onDeleteClick = { songToDelete = it },
+                            onNavigateSubTab = onNavigateSubTab,
+                            showDeleteOption = showDeleteOption,
+                            showInGallery = showInGallery,
+                            context = context
+                        )
                     }
                 }
             }
@@ -383,5 +217,233 @@ fun SongsList(
             item = editMetadataItem!!,
             onDismiss = { editMetadataItem = null }
         )
+    }
+}
+
+@Composable
+private fun SongRow(
+    item: MediaItem,
+    currentlyPlayingUri: String?,
+    isAlphabetical: Boolean,
+    isSelected: Boolean,
+    onSongClick: (MediaItem) -> Unit,
+    onAddToPlaylist: (MediaItem) -> Unit,
+    onRemoveFromPlaylist: ((MediaItem) -> Unit)?,
+    onInfoClick: (MediaItem) -> Unit,
+    onEditMetadataClick: (MediaItem) -> Unit,
+    onDeleteClick: (MediaItem) -> Unit,
+    onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?) -> Unit,
+    showDeleteOption: Boolean,
+    showInGallery: Boolean,
+    context: android.content.Context
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    val albumArtModel = item.albumArtUri ?: item.uri
+    val isCurrentlyPlaying = item.uri.toString() == currentlyPlayingUri
+
+    GlassSurface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                start = if (isAlphabetical) 20.dp else 16.dp,
+                end = if (isAlphabetical) 0.dp else 16.dp,
+                top = 5.dp,
+                bottom = 5.dp
+            )
+            .clip(RoundedCornerShape(20.dp))
+            .clickable { onSongClick(item) },
+        shape = RoundedCornerShape(20.dp),
+        backgroundColor = if (isCurrentlyPlaying) Color(0x33FFFFFF) else Color(0x221C1F2B),
+        borderColor = if (isCurrentlyPlaying) Color(0x66FFFFFF) else Color(0x2EFFFFFF)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Artwork Container with Frosty Fallback
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                SubcomposeAsyncImage(
+                    model = ImageRequest.Builder(context).data(albumArtModel).crossfade(true).build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    val state = painter.state
+                    if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
+                        GlassSurface(
+                            modifier = Modifier.fillMaxSize(),
+                            shape = RoundedCornerShape(14.dp),
+                            backgroundColor = Color.Transparent,
+                            borderColor = Color(0x22FFFFFF)
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.MusicNote,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        SubcomposeAsyncImageContent()
+                    }
+                }
+
+                if (isCurrentlyPlaying) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0x77000000)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "Currently Playing",
+                            tint = Color(0xEEFFFFFF),
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
+            }
+
+            Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+                Text(
+                    text = item.title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                val artistStr = item.artist ?: "Unknown Artist"
+                val formatTag = remember(item) {
+                    val m = item.mimeType.lowercase()
+                    val ext = item.uri.toString().substringAfterLast('.').lowercase().substringBefore('?')
+                    when {
+                        m.contains("flac") || ext == "flac" -> "FLAC"
+                        m.contains("wav") || ext == "wav" -> "WAV"
+                        m.contains("m4a") || m.contains("mp4a") || ext == "m4a" -> "M4A"
+                        m.contains("aac") || ext == "aac" -> "AAC"
+                        m.contains("ogg") || ext == "ogg" -> "OGG"
+                        m.contains("opus") || ext == "opus" -> "OPUS"
+                        m.contains("mpeg") || m.contains("mp3") || ext == "mp3" -> "MP3"
+                        else -> ext.uppercase().ifEmpty { "AUDIO" }
+                    }
+                }
+                val qualityStr = formatTag
+                val sizeStr = if (item.size > 0) formatBytesReport(item.size) else formatDuration(item.durationMs)
+
+                Text(
+                    text = "$artistStr • $qualityStr • $sizeStr",
+                    fontSize = 12.sp,
+                    color = Color(0xFF9EA3B0),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Box {
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Song options",
+                        tint = Color(0xFF9EA3B0),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                GlassDropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Add to Playlist") },
+                        leadingIcon = { Icon(Icons.Default.PlaylistAdd, contentDescription = null) },
+                        onClick = {
+                            showMenu = false
+                            onAddToPlaylist(item)
+                        }
+                    )
+                    if (onRemoveFromPlaylist != null) {
+                        DropdownMenuItem(
+                            text = { Text("Remove from Playlist") },
+                            leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, contentDescription = null) },
+                            onClick = {
+                                showMenu = false
+                                onRemoveFromPlaylist(item)
+                            }
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text("File Info") },
+                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                        onClick = {
+                            showMenu = false
+                            onInfoClick(item)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Edit Tag & Metadata") },
+                        leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null) },
+                        onClick = {
+                            showMenu = false
+                            onEditMetadataClick(item)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Show Album") },
+                        leadingIcon = { Icon(Icons.Default.Album, contentDescription = null) },
+                        onClick = {
+                            showMenu = false
+                            onNavigateSubTab(3, item.album ?: "Unknown Album", null, null)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Show Artist") },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        onClick = {
+                            showMenu = false
+                            onNavigateSubTab(4, null, item.artist ?: "Unknown Artist", null)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(if (showInGallery) "Open with" else "Show in Folder") },
+                        leadingIcon = { 
+                            Icon(
+                                if (showInGallery) Icons.Default.MusicNote else Icons.Default.Folder, 
+                                contentDescription = null
+                            ) 
+                        },
+                        onClick = {
+                            showMenu = false
+                            if (showInGallery) {
+                                com.medianest.util.IntentUtils.openInGallery(context, item)
+                            } else {
+                                onNavigateSubTab(5, null, null, item.bucketName ?: "Music")
+                            }
+                        }
+                    )
+                    if (showDeleteOption) {
+                        DropdownMenuItem(
+                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                            onClick = {
+                                showMenu = false
+                                onDeleteClick(item)
+                            }
+                        )
+                    }
+                }
+            }
+        }
     }
 }

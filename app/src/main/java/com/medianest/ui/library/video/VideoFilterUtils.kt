@@ -262,16 +262,8 @@ fun isMovie(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean {
     // 4. Exclude other specific types
     if (isClipsAndRecordings(item) || isShorts(item) || isMusicVideo(item) || isSocialMediaVideo(item)) return false
 
-    // 5. TV Series Check (Sequels/Collections often share words, so don't exclude if markers are present)
-    if (!hasStrongMarkers && isTVSeries(item, sharedWords)) return false
-
-    // 6. Generic Word/Shared Words exclusion for non-marked items
-    if (!hasStrongMarkers && sharedWords.isNotEmpty()) {
-        val cleanedTitleWords = extractSignificantWords(item.title)
-        if (cleanedTitleWords.any { it in sharedWords }) {
-            return false
-        }
-    }
+    // 5. TV Series Check (Sequels/Collections are treated as Series/Collections if they share words)
+    if (isTVSeries(item, sharedWords)) return false
 
     val inGeneralFolder = path.contains("/videos/") ||
             path.contains("/download/") ||

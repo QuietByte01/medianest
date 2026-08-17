@@ -7,12 +7,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.paging.compose.collectAsLazyPagingItems
 import com.medianest.data.db.CategoryMediaCrossRef
 import com.medianest.data.db.FileStatSnapshot
 import com.medianest.data.db.FormatStat
 import com.medianest.data.db.MediaCategory
 import com.medianest.data.model.MediaItem
 import com.medianest.player.ExoPlayerManager
+import com.medianest.ui.MediaViewModel
 import com.medianest.ui.analytics.AnalyticsScreen
 import com.medianest.ui.components.dismissKeyboardOnOutsideTap
 import com.medianest.ui.library.audio.AudioTab
@@ -54,16 +57,30 @@ fun LibraryScreen(
     onCreateCategory: (String, String, String?) -> Unit,
     onCreateImageCollection: (String, List<String>, String?) -> Unit = { _, _, _ -> },
     onUpdateImageCollection: (Long, String, List<String>, String?) -> Unit = { _, _, _, _ -> },
-    onDeleteImageCollection: (Long) -> Unit = {}
+    onDeleteImageCollection: (Long) -> Unit = {},
+    viewModel: MediaViewModel = viewModel()
 ) {
     val context = LocalContext.current
+
+    LaunchedEffect(imagesList, videosList, audioList) {
+        viewModel.setMediaLists(imagesList, videosList, audioList)
+    }
+
+    val settingsManager = com.medianest.MediaNestApp.instance.settingsManager
+    val showHiddenFiles by settingsManager.showHiddenFiles.collectAsState(initial = false)
+    val hiddenFolders by settingsManager.hiddenFolders.collectAsState(initial = emptySet())
+
+    val pagedImages = viewModel.pagedImagesFlow.collectAsLazyPagingItems()
+    val pagedVideos = viewModel.pagedVideosFlow.collectAsLazyPagingItems()
+    val pagedAudio = viewModel.pagedAudioFlow.collectAsLazyPagingItems()
+
     var currentTab by remember(initialTab) { mutableIntStateOf(initialTab) } // 0: Dashboard (if enabled), 1: Images, 2: Videos, 3: Audio
 
     LaunchedEffect(initialTab) {
         currentTab = initialTab
     }
 
-    var searchQuery by remember { mutableStateOf("") }
+    val searchQuery by viewModel.searchQuery.collectAsState()
     var isSearchActive by remember { mutableStateOf(false) }
 
     var selectedCategory by remember { mutableStateOf<MediaCategory?>(null) }
@@ -86,24 +103,10 @@ fun LibraryScreen(
     val isVideosTab = if (enableAnalyticsTab) currentTab == 2 else currentTab == 1
     val isAudioTab = if (enableAnalyticsTab) currentTab == 3 else currentTab == 2
 
-    // Filter list based on search query
-    val filteredImages = remember(imagesList, searchQuery) {
-        if (searchQuery.isEmpty()) imagesList
-        else imagesList.filter { it.title.contains(searchQuery, ignoreCase = true) }
-    }
-
-    val filteredVideos = remember(videosList, searchQuery, selectedCategory) {
-        var res = videosList
-        if (searchQuery.isNotEmpty()) {
-            res = res.filter { it.title.contains(searchQuery, ignoreCase = true) }
-        }
-        res
-    }
-
-    val filteredAudio = remember(audioList, searchQuery) {
-        if (searchQuery.isEmpty()) audioList
-        else audioList.filter { it.title.contains(searchQuery, ignoreCase = true) || (it.artist?.contains(searchQuery, ignoreCase = true) == true) }
-    }
+    // Filter list based on search query (offloaded to ViewModel)
+    val filteredImages by viewModel.filteredImagesList.collectAsState()
+    val filteredVideos by viewModel.filteredVideosList.collectAsState()
+    val filteredAudio by viewModel.filteredAudioList.collectAsState()
 
     val currentTabItems = when {
         isImagesTab -> filteredImages
@@ -120,7 +123,7 @@ fun LibraryScreen(
             isSelectionMode -> selectedUris = emptySet()
             isSearchActive -> {
                 isSearchActive = false
-                searchQuery = ""
+                viewModel.updateSearchQuery("")
             }
             selectedCategory != null -> selectedCategory = null
             currentTab != 0 -> currentTab = 0
@@ -145,45 +148,39 @@ fun LibraryScreen(
             audioList = audioList
         )
 
-        val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-        val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
         Scaffold(
             containerColor = androidx.compose.ui.graphics.Color.Transparent,
             contentWindowInsets = WindowInsets(0, 0, 0, 0), // Eliminate automatic padding
             topBar = {
-                if (!isLandscape) {
-                    LibraryTopBar(
-                        searchQuery = searchQuery,
-                        onSearchQueryChange = { searchQuery = it },
-                        isSearchActive = isSearchActive,
-                        onSearchActiveChange = { isSearchActive = it },
-                        isDashboardTab = isDashboardTab,
-                        isImagesTab = isImagesTab,
-                        isVideosTab = isVideosTab,
-                        isAudioTab = isAudioTab,
-                        onOpenSettings = onOpenSettings
-                    )
-                }
+                LibraryTopBar(
+                    searchQuery = searchQuery,
+                    onSearchQueryChange = { viewModel.updateSearchQuery(it) },
+                    isSearchActive = isSearchActive,
+                    onSearchActiveChange = { isSearchActive = it },
+                    isDashboardTab = isDashboardTab,
+                    isImagesTab = isImagesTab,
+                    isVideosTab = isVideosTab,
+                    isAudioTab = isAudioTab,
+                    onOpenSettings = onOpenSettings
+                )
             },
             bottomBar = {
-                if (!isLandscape) {
-                    LibraryBottomBar(
-                        currentTab = currentTab,
-                        onTabSelected = { currentTab = it },
-                        enableAnalyticsTab = enableAnalyticsTab,
-                        isAudioTab = isAudioTab,
-                        playerState = playerState,
-                        exoPlayerManager = exoPlayerManager,
-                        onOpenAudioPlayer = onOpenAudioPlayer
-                    )
-                }
+                LibraryBottomBar(
+                    currentTab = currentTab,
+                    onTabSelected = { currentTab = it },
+                    enableAnalyticsTab = enableAnalyticsTab,
+                    isAudioTab = isAudioTab,
+                    playerState = playerState,
+                    exoPlayerManager = exoPlayerManager,
+                    onOpenAudioPlayer = onOpenAudioPlayer
+                )
             }
         ) { innerPadding ->
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .then(if (isLandscape) Modifier else Modifier.padding(innerPadding))
+                    .padding(innerPadding)
             ) {
                 when {
                     isDashboardTab -> AnalyticsScreen(
@@ -209,6 +206,7 @@ fun LibraryScreen(
 
                         isImagesTab -> ImagesTab(
                             imagesList = filteredImages,
+                            pagedImages = pagedImages,
                             imageCollections = imageCollections,
                             categoryCrossRefs = categoryCrossRefs,
                             selectedUris = selectedUris,
@@ -232,7 +230,8 @@ fun LibraryScreen(
                             onImageLongClick = { item ->
                                 selectedUris = selectedUris + item.uri.toString()
                             },
-                            onBackToDashboard = { currentTab = 0 }
+                            onBackToDashboard = { currentTab = 0 },
+                            viewModel = viewModel
                         )
 
                     isVideosTab -> VideosTab(
@@ -263,11 +262,13 @@ fun LibraryScreen(
                         onDismissAddVideosDialog = { showAddVideosToCategoryModal = false },
                         onClearSelection = { selectedUris = emptySet() },
                         initialFolder = initialVideoFolder,
-                        onBackToDashboard = { currentTab = 0 }
+                        onBackToDashboard = { currentTab = 0 },
+                        viewModel = viewModel
                     )
 
                     isAudioTab -> AudioTab(
                         audioList = filteredAudio,
+                        pagedAudio = pagedAudio,
                         playlists = audioPlaylists,
                         selectedUris = selectedUris,
                         isSelectionMode = isSelectionMode,
@@ -285,7 +286,8 @@ fun LibraryScreen(
                         initialAlbum = audioAlbum,
                         initialArtist = audioArtist,
                         initialFolder = audioFolder,
-                        onBackToDashboard = { currentTab = 0 }
+                        onBackToDashboard = { currentTab = 0 },
+                        viewModel = viewModel
                     )
                 }
 

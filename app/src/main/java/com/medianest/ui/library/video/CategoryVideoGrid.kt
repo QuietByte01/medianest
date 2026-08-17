@@ -83,7 +83,7 @@ fun ChronologicalCategoryVideoGrid(
                     items(itemsInGroup, key = { it.id }) { item ->
                         val isSelected = selectedUris.contains(item.uri.toString())
                         val context = androidx.compose.ui.platform.LocalContext.current
-                        
+
                         // Asynchronously fetch place name from embedded GPS metadata with Room caching
                         var locationResult by remember(item.id) { mutableStateOf<com.medianest.util.VideoLocationResult?>(null) }
                         val db = remember { com.medianest.MediaNestApp.instance.database }

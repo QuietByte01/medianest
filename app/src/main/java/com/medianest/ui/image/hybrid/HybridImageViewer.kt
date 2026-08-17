@@ -34,9 +34,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
 import com.medianest.ui.components.GlassSurface
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Robust Hybrid Image Viewer that switches between standard, tiled, and SVG renderers.
@@ -55,14 +57,20 @@ fun HybridImageViewer(
     onSwipeUpForInfo: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val metadata = remember(source) { ImageMetadata.extract(context, source, config) }
+    val metadata by produceState<ImageMetadata?>(initialValue = null, source) {
+        value = withContext(Dispatchers.IO) {
+            ImageMetadata.extract(context, source, config)
+        }
+    }
     
     val zoomController = rememberZoomController(config)
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(metadata) {
-        zoomController.updateContentSize(Size(metadata.width.toFloat(), metadata.height.toFloat()))
-        zoomController.setInitialGiantState(metadata.isGiantImage)
+        metadata?.let {
+            zoomController.updateContentSize(Size(it.width.toFloat(), it.height.toFloat()))
+            zoomController.setInitialGiantState(it.isGiantImage)
+        }
     }
 
     // Notify parent about zoom state for disabling pager
@@ -75,8 +83,10 @@ fun HybridImageViewer(
 
     // Determine which renderer implementation to use
     val mainRenderer = remember(metadata) {
+        val meta = metadata
         when {
-            metadata.isSvg -> SvgRenderer { zoomController.updateContentSize(it) }
+            meta == null -> StandardBitmapRenderer { zoomController.updateContentSize(it) } // Fallback to standard while loading
+            meta.isSvg -> SvgRenderer { zoomController.updateContentSize(it) }
             else -> StandardBitmapRenderer { zoomController.updateContentSize(it) }
         }
     }
@@ -106,7 +116,7 @@ fun HybridImageViewer(
             modifier = Modifier.fillMaxSize()
         )
 
-        if (zoomController.useTiledRenderer && !metadata.isSvg) {
+        if (zoomController.useTiledRenderer && metadata?.isSvg == false) {
             val showTiled = remember { mutableStateOf(false) }
             AnimatedVisibility(
                 visible = showTiled.value,

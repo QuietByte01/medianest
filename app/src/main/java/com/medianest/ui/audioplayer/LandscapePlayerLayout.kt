@@ -230,22 +230,29 @@ private fun ImmersiveLandscapeLayout(
                         val durationMs = if (playerState.durationMs > 0) playerState.durationMs else currentItem?.durationMs ?: 0L
                         val maxSliderVal = durationMs.coerceAtLeast(1L).toFloat()
 
+                        val seekbarColor = remember(albumArtHue) {
+                            albumArtHue?.let { Color.hsv(it, 0.6f, 0.9f) } ?: Color.White
+                        }
+
                         WavySeekBar(
                             value = currentPosMs.toFloat().coerceIn(0f, maxSliderVal),
                             onValueChange = onSeekChange,
                             onValueChangeFinished = onSeekFinished,
                             valueRange = 0f..maxSliderVal,
                             isPlaying = playerState.isPlaying,
-                            activeColor = Color.White.copy(alpha = 0.45f),
-                            inactiveColor = Color.Transparent,
-                            thumbColor = Color.Transparent,
+                            activeColor = seekbarColor,
+                            inactiveColor = seekbarColor.copy(alpha = 0.10f),
+                            thumbColor = seekbarColor,
                             waveAmplitudeDp = 6.dp,
                             waveLengthDp = 36.dp,
                             activeTrackHeightDp = 4.dp,
+                            heightDp = 14.dp, // Reduced height to pull it to the bottom
+                            showThumb = false,
+                            fullTrackBackground = true,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .align(Alignment.BottomCenter)
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .padding(horizontal = 16.dp) // Removed vertical padding
                         )
 
                         // Center Indicators
