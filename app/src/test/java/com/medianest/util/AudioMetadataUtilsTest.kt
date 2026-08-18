@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import com.medianest.util.MediaMetadataUtils
 import io.mockk.*
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -22,6 +23,8 @@ class AudioMetadataUtilsTest {
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
         mockkConstructor(MediaMetadataRetriever::class)
+        mockkObject(MediaMetadataUtils)
+        every { MediaMetadataUtils.extractBasicMetadata(any(), any()) } returns MediaMetadataUtils.MetadataResult()
     }
 
     @Test

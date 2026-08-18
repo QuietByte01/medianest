@@ -87,7 +87,7 @@ fun MiniPlayerBar(
                     if (onDismiss != null) {
                         onDismiss()
                     } else {
-                        com.medianest.player.ExoPlayerManager.activeManager?.stopPlayback()
+                        com.medianest.player.ExoPlayerManager.getInstance(context).stopPlayback()
                     }
                 }
             },
@@ -190,7 +190,7 @@ fun MiniPlayerBar(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
                             ) {
-                                onPrevious?.invoke() ?: com.medianest.player.ExoPlayerManager.activeManager?.previous()
+                                onPrevious?.invoke() ?: com.medianest.player.ExoPlayerManager.getInstance(context).previous()
                             },
                         contentAlignment = Alignment.Center
                     ) {

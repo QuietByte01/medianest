@@ -100,7 +100,7 @@ object AudioMetadataUtils {
         // 3. Try rawTitleHint if provided
         if (!rawTitleHint.isNullOrBlank()) {
             val cleanHint = if (rawTitleHint.contains('.')) rawTitleHint.substringBeforeLast('.') else rawTitleHint
-            if (cleanHint.isNotBlank() && !cleanHint.startsWith("audio:", ignoreCase = true) && !cleanHint.startsWith("document", ignoreCase = true)) {
+            if (cleanHint.isNotBlank() && !cleanHint.all { it.isDigit() } && !cleanHint.startsWith("audio:", ignoreCase = true) && !cleanHint.startsWith("document", ignoreCase = true)) {
                 return cleanHint
             }
         }
@@ -109,7 +109,7 @@ object AudioMetadataUtils {
         val lastSeg = uri.lastPathSegment
         if (!lastSeg.isNullOrBlank()) {
             val cleanSeg = if (lastSeg.contains('.')) lastSeg.substringBeforeLast('.') else lastSeg
-            if (cleanSeg.isNotBlank() && !cleanSeg.startsWith("audio:", ignoreCase = true) && !cleanSeg.startsWith("document", ignoreCase = true)) {
+            if (cleanSeg.isNotBlank() && !cleanSeg.all { it.isDigit() } && !cleanSeg.startsWith("audio:", ignoreCase = true) && !cleanSeg.startsWith("document", ignoreCase = true)) {
                 return cleanSeg
             }
         }

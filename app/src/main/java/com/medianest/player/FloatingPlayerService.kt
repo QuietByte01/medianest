@@ -56,11 +56,7 @@ class FloatingPlayerService : Service() {
                 putExtra("is_video", isVideo)
             }
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(intent)
-                } else {
-                    context.startService(intent)
-                }
+                context.startForegroundService(intent)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -99,8 +95,7 @@ class FloatingPlayerService : Service() {
         try {
             mediaSession = MediaSessionCompat(this, "MediaNestSession").apply {
                 setCallback(object : MediaSessionCompat.Callback() {
-                    private fun mgr() = ExoPlayerManager.activeManager
-                        ?: ExoPlayerManager.getInstance(applicationContext)
+                    private fun mgr() = ExoPlayerManager.getInstance(applicationContext)
 
                     override fun onPlay() {
                         mgr().play()
@@ -156,19 +151,17 @@ class FloatingPlayerService : Service() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Media Player Notification",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Playback controls in notification bar and lockscreen"
-                setShowBadge(false)
-                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-            }
-            val manager = getSystemService(NotificationManager::class.java)
-            manager?.createNotificationChannel(channel)
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "Media Player Notification",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Playback controls in notification bar and lockscreen"
+            setShowBadge(false)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         }
+        val manager = getSystemService(NotificationManager::class.java)
+        manager?.createNotificationChannel(channel)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -191,56 +184,43 @@ class FloatingPlayerService : Service() {
             loadArtworkBitmap(artworkExtra)
         }
 
-        val activeManager = ExoPlayerManager.activeManager
+        val activeManager = ExoPlayerManager.getInstance(applicationContext)
 
         when (action) {
             ACTION_START -> {
                 updateNotification()
             }
             ACTION_PREVIOUS -> {
-                activeManager?.previous()
+                activeManager.previous()
                 updateNotification()
             }
             ACTION_PLAY_PAUSE -> {
-                if (activeManager != null) {
-                    activeManager.togglePlayPause()
-                    // Update local state based on player
-                    isPlayingState = activeManager.isPlaying
-                } else {
-                    isPlayingState = !isPlayingState
-                }
+                activeManager.togglePlayPause()
+                // Update local state based on player
+                isPlayingState = activeManager.isPlaying
                 updateNotification()
             }
             ACTION_NEXT -> {
-                activeManager?.next()
+                activeManager.next()
                 updateNotification()
             }
             ACTION_SHUFFLE -> {
-                activeManager?.setShuffleMode(!activeManager.playerState.value.isShuffle)
+                activeManager.setShuffleMode(!activeManager.playerState.value.isShuffle)
                 updateNotification()
             }
             ACTION_REPEAT -> {
-                if (activeManager != null) {
-                    val nextMode = when (activeManager.playerState.value.repeatMode) {
-                        Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-                        Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-                        else -> Player.REPEAT_MODE_OFF
-                    }
-                    activeManager.setRepeatMode(nextMode)
+                val nextMode = when (activeManager.playerState.value.repeatMode) {
+                    Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                    Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                    else -> Player.REPEAT_MODE_OFF
                 }
+                activeManager.setRepeatMode(nextMode)
                 updateNotification()
             }
             ACTION_STOP -> {
-                val isVideoActive = com.medianest.ui.videoplayer.VideoPlayerActivity.activePlayerManager != null
-                if (!isVideoActive) {
-                    activeManager?.pause()
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                } else {
-                    @Suppress("DEPRECATION")
-                    stopForeground(true)
-                }
+                val activeManager = ExoPlayerManager.getInstance(applicationContext)
+                activeManager.pause()
+                stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
             else -> {
@@ -277,7 +257,7 @@ class FloatingPlayerService : Service() {
                     }
 
                     // 2. Try loadThumbnail for Q+
-                    if (bitmap == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    if (bitmap == null) {
                         try {
                             bitmap = contentResolver.loadThumbnail(uri, Size(300, 300), null)
                         } catch (e: Exception) {
@@ -353,11 +333,7 @@ private fun extractHueFromBitmap(bitmap: Bitmap): Float? {
     private fun updateNotification() {
         val notification = buildNotification()
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-            } else {
-                startForeground(NOTIF_ID, notification)
-            }
+            startForeground(NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
         } catch (e: Exception) {
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             manager?.notify(NOTIF_ID, notification)
@@ -365,8 +341,8 @@ private fun extractHueFromBitmap(bitmap: Bitmap): Float? {
     }
 
     private fun buildNotification(): Notification {
-        val activeManager = ExoPlayerManager.activeManager
-        val isPlaying = activeManager?.playerState?.value?.isPlaying ?: isPlayingState
+        val activeManager = ExoPlayerManager.getInstance(applicationContext)
+        val isPlaying = activeManager.playerState.value.isPlaying
 
         val contentIntent = if (isVideoState) {
             Intent(this, com.medianest.ui.videoplayer.VideoPlayerActivity::class.java).apply {
@@ -381,43 +357,43 @@ private fun extractHueFromBitmap(bitmap: Bitmap): Float? {
         }
         val contentPendingIntent = PendingIntent.getActivity(
             this, 0, contentIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val prevIntent = Intent(this, FloatingPlayerService::class.java).apply { action = ACTION_PREVIOUS }
         val prevPendingIntent = PendingIntent.getService(
             this, 1, prevIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val playPauseIntent = Intent(this, FloatingPlayerService::class.java).apply { action = ACTION_PLAY_PAUSE }
         val playPausePendingIntent = PendingIntent.getService(
             this, 2, playPauseIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val nextIntent = Intent(this, FloatingPlayerService::class.java).apply { action = ACTION_NEXT }
         val nextPendingIntent = PendingIntent.getService(
             this, 3, nextIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val stopIntent = Intent(this, FloatingPlayerService::class.java).apply { action = ACTION_STOP }
         val stopPendingIntent = PendingIntent.getService(
             this, 4, stopIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val shuffleIntent = Intent(this, FloatingPlayerService::class.java).apply { action = ACTION_SHUFFLE }
         val shufflePendingIntent = PendingIntent.getService(
             this, 5, shuffleIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val repeatIntent = Intent(this, FloatingPlayerService::class.java).apply { action = ACTION_REPEAT }
         val repeatPendingIntent = PendingIntent.getService(
             this, 6, repeatIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val playPauseIcon = if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
@@ -528,11 +504,6 @@ private fun extractHueFromBitmap(bitmap: Bitmap): Float? {
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-        } else {
-            @Suppress("DEPRECATION")
-            stopForeground(true)
-        }
+        stopForeground(STOP_FOREGROUND_REMOVE)
     }
 }

@@ -24,14 +24,14 @@ object AndroidHardwareEngine {
         val deviceModel: String = "${Build.MANUFACTURER} ${Build.MODEL}",
         val totalRamMb: Long = 4096,
         val ramTier: String = "4GB",
-        val isVulkanSupported: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N,
+        val isVulkanSupported: Boolean = true,
         val isOpenGlEs3Supported: Boolean = true,
         val isH264HwSupported: Boolean = true,
         val isHevcHwSupported: Boolean = true,
         val isAv1HwSupported: Boolean = false,
         val isVp9HwSupported: Boolean = true,
         val isHdr10Supported: Boolean = false,
-        val isAAudioSupported: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O,
+        val isAAudioSupported: Boolean = true,
         val isOpenSlEsSupported: Boolean = true,
         val maxTextureSize: Int = 4096
     )
@@ -119,22 +119,21 @@ object AndroidHardwareEngine {
             hasHevcHw = true
         }
 
-        val isHdrSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
-                context.resources.configuration.isScreenHdr
+        val isHdrSupported = context.resources.configuration.isScreenHdr
 
         val caps = HardwareCapabilities(
             apiLevel = Build.VERSION.SDK_INT,
             deviceModel = "${Build.MANUFACTURER} ${Build.MODEL}",
             totalRamMb = totalRamMb,
             ramTier = ramTier,
-            isVulkanSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N,
+            isVulkanSupported = true,
             isOpenGlEs3Supported = true,
             isH264HwSupported = hasH264Hw,
             isHevcHwSupported = hasHevcHw,
             isAv1HwSupported = hasAv1Hw,
             isVp9HwSupported = hasVp9Hw,
             isHdr10Supported = isHdrSupported,
-            isAAudioSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O,
+            isAAudioSupported = true,
             isOpenSlEsSupported = true,
             maxTextureSize = if (totalRamMb >= 8192) 8192 else 4096
         )

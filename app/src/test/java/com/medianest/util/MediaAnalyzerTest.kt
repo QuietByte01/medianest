@@ -10,8 +10,13 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.File
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class MediaAnalyzerTest {
 
     @Before
@@ -62,7 +67,7 @@ class MediaAnalyzerTest {
         val report = MediaAnalyzer.analyze(testPath, "VIDEO")
 
         assertNotNull(report.format)
-        assertEquals("mov,mp4,m4a,3gp,3g2,mj2", report.format?.containerFormat)
+        assertEquals("mov, mp4, m4a, 3gp, 3g2, mj2", report.format?.containerFormat)
         assertEquals(120.5, report.format?.duration!!, 0.01)
         assertEquals(5000000L, report.format?.bitrate)
 
@@ -73,7 +78,7 @@ class MediaAnalyzerTest {
         assertEquals(30.0, report.videoStream?.avgFpsDecimal!!, 0.01)
 
         assertEquals(1, report.audioStreams.size)
-        assertEquals("AAC", report.audioStreams[0].codecName)
+        assertEquals("AAC (Advanced Audio Coding)", report.audioStreams[0].codecName)
         assertEquals(44100, report.audioStreams[0].sampleRate)
 
         assertFalse(report.diagnostics.hasErrors)

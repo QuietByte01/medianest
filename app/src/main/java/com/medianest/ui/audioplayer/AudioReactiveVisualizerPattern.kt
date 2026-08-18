@@ -10,8 +10,8 @@ import com.medianest.ui.components.VisualizerStyle
 @Composable
 fun AudioReactiveVisualizerPattern(
     isPlaying: Boolean,
-    audioSessionId: Int = 0,
     modifier: Modifier = Modifier,
+    audioSessionId: Int = 0,
     hue: Float? = null,
     style: VisualizerStyle = VisualizerStyle.ENERGY_PARTICLES, // VisualizerStyle.AUDIO_REACTIVE_DANCER,
     showControls: Boolean = false,

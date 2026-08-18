@@ -72,8 +72,8 @@ fun PortraitPlayerLayout(
     onToggleFavorite: () -> Unit,
     onOpenAddPlaylist: () -> Unit,
     onEditLyrics: () -> Unit,
-    onFullscreenVisualizerClick: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onFullscreenVisualizerClick: () -> Unit = {}
 ) {
     Column(
         modifier = modifier,

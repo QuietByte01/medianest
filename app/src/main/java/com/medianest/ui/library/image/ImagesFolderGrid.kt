@@ -15,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import java.util.Locale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -146,7 +147,7 @@ fun ImagesFolderGrid(
                     val totalSizeBytes = remember(folderItems) { folderItems.sumOf { it.size } }
                     val formattedSize = remember(totalSizeBytes) {
                         val mb = totalSizeBytes / (1024.0 * 1024.0)
-                        if (mb >= 1024) String.format("%.1f GB", mb / 1024.0) else String.format("%.0f MB", mb)
+                        if (mb >= 1024) String.format(Locale.getDefault(), "%.1f GB", mb / 1024.0) else String.format(Locale.getDefault(), "%.0f MB", mb)
                     }
                     val samplePath = remember(folderItems) {
                         folderItems.firstOrNull()?.relativePath?.trimEnd('/')?.let { "/$it" } ?: "/DCIM/$folderName"
@@ -263,7 +264,7 @@ fun ImagesFolderGrid(
                                                 modifier = Modifier.size(12.dp)
                                             )
                                             Text(
-                                                text = String.format("%,d", folderItems.size),
+                                                text = String.format(Locale.US, "%,d", folderItems.size),
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.White

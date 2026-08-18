@@ -34,11 +34,7 @@ class MediaStoreRepository(private val context: Context) {
         bucketId: String? = null
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val imagesList = mutableListOf<MediaItem>()
-        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        } else {
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-        }
+        val collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
 
         val projection = mutableListOf(
             MediaStore.Images.Media._ID,
@@ -51,12 +47,9 @@ class MediaStoreRepository(private val context: Context) {
             MediaStore.Images.Media.DATE_MODIFIED,
             "datetaken",
             MediaStore.Images.Media.BUCKET_ID,
-            MediaStore.Images.Media.BUCKET_DISPLAY_NAME
-        ).apply {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                add(MediaStore.Images.Media.RELATIVE_PATH)
-            }
-        }.toTypedArray()
+            MediaStore.Images.Media.BUCKET_DISPLAY_NAME,
+            MediaStore.Images.Media.RELATIVE_PATH
+        ).toTypedArray()
 
         val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
         var selection: String? = null
@@ -68,29 +61,23 @@ class MediaStoreRepository(private val context: Context) {
         }
 
         try {
-            val queryBundle = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                android.os.Bundle().apply {
-                    if (limit > 0) {
-                        putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, limit)
-                        putInt(android.content.ContentResolver.QUERY_ARG_OFFSET, offset)
-                    }
-                    if (showHidden && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
-                        putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_INCLUDE)
-                    }
-                    putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
-                    if (selection != null) {
-                        putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
-                        putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs)
-                    }
+            val queryBundle = android.os.Bundle().apply {
+                if (limit > 0) {
+                    putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, limit)
+                    putInt(android.content.ContentResolver.QUERY_ARG_OFFSET, offset)
                 }
-            } else null
-
-            val cursor = if (queryBundle != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.contentResolver.query(collection, projection, queryBundle, null)
-            } else {
-                context.contentResolver.query(collection, projection, selection, selectionArgs, sortOrder)
+                if (showHidden) {
+                    putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
+                    putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_INCLUDE)
+                }
+                putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
+                if (selection != null) {
+                    putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+                    putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs)
+                }
             }
+
+            val cursor = context.contentResolver.query(collection, projection, queryBundle, null)
 
             cursor?.use { c ->
                 val idColumn = c.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
@@ -165,7 +152,7 @@ class MediaStoreRepository(private val context: Context) {
             e.printStackTrace()
         }
 
-        val hasAllFilesAccess = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R && android.os.Environment.isExternalStorageManager()
+        val hasAllFilesAccess = android.os.Environment.isExternalStorageManager()
         if (showHidden || hasAllFilesAccess) {
             val hiddenFromFileSystem = scanFileSystemHiddenMedia(MediaType.IMAGE, hiddenFolders, showHidden = showHidden)
             val existingUris = imagesList.map { it.uri.toString() }.toSet()
@@ -226,29 +213,23 @@ class MediaStoreRepository(private val context: Context) {
         }
 
         try {
-            val queryBundle = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                android.os.Bundle().apply {
-                    if (limit > 0) {
-                        putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, limit)
-                        putInt(android.content.ContentResolver.QUERY_ARG_OFFSET, offset)
-                    }
-                    if (showHidden && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
-                        putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_INCLUDE)
-                    }
-                    putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
-                    if (selection != null) {
-                        putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
-                        putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs)
-                    }
+            val queryBundle = android.os.Bundle().apply {
+                if (limit > 0) {
+                    putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, limit)
+                    putInt(android.content.ContentResolver.QUERY_ARG_OFFSET, offset)
                 }
-            } else null
-
-            val cursor = if (queryBundle != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.contentResolver.query(collection, projection, queryBundle, null)
-            } else {
-                context.contentResolver.query(collection, projection, selection, selectionArgs, sortOrder)
+                if (showHidden) {
+                    putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
+                    putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_INCLUDE)
+                }
+                putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
+                if (selection != null) {
+                    putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+                    putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs)
+                }
             }
+
+            val cursor = context.contentResolver.query(collection, projection, queryBundle, null)
 
             cursor?.use { c ->
                 val idColumn = c.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
@@ -333,7 +314,7 @@ class MediaStoreRepository(private val context: Context) {
             e.printStackTrace()
         }
 
-        val hasAllFilesAccess = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R && android.os.Environment.isExternalStorageManager()
+        val hasAllFilesAccess = android.os.Environment.isExternalStorageManager()
         if (showHidden || hasAllFilesAccess) {
             val hiddenFromFileSystem = scanFileSystemHiddenMedia(MediaType.VIDEO, hiddenFolders, showHidden = showHidden)
             val existingUris = videosList.map { it.uri.toString() }.toSet()
@@ -395,29 +376,23 @@ class MediaStoreRepository(private val context: Context) {
         }
 
         try {
-            val queryBundle = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                android.os.Bundle().apply {
-                    if (limit > 0) {
-                        putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, limit)
-                        putInt(android.content.ContentResolver.QUERY_ARG_OFFSET, offset)
-                    }
-                    if (showHidden && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
-                        putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_INCLUDE)
-                    }
-                    putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
-                    if (selection != null) {
-                        putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
-                        putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs)
-                    }
+            val queryBundle = android.os.Bundle().apply {
+                if (limit > 0) {
+                    putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, limit)
+                    putInt(android.content.ContentResolver.QUERY_ARG_OFFSET, offset)
                 }
-            } else null
-
-            val cursor = if (queryBundle != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.contentResolver.query(collection, projection, queryBundle, null)
-            } else {
-                context.contentResolver.query(collection, projection, selection, selectionArgs, sortOrder)
+                if (showHidden) {
+                    putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
+                    putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_INCLUDE)
+                }
+                putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
+                if (selection != null) {
+                    putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+                    putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs)
+                }
             }
+
+            val cursor = context.contentResolver.query(collection, projection, queryBundle, null)
 
             cursor?.use { c ->
                 val idColumn = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
@@ -513,7 +488,7 @@ class MediaStoreRepository(private val context: Context) {
             e.printStackTrace()
         }
 
-        val hasAllFilesAccess = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R && android.os.Environment.isExternalStorageManager()
+        val hasAllFilesAccess = android.os.Environment.isExternalStorageManager()
         if (showHidden || hasAllFilesAccess) {
             val hiddenFromFileSystem = scanFileSystemHiddenMedia(MediaType.AUDIO, hiddenFolders, showHidden = showHidden)
             val existingUris = audioList.map { it.uri.toString() }.toSet()

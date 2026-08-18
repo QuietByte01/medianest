@@ -852,11 +852,11 @@ class AudioVisualizerRenderer(
 @Composable
 fun AudioVisualizer(
     isPlaying: Boolean,
+    modifier: Modifier = Modifier,
     audioSessionId: Int = 0,
     currentPosMs: Long = 0L,
     trackSeed: Long = 0L,
     albumArtUri: Uri? = null,
-    modifier: Modifier = Modifier,
     style: VisualizerStyle = VisualizerStyle.GLOSSY_SPECTRUM_BARS,
     primaryColor: Color = Color(0xFF00E5FF),
     secondaryColor: Color = Color(0xFFD500F9),

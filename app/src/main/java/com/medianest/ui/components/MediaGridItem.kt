@@ -30,6 +30,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Locale
+import java.util.concurrent.TimeUnit
 import coil.compose.AsyncImagePainter
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
@@ -39,7 +41,7 @@ import coil.decode.VideoFrameDecoder
 import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
 import androidx.compose.material.icons.filled.Edit
-import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.launch
 
 import androidx.compose.ui.platform.LocalConfiguration
@@ -358,8 +360,8 @@ fun formatDuration(ms: Long): String {
     val seconds = TimeUnit.MILLISECONDS.toSeconds(ms) % 60
     val hours = TimeUnit.MILLISECONDS.toHours(ms)
     return if (hours > 0) {
-        String.format("%d:%02d:%02d", hours, minutes % 60, seconds)
+        String.format(Locale.getDefault(), "%d:%02d:%02d", hours, minutes % 60, seconds)
     } else {
-        String.format("%02d:%02d", minutes, seconds)
+        String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
     }
 }

@@ -29,8 +29,8 @@ android {
 
   defaultConfig {
     applicationId = "com.medianest.app"
-    minSdk = 24
-    targetSdk = 37
+    minSdk = 30
+    targetSdk = 36
     versionCode = 2
     versionName = "1.1"
 
@@ -137,6 +137,7 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.androidx.paging.runtime)
   implementation(libs.androidx.paging.compose)
+  implementation(libs.androidx.exifinterface)
   implementation(libs.coil.compose)
   implementation(libs.coil.video)
   implementation("io.coil-kt:coil-gif:2.7.0")

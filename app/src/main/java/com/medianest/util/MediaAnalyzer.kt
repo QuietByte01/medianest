@@ -1,7 +1,7 @@
 package com.medianest.util
 
 import android.content.Context
-import android.media.ExifInterface
+import androidx.exifinterface.media.ExifInterface
 import android.net.Uri
 import android.util.Log
 import com.arthenica.ffmpegkit.FFprobeKit

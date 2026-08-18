@@ -1,6 +1,7 @@
 package com.medianest.ui.quickview
 
 import android.content.Intent
+import java.util.Locale
 import android.net.Uri
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
@@ -83,7 +84,7 @@ fun QuickViewScreen(
     var viewerBgColor by remember { mutableStateOf<Color?>(null) }
 
     var showControls by remember { mutableStateOf(true) }
-    var controlsTimerKey by remember { mutableStateOf(0) }
+    var controlsTimerKey by remember { mutableIntStateOf(0) }
     var showInfoBottomSheet by remember { mutableStateOf(false) }
 
     // Auto-hide controls timer
@@ -804,7 +805,7 @@ fun formatFileSize(size: Long): String {
     if (size <= 0) return "0 B"
     val units = arrayOf("B", "KB", "MB", "GB")
     val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt().coerceIn(0, 3)
-    return String.format("%.2f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
+    return String.format(Locale.getDefault(), "%.2f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

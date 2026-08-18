@@ -37,9 +37,9 @@ fun QuickAccessCard(
     title: String,
     subtitle: String,
     icon: ImageVector,
+    modifier: Modifier = Modifier,
     artUri: Uri? = null,
     gradientColors: List<Color>,
-    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     val context = LocalContext.current

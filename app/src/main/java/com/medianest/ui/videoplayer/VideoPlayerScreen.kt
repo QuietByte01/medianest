@@ -1,4 +1,5 @@
-@file:kotlin.OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.media3.common.util.UnstableApi::class)
+@file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+@file:kotlin.OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.medianest.ui.videoplayer
 
 import androidx.activity.compose.BackHandler
@@ -75,7 +76,8 @@ import com.medianest.ui.components.formatDuration
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-@OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
+@androidx.annotation.OptIn(UnstableApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VideoPlayerScreen(
     playerManager: ExoPlayerManager,
@@ -347,22 +349,26 @@ fun VideoPlayerScreen(
                                     }
                                 },
                                 update = { view ->
-                                    try {
-                                        val currentExo = playerManager.exoPlayer
-                                        if (view.player != currentExo) {
-                                            Log.i("VideoPlayerScreen", "Syncing PlayerView with new ExoPlayer instance")
-                                            view.player = currentExo
+                                    @androidx.annotation.OptIn(UnstableApi::class)
+                                    fun applySettings() {
+                                        try {
+                                            val currentExo = playerManager.exoPlayer
+                                            if (view.player != currentExo) {
+                                                Log.i("VideoPlayerScreen", "Syncing PlayerView with new ExoPlayer instance")
+                                                view.player = currentExo
+                                            }
+                                        } catch (e: Exception) {
+                                            Log.e("VideoPlayerScreen", "Error syncing player", e)
                                         }
-                                    } catch (e: Exception) {
-                                        Log.e("VideoPlayerScreen", "Error syncing player", e)
+                                        
+                                        view.resizeMode = when (cropMode.uppercase()) {
+                                            "CROP" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                            "STRETCH", "16:9", "16:10", "4:3" -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                            "ORIGINAL" -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                        }
                                     }
-                                    
-                                    view.resizeMode = when (cropMode.uppercase()) {
-                                        "CROP" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                        "STRETCH", "16:9", "16:10", "4:3" -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                                        "ORIGINAL" -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                        else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                    }
+                                    applySettings()
                                     try {
                                         val androidFilter = com.medianest.ui.components.PictureModeUtils.getAndroidColorFilter(
                                             modeKey = pictureMode,

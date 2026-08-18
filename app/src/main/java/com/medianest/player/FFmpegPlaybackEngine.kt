@@ -150,7 +150,7 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
 
     // Called from Native
     fun onNativePlaybackEnded() {
-        ExoPlayerManager.activeManager?.onEnginePlaybackEnded()
+        ExoPlayerManager.getInstance(context).onEnginePlaybackEnded()
     }
 
     fun onNativeStatsUpdate(dropped: Int, audioErrs: Int, tsRecov: Int) {

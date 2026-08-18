@@ -1,6 +1,7 @@
 package com.medianest.ui.components
 
 import android.content.Context
+import java.util.Locale
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.net.Uri
@@ -83,7 +84,8 @@ object MiniPlayerOverlayManager {
         if (overlayView != null) return
         
         // Ensure there is something to play before showing overlay
-        if (ExoPlayerManager.activeManager == null) return
+        val mgr = ExoPlayerManager.getInstance(context)
+        if (mgr.playerState.value.currentItem == null) return
 
         try {
             windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -120,7 +122,7 @@ object MiniPlayerOverlayManager {
                         FloatingMiniPlayerBar(
                             onExpand = {
                                 hide()
-                                val mgr = ExoPlayerManager.activeManager ?: ExoPlayerManager.getInstance(context)
+                                val mgr = ExoPlayerManager.getInstance(context)
                                 val currentItem = mgr.playerState.value.currentItem?.takeIf { it.type == com.medianest.data.db.MediaType.AUDIO }
                                 if (currentItem == null) { hide(); return@FloatingMiniPlayerBar }
                                 val isVideo = false // Mini player is now strictly audio
@@ -170,7 +172,7 @@ private fun formatTimeMs(ms: Long): String {
     val totalSec = ms / 1000
     val min = totalSec / 60
     val sec = totalSec % 60
-    return String.format("%d:%02d", min, sec)
+    return String.format(Locale.getDefault(), "%d:%02d", min, sec)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -178,10 +180,10 @@ private fun formatTimeMs(ms: Long): String {
 fun FloatingMiniPlayerBar(
     onExpand: () -> Unit
 ) {
-    val activeManager = ExoPlayerManager.activeManager ?: return
+    val context = LocalContext.current
+    val activeManager = remember { ExoPlayerManager.getInstance(context) }
     val playerState by activeManager.playerState.collectAsState()
     val currentItem = playerState.currentItem?.takeIf { it.type == com.medianest.data.db.MediaType.AUDIO } ?: return
-    val context = LocalContext.current
     val isPlaying = playerState.isPlaying
 
     val titleText = remember(currentItem.title, currentItem.uri) {
@@ -239,7 +241,7 @@ fun FloatingMiniPlayerBar(
     }
 
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-    val isTablet = configuration.screenWidthDp >= 600
+    val isTablet = (configuration.screenWidthDp >= 600)
 
     GlassSurface(
         modifier = Modifier
@@ -258,7 +260,7 @@ fun FloatingMiniPlayerBar(
 
         val progress = if (isDraggingSeek) {
             dragProgress
-        } else if (durationMs > 0) {
+        } else if (durationMs > 0L) {
             (currentPosMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
         } else 0f
 

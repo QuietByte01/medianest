@@ -23,9 +23,9 @@ import androidx.compose.ui.unit.dp
 fun ThinSeekBar(
     value: Float,
     onValueChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
     onValueChangeFinished: (() -> Unit)? = null,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
-    modifier: Modifier = Modifier,
     activeTrackColor: Color = Color.White,
     inactiveTrackColor: Color = Color.White.copy(alpha = 0.25f),
     thumbColor: Color = Color.White,

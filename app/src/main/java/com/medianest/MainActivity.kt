@@ -480,7 +480,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
-        if (com.medianest.ui.videoplayer.VideoPlayerActivity.activePlayerManager != null) return
+        // If we are playing a video, don't pause when activity stops (might be transitioning to VideoPlayerActivity)
+        if (exoPlayerManager.playerState.value.currentItem?.type == com.medianest.data.db.MediaType.VIDEO) return
         val state = exoPlayerManager.playerState.value
         val currentItem = state.currentItem
         if (currentItem != null && exoPlayerManager.exoPlayer.isPlaying && !isFinishing && !isChangingConfigurations) {

@@ -10,6 +10,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 val LocalDarkTheme = staticCompositionLocalOf { true }
+val LocalIsGlossy = staticCompositionLocalOf { true }
 
 private val PremiumDarkColorScheme = darkColorScheme(
     primary = AccentViolet,
@@ -43,22 +44,42 @@ private val SmokeWhiteLightColorScheme = lightColorScheme(
     outlineVariant = LightDivider
 )
 
+private val StandardDarkColorScheme = darkColorScheme()
+private val StandardLightColorScheme = lightColorScheme()
+
 @Composable
 fun MediaNestTheme(
-    themeMode: String = "DARK", // "DARK", "LIGHT", "SYSTEM"
+    themeMode: String = "DARK", // "DARK", "LIGHT", "STANDARD_DARK", "STANDARD_LIGHT", "SYSTEM"
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
+    val isGlossy = when (themeMode.uppercase()) {
+        "DARK", "LIGHT" -> true
+        "STANDARD_DARK", "STANDARD_LIGHT" -> false
+        "SYSTEM" -> true // Default system to glossy? Or depends on preference? 
+        else -> true
+    }
+
     val isDark = when (themeMode.uppercase()) {
-        "LIGHT" -> false
-        "DARK" -> true
+        "LIGHT", "STANDARD_LIGHT" -> false
+        "DARK", "STANDARD_DARK" -> true
         "SYSTEM" -> darkTheme
         else -> darkTheme
     }
 
-    val colorScheme = if (isDark) PremiumDarkColorScheme else SmokeWhiteLightColorScheme
+    val colorScheme = when (themeMode.uppercase()) {
+        "DARK" -> PremiumDarkColorScheme
+        "LIGHT" -> SmokeWhiteLightColorScheme
+        "STANDARD_DARK" -> StandardDarkColorScheme
+        "STANDARD_LIGHT" -> StandardLightColorScheme
+        "SYSTEM" -> if (darkTheme) PremiumDarkColorScheme else SmokeWhiteLightColorScheme
+        else -> if (isDark) PremiumDarkColorScheme else SmokeWhiteLightColorScheme
+    }
 
-    CompositionLocalProvider(LocalDarkTheme provides isDark) {
+    CompositionLocalProvider(
+        LocalDarkTheme provides isDark,
+        LocalIsGlossy provides isGlossy
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = Typography,

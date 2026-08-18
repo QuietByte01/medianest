@@ -63,9 +63,9 @@ fun LandscapePlayerLayout(
     onToggleFavorite: () -> Unit,
     onOpenAddPlaylist: () -> Unit,
     onEditLyrics: () -> Unit,
+    modifier: Modifier = Modifier,
     onToggleVisualizer: () -> Unit = {},
-    onFullscreenVisualizerClick: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onFullscreenVisualizerClick: () -> Unit = {}
 ) {
     ImmersiveLandscapeLayout(
         playerState = playerState,

@@ -18,7 +18,6 @@ import com.medianest.ui.theme.MediaNestTheme
 class VideoPlayerActivity : ComponentActivity() {
 
     companion object {
-        var activePlayerManager: ExoPlayerManager? = null
         var activeList: List<com.medianest.data.model.MediaItem>? = null
     }
 
@@ -53,7 +52,6 @@ class VideoPlayerActivity : ComponentActivity() {
         }
 
         playerManager = ExoPlayerManager.getInstance(applicationContext)
-        activePlayerManager = playerManager
 
         val uriString = intent.getStringExtra("media_uri")
         val title = intent.getStringExtra("media_title") ?: "Video"
@@ -187,9 +185,6 @@ class VideoPlayerActivity : ComponentActivity() {
                 stopService(Intent(this, FloatingPlayerService::class.java))
             }
             
-            if (activePlayerManager == playerManager) {
-                activePlayerManager = null
-            }
             if (isFinishing) {
                 activeList = null
             }

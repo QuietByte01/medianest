@@ -1,6 +1,7 @@
 package com.medianest.ui.library.image
 
 import android.content.Context
+import java.util.Locale
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -123,9 +124,9 @@ fun FolderBatchInfoModal(
     val totalSizeBytes = remember(selectedItems) { selectedItems.sumOf { it.size } }
     val formattedSize = remember(totalSizeBytes) {
         when {
-            totalSizeBytes >= 1024 * 1024 * 1024 -> String.format("%.2f GB", totalSizeBytes.toDouble() / (1024 * 1024 * 1024))
-            totalSizeBytes >= 1024 * 1024 -> String.format("%.1f MB", totalSizeBytes.toDouble() / (1024 * 1024))
-            else -> String.format("%d KB", totalSizeBytes / 1024)
+            totalSizeBytes >= 1024 * 1024 * 1024 -> String.format(Locale.getDefault(), "%.2f GB", totalSizeBytes.toDouble() / (1024 * 1024 * 1024))
+            totalSizeBytes >= 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f MB", totalSizeBytes.toDouble() / (1024 * 1024))
+            else -> String.format(Locale.getDefault(), "%d KB", totalSizeBytes / 1024)
         }
     }
 

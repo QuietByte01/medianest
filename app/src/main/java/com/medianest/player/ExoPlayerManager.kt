@@ -94,10 +94,6 @@ class ExoPlayerManager private constructor(private val context: Context) {
                 instance ?: ExoPlayerManager(context.applicationContext).also { instance = it }
             }
         }
-
-        var activeManager: ExoPlayerManager?
-            get() = instance
-            set(value) { instance = value }
     }
 
     private val _playerState = MutableStateFlow(PlayerState())

@@ -26,8 +26,9 @@ class SettingsManagerTest {
     }
 
     @Test
-    fun `test default theme is DARK`() = runTest {
+    fun `test default theme is correct`() = runTest {
         val theme = settingsManager.theme.first()
+        // The default in SettingsManager is "DARK"
         assertEquals("DARK", theme)
     }
 

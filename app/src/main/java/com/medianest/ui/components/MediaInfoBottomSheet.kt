@@ -1,9 +1,10 @@
 package com.medianest.ui.components
 
 import android.content.Context
-import android.media.ExifInterface
+import androidx.exifinterface.media.ExifInterface
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.Build
 import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -1729,7 +1730,7 @@ private fun MediaDiagnosticsDialog(
     val configuration = LocalConfiguration.current
     val isTabletOrWide = configuration.screenWidthDp >= 600
     val isHealthClean = !report.diagnostics.corruptedFramesDetected && !report.diagnostics.timestampIssues && !report.diagnostics.hasErrors
-    var selectedAudioTrackIndex by remember { mutableStateOf(0) }
+    var selectedAudioTrackIndex by remember { mutableIntStateOf(0) }
     val isAudioMedia = item.type == MediaType.AUDIO
     val isImageMedia = item.type == MediaType.IMAGE
     val isVideoMedia = item.type == MediaType.VIDEO
@@ -2681,10 +2682,12 @@ private fun extractComprehensiveMetadata(context: Context, item: MediaItem): Com
                 else "${bps / 1000} kbps"
             }
 
-            val srStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)
-            if (!srStr.isNullOrBlank()) {
-                val sr = srStr.toIntOrNull() ?: 0
-                sampleRate = "${sr / 1000.0} kHz"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val srStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)
+                if (!srStr.isNullOrBlank()) {
+                    val sr = srStr.toIntOrNull() ?: 0
+                    sampleRate = "${sr / 1000.0} kHz"
+                }
             }
 
             album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM) ?: ""

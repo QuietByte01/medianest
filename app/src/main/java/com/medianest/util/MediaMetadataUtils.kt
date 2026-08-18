@@ -51,7 +51,8 @@ object MediaMetadataUtils {
         var embeddedPicture: ByteArray? = null
 
         // 1. Extract technical metadata using MediaMetadataRetriever (Skip for images for performance)
-        val isImage = context.contentResolver.getType(uri)?.startsWith("image/") == true ||
+        val mimeType = try { context.contentResolver.getType(uri) } catch (e: Exception) { null }
+        val isImage = mimeType?.startsWith("image/") == true ||
                 uri.path?.let { p -> listOf(".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp").any { p.lowercase().endsWith(it) } } == true
 
         if (!isImage) {
