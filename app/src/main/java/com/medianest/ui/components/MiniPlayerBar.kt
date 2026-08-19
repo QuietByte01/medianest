@@ -179,7 +179,6 @@ fun MiniPlayerBar(
                 }
 
                 // Playback Action Buttons (Naked Icons with no background/border)
-                // TODO: Replace single skip buttons with double skip buttons for prev/next
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -195,9 +194,11 @@ fun MiniPlayerBar(
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        RoundedSkipPreviousIcon(
-                            modifier = Modifier.size(20.dp),
-                            tint = Color.White
+                        Icon(
+                            imageVector = Icons.Default.SkipPrevious,
+                            contentDescription = "Previous",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
 
@@ -212,14 +213,18 @@ fun MiniPlayerBar(
                         contentAlignment = Alignment.Center
                     ) {
                         if (playerState.isPlaying) {
-                            RoundedPauseIcon(
-                                modifier = Modifier.size(24.dp),
-                                tint = Color.White
+                            Icon(
+                                imageVector = Icons.Default.Pause,
+                                contentDescription = "Pause",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
                             )
                         } else {
-                            RoundedPlayIcon(
-                                modifier = Modifier.size(24.dp),
-                                tint = Color.White
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = "Play",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
                             )
                         }
                     }
@@ -234,9 +239,11 @@ fun MiniPlayerBar(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        RoundedSkipNextIcon(
-                            modifier = Modifier.size(20.dp),
-                            tint = Color.White
+                        Icon(
+                            imageVector = Icons.Default.SkipNext,
+                            contentDescription = "Next",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }

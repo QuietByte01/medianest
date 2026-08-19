@@ -170,8 +170,11 @@ fun VerticalGestureHUD(
         ) {
             Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
 
-            val isBoost = value > 1.0f
+            val isBrightness = icon == Icons.Default.WbSunny
+            val displayValue = if (isBrightness) value.coerceAtMost(1.0f) else value
+            val isBoost = !isBrightness && value > 1.0f
             val hudColor = if (isBoost) Color(0xFFEF4444) else color
+            val fillFactor = if (isBrightness) displayValue else (value / 2.0f).coerceIn(0f, 1f)
 
             Box(
                 modifier = Modifier
@@ -184,14 +187,14 @@ fun VerticalGestureHUD(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .fillMaxHeight((value / 2.0f).coerceIn(0f, 1f))
+                        .fillMaxHeight(fillFactor)
                         .clip(RoundedCornerShape(3.dp))
                         .background(hudColor)
                 )
             }
 
             Text(
-                text = "${(value * 100).toInt()}%",
+                text = "${(displayValue * 100).toInt()}%",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (isBoost) Color(0xFFEF4444) else Color.White

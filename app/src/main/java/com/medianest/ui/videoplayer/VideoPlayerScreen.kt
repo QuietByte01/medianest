@@ -71,6 +71,8 @@ import com.medianest.data.repository.SubtitleProvider
 import com.medianest.player.ExoPlayerManager
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.MediaInfoBottomSheet
+import com.medianest.ui.videoplayer.studio.VideoEditorStudioSheet
+import com.medianest.ui.videoplayer.panels.*
 import com.medianest.ui.components.dismissKeyboardOnOutsideTap
 import com.medianest.ui.components.formatDuration
 import kotlinx.coroutines.delay
@@ -324,6 +326,7 @@ fun VideoPlayerScreen(
                 "16:9" -> Modifier.aspectRatio(16f / 9f, matchHeightConstraintsFirst = false)
                 "16:10" -> Modifier.aspectRatio(16f / 10f, matchHeightConstraintsFirst = false)
                 "4:3" -> Modifier.aspectRatio(4f / 3f, matchHeightConstraintsFirst = false)
+                "1:1" -> Modifier.aspectRatio(1f / 1f, matchHeightConstraintsFirst = false)
                 "ORIGINAL" -> {
                     with(density) {
                         Modifier.size(videoWidth.toDp(), videoHeight.toDp())
@@ -368,12 +371,13 @@ fun VideoPlayerScreen(
                                             Log.e("VideoPlayerScreen", "Error syncing player", e)
                                         }
                                         
-                                        // FIXME: Aspect ratio modes are stretching the video instead of cropping.
-                                        // Ratios should change by cropping while maintaining original video proportions.
+                                        // FIXED: Ratios now change by cropping (RESIZE_MODE_ZOOM) while maintaining proportions.
                                         view.resizeMode = when (cropMode.uppercase()) {
+                                            "FIT" -> AspectRatioFrameLayout.RESIZE_MODE_FIT
                                             "CROP" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                            "STRETCH", "16:9", "16:10", "4:3" -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                            "16:9", "16:10", "4:3", "1:1" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                                             "ORIGINAL" -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                            "STRETCH" -> AspectRatioFrameLayout.RESIZE_MODE_FILL
                                             else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
                                         }
                                     }
@@ -519,7 +523,8 @@ fun VideoPlayerScreen(
                         "CROP" -> "16:9"
                         "16:9" -> "16:10"
                         "16:10" -> "4:3"
-                        "4:3" -> "ORIGINAL"
+                        "4:3" -> "1:1"
+                        "1:1" -> "ORIGINAL"
                         "ORIGINAL" -> "STRETCH"
                         else -> "FIT"
                     }

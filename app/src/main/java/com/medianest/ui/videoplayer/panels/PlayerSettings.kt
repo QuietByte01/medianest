@@ -1,0 +1,391 @@
+package com.medianest.ui.videoplayer.panels
+
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.media3.common.Player
+import com.medianest.player.ExoPlayerManager
+import com.medianest.player.PlayerState
+import com.medianest.ui.components.*
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun VideoPlayerSettingsDialog(
+    onDismiss: () -> Unit,
+    playerState: PlayerState,
+    playerManager: ExoPlayerManager,
+    pictureMode: String,
+    onPictureModeChange: (String) -> Unit,
+    audioSyncOffsetMs: Long,
+    onAudioSyncOffsetChange: (Long) -> Unit,
+    isFilmGrainEnabled: Boolean,
+    onFilmGrainEnabledChange: (Boolean) -> Unit,
+    filmGrainIntensity: Float,
+    onFilmGrainIntensityChange: (Float) -> Unit,
+    onShowDetails: () -> Unit
+) {
+    val configuration = LocalConfiguration.current
+    val isCompact = configuration.screenWidthDp < 600 && configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+
+    if (isCompact) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = onDismiss,
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = Color(0xFF0F111A)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .navigationBarsPadding()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            IconButton(onClick = onDismiss) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                            }
+                            Text(
+                                text = "Player Settings",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 20.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
+                    ) {
+                        SettingsContent(
+                            playerState = playerState,
+                            playerManager = playerManager,
+                            pictureMode = pictureMode,
+                            onPictureModeChange = onPictureModeChange,
+                            audioSyncOffsetMs = audioSyncOffsetMs,
+                            onAudioSyncOffsetChange = onAudioSyncOffsetChange,
+                            isFilmGrainEnabled = isFilmGrainEnabled,
+                            onFilmGrainEnabledChange = onFilmGrainEnabledChange,
+                            filmGrainIntensity = filmGrainIntensity,
+                            onFilmGrainIntensityChange = onFilmGrainIntensityChange,
+                            onShowDetails = onShowDetails
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            containerColor = Color(0xF20E111A),
+            shape = RoundedCornerShape(24.dp),
+            title = { Text(text = "Video Player Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    SettingsContent(
+                        playerState = playerState,
+                        playerManager = playerManager,
+                        pictureMode = pictureMode,
+                        onPictureModeChange = onPictureModeChange,
+                        audioSyncOffsetMs = audioSyncOffsetMs,
+                        onAudioSyncOffsetChange = onAudioSyncOffsetChange,
+                        isFilmGrainEnabled = isFilmGrainEnabled,
+                        onFilmGrainEnabledChange = onFilmGrainEnabledChange,
+                        filmGrainIntensity = filmGrainIntensity,
+                        onFilmGrainIntensityChange = onFilmGrainIntensityChange,
+                        onShowDetails = onShowDetails
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Close", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsContent(
+    playerState: PlayerState,
+    playerManager: ExoPlayerManager,
+    pictureMode: String,
+    onPictureModeChange: (String) -> Unit,
+    audioSyncOffsetMs: Long,
+    onAudioSyncOffsetChange: (Long) -> Unit,
+    isFilmGrainEnabled: Boolean,
+    onFilmGrainEnabledChange: (Boolean) -> Unit,
+    filmGrainIntensity: Float,
+    onFilmGrainIntensityChange: (Float) -> Unit,
+    onShowDetails: () -> Unit
+) {
+    val glossyChipColors = FilterChipDefaults.filterChipColors(
+        containerColor = Color(0x1AFFFFFF),
+        labelColor = Color(0xFF9EA3B0),
+        selectedContainerColor = Color(0x4DFFFFFF),
+        selectedLabelColor = Color.White,
+        selectedLeadingIconColor = Color.White
+    )
+
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        GlassSurface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onShowDetails() },
+            shape = RoundedCornerShape(16.dp),
+            backgroundColor = Color(0x1AFFFFFF),
+            borderColor = Color(0x33FFFFFF)
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(Icons.Default.Info, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(10.dp))
+                Text("View Detailed File Info", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(text = "Repeat Mode", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                listOf(
+                    Player.REPEAT_MODE_OFF to "Off",
+                    Player.REPEAT_MODE_ONE to "Single",
+                    Player.REPEAT_MODE_ALL to "All"
+                ).forEach { (mode, label) ->
+                    val isSelected = playerState.repeatMode == mode
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { playerManager.setRepeatMode(mode) },
+                        label = { Text(label) },
+                        colors = glossyChipColors,
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = Color(0x33FFFFFF),
+                            selectedBorderColor = Color.White,
+                            borderWidth = 0.5.dp,
+                            selectedBorderWidth = 1.0.dp
+                        )
+                    )
+                }
+            }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(text = "Picture Mode: ${PictureMode.fromKey(pictureMode).displayName}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(PictureMode.entries) { mode ->
+                    val isSelected = pictureMode.equals(mode.key, ignoreCase = true)
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { onPictureModeChange(mode.key) },
+                        label = { Text(mode.displayName) },
+                        colors = glossyChipColors,
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = Color(0x33FFFFFF),
+                            selectedBorderColor = Color.White,
+                            borderWidth = 0.5.dp,
+                            selectedBorderWidth = 1.0.dp
+                        )
+                    )
+                }
+            }
+        }
+
+        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text(text = "Native Audio DSP (Low Latency)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF10B981))
+            
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(text = "High Bass Boost", fontSize = 12.sp, color = Color.White)
+                    Text(text = "${playerState.bassBoostPercent}%", fontSize = 12.sp, color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
+                }
+                AppSlider(
+                    value = playerState.bassBoostPercent.toFloat(),
+                    onValueChange = { playerManager.setBassBoost(it.toInt()) },
+                    valueRange = 0f..100f,
+                    accentColor = Color(0xFF10B981)
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "5-Band Native Equalizer", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    AppSwitch(
+                        checked = playerState.isEqEnabled,
+                        onCheckedChange = { playerManager.setEqEnabled(it) },
+                        style = AppSwitchStyle.Glossy,
+                        accentColor = Color(0xFF38BDF8)
+                    )
+                }
+
+                if (playerState.isEqEnabled) {
+                    val presets = listOf(
+                        "Flat" to listOf(0f, 0f, 0f, 0f, 0f),
+                        "Acoustic" to listOf(3f, 1f, 2f, 3f, 2f),
+                        "Bass Boost" to listOf(6f, 4f, 0f, 0f, 0f),
+                        "Classical" to listOf(3f, 2f, 0f, 2f, 3f),
+                        "Electronic" to listOf(4f, -1f, 1f, 3f, 4f),
+                        "Hip-Hop" to listOf(5f, 3f, 0f, 1f, 3f),
+                        "Pop" to listOf(-1f, 2f, 4f, 3f, 1f),
+                        "Rock" to listOf(4f, 2f, -1f, 3f, 4f),
+                        "Vocal" to listOf(-2f, 1f, 5f, 4f, 0f)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        presets.forEach { preset ->
+                            val isSelected = playerState.eqBands == preset.second
+                            AppPillButton(
+                                text = preset.first,
+                                isSelected = isSelected,
+                                onClick = { playerManager.setEqBands(preset.second) },
+                                accentColor = Color(0xFF38BDF8)
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val labels = listOf("60Hz", "230Hz", "910Hz", "3.6kHz", "14kHz")
+                        playerState.eqBands.forEachIndexed { index, gain ->
+                            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(text = "${if (gain > 0) "+" else ""}${gain.toInt()}dB", fontSize = 10.sp, color = if (gain != 0f) Color(0xFF38BDF8) else Color(0xFF64748B), fontWeight = if (gain != 0f) FontWeight.Bold else FontWeight.Normal)
+                                AppVerticalSlider(
+                                    value = gain,
+                                    onValueChange = { newGain ->
+                                        val newBands = playerState.eqBands.toMutableList()
+                                        newBands[index] = newGain
+                                        playerManager.setEqBands(newBands)
+                                    },
+                                    valueRange = -10f..10f,
+                                    style = AppSliderStyle.Glossy,
+                                    thickness = AppSliderThickness.Thin,
+                                    headStyle = AppSliderHeadStyle.Circular,
+                                    accentColor = Color(0xFF38BDF8),
+                                    modifier = Modifier.height(145.dp).fillMaxWidth()
+                                )
+                                Text(labels[index], fontSize = 9.5.sp, color = Color.White.copy(alpha = 0.6f), fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "Film Grain Overlay", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                AppSwitch(
+                    checked = isFilmGrainEnabled,
+                    onCheckedChange = onFilmGrainEnabledChange,
+                    style = AppSwitchStyle.Glossy,
+                    accentColor = Color(0xFF38BDF8)
+                )
+            }
+
+            if (isFilmGrainEnabled) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "Grain Intensity", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                        val percent = ((filmGrainIntensity - 0.05f) / (0.30f - 0.05f) * 100).toInt().coerceIn(0, 100)
+                        Text(text = "$percent%", fontSize = 12.sp, color = Color(0xFFE2E8F0), fontWeight = FontWeight.Bold)
+                    }
+                    AppSlider(
+                        value = filmGrainIntensity,
+                        onValueChange = onFilmGrainIntensityChange,
+                        valueRange = 0.05f..0.30f,
+                        style = AppSliderStyle.Glossy,
+                        accentColor = Color(0xFFE2E8F0),
+                        activeTrackColor = Color(0xFFE2E8F0),
+                        inactiveTrackColor = Color.White.copy(alpha = 0.16f),
+                        thumbColor = Color.White
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun DiagnosticRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(text = label, fontSize = 11.sp, color = Color(0xFF94A3B8))
+        Text(text = value, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.End, modifier = Modifier.weight(1f).padding(start = 16.dp))
+    }
+}
+
+@Composable
+internal fun DiagnosticStat(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = label, fontSize = 9.sp, color = Color(0xFF94A3B8))
+        Text(text = value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+    }
+}

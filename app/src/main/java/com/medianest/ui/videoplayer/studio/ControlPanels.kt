@@ -1,0 +1,447 @@
+package com.medianest.ui.videoplayer.studio
+
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.medianest.ui.components.AppSlider
+import com.medianest.ui.components.AppSliderStyle
+
+@Composable
+internal fun TrimControlPanel(
+    startMs: Long,
+    endMs: Long,
+    onResetTrim: () -> Unit
+) {
+    val clipDurationMs = (endMs - startMs).coerceAtLeast(0L)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(
+                text = "TRIM TIMELINE",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFFFD54F)
+            )
+            Text(
+                text = "Start: ${formatTimeShort(startMs)}  •  Clip: ${formatTimeShort(clipDurationMs)}  •  End: ${formatTimeShort(endMs)}",
+                fontSize = 12.sp,
+                color = Color.White
+            )
+        }
+        OutlinedButton(
+            onClick = onResetTrim,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+            border = BorderStroke(1.dp, Color.White.copy(0.3f)),
+            shape = RoundedCornerShape(10.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+        ) {
+            Text("Reset Trim", fontSize = 11.sp)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun CropControlPanel(
+    currentPreset: CropPreset,
+    isCustomCrop: Boolean,
+    onSelectPreset: (CropPreset) -> Unit,
+    onEnableCustomCrop: () -> Unit,
+    onRotate: () -> Unit,
+    onFlipH: () -> Unit,
+    onFlipV: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        FilterChip(
+            selected = isCustomCrop,
+            onClick = onEnableCustomCrop,
+            label = { Text("Custom", fontSize = 11.sp, fontWeight = if (isCustomCrop) FontWeight.Bold else FontWeight.Normal) },
+            colors = FilterChipDefaults.filterChipColors(
+                selectedContainerColor = Color(0xFFFFD54F),
+                selectedLabelColor = Color.Black,
+                containerColor = Color(0x22FFFFFF),
+                labelColor = Color.White
+            )
+        )
+
+        CropPreset.entries.forEach { preset ->
+            val isSel = currentPreset == preset && !isCustomCrop
+            FilterChip(
+                selected = isSel,
+                onClick = { onSelectPreset(preset) },
+                label = { Text(preset.label, fontSize = 11.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Color(0xFFFFD54F),
+                    selectedLabelColor = Color.Black,
+                    containerColor = Color(0x22FFFFFF),
+                    labelColor = Color.White
+                )
+            )
+        }
+
+        IconButton(onClick = onRotate) {
+            Icon(Icons.Default.RotateRight, contentDescription = "Rotate", tint = Color.White)
+        }
+        IconButton(onClick = onFlipH) {
+            Icon(Icons.Default.Flip, contentDescription = "Flip Horizontal", tint = Color.White)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun FiltersAndBlurControlPanel(
+    activeFilter: VideoStudioFilter,
+    onSelectFilter: (VideoStudioFilter) -> Unit,
+    blurMode: StudioBlurMode,
+    onSelectBlurMode: (StudioBlurMode) -> Unit,
+    blurIntensity: Float,
+    onBlurIntensityChange: (Float) -> Unit
+) {
+    var selectedSubTab by remember { mutableIntStateOf(0) } // 0: Filters, 1: Blur Effects
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceAround
+        ) {
+            Text(
+                text = "Color Filters",
+                fontSize = 11.sp,
+                fontWeight = if (selectedSubTab == 0) FontWeight.Bold else FontWeight.Normal,
+                color = if (selectedSubTab == 0) Color(0xFFFFD54F) else Color.White.copy(0.7f),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { selectedSubTab = 0 }
+                    .padding(horizontal = 10.dp, vertical = 2.dp)
+            )
+            Text(
+                text = "Blur & Privacy",
+                fontSize = 11.sp,
+                fontWeight = if (selectedSubTab == 1) FontWeight.Bold else FontWeight.Normal,
+                color = if (selectedSubTab == 1) Color(0xFFFFD54F) else Color.White.copy(0.7f),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { selectedSubTab = 1 }
+                    .padding(horizontal = 10.dp, vertical = 2.dp)
+            )
+        }
+
+        if (selectedSubTab == 0) {
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items(VideoStudioFilter.entries) { filter ->
+                    val isSel = activeFilter == filter
+                    Column(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onSelectFilter(filter) }
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(filter.previewColor)
+                                .border(
+                                    width = if (isSel) 1.0.dp else 0.dp,
+                                    color = if (isSel) Color(0xFFFFD54F) else Color.Transparent,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = filter.label,
+                            fontSize = 9.5.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSel) Color(0xFFFFD54F) else Color.White
+                        )
+                    }
+                }
+            }
+        } else {
+            // Blur Mode Selector & Intensity Slider
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    StudioBlurMode.entries.forEach { mode ->
+                        val isSel = blurMode == mode
+                        FilterChip(
+                            selected = isSel,
+                            onClick = { onSelectBlurMode(mode) },
+                            label = { Text(mode.label, fontSize = 11.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFFFFD54F),
+                                selectedLabelColor = Color.Black,
+                                containerColor = Color(0x22FFFFFF),
+                                labelColor = Color.White
+                            )
+                        )
+                    }
+                }
+                if (blurMode != StudioBlurMode.NONE) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("Intensity: ${(blurIntensity * 100).toInt()}%", fontSize = 11.sp, color = Color(0xFFFFD54F))
+                        AppSlider(
+                            value = blurIntensity,
+                            onValueChange = onBlurIntensityChange,
+                            valueRange = 0.05f..1.0f,
+                            accentColor = Color(0xFFFFD54F),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun AdjustmentsControlPanel(
+    brightness: Float,
+    onBrightnessChange: (Float) -> Unit,
+    contrast: Float,
+    onContrastChange: (Float) -> Unit,
+    saturation: Float,
+    onSaturationChange: (Float) -> Unit
+) {
+    var selectedAdjustTab by remember { mutableIntStateOf(0) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceAround
+        ) {
+            listOf("Brightness", "Contrast", "Saturation").forEachIndexed { idx, label ->
+                Text(
+                    text = label,
+                    fontSize = 11.sp,
+                    fontWeight = if (selectedAdjustTab == idx) FontWeight.Bold else FontWeight.Normal,
+                    color = if (selectedAdjustTab == idx) Color(0xFFFFD54F) else Color.White.copy(0.7f),
+                    modifier = Modifier
+                        .clickable { selectedAdjustTab = idx }
+                        .padding(4.dp)
+                )
+            }
+        }
+        when (selectedAdjustTab) {
+            0 -> {
+                AppSlider(
+                    value = brightness,
+                    onValueChange = onBrightnessChange,
+                    valueRange = -0.4f..0.4f,
+                    style = AppSliderStyle.Glossy,
+                    accentColor = Color(0xFFFFD54F)
+                )
+            }
+            1 -> {
+                AppSlider(
+                    value = contrast,
+                    onValueChange = onContrastChange,
+                    valueRange = 0.5f..1.8f,
+                    accentColor = Color(0xFFFFD54F)
+                )
+            }
+            2 -> {
+                AppSlider(
+                    value = saturation,
+                    onValueChange = onSaturationChange,
+                    valueRange = 0.0f..2.0f,
+                    accentColor = Color(0xFFFFD54F)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun TextAndStickersControlPanel(
+    onAddText: () -> Unit,
+    onAddEmoji: () -> Unit,
+    onOpenKeyboardStickers: () -> Unit,
+    onPickFileGif: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Button(
+            onClick = onAddText,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0x33FFFFFF)),
+            shape = RoundedCornerShape(12.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Icon(Icons.Default.TextFields, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Add Text", fontSize = 11.sp, color = Color.White)
+        }
+
+        Button(
+            onClick = onAddEmoji,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0x33FFFFFF)),
+            shape = RoundedCornerShape(12.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Icon(Icons.Default.InsertEmoticon, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Stickers", fontSize = 11.sp, color = Color.White)
+        }
+
+        // Keyboard Stickers / GIFs Button
+        Button(
+            onClick = onOpenKeyboardStickers,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0x33FFD54F)),
+            shape = RoundedCornerShape(12.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Icon(Icons.Default.Keyboard, contentDescription = null, tint = Color(0xFFFFD54F), modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Keyboard GIF / Sticker", fontSize = 11.sp, color = Color(0xFFFFD54F), fontWeight = FontWeight.Bold)
+        }
+
+        // Pick GIF from Storage
+        Button(
+            onClick = onPickFileGif,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0x3364B5F6)),
+            shape = RoundedCornerShape(12.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Icon(Icons.Default.Gif, contentDescription = null, tint = Color(0xFF64B5F6), modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("+ File GIF", fontSize = 11.sp, color = Color(0xFF64B5F6))
+        }
+    }
+}
+
+@Composable
+internal fun AudioControlPanel(
+    videoVolume: Float,
+    onVideoVolumeChange: (Float) -> Unit,
+    bgmTitle: String?,
+    bgmVolume: Float,
+    onBgmVolumeChange: (Float) -> Unit,
+    onPickMusic: () -> Unit,
+    onRemoveBgm: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 1. Original Video Audio Volume Slider
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Video Vol: ${(videoVolume * 100).toInt()}%",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                if (videoVolume > 0f) {
+                    Text(
+                        text = "Mute",
+                        fontSize = 10.sp,
+                        color = Color(0xFFFF6B6B),
+                        modifier = Modifier.clickable { onVideoVolumeChange(0f) }
+                    )
+                } else {
+                    Text(
+                        text = "Unmute",
+                        fontSize = 10.sp,
+                        color = Color(0xFF64B5F6),
+                        modifier = Modifier.clickable { onVideoVolumeChange(1f) }
+                    )
+                }
+            }
+            AppSlider(
+                value = videoVolume,
+                onValueChange = onVideoVolumeChange,
+                valueRange = 0f..2f,
+                style = AppSliderStyle.Glossy,
+                accentColor = Color(0xFFFFD54F)
+            )
+        }
+
+        // 2. Added Background Music Volume Slider
+        if (bgmTitle != null) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Music: ${(bgmVolume * 100).toInt()}%", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64B5F6))
+                    IconButton(onClick = onRemoveBgm, modifier = Modifier.size(16.dp)) {
+                        Icon(Icons.Default.Close, null, tint = Color.Red, modifier = Modifier.size(14.dp))
+                    }
+                }
+                AppSlider(
+                    value = bgmVolume,
+                    onValueChange = onBgmVolumeChange,
+                    valueRange = 0f..2f,
+                    style = AppSliderStyle.Glossy,
+                    accentColor = Color(0xFF64B5F6)
+                )
+            }
+        } else {
+            Button(
+                onClick = onPickMusic,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0x3364B5F6)),
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Icon(Icons.Default.MusicNote, null, tint = Color(0xFF64B5F6), modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("+ Music", fontSize = 11.sp, color = Color(0xFF64B5F6))
+            }
+        }
+    }
+}
