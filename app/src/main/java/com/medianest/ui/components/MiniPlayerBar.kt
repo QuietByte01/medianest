@@ -179,6 +179,7 @@ fun MiniPlayerBar(
                 }
 
                 // Playback Action Buttons (Naked Icons with no background/border)
+                // TODO: Replace single skip buttons with double skip buttons for prev/next
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)

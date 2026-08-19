@@ -368,6 +368,8 @@ fun VideoPlayerScreen(
                                             Log.e("VideoPlayerScreen", "Error syncing player", e)
                                         }
                                         
+                                        // FIXME: Aspect ratio modes are stretching the video instead of cropping.
+                                        // Ratios should change by cropping while maintaining original video proportions.
                                         view.resizeMode = when (cropMode.uppercase()) {
                                             "CROP" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                                             "STRETCH", "16:9", "16:10", "4:3" -> AspectRatioFrameLayout.RESIZE_MODE_FILL
