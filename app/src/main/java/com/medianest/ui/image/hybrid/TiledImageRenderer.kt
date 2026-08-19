@@ -18,6 +18,11 @@ import kotlin.math.pow
 /**
  * Tiled renderer for large images and deep zoom.
  * Uses TiledImageDecoder to fetch and display visible tiles.
+ * 
+ * BUG: Tiling logic is currently flawed:
+ * 1. Sometimes crops images or shows only half the content.
+ * 2. Visible borders between tiles (seams) in certain zoom levels.
+ * 3. Panning stops working correctly after deep zooming into a tile.
  */
 class TiledImageRenderer : ImageRenderer {
     private var decoder: TiledImageDecoder? = null

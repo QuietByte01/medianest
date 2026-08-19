@@ -76,6 +76,11 @@ import com.medianest.ui.components.formatDuration
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/**
+ * TODO: Architectural Refactor Required.
+ * This file exceeds 2,500 lines. Logic for gestures, picture-in-picture, and complex UI states
+ * should be moved to smaller components and a dedicated VideoViewModel.
+ */
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -270,6 +275,8 @@ fun VideoPlayerScreen(
                     },
                     onBrightnessChange = { delta ->
                         isDraggingBrightness = true
+                        // BUG: Gesture displays up to 200% because it mistakenly uses the volume-boost logic
+                        // for its display value. Brightness should be capped at 100% in the UI.
                         currentBrightness = (currentBrightness + delta).coerceIn(0.05f, 1f)
                         activity?.let { act ->
                             val lp = act.window.attributes

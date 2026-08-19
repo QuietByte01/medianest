@@ -108,6 +108,8 @@ fun ImagesTab(
 
     var filterCounts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
 
+    // TODO: Optimize Scanning Performance. Hardcoded 600ms delay causes visible lag in UI updates.
+    // Logic should be reactive to imagesList changes without artificial throttling.
     LaunchedEffect(imagesList, favoriteUris) {
         kotlinx.coroutines.delay(600)
         withContext(Dispatchers.Default) {

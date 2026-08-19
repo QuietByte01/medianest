@@ -26,6 +26,9 @@ data class FolderInfo(
 
 class MediaStoreRepository(private val context: Context) {
 
+    // BUG: Folder grouping logic is currently "messed up". Using bucketName and relativePath
+    // results in files from different depths or sibling directories being merged incorrectly.
+    // Needs a unified path-based grouping strategy that respects actual folder hierarchy.
     suspend fun getImages(
         hiddenFolders: Set<String> = emptySet(),
         showHidden: Boolean = false,
@@ -152,6 +155,9 @@ class MediaStoreRepository(private val context: Context) {
             e.printStackTrace()
         }
 
+        // FIXME: Cache synchronization issue. Deleted files keep showing in the library
+        // because the UI/ViewModel list isn't updated immediately after a file is deleted
+        // from the filesystem. Needs a more robust observer or immediate local list invalidation.
         val hasAllFilesAccess = android.os.Environment.isExternalStorageManager()
         if (showHidden || hasAllFilesAccess) {
             val hiddenFromFileSystem = scanFileSystemHiddenMedia(MediaType.IMAGE, hiddenFolders, showHidden = showHidden)
@@ -314,6 +320,9 @@ class MediaStoreRepository(private val context: Context) {
             e.printStackTrace()
         }
 
+        // FIXME: Cache synchronization issue. Deleted files keep showing in the library
+        // because the UI/ViewModel list isn't updated immediately after a file is deleted
+        // from the filesystem. Needs a more robust observer or immediate local list invalidation.
         val hasAllFilesAccess = android.os.Environment.isExternalStorageManager()
         if (showHidden || hasAllFilesAccess) {
             val hiddenFromFileSystem = scanFileSystemHiddenMedia(MediaType.VIDEO, hiddenFolders, showHidden = showHidden)
@@ -488,6 +497,9 @@ class MediaStoreRepository(private val context: Context) {
             e.printStackTrace()
         }
 
+        // FIXME: Cache synchronization issue. Deleted files keep showing in the library
+        // because the UI/ViewModel list isn't updated immediately after a file is deleted
+        // from the filesystem. Needs a more robust observer or immediate local list invalidation.
         val hasAllFilesAccess = android.os.Environment.isExternalStorageManager()
         if (showHidden || hasAllFilesAccess) {
             val hiddenFromFileSystem = scanFileSystemHiddenMedia(MediaType.AUDIO, hiddenFolders, showHidden = showHidden)

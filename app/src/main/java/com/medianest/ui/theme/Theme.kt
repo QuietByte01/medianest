@@ -44,6 +44,8 @@ private val SmokeWhiteLightColorScheme = lightColorScheme(
     outlineVariant = LightDivider
 )
 
+// FIXME: Standard color schemes are currently empty and need to be implemented with proper M3 palettes.
+// FIXME: Glossy Light theme needs its signature translucency and border colors defined.
 private val StandardDarkColorScheme = darkColorScheme()
 private val StandardLightColorScheme = lightColorScheme()
 

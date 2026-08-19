@@ -135,6 +135,8 @@ class ExoPlayerManager private constructor(private val context: Context) {
     private var isPausedByCall = false
     private var focusRequest: AudioFocusRequest? = null
 
+    // FIXME: Inefficient 200ms polling loop. Polling for position/duration is resource-intensive.
+    // Should consider a more efficient event-based update or a shorter interval only during active playback.
     init {
         initializeMedia3Engine()
         
@@ -663,6 +665,8 @@ class ExoPlayerManager private constructor(private val context: Context) {
     fun setAudioBoost(percent: Int) {
         setVolumeBoost(percent)
     }
+    // BUG: Subtitle implementation is currently missing. Embedded subtitles from video files
+    // are not being extracted or applied to the player interface.
     fun getAvailableTextTracks(): List<TextTrackInfo> = emptyList()
     fun selectTextTrack(index: Int) {}
     fun addExternalSubtitle(uri: Uri, name: String = "Subtitle") {}

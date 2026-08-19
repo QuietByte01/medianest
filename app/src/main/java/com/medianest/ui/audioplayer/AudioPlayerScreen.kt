@@ -49,6 +49,11 @@ import com.medianest.ui.theme.LocalDarkTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
+/**
+ * TODO: Architectural Refactor Required.
+ * This file exceeds 2,100 lines and mixes UI layouts with complex business logic (lyrics, favorites, track selection).
+ * Should be decomposed into focused components (e.g., PlayerControls, LyricsPanel, MetadataManager) and logic moved to ViewModels.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AudioPlayerScreen(
@@ -101,6 +106,8 @@ fun AudioPlayerScreen(
     var showAlbumSongsInPortraitBox by remember { mutableStateOf(false) }
     var showAddAlbumToPlaylistDialog by remember { mutableStateOf(false) }
     var showFullscreenVisualizer by remember { mutableStateOf(false) }
+    // BUG: isFavorite state is local to this Composable and doesn't update when the song changes via next/prev.
+    // The favorite status should be derived from the database based on the currentItem's URI.
     var isFavorite by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val db = MediaNestApp.instance.database

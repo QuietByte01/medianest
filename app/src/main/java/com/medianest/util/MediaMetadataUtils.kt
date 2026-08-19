@@ -129,6 +129,8 @@ object MediaMetadataUtils {
             embeddedPicture = embeddedPicture
         )
         
+        // FIXME: Cache strategy issue. This method nulls out the heavy embeddedPicture to save memory,
+        // but this forces a complete re-extraction from the file every time a thumbnail is needed.
         // Cache the result but NULL OUT the heavy ByteArray to prevent OOM
         metadataCache.put(cacheKey, result.copy(embeddedPicture = null))
         return result

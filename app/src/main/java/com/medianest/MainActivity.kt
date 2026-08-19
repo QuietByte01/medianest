@@ -157,6 +157,8 @@ class MainActivity : ComponentActivity() {
                     }
 
                     // Observe hidden folders and scan MediaStore
+                    // FIXME: Hidden folder changes (disabling) do not reflect immediately in the UI.
+                    // The LaunchedEffect might be missing a trigger or experiencing a race condition when settings update.
                     val resumeCount by resumeTrigger.collectAsState()
                     LaunchedEffect(showHiddenFiles, resumeCount) {
                         combine(
