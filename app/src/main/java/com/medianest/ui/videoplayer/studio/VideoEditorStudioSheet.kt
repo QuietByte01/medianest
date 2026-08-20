@@ -43,6 +43,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.components.media.*
 import com.medianest.util.MediaProcessorEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -92,7 +93,7 @@ fun VideoEditorStudioSheet(
     var videoSpeed by remember { mutableFloatStateOf(1.0f) }
     var showSpeedDialog by remember { mutableStateOf(false) }
 
-    var cropPreset by remember { mutableStateOf(CropPreset.ORIGINAL) }
+    var cropPreset by remember { mutableStateOf(MediaAspectRatio.ORIGINAL) }
     var isCustomCrop by remember { mutableStateOf(false) }
     var cropNormX by remember { mutableFloatStateOf(0f) }
     var cropNormY by remember { mutableFloatStateOf(0f) }
@@ -103,7 +104,7 @@ fun VideoEditorStudioSheet(
     var flipHorizontal by remember { mutableStateOf(false) }
     var flipVertical by remember { mutableStateOf(false) }
 
-    var activeFilter by remember { mutableStateOf(VideoStudioFilter.ORIGINAL) }
+    var activeFilter by remember { mutableStateOf(MediaEffect.ORIGINAL) }
     var blurMode by remember { mutableStateOf(StudioBlurMode.NONE) }
     var blurIntensity by remember { mutableFloatStateOf(0f) }
 
@@ -198,7 +199,7 @@ fun VideoEditorStudioSheet(
             if (trimEndMs > trimStartMs && (pos >= trimEndMs || pos < trimStartMs)) {
                 exoPlayer.seekTo(trimStartMs)
             }
-            delay(50)
+            delay(16)
         }
     }
 
@@ -212,14 +213,15 @@ fun VideoEditorStudioSheet(
 
     LaunchedEffect(currentActiveClip.uri) {
         isExtractingFrames = true
-        withContext(Dispatchers.IO) {
+        thumbnails.clear()
+        thumbnails.addAll(withContext(Dispatchers.IO) {
             val retriever = MediaMetadataRetriever()
+            val extractedList = mutableListOf<Bitmap>()
             try {
                 retriever.setDataSource(context, currentActiveClip.uri)
                 val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                 val durationUs = (durationStr?.toLongOrNull() ?: 5000L) * 1000L
                 val frameCount = 10
-                val extractedList = mutableListOf<Bitmap>()
 
                 for (i in 0 until frameCount) {
                     val timeUs = (durationUs / (frameCount + 1)) * (i + 1)
@@ -231,21 +233,17 @@ fun VideoEditorStudioSheet(
                     )
                     if (frame != null) extractedList.add(frame)
                 }
-
-                withContext(Dispatchers.Main) {
-                    thumbnails.clear()
-                    thumbnails.addAll(extractedList)
-                    if (extractedList.isNotEmpty()) {
-                        currentActiveClip.thumbnail = extractedList.first()
-                    }
-                    isExtractingFrames = false
-                }
             } catch (e: Exception) {
-                withContext(Dispatchers.Main) { isExtractingFrames = false }
+                // Ignore
             } finally {
                 retriever.release()
             }
+            extractedList
+        })
+        if (thumbnails.isNotEmpty()) {
+            currentActiveClip.thumbnail = thumbnails.first()
         }
+        isExtractingFrames = false
     }
 
     DisposableEffect(Unit) {
@@ -281,7 +279,7 @@ fun VideoEditorStudioSheet(
                         trimStartMs = 0L
                         trimEndMs = videoDurationMs
                         videoSpeed = 1.0f
-                        cropPreset = CropPreset.ORIGINAL
+                        cropPreset = MediaAspectRatio.ORIGINAL
                         isCustomCrop = false
                         cropNormX = 0f
                         cropNormY = 0f
@@ -290,7 +288,7 @@ fun VideoEditorStudioSheet(
                         rotationDegrees = 0
                         flipHorizontal = false
                         flipVertical = false
-                        activeFilter = VideoStudioFilter.ORIGINAL
+                        activeFilter = MediaEffect.ORIGINAL
                         blurMode = StudioBlurMode.NONE
                         blurIntensity = 0f
                         brightness = 0f
@@ -344,12 +342,12 @@ fun VideoEditorStudioSheet(
 
                         Canvas(modifier = Modifier.fillMaxSize()) {
                             val overlayColor = when (activeFilter) {
-                                VideoStudioFilter.CINEMA -> Color(0x28005577)
-                                VideoStudioFilter.WARM -> Color(0x22FFA500)
-                                VideoStudioFilter.COOL -> Color(0x2200BFFF)
-                                VideoStudioFilter.CYBERPUNK -> Color(0x28FF007F)
-                                VideoStudioFilter.VINTAGE -> Color(0x28C4A482)
-                                VideoStudioFilter.DREAMY -> Color(0x20FFFFFF)
+                                MediaEffect.CINEMA -> Color(0x28005577)
+                                MediaEffect.WARM -> Color(0x22FFA500)
+                                MediaEffect.COOL -> Color(0x2200BFFF)
+                                MediaEffect.CYBERPUNK -> Color(0x28FF007F)
+                                MediaEffect.VINTAGE -> Color(0x28C4A482)
+                                MediaEffect.DREAMY -> Color(0x20FFFFFF)
                                 else -> Color.Transparent
                             }
                             if (overlayColor != Color.Transparent) {
@@ -571,7 +569,7 @@ fun VideoEditorStudioSheet(
                             )
                         }
 
-                        StudioFilmstripTrack(
+                        MediaTrimTimeline(
                             thumbnails = thumbnails,
                             isExtracting = isExtractingFrames,
                             videoDurationMs = videoDurationMs,
@@ -587,7 +585,10 @@ fun VideoEditorStudioSheet(
                                 currentPositionMs = scrubMs
                                 exoPlayer.seekTo(scrubMs)
                             },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            accentColor = Color.White,
+                            handleWidthDp = 24,
+                            showPlayhead = true
                         )
                     }
                 }
@@ -619,13 +620,14 @@ fun VideoEditorStudioSheet(
                                     cropPreset = preset
                                     isCustomCrop = false
                                     when (preset) {
-                                        CropPreset.ORIGINAL -> { cropNormX = 0f; cropNormY = 0f; cropNormW = 1f; cropNormH = 1f }
-                                        CropPreset.P_1_1 -> { cropNormX = 0.15f; cropNormY = 0f; cropNormW = 0.7f; cropNormH = 1f }
-                                        CropPreset.P_9_16 -> { cropNormX = 0.22f; cropNormY = 0f; cropNormW = 0.56f; cropNormH = 1f }
-                                        CropPreset.P_16_9 -> { cropNormX = 0f; cropNormY = 0.15f; cropNormW = 1f; cropNormH = 0.7f }
-                                        CropPreset.P_4_3 -> { cropNormX = 0.1f; cropNormY = 0f; cropNormW = 0.8f; cropNormH = 1f }
-                                        CropPreset.P_4_5 -> { cropNormX = 0.15f; cropNormY = 0f; cropNormW = 0.7f; cropNormH = 0.875f }
-                                        CropPreset.P_21_9 -> { cropNormX = 0f; cropNormY = 0.25f; cropNormW = 1f; cropNormH = 0.5f }
+                                        MediaAspectRatio.ORIGINAL -> { cropNormX = 0f; cropNormY = 0f; cropNormW = 1f; cropNormH = 1f }
+                                        MediaAspectRatio.P_1_1 -> { cropNormX = 0.15f; cropNormY = 0f; cropNormW = 0.7f; cropNormH = 1f }
+                                        MediaAspectRatio.P_9_16 -> { cropNormX = 0.22f; cropNormY = 0f; cropNormW = 0.56f; cropNormH = 1f }
+                                        MediaAspectRatio.P_16_9 -> { cropNormX = 0f; cropNormY = 0.15f; cropNormW = 1f; cropNormH = 0.7f }
+                                        MediaAspectRatio.P_4_3 -> { cropNormX = 0.1f; cropNormY = 0f; cropNormW = 0.8f; cropNormH = 1f }
+                                        MediaAspectRatio.P_4_5 -> { cropNormX = 0.15f; cropNormY = 0f; cropNormW = 0.7f; cropNormH = 0.875f }
+                                        MediaAspectRatio.P_21_9 -> { cropNormX = 0f; cropNormY = 0.25f; cropNormW = 1f; cropNormH = 0.5f }
+                                        else -> {}
                                     }
                                 },
                                 onEnableCustomCrop = {

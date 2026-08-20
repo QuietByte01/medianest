@@ -73,6 +73,9 @@ interface PlaybackStateDao {
     @Query("SELECT * FROM playback_states WHERE (:type IS NULL OR mediaType = :type) AND playCount > 0 ORDER BY playCount DESC, lastPlayedAt DESC LIMIT 100")
     fun getMostPlayed(type: String? = null): Flow<List<PlaybackState>>
 
+    @Query("SELECT * FROM playback_states WHERE mediaUri IN (:uris)")
+    suspend fun getPlaybackStatesForUris(uris: List<String>): List<PlaybackState>
+
     @Query("DELETE FROM playback_states")
     suspend fun clearAllHistory()
 }
@@ -171,6 +174,21 @@ interface LocationCacheDao {
     suspend fun deleteLocation(uri: String)
 
     @Query("DELETE FROM location_cache")
+    suspend fun clearCache()
+}
+
+@Dao
+interface ArtistMetadataDao {
+    @Query("SELECT * FROM artist_metadata WHERE artistName = :name")
+    suspend fun getArtistMetadata(name: String): ArtistMetadata?
+
+    @Query("SELECT * FROM artist_metadata WHERE artistName = :name")
+    fun observeArtistMetadata(name: String): Flow<ArtistMetadata?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveArtistMetadata(metadata: ArtistMetadata)
+
+    @Query("DELETE FROM artist_metadata")
     suspend fun clearCache()
 }
 

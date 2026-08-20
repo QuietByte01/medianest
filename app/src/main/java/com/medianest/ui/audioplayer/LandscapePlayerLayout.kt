@@ -1,11 +1,12 @@
 package com.medianest.ui.audioplayer
 
 import androidx.compose.animation.*
-import androidx.compose.foundation.background
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.*
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -18,7 +19,9 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -27,11 +30,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
-import com.medianest.data.model.LyricLine
-import com.medianest.data.model.MediaItem
+import com.medianest.data.model.*
 import com.medianest.player.ExoPlayerManager
 import com.medianest.player.PlayerState
+import com.medianest.ui.components.GlossySidePanel
+import com.medianest.ui.components.ArtistInfoPanel
 import com.medianest.ui.components.WavySeekBar
 import com.medianest.ui.components.RoundedPlayIcon
 import com.medianest.ui.components.RoundedPauseIcon
@@ -65,7 +71,12 @@ fun LandscapePlayerLayout(
     onEditLyrics: () -> Unit,
     modifier: Modifier = Modifier,
     onToggleVisualizer: () -> Unit = {},
-    onFullscreenVisualizerClick: () -> Unit = {}
+    onFullscreenVisualizerClick: () -> Unit = {},
+    onOpenAlbum: (String) -> Unit = {},
+    allAudioItems: List<MediaItem> = emptyList(),
+    showHidden: Boolean = false,
+    hiddenFolders: Set<String> = emptySet(),
+    artistInfo: ArtistInfo? = null
 ) {
     ImmersiveLandscapeLayout(
         playerState = playerState,
@@ -76,6 +87,13 @@ fun LandscapePlayerLayout(
         onSeekChange = onSeekChange,
         onSeekFinished = onSeekFinished,
         onToggleVisualizer = onToggleVisualizer,
+        onToggleFavorite = onToggleFavorite,
+        onOpenAlbum = onOpenAlbum,
+        isFavorite = isFavorite,
+        allAudioItems = allAudioItems,
+        showHidden = showHidden,
+        hiddenFolders = hiddenFolders,
+        passedArtistInfo = artistInfo,
         modifier = modifier
     )
 }
@@ -90,6 +108,13 @@ private fun ImmersiveLandscapeLayout(
     onSeekChange: (Float) -> Unit,
     onSeekFinished: () -> Unit,
     onToggleVisualizer: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onOpenAlbum: (String) -> Unit,
+    isFavorite: Boolean,
+    allAudioItems: List<MediaItem>,
+    showHidden: Boolean,
+    hiddenFolders: Set<String>,
+    passedArtistInfo: ArtistInfo? = null,
     modifier: Modifier = Modifier
 ) {
     val artworkUri = currentItem?.albumArtUri ?: currentItem?.uri
@@ -97,6 +122,82 @@ private fun ImmersiveLandscapeLayout(
     var showPlayPauseIndicator by remember { mutableStateOf(false) }
     var showPrevIndicator by remember { mutableStateOf(false) }
     var showNextIndicator by remember { mutableStateOf(false) }
+    var showFavoriteIndicator by remember { mutableStateOf(false) }
+
+    var showSidePanel by remember { mutableStateOf(false) }
+    var sidePanelSwipeOffset by remember { mutableFloatStateOf(0f) }
+    val animatedSidePanelOffset by animateFloatAsState(
+        targetValue = if (showSidePanel) 1f else sidePanelSwipeOffset,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "SidePanel"
+    )
+
+    LaunchedEffect(showFavoriteIndicator) {
+        if (showFavoriteIndicator) {
+            delay(1000)
+            showFavoriteIndicator = false
+        }
+    }
+
+    var artistInfoExpanded by remember { mutableStateOf(false) }
+    val animatedArtistSlide by animateFloatAsState(
+        targetValue = if (artistInfoExpanded) -1f else 0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy),
+        label = "ArtistSlide"
+    )
+
+    val artistMetadataRepo = remember { com.medianest.MediaNestApp.instance.artistMetadataRepository }
+    var artistInfo by remember(passedArtistInfo) { mutableStateOf<ArtistInfo?>(passedArtistInfo) }
+
+    LaunchedEffect(currentItem?.artist, allAudioItems) {
+        val artistName = currentItem?.artist ?: "Unknown Artist"
+        val info = artistMetadataRepo.getArtistInfo(artistName)
+        val db = com.medianest.MediaNestApp.instance.database
+        
+        // 1. Find real albums in library
+        val artistSongs = allAudioItems.filter { it.artist.equals(artistName, ignoreCase = true) }
+        val realLocalAlbums = if (artistSongs.isNotEmpty()) {
+            artistSongs.groupBy { it.album ?: "Unknown Album" }
+                .map { (title, songs) ->
+                    LocalAlbumInfo(
+                        title = title,
+                        artworkUri = songs.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: songs.firstOrNull()?.uri,
+                        songCount = songs.size
+                    )
+                }
+                .sortedBy { it.title.lowercase() }
+        } else {
+            info.localAlbums
+        }
+
+        // 2. Personal Library Stats
+        val uris = artistSongs.map { it.uri.toString() }
+        val playbackStates = if (uris.isNotEmpty()) db.playbackStateDao().getPlaybackStatesForUris(uris) else emptyList()
+        
+        val totalPlays = playbackStates.sumOf { it.playCount }
+        val topPlayedUri = playbackStates.maxByOrNull { it.playCount }?.mediaUri
+        val topPlayedSong = artistSongs.find { it.uri.toString() == topPlayedUri }?.title
+        val firstDiscovered = artistSongs.minOfOrNull { it.dateAdded } ?: 0L
+        
+        // Playlist presence
+        val playlists = mutableSetOf<String>()
+        if (uris.isNotEmpty()) {
+            // For simplicity, we'd need a DAO query for this. 
+            // Let's assume we can get it or just show a placeholder if too complex for now.
+        }
+
+        val pStats = PersonalArtistStats(
+            totalPlays = totalPlays,
+            topPlayedSong = topPlayedSong,
+            firstDiscovered = firstDiscovered,
+            inPlaylists = playlists.toList()
+        )
+
+        artistInfo = info.copy(
+            localAlbums = realLocalAlbums,
+            personalStats = pStats
+        )
+    }
 
     LaunchedEffect(showPlayPauseIndicator) {
         if (showPlayPauseIndicator) {
@@ -123,13 +224,44 @@ private fun ImmersiveLandscapeLayout(
             .background(Color.Black)
             .pointerInput(Unit) {
                 detectTapGestures(
+                    onTap = {
+                        if (showSidePanel) {
+                            showSidePanel = false
+                            sidePanelSwipeOffset = 0f
+                        } else if (artistInfoExpanded) {
+                            artistInfoExpanded = false
+                        }
+                    },
                     onDoubleTap = { offset ->
-                        if (offset.x < size.width / 2) {
+                        if (offset.y > size.height * 0.7f) {
+                            onToggleFavorite()
+                            showFavoriteIndicator = true
+                        } else if (offset.x < size.width / 2) {
                             playerManager.previous()
                             showPrevIndicator = true
                         } else {
                             playerManager.next()
                             showNextIndicator = true
+                        }
+                    }
+                )
+            }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        if (!artistInfoExpanded) {
+                            val dragStep = dragAmount / size.width.toFloat()
+                            sidePanelSwipeOffset = (sidePanelSwipeOffset + dragStep * 2.5f).coerceIn(0f, 1f)
+                        }
+                    },
+                    onDragEnd = {
+                        if (sidePanelSwipeOffset > 0.3f) {
+                            showSidePanel = true
+                            sidePanelSwipeOffset = 1f
+                        } else {
+                            showSidePanel = false
+                            sidePanelSwipeOffset = 0f
                         }
                     }
                 )
@@ -176,8 +308,15 @@ private fun ImmersiveLandscapeLayout(
         }
 
         // 2. Center Content (Artwork + Text)
+        val mainContentAlpha by animateFloatAsState(targetValue = 1f - animatedSidePanelOffset * 0.4f)
+        
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    translationX = animatedArtistSlide * this.size.width * 0.25f
+                    alpha = mainContentAlpha
+                },
             contentAlignment = Alignment.Center
         ) {
             if (!showAudioVisualizer && artworkUri != null) {
@@ -193,7 +332,7 @@ private fun ImmersiveLandscapeLayout(
                         Card(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .clip(RoundedCornerShape(18.dp))
+                                .clip(RoundedCornerShape(16.dp))
                                 .pointerInput(currentItem?.id) {
                                     detectTapGestures(
                                         onTap = {
@@ -211,7 +350,7 @@ private fun ImmersiveLandscapeLayout(
                                         }
                                     )
                                 },
-                            shape = RoundedCornerShape(18.dp),
+                            shape = RoundedCornerShape(16.dp),
                             elevation = CardDefaults.cardElevation(defaultElevation = 20.dp)
                         ) {
                             AsyncImage(
@@ -225,7 +364,33 @@ private fun ImmersiveLandscapeLayout(
                             )
                         }
 
-                        // Seekbar as bottom border of the Card
+                        // Artist Image Small Icon (Top Right)
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(12.dp)
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .border(
+                                    width = if (artistInfo?.imageUrl != null) 1.5.dp else 0.dp,
+                                    color = if (artistInfo?.imageUrl != null) Color.White.copy(0.6f) else Color.Transparent,
+                                    shape = CircleShape
+                                )
+                                .clickable { artistInfoExpanded = !artistInfoExpanded }
+                                .background(Color.Black.copy(0.4f))
+                        ) {
+                            AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(artistInfo?.imageUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Artist Info",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
+                    // Seekbar as bottom border of the Card
                         val currentPosMs = playerState.currentPositionMs
                         val durationMs = if (playerState.durationMs > 0) playerState.durationMs else currentItem?.durationMs ?: 0L
                         val maxSliderVal = durationMs.coerceAtLeast(1L).toFloat()
@@ -269,6 +434,11 @@ private fun ImmersiveLandscapeLayout(
                             visible = showNextIndicator,
                             type = IndicatorType.Next,
                             alignment = Alignment.CenterEnd
+                        )
+                        IndicatorOverlay(
+                            visible = showFavoriteIndicator,
+                            type = if (isFavorite) IndicatorType.FavoriteOn else IndicatorType.FavoriteOff,
+                            alignment = Alignment.Center
                         )
                     }
 
@@ -346,6 +516,50 @@ private fun ImmersiveLandscapeLayout(
                 }
             }
         }
+
+        // 4. Side Panel (Queue)
+        if (animatedSidePanelOffset > 0.01f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(0.35f)
+                    .graphicsLayer {
+                        translationX = (animatedSidePanelOffset - 1f) * this.size.width
+                    }
+                    .background(Color.Transparent)
+            ) {
+                GlossySidePanel(
+                    playerState = playerState,
+                    currentItem = currentItem,
+                    onSongClick = { index ->
+                        playerManager.playMediaList(playerState.queue, index)
+                    },
+                    backgroundArt = artworkUri,
+                    showHidden = showHidden,
+                    hiddenFolders = hiddenFolders
+                )
+            }
+        }
+
+        // 5. Artist Info Panel (Right)
+        if (artistInfoExpanded || animatedArtistSlide < 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(0.4f)
+                    .align(Alignment.CenterEnd)
+                    .graphicsLayer {
+                        translationX = (1f + animatedArtistSlide) * this.size.width
+                    }
+            ) {
+                artistInfo?.let {
+                    ArtistInfoPanel(
+                        artistInfo = it,
+                        onAlbumClick = onOpenAlbum
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -373,7 +587,7 @@ private fun TrackInfoSection(currentItem: MediaItem?) {
 }
 
 private enum class IndicatorType {
-    Play, Pause, Previous, Next
+    Play, Pause, Previous, Next, FavoriteOn, FavoriteOff
 }
 
 @Composable
@@ -398,6 +612,8 @@ private fun BoxScope.IndicatorOverlay(
                 IndicatorType.Pause -> RoundedPauseIcon(Modifier.size(30.dp), tint = Color.White)
                 IndicatorType.Previous -> RoundedDoubleSkipPreviousIcon(Modifier.size(30.dp), tint = Color.White)
                 IndicatorType.Next -> RoundedDoubleSkipNextIcon(Modifier.size(30.dp), tint = Color.White)
+                IndicatorType.FavoriteOn -> Icon(Icons.Default.Favorite, null, tint = Color.White.copy(0.3f), modifier = Modifier.size(60.dp))
+                IndicatorType.FavoriteOff -> Icon(Icons.Default.FavoriteBorder, null, tint = Color.White.copy(0.3f), modifier = Modifier.size(60.dp))
             }
         }
     }

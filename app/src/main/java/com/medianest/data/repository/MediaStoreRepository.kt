@@ -105,21 +105,17 @@ class MediaStoreRepository(private val context: Context) {
                     val id = c.getLong(idColumn)
                     val name = c.getString(nameColumn) ?: "Image_$id"
 
-                    val isFolderDisabled = hiddenFolders.isNotEmpty() && hiddenFolders.any { hidden ->
-                        hidden.equals(folderName, ignoreCase = true) ||
-                        (bucketName != null && hidden.equals(bucketName, ignoreCase = true)) ||
-                        (bucketId != null && hidden.equals(bucketId, ignoreCase = true)) ||
-                        (relativePath != null && relativePath.split("/").any { part -> part.isNotBlank() && part.equals(hidden, ignoreCase = true) })
-                    }
-                    if (!showHidden && isFolderDisabled) {
-                        continue
-                    }
+                    val isExcluded = com.medianest.util.FolderHiddenUtils.isFolderExcludedByDefault(relativePath, folderName) ||
+                        (hiddenFolders.isNotEmpty() && hiddenFolders.any { hidden ->
+                            hidden.equals(folderName, ignoreCase = true) ||
+                            (bucketName != null && hidden.equals(bucketName, ignoreCase = true)) ||
+                            (bucketId != null && hidden.equals(bucketId, ignoreCase = true)) ||
+                            (relativePath != null && relativePath.split("/").any { part -> part.isNotBlank() && part.equals(hidden, ignoreCase = true) })
+                        })
+                    
+                    val isHidden = name.startsWith(".") || folderName.startsWith(".") || (relativePath != null && relativePath.split("/").any { it.startsWith(".") })
 
-                    if (!showHidden) {
-                        if (name.startsWith(".") || folderName.startsWith(".") || (relativePath != null && relativePath.split("/").any { it.startsWith(".") })) {
-                            continue
-                        }
-                    }
+
 
                     val mimeType = c.getString(mimeColumn) ?: "image/*"
                     val width = if (widthColumn >= 0) c.getInt(widthColumn) else 0
@@ -146,7 +142,9 @@ class MediaStoreRepository(private val context: Context) {
                             dateCreated = dateTaken,
                             bucketId = bucketId,
                             bucketName = folderName,
-                            relativePath = relativePath
+                            relativePath = relativePath,
+                            isHidden = isHidden,
+                            isExcluded = isExcluded
                         )
                     )
                 }
@@ -158,8 +156,7 @@ class MediaStoreRepository(private val context: Context) {
         // FIXME: Cache synchronization issue. Deleted files keep showing in the library
         // because the UI/ViewModel list isn't updated immediately after a file is deleted
         // from the filesystem. Needs a more robust observer or immediate local list invalidation.
-        val hasAllFilesAccess = android.os.Environment.isExternalStorageManager()
-        if (showHidden || hasAllFilesAccess) {
+        if (showHidden) {
             val hiddenFromFileSystem = scanFileSystemHiddenMedia(MediaType.IMAGE, hiddenFolders, showHidden = showHidden)
             val existingUris = imagesList.map { it.uri.toString() }.toSet()
             val existingNameSize = imagesList.map { "${it.title.substringAfterLast('/')}_${it.size}" }.toSet()
@@ -263,21 +260,17 @@ class MediaStoreRepository(private val context: Context) {
                     val id = c.getLong(idColumn)
                     val name = c.getString(nameColumn) ?: "Video_$id"
 
-                    val isFolderDisabled = hiddenFolders.isNotEmpty() && hiddenFolders.any { hidden ->
-                        hidden.equals(folderName, ignoreCase = true) ||
-                        (bucketName != null && hidden.equals(bucketName, ignoreCase = true)) ||
-                        (bucketId != null && hidden.equals(bucketId, ignoreCase = true)) ||
-                        (relativePath != null && relativePath.split("/").any { part -> part.isNotBlank() && part.equals(hidden, ignoreCase = true) })
-                    }
-                    if (!showHidden && isFolderDisabled) {
-                        continue
-                    }
+                    val isExcluded = com.medianest.util.FolderHiddenUtils.isFolderExcludedByDefault(relativePath, folderName) ||
+                        (hiddenFolders.isNotEmpty() && hiddenFolders.any { hidden ->
+                            hidden.equals(folderName, ignoreCase = true) ||
+                            (bucketName != null && hidden.equals(bucketName, ignoreCase = true)) ||
+                            (bucketId != null && hidden.equals(bucketId, ignoreCase = true)) ||
+                            (relativePath != null && relativePath.split("/").any { part -> part.isNotBlank() && part.equals(hidden, ignoreCase = true) })
+                        })
+                    
+                    val isHidden = name.startsWith(".") || folderName.startsWith(".") || (relativePath != null && relativePath.split("/").any { it.startsWith(".") })
 
-                    if (!showHidden) {
-                        if (name.startsWith(".") || folderName.startsWith(".") || (relativePath != null && relativePath.split("/").any { it.startsWith(".") })) {
-                            continue
-                        }
-                    }
+
 
                     val mimeType = c.getString(mimeColumn) ?: "video/*"
                     val rawWidth = if (widthColumn >= 0) c.getInt(widthColumn) else 0
@@ -311,7 +304,9 @@ class MediaStoreRepository(private val context: Context) {
                             dateCreated = dateTaken,
                             bucketId = bucketId,
                             bucketName = folderName,
-                            relativePath = relativePath
+                            relativePath = relativePath,
+                            isHidden = isHidden,
+                            isExcluded = isExcluded
                         )
                     )
                 }
@@ -323,8 +318,7 @@ class MediaStoreRepository(private val context: Context) {
         // FIXME: Cache synchronization issue. Deleted files keep showing in the library
         // because the UI/ViewModel list isn't updated immediately after a file is deleted
         // from the filesystem. Needs a more robust observer or immediate local list invalidation.
-        val hasAllFilesAccess = android.os.Environment.isExternalStorageManager()
-        if (showHidden || hasAllFilesAccess) {
+        if (showHidden) {
             val hiddenFromFileSystem = scanFileSystemHiddenMedia(MediaType.VIDEO, hiddenFolders, showHidden = showHidden)
             val existingUris = videosList.map { it.uri.toString() }.toSet()
             val existingNameSize = videosList.map { "${it.title.substringAfterLast('/')}_${it.size}" }.toSet()
@@ -429,21 +423,17 @@ class MediaStoreRepository(private val context: Context) {
                     val title = if (titleColumn >= 0) c.getString(titleColumn) else null
                     val name = if (nameColumn >= 0) c.getString(nameColumn) else "Audio_$id"
 
-                    val isFolderDisabled = hiddenFolders.isNotEmpty() && hiddenFolders.any { hidden ->
-                        hidden.equals(folderName, ignoreCase = true) ||
-                        (bucketName != null && hidden.equals(bucketName, ignoreCase = true)) ||
-                        (bucketId != null && hidden.equals(bucketId, ignoreCase = true)) ||
-                        (relativePath != null && relativePath.split("/").any { part -> part.isNotBlank() && part.equals(hidden, ignoreCase = true) })
-                    }
-                    if (!showHidden && isFolderDisabled) {
-                        continue
-                    }
+                    val isExcluded = com.medianest.util.FolderHiddenUtils.isFolderExcludedByDefault(relativePath, folderName) ||
+                        (hiddenFolders.isNotEmpty() && hiddenFolders.any { hidden ->
+                            hidden.equals(folderName, ignoreCase = true) ||
+                            (bucketName != null && hidden.equals(bucketName, ignoreCase = true)) ||
+                            (bucketId != null && hidden.equals(bucketId, ignoreCase = true)) ||
+                            (relativePath != null && relativePath.split("/").any { part -> part.isNotBlank() && part.equals(hidden, ignoreCase = true) })
+                        })
+                    
+                    val isHidden = name.startsWith(".") || folderName.startsWith(".") || (relativePath != null && relativePath.split("/").any { it.startsWith(".") })
 
-                    if (!showHidden) {
-                        if (name.startsWith(".") || folderName.startsWith(".") || (relativePath != null && relativePath.split("/").any { it.startsWith(".") })) {
-                            continue
-                        }
-                    }
+
                     val mimeType = c.getString(mimeColumn) ?: "audio/*"
                     val duration = if (durationColumn >= 0) c.getLong(durationColumn) else 0L
                     val size = c.getLong(sizeColumn)
@@ -483,7 +473,9 @@ class MediaStoreRepository(private val context: Context) {
                             album = album?.takeIf { it != "<unknown>" },
                             bucketId = bucketId,
                             bucketName = folderName,
-                            albumArtUri = artworkUri
+                            albumArtUri = artworkUri,
+                            isHidden = isHidden,
+                            isExcluded = isExcluded
                         )
                     )
                     
@@ -500,8 +492,7 @@ class MediaStoreRepository(private val context: Context) {
         // FIXME: Cache synchronization issue. Deleted files keep showing in the library
         // because the UI/ViewModel list isn't updated immediately after a file is deleted
         // from the filesystem. Needs a more robust observer or immediate local list invalidation.
-        val hasAllFilesAccess = android.os.Environment.isExternalStorageManager()
-        if (showHidden || hasAllFilesAccess) {
+        if (showHidden) {
             val hiddenFromFileSystem = scanFileSystemHiddenMedia(MediaType.AUDIO, hiddenFolders, showHidden = showHidden)
             val existingUris = audioList.map { it.uri.toString() }.toSet()
             val existingPaths = audioList.mapNotNull { item ->
@@ -705,11 +696,11 @@ class MediaStoreRepository(private val context: Context) {
                 val dirName = dir.name
                 if (dirName == "Android" && dir.parentFile?.absolutePath == rootDir.absolutePath) return
 
-                val isSelectivelyDisabledFolder = hiddenFolders.isNotEmpty() && hiddenFolders.any { hidden ->
+                val isExcluded = hiddenFolders.isNotEmpty() && hiddenFolders.any { hidden ->
                     dirName.equals(hidden, ignoreCase = true) || dir.absolutePath.contains(hidden, ignoreCase = true)
                 }
 
-                if (!showHidden && isSelectivelyDisabledFolder) return
+                if (!showHidden && isExcluded) return
 
                 var rawFiles: Array<java.io.File>? = dir.listFiles()
                 if (rawFiles == null) {
@@ -730,15 +721,15 @@ class MediaStoreRepository(private val context: Context) {
                 val filesList = (rawFiles ?: emptyArray()).toMutableList()
 
                 val hasNoMedia = filesList.any { it.name.equals(".nomedia", ignoreCase = true) }
-                val isHiddenFolder = parentIsHidden || dirName.startsWith(".") || dir.absolutePath.contains("/.") || hasNoMedia || isSelectivelyDisabledFolder
+                val isHiddenFolder = parentIsHidden || dirName.startsWith(".") || dir.absolutePath.contains("/.") || hasNoMedia
 
                 for (file in filesList) {
                     if (file.isDirectory) {
-                        scanDir(file, depth + 1, isHiddenFolder)
+                        scanDir(file, depth + 1, isHiddenFolder || isExcluded)
                     } else if (file.isFile) {
                         val ext = file.extension.lowercase()
                         val isHiddenFile = file.name.startsWith(".") || isHiddenFolder
-                        if (extensions.contains(ext) && (showHidden || !isHiddenFile)) {
+                        if (extensions.contains(ext) && (showHidden || (!isHiddenFile && !isExcluded))) {
                             val fileUri = Uri.fromFile(file)
                             val folderName = if (dirName.isNotBlank()) dirName else (file.parentFile?.name ?: "Hidden")
                             val relPath = file.parentFile?.absolutePath?.removePrefix(rootDir.absolutePath)?.trim('/')?.let { "$it/" } ?: "$folderName/"
@@ -765,6 +756,8 @@ class MediaStoreRepository(private val context: Context) {
                                     dateCreated = meta.dateCreated,
                                     bucketName = folderName,
                                     relativePath = relPath,
+                                    isHidden = isHiddenFile,
+                                    isExcluded = isExcluded || parentIsHidden, // If parent is hidden, we count it as hidden but if specifically excluded, we count as excluded
                                     artist = meta.artist,
                                     album = meta.album
                                 )
@@ -828,13 +821,13 @@ class MediaStoreRepository(private val context: Context) {
 
         val children = try { docDir.listFiles() } catch (e: Exception) { emptyArray() }
         val hasNoMedia = children.any { (it.name ?: "").equals(".nomedia", ignoreCase = true) }
+        val isExcluded = hiddenFolders.isNotEmpty() && hiddenFolders.any { hidden -> dirName.equals(hidden, ignoreCase = true) || currentRelativePath.contains(hidden, ignoreCase = true) }
         val isHiddenFolder = dirName.startsWith(".") ||
                 currentRelativePath.startsWith(".") ||
                 currentRelativePath.split("/").any { it.startsWith(".") } ||
-                hasNoMedia ||
-                (hiddenFolders.isNotEmpty() && hiddenFolders.any { hidden -> dirName.equals(hidden, ignoreCase = true) || currentRelativePath.contains(hidden, ignoreCase = true) })
+                hasNoMedia
 
-        if (!showHidden && isHiddenFolder) return
+        if (!showHidden && (isExcluded || isHiddenFolder)) return
 
         for (child in children) {
             if (child.isDirectory) {
@@ -843,7 +836,7 @@ class MediaStoreRepository(private val context: Context) {
                 val name = child.name ?: ""
                 val ext = name.substringAfterLast('.', "").lowercase()
                 val isHiddenFile = name.startsWith(".") || isHiddenFolder
-                if (extensions.contains(ext) && (showHidden || !isHiddenFile)) {
+                if (extensions.contains(ext) && (showHidden || (!isHiddenFile && !isExcluded))) {
                     val folderName = if (dirName.isNotBlank()) dirName else "Hidden"
                     val relPath = currentRelativePath.ifBlank { "$folderName/" }
                     
@@ -869,6 +862,8 @@ class MediaStoreRepository(private val context: Context) {
                             dateCreated = if (meta.dateCreated > 0) meta.dateCreated else (child.lastModified() / 1000),
                             bucketName = folderName,
                             relativePath = relPath,
+                            isHidden = isHiddenFile,
+                            isExcluded = isExcluded,
                             artist = meta.artist,
                             album = meta.album
                         )

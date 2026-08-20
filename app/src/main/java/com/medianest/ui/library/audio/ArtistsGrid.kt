@@ -44,7 +44,7 @@ fun ArtistsGrid(
     songs: List<MediaItem>,
     selectedUris: Set<String>,
     isSelectionMode: Boolean,
-    onSongClick: (MediaItem) -> Unit,
+    onSongClick: (List<MediaItem>, Int) -> Unit,
     onSongLongClick: (MediaItem) -> Unit,
     gridSizeLevel: Int = 1,
     initialSelectedArtist: String? = null,
@@ -445,7 +445,7 @@ fun ArtistsGrid(
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 GlassSurface(
                                     modifier = Modifier.clickable {
-                                        if (topSongs.isNotEmpty()) onSongClick(topSongs.first())
+                                        if (topSongs.isNotEmpty()) onSongClick(topSongs, 0)
                                     },
                                     shape = RoundedCornerShape(20.dp),
                                     backgroundColor = Color(0x33FFFFFF),
@@ -473,7 +473,10 @@ fun ArtistsGrid(
 
                                 GlassSurface(
                                     modifier = Modifier.clickable {
-                                        if (topSongs.isNotEmpty()) onSongClick(topSongs.shuffled().first())
+                                        if (topSongs.isNotEmpty()) {
+                                            val shuffled = topSongs.shuffled()
+                                            onSongClick(shuffled, 0)
+                                        }
                                     },
                                     shape = RoundedCornerShape(20.dp),
                                     backgroundColor = Color(0x22FFFFFF),
@@ -504,7 +507,7 @@ fun ArtistsGrid(
                                 modifier = Modifier
                                     .size(38.dp)
                                     .clickable {
-                                        if (topSongs.isNotEmpty()) onSongClick(topSongs.first())
+                                        if (topSongs.isNotEmpty()) onSongClick(topSongs, 0)
                                     },
                                 shape = CircleShape,
                                 backgroundColor = Color(0x3DFFFFFF),

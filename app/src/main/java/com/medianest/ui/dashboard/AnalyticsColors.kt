@@ -1,4 +1,4 @@
-package com.medianest.ui.analytics
+package com.medianest.ui.dashboard
 
 import androidx.compose.ui.graphics.Color
 import java.text.DecimalFormat

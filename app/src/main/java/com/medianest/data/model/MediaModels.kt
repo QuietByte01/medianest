@@ -19,6 +19,8 @@ data class MediaItem(
     val bucketId: String? = null,
     val bucketName: String? = null,
     val relativePath: String? = null,
+    val isHidden: Boolean = false,
+    val isExcluded: Boolean = false,
     val artist: String? = null,
     val album: String? = null,
     val albumArtUri: Uri? = null

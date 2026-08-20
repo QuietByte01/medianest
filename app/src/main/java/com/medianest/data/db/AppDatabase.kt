@@ -16,9 +16,10 @@ import androidx.room.RoomDatabase
         FileStatSnapshot::class,
         FormatStat::class,
         LocationCache::class,
-        SubtitleCache::class
+        SubtitleCache::class,
+        ArtistMetadata::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -31,6 +32,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun analyticsDao(): AnalyticsDao
     abstract fun locationCacheDao(): LocationCacheDao
     abstract fun subtitleCacheDao(): SubtitleCacheDao
+    abstract fun artistMetadataDao(): ArtistMetadataDao
 
     companion object {
         @Volatile

@@ -9,19 +9,33 @@ import com.medianest.util.TrashManager
 import java.io.File
 import java.util.Locale
 
-fun filterVideoList(videos: List<MediaItem>, filterTab: String): List<MediaItem> {
+fun filterVideoList(videos: List<MediaItem>, filterTab: String, showHidden: Boolean = false): List<MediaItem> {
     val sharedWords = if (filterTab == "SERIES" || filterTab == "MOVIES") computeSharedTitleWords(videos) else emptySet()
+    
+    // Filter out excluded and hidden items from standard tabs
+    val baseVideos = when (filterTab) {
+        "EXCLUDED" -> videos.filter { it.isExcluded || com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+        "HIDDEN" -> videos.filter { it.isHidden && !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+        "FOLDERS" -> videos.filter { !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+        else -> videos.filter { item ->
+            !item.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(item) &&
+            (showHidden || !item.isHidden)
+        }
+    }
+
     return when (filterTab) {
-        "ALL" -> videos
-        "CLIPS" -> videos.filter { isClipsAndRecordings(it) }
-        "SHORTS" -> videos.filter { isShorts(it) }
-        "SERIES" -> videos.filter { isTVSeries(it, sharedWords) }
-        "MUSIC" -> videos.filter { isMusicVideo(it) }
-        "MOVIES" -> videos.filter { isMovie(it, sharedWords) }
-        "DOWNLOADED" -> videos.filter { isDownloaded(it) }
-        "SOCIAL" -> videos.filter { isSocialMediaVideo(it) }
-        "EDITED" -> videos.filter { isEditedVideo(it) }
-        else -> videos
+        "ALL" -> baseVideos
+        "CLIPS" -> baseVideos.filter { isClipsAndRecordings(it) }
+        "SHORTS" -> baseVideos.filter { isShorts(it) }
+        "SERIES" -> baseVideos.filter { isTVSeries(it, sharedWords) }
+        "MUSIC" -> baseVideos.filter { isMusicVideo(it) }
+        "MOVIES" -> baseVideos.filter { isMovie(it, sharedWords) }
+        "DOWNLOADED" -> baseVideos.filter { isDownloaded(it) }
+        "SOCIAL" -> baseVideos.filter { isSocialMediaVideo(it) }
+        "EDITED" -> baseVideos.filter { isEditedVideo(it) }
+        "EXCLUDED" -> baseVideos
+        "HIDDEN" -> baseVideos
+        else -> baseVideos
     }
 }
 

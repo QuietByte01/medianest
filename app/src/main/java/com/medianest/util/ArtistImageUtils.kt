@@ -39,76 +39,56 @@ object ArtistImageUtils {
         return ARTIST_PORTRAITS[index]
     }
 
-    fun getArtistImageUrl(artistName: String?): String {
+    fun getArtistImageUrl(artistName: String?, offlineMode: Boolean = false): String? {
         if (artistName.isNullOrBlank() || artistName.equals("Unknown Artist", ignoreCase = true) || artistName.equals("Unknown", ignoreCase = true)) {
-            return ARTIST_PORTRAITS[0]
+            return null
         }
         val cleanKey = artistName.trim().lowercase()
-        return cache[cleanKey] ?: getFallbackArtistImageUrl(artistName)
+        return cache[cleanKey]
     }
 
-    suspend fun fetchArtistImageUrl(artistName: String?, offlineMode: Boolean = false): String = withContext(Dispatchers.IO) {
+    suspend fun fetchArtistImageUrl(artistName: String?, offlineMode: Boolean = false): String? = withContext(Dispatchers.IO) {
         if (artistName.isNullOrBlank() || artistName.equals("Unknown Artist", ignoreCase = true) || artistName.equals("Unknown", ignoreCase = true)) {
-            return@withContext ARTIST_PORTRAITS[0]
+            return@withContext null
         }
         val cleanKey = artistName.trim().lowercase()
         cache[cleanKey]?.let { return@withContext it }
 
-        if (offlineMode) {
-            return@withContext getFallbackArtistImageUrl(artistName)
-        }
-
+        // Try to get from persistent metadata repo if available
         try {
-            // 1. Query Deezer API for artist portrait
+            val repo = com.medianest.MediaNestApp.instance.artistMetadataRepository
+            val info = repo.getArtistInfo(artistName)
+            if (!info.imageUrl.isNullOrBlank()) {
+                cache[cleanKey] = info.imageUrl
+                return@withContext info.imageUrl
+            }
+        } catch (_: Exception) {}
+
+        if (offlineMode) return@withContext null
+        
+        // Fallback fetch logic if repo didn't have it (redundant but safe)
+        try {
             val encodedName = URLEncoder.encode(artistName.trim(), "UTF-8")
             val deezerUrl = "https://api.deezer.com/search/artist?q=$encodedName"
             val connection = (URL(deezerUrl).openConnection() as HttpURLConnection).apply {
                 connectTimeout = 3000
                 readTimeout = 3000
                 requestMethod = "GET"
+                setRequestProperty("User-Agent", "MediaNestApp/1.0")
             }
             if (connection.responseCode == 200) {
                 val responseText = connection.inputStream.bufferedReader().use { it.readText() }
                 val match = Regex(""""picture_big":"([^"]+)"""").find(responseText)
                     ?: Regex(""""picture_xl":"([^"]+)"""").find(responseText)
-                    ?: Regex(""""picture_medium":"([^"]+)"""").find(responseText)
                 if (match != null) {
                     val imageUrl = match.groupValues[1].replace("\\/", "/")
-                    if (imageUrl.isNotBlank() && !imageUrl.contains("/artist//")) {
-                        cache[cleanKey] = imageUrl
-                        return@withContext imageUrl
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            // Ignore & try iTunes fallback
-        }
-
-        try {
-            // 2. Query iTunes API for artist / album artwork
-            val encodedName = URLEncoder.encode(artistName.trim(), "UTF-8")
-            val itunesUrl = "https://itunes.apple.com/search?term=$encodedName&entity=album&limit=1"
-            val connection = (URL(itunesUrl).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 3000
-                readTimeout = 3000
-                requestMethod = "GET"
-            }
-            if (connection.responseCode == 200) {
-                val responseText = connection.inputStream.bufferedReader().use { it.readText() }
-                val match = Regex(""""artworkUrl100":"([^"]+)"""").find(responseText)
-                if (match != null) {
-                    val imageUrl = match.groupValues[1].replace("100x100bb", "600x600bb")
                     cache[cleanKey] = imageUrl
                     return@withContext imageUrl
                 }
             }
-        } catch (e: Exception) {
-            // Ignore
-        }
+        } catch (_: Exception) {}
 
-        val fallback = getFallbackArtistImageUrl(artistName)
-        cache[cleanKey] = fallback
-        return@withContext fallback
+        null
     }
 
     fun getSongwriterImageUrl(composerName: String?): String {
@@ -147,16 +127,18 @@ object ArtistImageUtils {
 }
 
 @Composable
-fun rememberArtistImageUrl(artistName: String?): String {
+fun rememberArtistImageUrl(artistName: String?): String? {
     val settingsManager = remember { com.medianest.MediaNestApp.instance.settingsManager }
     val offlineMode by settingsManager.offlineMode.collectAsState(initial = false)
     
     val clean = artistName?.trim() ?: "Unknown Artist"
-    var imageUrl by remember(clean) { mutableStateOf(ArtistImageUtils.getArtistImageUrl(clean)) }
+    var imageUrl by remember(clean, offlineMode) { mutableStateOf(ArtistImageUtils.getArtistImageUrl(clean, offlineMode)) }
 
     LaunchedEffect(clean, offlineMode) {
         val fetched = ArtistImageUtils.fetchArtistImageUrl(clean, offlineMode)
-        imageUrl = fetched
+        if (fetched != null) {
+            imageUrl = fetched
+        }
     }
 
     return imageUrl

@@ -71,7 +71,12 @@ fun MediaConverterStudioDialog(
     val isTablet = configuration.screenWidthDp >= 600
 
     var selectedTab by remember { mutableStateOf(initialTab) }
-    var selectedMediaItem by remember { mutableStateOf<MediaItem?>(initialMediaItem ?: videosList.firstOrNull() ?: audioList.firstOrNull() ?: imagesList.firstOrNull()) }
+    var selectedMediaItem by remember {
+        mutableStateOf<MediaItem?>(
+            initialMediaItem ?: videosList.firstOrNull() ?: audioList.firstOrNull()
+            ?: imagesList.firstOrNull()
+        )
+    }
     var selectedBatchItems by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
     var isBatchMode by remember { mutableStateOf(false) }
 
@@ -85,7 +90,11 @@ fun MediaConverterStudioDialog(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            val item = com.medianest.util.AudioMetadataUtils.extractMetadata(context, uri, rawTitleHint = uri.lastPathSegment ?: "External Media")
+            val item = com.medianest.util.AudioMetadataUtils.extractMetadata(
+                context,
+                uri,
+                rawTitleHint = uri.lastPathSegment ?: "External Media"
+            )
             selectedMediaItem = item
             isBatchMode = false
         }
@@ -97,7 +106,11 @@ fun MediaConverterStudioDialog(
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) {
             val items = uris.map { uri ->
-                com.medianest.util.AudioMetadataUtils.extractMetadata(context, uri, rawTitleHint = uri.lastPathSegment ?: "Image")
+                com.medianest.util.AudioMetadataUtils.extractMetadata(
+                    context,
+                    uri,
+                    rawTitleHint = uri.lastPathSegment ?: "Image"
+                )
             }
             selectedBatchItems = items
             isBatchMode = true
@@ -145,16 +158,16 @@ fun MediaConverterStudioDialog(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(0xCC05070E))
-                .padding(if (isTablet) 24.dp else 8.dp),
+                .padding(if (isTablet) 24.dp else 0.dp),
             contentAlignment = Alignment.Center
         ) {
             GlassSurface(
                 modifier = Modifier
                     .fillMaxWidth(if (isTablet) 0.88f else 1f)
-                    .fillMaxHeight(if (isTablet) 0.92f else 0.98f),
-                shape = RoundedCornerShape(24.dp),
+                    .fillMaxHeight(if (isTablet) 0.92f else 1f),
+                shape = if (isTablet) RoundedCornerShape(24.dp) else RoundedCornerShape(0.dp),
                 backgroundColor = Color(0xEB0A0D18),
-                borderColor = Color(0x3338BDF8)
+                borderColor = if (isTablet) Color(0x26FFFFFF) else Color.Transparent
             ) {
                 Column(
                     modifier = Modifier
@@ -167,16 +180,24 @@ fun MediaConverterStudioDialog(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
                             Box(
                                 modifier = Modifier
                                     .size(34.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0x2E38BDF8))
-                                    .border(1.dp, Color(0x6638BDF8), CircleShape),
+                                    .background(Color(0x33FFFFFF))
+                                    .border(1.dp, Color(0x4DFFFFFF), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.MovieFilter, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp))
+                                Icon(
+                                    Icons.Default.MovieFilter,
+                                    contentDescription = null,
+                                    tint = Color(0xFFF8F9FA),
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
                             Column {
                                 Text(
@@ -185,11 +206,28 @@ fun MediaConverterStudioDialog(
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
                                 )
-                                Text(
-                                    text = "Lossless Converter · Batch Compressor · Extractor · Repair",
-                                    fontSize = 11.sp,
-                                    color = Color(0xFF94A3B8)
-                                )
+//                                Text(
+//                                    text = "Lossless Converter · Batch Compressor · Extractor · Repair",
+//                                    fontSize = 11.sp,
+//                                    color = Color(0xFF94A3B8)
+//                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Bolt,
+                                        contentDescription = null,
+                                        tint = Color(0xFFF8F9FA),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "FFmpeg Engine",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFF8F9FA)
+                                    )
+                                }
                             }
                         }
 
@@ -201,7 +239,11 @@ fun MediaConverterStudioDialog(
                                 }
                             }
                         ) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = Color.White
+                            )
                         }
                     }
 
@@ -285,6 +327,7 @@ fun MediaConverterStudioDialog(
                                     onBitrateChange = { audioBitrate = it }
                                 )
                             }
+
                             StudioTab.COMPRESS -> {
                                 CompressControlsCard(
                                     selectedItem = selectedMediaItem,
@@ -304,6 +347,7 @@ fun MediaConverterStudioDialog(
                                     onImageFormatChange = { imageFormat = it }
                                 )
                             }
+
                             StudioTab.CROP -> {
                                 CropControlsCard(
                                     selectedItem = selectedMediaItem,
@@ -311,6 +355,7 @@ fun MediaConverterStudioDialog(
                                     onPresetChange = { cropPreset = it }
                                 )
                             }
+
                             StudioTab.EXTRACT -> {
                                 ExtractControlsCard(
                                     selectedItem = selectedMediaItem,
@@ -320,6 +365,7 @@ fun MediaConverterStudioDialog(
                                     onAudioFormatChange = { extractAudioFormat = it }
                                 )
                             }
+
                             StudioTab.REPAIR -> {
                                 RepairControlsCard(
                                     selectedItem = selectedMediaItem,
@@ -338,18 +384,26 @@ fun MediaConverterStudioDialog(
                             StudioTab.CONVERT -> if (isLosslessCopy) "Start Lossless Remux" else "Start Video/Audio Conversion"
                             StudioTab.COMPRESS -> if (isBatchMode) "Compress ${selectedBatchItems.size} Files (Batch)" else "Start Smart Compression"
                             StudioTab.CROP -> "Start Video Crop & Reframe"
-                            StudioTab.EXTRACT -> if (extractAudioFormat == "original") "Extract Original Lossless Audio" else "Extract ${extractType.lowercase().replaceFirstChar { it.uppercase() }}"
+                            StudioTab.EXTRACT -> if (extractAudioFormat == "original") "Extract Original Lossless Audio" else "Extract ${
+                                extractType.lowercase().replaceFirstChar { it.uppercase() }
+                            }"
+
                             StudioTab.REPAIR -> "Run Diagnostic Bitstream Repair"
                         },
                         icon = Icons.Default.PlayArrow,
                         onClick = {
                             if (selectedTab == StudioTab.COMPRESS && isBatchMode) {
                                 if (selectedBatchItems.isEmpty()) {
-                                    Toast.makeText(context, "Please select images to compress", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(
+                                        context,
+                                        "Please select images to compress",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                     return@GlossyActionButton
                                 }
                                 scope.launch {
-                                    val pairs = selectedBatchItems.map { it.uri.path.orEmpty() to it.uri }
+                                    val pairs =
+                                        selectedBatchItems.map { it.uri.path.orEmpty() to it.uri }
                                     MediaProcessorEngine.batchCompressMedia(
                                         context = context,
                                         inputList = pairs,
@@ -363,7 +417,11 @@ fun MediaConverterStudioDialog(
 
                             val item = selectedMediaItem
                             if (item == null) {
-                                Toast.makeText(context, "Please select a media file first", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    "Please select a media file first",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                                 return@GlossyActionButton
                             }
 
@@ -390,6 +448,7 @@ fun MediaConverterStudioDialog(
                                             isCreateNewFile = isCreateNewFile
                                         )
                                     }
+
                                     StudioTab.COMPRESS -> {
                                         MediaProcessorEngine.compressMedia(
                                             context = context,
@@ -402,6 +461,7 @@ fun MediaConverterStudioDialog(
                                             isCreateNewFile = isCreateNewFile
                                         )
                                     }
+
                                     StudioTab.CROP -> {
                                         MediaProcessorEngine.cropMedia(
                                             context = context,
@@ -411,6 +471,7 @@ fun MediaConverterStudioDialog(
                                             isCreateNewFile = isCreateNewFile
                                         )
                                     }
+
                                     StudioTab.EXTRACT -> {
                                         MediaProcessorEngine.extractMedia(
                                             context = context,
@@ -421,6 +482,7 @@ fun MediaConverterStudioDialog(
                                             isCreateNewFile = isCreateNewFile
                                         )
                                     }
+
                                     StudioTab.REPAIR -> {
                                         MediaProcessorEngine.repairMedia(
                                             context = context,
@@ -506,23 +568,44 @@ fun MediaConverterStudioDialog(
                 AlertDialog(
                     onDismissRequest = { MediaProcessorEngine.resetState() },
                     title = {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFF87171))
-                            Text("Processing Error", color = Color(0xFFF87171), fontWeight = FontWeight.Bold)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFF87171)
+                            )
+                            Text(
+                                "Processing Error",
+                                color = Color(0xFFF87171),
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     },
                     text = {
-                        Column(modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp).verticalScroll(rememberScrollState())) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 240.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
                             Text(state.errorMessage, color = Color.White, fontSize = 13.sp)
                             if (state.fullLog.isNotBlank()) {
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text(state.fullLog.takeLast(400), color = Color(0xFF94A3B8), fontSize = 10.5.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                                Text(
+                                    state.fullLog.takeLast(400),
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 10.5.sp,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                )
                             }
                         }
                     },
                     confirmButton = {
                         TextButton(onClick = { MediaProcessorEngine.resetState() }) {
-                            Text("Dismiss", color = Color(0xFF38BDF8))
+                            Text("Dismiss", color = Color(0xFFF8F9FA))
                         }
                     },
                     containerColor = Color(0xFA0F172A),
@@ -584,10 +667,10 @@ private fun GlossyPillButton(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
-        color = if (isSelected) Color(0x3338BDF8) else Color(0x14FFFFFF),
+        color = if (isSelected) Color(0x26FFFFFF) else Color(0x14FFFFFF),
         border = BorderStroke(
             if (isSelected) 1.0.dp else 0.5.dp,
-            if (isSelected) Color(0xFF38BDF8) else Color(0x22FFFFFF)
+            if (isSelected) Color(0xFFF8F9FA) else Color(0x22FFFFFF)
         ),
         modifier = modifier
     ) {
@@ -600,7 +683,7 @@ private fun GlossyPillButton(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = if (isSelected) Color(0xFF38BDF8) else Color(0xFFC0C7D5),
+                    tint = if (isSelected) Color(0xFFF8F9FA) else Color(0xFFC0C7D5),
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -608,7 +691,7 @@ private fun GlossyPillButton(
                 text = text,
                 fontSize = 12.5.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = if (isSelected) Color(0xFF38BDF8) else Color.White
+                color = if (isSelected) Color(0xFFF8F9FA) else Color.White
             )
         }
     }
@@ -625,10 +708,10 @@ private fun GlossyCardButton(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
-        color = if (isSelected) Color(0x2E38BDF8) else Color(0x12FFFFFF),
+        color = if (isSelected) Color(0x33FFFFFF) else Color(0x12FFFFFF),
         border = BorderStroke(
             if (isSelected) 1.0.dp else 0.5.dp,
-            if (isSelected) Color(0xFF38BDF8) else Color(0x1FFFFFFF)
+            if (isSelected) Color(0xFFF8F9FA) else Color(0x1FFFFFFF)
         ),
         modifier = modifier
     ) {
@@ -641,14 +724,14 @@ private fun GlossyCardButton(
                 text = title,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (isSelected) Color(0xFF38BDF8) else Color.White
+                color = if (isSelected) Color(0xFFF8F9FA) else Color.White
             )
             if (subtitle != null) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = subtitle,
                     fontSize = 10.sp,
-                    color = if (isSelected) Color(0xFFBAE6FD) else Color(0xFF94A3B8)
+                    color = if (isSelected) Color(0xFFE9ECEF) else Color(0xFF94A3B8)
                 )
             }
         }
@@ -664,8 +747,8 @@ private fun GlossyActionButton(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
-        color = Color(0x3838BDF8),
-        border = BorderStroke(1.0.dp, Color(0xFF38BDF8)),
+        color = Color(0x33FFFFFF),
+        border = BorderStroke(1.0.dp, Color(0xFFF8F9FA)),
         modifier = Modifier
             .fillMaxWidth()
             .height(50.dp)
@@ -675,7 +758,12 @@ private fun GlossyActionButton(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Icon(icon, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(19.dp))
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = Color(0xFFF8F9FA),
+                modifier = Modifier.size(19.dp)
+            )
             Spacer(modifier = Modifier.width(8.dp))
             Text(text, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
@@ -711,7 +799,7 @@ private fun SourceMediaSelectorCard(
                     .size(64.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color(0x33000000))
-                    .border(1.dp, Color(0x3338BDF8), RoundedCornerShape(12.dp)),
+                    .border(1.dp, Color(0x26FFFFFF), RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 if (selectedItem?.albumArtUri != null) {
@@ -729,13 +817,16 @@ private fun SourceMediaSelectorCard(
                             else -> Icons.Default.Movie
                         },
                         contentDescription = null,
-                        tint = Color(0xFF38BDF8),
+                        tint = Color(0xFFF8F9FA),
                         modifier = Modifier.size(28.dp)
                     )
                 }
             }
 
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
                 Text(
                     text = selectedItem?.title ?: "No File Selected",
                     fontSize = 14.sp,
@@ -755,14 +846,14 @@ private fun SourceMediaSelectorCard(
                 Surface(
                     onClick = onChangeClick,
                     shape = RoundedCornerShape(10.dp),
-                    color = Color(0x3338BDF8),
-                    border = BorderStroke(1.dp, Color(0x4438BDF8))
+                    color = Color(0x26FFFFFF),
+                    border = BorderStroke(1.dp, Color(0x4DFFFFFF))
                 ) {
                     Text(
                         text = "Library",
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF38BDF8),
+                        color = Color(0xFFF8F9FA),
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                     )
                 }
@@ -770,14 +861,14 @@ private fun SourceMediaSelectorCard(
                     Surface(
                         onClick = onSwitchToBatch,
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0x2238BDF8),
-                        border = BorderStroke(1.dp, Color(0x3338BDF8))
+                        color = Color(0x26FFFFFF),
+                        border = BorderStroke(1.dp, Color(0x26FFFFFF))
                     ) {
                         Text(
                             text = "Batch (Multi)",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFBAE6FD),
+                            color = Color(0xFFE9ECEF),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
                         )
                     }
@@ -811,17 +902,28 @@ private fun BatchSourceMediaCard(
     GlassSurface(
         shape = RoundedCornerShape(18.dp),
         backgroundColor = Color(0x2E1E293B),
-        borderColor = Color(0x4438BDF8),
+        borderColor = Color(0x4DFFFFFF),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(20.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.PhotoLibrary,
+                        contentDescription = null,
+                        tint = Color(0xFFF8F9FA),
+                        modifier = Modifier.size(20.dp)
+                    )
                     Text(
                         text = "Batch Queue (${batchItems.size} Selected Files)",
                         fontSize = 14.sp,
@@ -858,7 +960,12 @@ private fun BatchSourceMediaCard(
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            Icon(Icons.Default.Image, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(22.dp))
+                            Icon(
+                                Icons.Default.Image,
+                                contentDescription = null,
+                                tint = Color(0xFFF8F9FA),
+                                modifier = Modifier.size(22.dp)
+                            )
                         }
                     }
                 }
@@ -867,11 +974,16 @@ private fun BatchSourceMediaCard(
                         modifier = Modifier
                             .size(54.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0x3338BDF8))
-                            .border(1.dp, Color(0x6638BDF8), RoundedCornerShape(10.dp)),
+                            .background(Color(0x26FFFFFF))
+                            .border(1.dp, Color(0x4DFFFFFF), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("+${batchItems.size - 50}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
+                        Text(
+                            "+${batchItems.size - 50}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFF8F9FA)
+                        )
                     }
                 }
             }
@@ -880,12 +992,20 @@ private fun BatchSourceMediaCard(
                 Surface(
                     onClick = onChangeClick,
                     shape = RoundedCornerShape(10.dp),
-                    color = Color(0x3338BDF8),
-                    border = BorderStroke(1.dp, Color(0x4438BDF8)),
+                    color = Color(0x26FFFFFF),
+                    border = BorderStroke(1.dp, Color(0x4DFFFFFF)),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Box(modifier = Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
-                        Text("Select From Library", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
+                    Box(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "Select From Library",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFF8F9FA)
+                        )
                     }
                 }
                 Surface(
@@ -895,7 +1015,10 @@ private fun BatchSourceMediaCard(
                     border = BorderStroke(1.dp, Color(0x22FFFFFF)),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Box(modifier = Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text("Browse Multi...", fontSize = 12.sp, color = Color.White)
                     }
                 }
@@ -914,8 +1037,8 @@ private fun OutputFileSafetyCard(
 ) {
     GlassSurface(
         shape = RoundedCornerShape(14.dp),
-        backgroundColor = Color(0x1838BDF8),
-        borderColor = Color(0x3338BDF8),
+        backgroundColor = Color(0x1AFFFFFF),
+        borderColor = Color(0x26FFFFFF),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -949,7 +1072,10 @@ private fun OutputFileSafetyCard(
             Switch(
                 checked = isCreateNewFile,
                 onCheckedChange = onToggle,
-                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF38BDF8))
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = Color(0xFFF8F9FA)
+                )
             )
         }
     }
@@ -977,10 +1103,17 @@ private fun ConvertControlsCard(
     val audioFormats = listOf("mp3", "flac", "wav", "aac", "m4a", "opus", "ogg")
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Target Output Format", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text(
+            "Target Output Format",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
 
         Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             val formatList = if (isAudioSource) audioFormats else (videoFormats + audioFormats)
@@ -1001,20 +1134,40 @@ private fun ConvertControlsCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("Lossless Stream Copy (Remux)", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Text("Zero re-encoding, instant container repackaging", fontSize = 11.sp, color = Color(0xFF94A3B8))
+                Text(
+                    "Lossless Stream Copy (Remux)",
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    "Zero re-encoding, instant container repackaging",
+                    fontSize = 11.sp,
+                    color = Color(0xFF94A3B8)
+                )
             }
             Switch(
                 checked = isLossless,
                 onCheckedChange = onLosslessChange,
-                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF38BDF8))
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = Color(0x4DFFFFFF)
+                )
             )
         }
 
         if (!isLossless) {
             // Quality Presets
-            Text("Encoding Quality Preset", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                "Encoding Quality Preset",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 listOf(
                     "MASTER" to ("Master" to "CRF 14"),
                     "HIGH" to ("High" to "CRF 18"),
@@ -1033,8 +1186,21 @@ private fun ConvertControlsCard(
             }
 
             // Uniform Scrollable Video Codec Engine Row
-            if (!listOf("mp3", "flac", "wav", "aac", "m4a", "opus").contains(outputFormat.lowercase())) {
-                Text("Video Codec Engine", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            if (!listOf(
+                    "mp3",
+                    "flac",
+                    "wav",
+                    "aac",
+                    "m4a",
+                    "opus"
+                ).contains(outputFormat.lowercase())
+            ) {
+                Text(
+                    "Video Codec Engine",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1086,11 +1252,23 @@ private fun CompressControlsCard(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         if (isBatchMode) {
-            Text("Batch Image Compression Settings", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            
+            Text(
+                "Batch Image Compression Settings",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+
             Text("Target Format", fontSize = 12.sp, color = Color(0xFF94A3B8))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("webp" to "WebP (Ultra Efficient)", "jpg" to "JPEG", "png" to "PNG Lossless").forEach { (fmt, label) ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(
+                    "webp" to "WebP (Ultra Efficient)",
+                    "jpg" to "JPEG",
+                    "png" to "PNG Lossless"
+                ).forEach { (fmt, label) ->
                     val isSel = imageFormat == fmt
                     GlossyPillButton(
                         text = label,
@@ -1101,23 +1279,39 @@ private fun CompressControlsCard(
                 }
             }
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
                 Text("Image Quality / Compression", fontSize = 13.sp, color = Color.White)
-                Text(if (imageQuality >= 100) "Lossless (100%)" else "$imageQuality%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
+                Text(
+                    if (imageQuality >= 100) "Lossless (100%)" else "$imageQuality%",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFF8F9FA)
+                )
             }
             AppSlider(
                 value = imageQuality.toFloat(),
                 onValueChange = { onImageQualityChange(it.toInt()) },
                 valueRange = 40f..100f,
                 steps = 12,
-                accentColor = Color(0xFF38BDF8)
+                accentColor = Color(0xFFF8F9FA)
             )
             return
         }
 
-        Text("Compression Strategy", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text(
+            "Compression Strategy",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             listOf(
                 "PERCENT" to ("Percentage" to "50% / 75% Scale"),
                 "LIMIT_SIZE" to ("Target Limit" to "Discord / Email"),
@@ -1137,9 +1331,16 @@ private fun CompressControlsCard(
 
         when (targetMode) {
             "LIMIT_SIZE" -> {
-                Text("Target Maximum Size", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(
+                    "Target Maximum Size",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
                 Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     listOf(
@@ -1157,28 +1358,49 @@ private fun CompressControlsCard(
                     }
                 }
             }
+
             "PERCENT" -> {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Text("Target Size Reduction", fontSize = 13.sp, color = Color.White)
-                    Text("$targetPercent% Smaller", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
+                    Text(
+                        "$targetPercent% Smaller",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFF8F9FA)
+                    )
                 }
                 AppSlider(
                     value = targetPercent.toFloat(),
                     onValueChange = { onPercentChange(it.toInt()) },
                     valueRange = 25f..80f,
                     steps = 10,
-                    accentColor = Color(0xFF38BDF8)
+                    accentColor = Color(0xFFF8F9FA)
                 )
             }
+
             else -> {
-                Text("High Efficiency H.265 encoding with near-zero visual degradation.", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                Text(
+                    "High Efficiency H.265 encoding with near-zero visual degradation.",
+                    fontSize = 12.sp,
+                    color = Color(0xFF94A3B8)
+                )
             }
         }
 
         // Resolution Downscaler
-        Text("Downscale Resolution (Optional)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text(
+            "Downscale Resolution (Optional)",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
         Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             listOf(
@@ -1208,7 +1430,12 @@ private fun CropControlsCard(
     onPresetChange: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Aspect Ratio & Social Framing", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text(
+            "Aspect Ratio & Social Framing",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
 
         val presets = listOf(
             "9_16" to "9:16 (Instagram Reels / YouTube Shorts / TikTok)",
@@ -1223,8 +1450,11 @@ private fun CropControlsCard(
             Surface(
                 onClick = { onPresetChange(preset) },
                 shape = RoundedCornerShape(14.dp),
-                color = if (isSel) Color(0x2E38BDF8) else Color(0x12FFFFFF),
-                border = BorderStroke(if (isSel) 1.0.dp else 0.5.dp, if (isSel) Color(0xFF38BDF8) else Color(0x1FFFFFFF)),
+                color = if (isSel) Color(0x33FFFFFF) else Color(0x12FFFFFF),
+                border = BorderStroke(
+                    if (isSel) 1.0.dp else 0.5.dp,
+                    if (isSel) Color(0xFFF8F9FA) else Color(0x1FFFFFFF)
+                ),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -1232,9 +1462,19 @@ private fun CropControlsCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(label, fontSize = 13.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium, color = Color.White)
+                    Text(
+                        label,
+                        fontSize = 13.sp,
+                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                        color = Color.White
+                    )
                     if (isSel) {
-                        Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp))
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = null,
+                            tint = Color(0xFFF8F9FA),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
             }
@@ -1254,10 +1494,17 @@ private fun ExtractControlsCard(
     onAudioFormatChange: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Extract Component", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text(
+            "Extract Component",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
 
         Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             listOf(
@@ -1276,9 +1523,16 @@ private fun ExtractControlsCard(
         }
 
         if (extractType == "AUDIO") {
-            Text("Audio Codec & Quality", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(
+                "Audio Codec & Quality",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
             Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 listOf(
@@ -1313,7 +1567,12 @@ private fun RepairControlsCard(
     onLosslessChange: (Boolean) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Corrupted Bitstream & Container Recovery", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text(
+            "Corrupted Bitstream & Container Recovery",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
         Text(
             text = "Rebuilds damaged MP4/MKV/AVI container indexes, repairs unfinalized recordings (missing MOOV atom), and eliminates timestamp errors.",
             fontSize = 11.5.sp,
@@ -1323,26 +1582,56 @@ private fun RepairControlsCard(
         Surface(
             onClick = { onLosslessChange(true) },
             shape = RoundedCornerShape(14.dp),
-            color = if (isLossless) Color(0x2E38BDF8) else Color(0x12FFFFFF),
-            border = BorderStroke(if (isLossless) 1.0.dp else 0.5.dp, if (isLossless) Color(0xFF38BDF8) else Color(0x1FFFFFFF)),
+            color = if (isLossless) Color(0x33FFFFFF) else Color(0x12FFFFFF),
+            border = BorderStroke(
+                if (isLossless) 1.0.dp else 0.5.dp,
+                if (isLossless) Color(0xFFF8F9FA) else Color(0x1FFFFFFF)
+            ),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Lossless Index & Timestamp Rebuild (Recommended)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Text("Copies healthy streams directly. Takes just seconds with zero quality loss.", fontSize = 11.sp, color = Color(0xFF94A3B8))
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    "Lossless Index & Timestamp Rebuild (Recommended)",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    "Copies healthy streams directly. Takes just seconds with zero quality loss.",
+                    fontSize = 11.sp,
+                    color = Color(0xFF94A3B8)
+                )
             }
         }
 
         Surface(
             onClick = { onLosslessChange(false) },
             shape = RoundedCornerShape(14.dp),
-            color = if (!isLossless) Color(0x2E38BDF8) else Color(0x12FFFFFF),
-            border = BorderStroke(if (!isLossless) 1.0.dp else 0.5.dp, if (!isLossless) Color(0xFF38BDF8) else Color(0x1FFFFFFF)),
+            color = if (!isLossless) Color(0x33FFFFFF) else Color(0x12FFFFFF),
+            border = BorderStroke(
+                if (!isLossless) 1.0.dp else 0.5.dp,
+                if (!isLossless) Color(0xFFF8F9FA) else Color(0x1FFFFFFF)
+            ),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Deep Bitstream Transcode Recovery", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Text("Decodes every single packet, drops unrecoverable frames, and generates clean H.264 video.", fontSize = 11.sp, color = Color(0xFF94A3B8))
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    "Deep Bitstream Transcode Recovery",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    "Decodes every single packet, drops unrecoverable frames, and generates clean H.264 video.",
+                    fontSize = 11.sp,
+                    color = Color(0xFF94A3B8)
+                )
             }
         }
     }
@@ -1367,7 +1656,7 @@ private fun LiveProcessingHUD(
             modifier = Modifier.fillMaxWidth(0.92f),
             shape = RoundedCornerShape(24.dp),
             backgroundColor = Color(0xF0080B14),
-            borderColor = Color(0x4438BDF8)
+            borderColor = Color(0x4DFFFFFF)
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
@@ -1378,15 +1667,28 @@ private fun LiveProcessingHUD(
                     CircularProgressIndicator(
                         progress = { progress / 100f },
                         modifier = Modifier.fillMaxSize(),
-                        color = Color(0xFF38BDF8),
+                        color = Color(0xFFF8F9FA),
                         trackColor = Color(0x22FFFFFF),
                         strokeWidth = 6.dp
                     )
-                    Text("$progress%", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(
+                        "$progress%",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
 
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(statusText, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        statusText,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                     Text(recentLog, fontSize = 11.5.sp, color = Color(0xFF94A3B8))
                 }
 
@@ -1394,9 +1696,15 @@ private fun LiveProcessingHUD(
                     onClick = onCancel,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0x33EF4444)),
                     shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth().height(42.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp)
                 ) {
-                    Text("Cancel Processing", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
+                    Text(
+                        "Cancel Processing",
+                        color = Color(0xFFEF4444),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
@@ -1421,7 +1729,7 @@ private fun LiveBatchProcessingHUD(
             modifier = Modifier.fillMaxWidth(0.92f),
             shape = RoundedCornerShape(24.dp),
             backgroundColor = Color(0xF0080B14),
-            borderColor = Color(0x4438BDF8)
+            borderColor = Color(0x4DFFFFFF)
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
@@ -1432,16 +1740,29 @@ private fun LiveBatchProcessingHUD(
                     CircularProgressIndicator(
                         progress = { overallProgress / 100f },
                         modifier = Modifier.fillMaxSize(),
-                        color = Color(0xFF38BDF8),
+                        color = Color(0xFFF8F9FA),
                         trackColor = Color(0x22FFFFFF),
                         strokeWidth = 6.dp
                     )
-                    Text("$overallProgress%", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(
+                        "$overallProgress%",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
 
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Batch Processing: $currentIndex of $totalFiles", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Text(fileName, fontSize = 12.sp, color = Color(0xFF38BDF8), maxLines = 1)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        "Batch Processing: $currentIndex of $totalFiles",
+                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(fileName, fontSize = 12.sp, color = Color(0xFFF8F9FA), maxLines = 1)
                     Text(statusText, fontSize = 11.sp, color = Color(0xFF94A3B8))
                 }
 
@@ -1449,7 +1770,9 @@ private fun LiveBatchProcessingHUD(
                     onClick = onCancel,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0x33EF4444)),
                     shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth().height(42.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp)
                 ) {
                     Text("Cancel Batch", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
                 }
@@ -1471,21 +1794,43 @@ private fun ProcessingResultDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981))
-                Text("Processing Complete!", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text(
+                    "Processing Complete!",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
             }
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(completed.outputFile.name, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
-                Text("Saved to: ${completed.outputFile.parent}", color = Color(0xFF94A3B8), fontSize = 11.sp)
-                
+                Text(
+                    completed.outputFile.name,
+                    color = Color(0xFFF8F9FA),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.5.sp
+                )
+                Text(
+                    "Saved to: ${completed.outputFile.parent}",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 11.sp
+                )
+
                 if (completed.originalSizeBytes > 0) {
                     val saved = completed.originalSizeBytes - completed.newSizeBytes
-                    val savedPercent = (saved.toFloat() / completed.originalSizeBytes.toFloat() * 100).toInt()
+                    val savedPercent =
+                        (saved.toFloat() / completed.originalSizeBytes.toFloat() * 100).toInt()
                     Text(
-                        text = "Original: ${com.medianest.util.formatBytesReport(completed.originalSizeBytes)} ➔ New: ${com.medianest.util.formatBytesReport(completed.newSizeBytes)} (${if (saved >= 0) "-$savedPercent%" else "+${-savedPercent}%"})",
+                        text = "Original: ${com.medianest.util.formatBytesReport(completed.originalSizeBytes)} ➔ New: ${
+                            com.medianest.util.formatBytesReport(
+                                completed.newSizeBytes
+                            )
+                        } (${if (saved >= 0) "-$savedPercent%" else "+${-savedPercent}%"})",
                         color = Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
@@ -1503,11 +1848,11 @@ private fun ProcessingResultDialog(
                     }
                     context.startActivity(Intent.createChooser(sendIntent, "Share Converted Media"))
                 }) {
-                    Text("Share", color = Color(0xFF38BDF8))
+                    Text("Share", color = Color(0xFFF8F9FA))
                 }
                 Button(
                     onClick = { onPlay(completed.outputFile) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF38BDF8)),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF8F9FA)),
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Text("Play", color = Color.Black, fontWeight = FontWeight.Bold)
@@ -1533,18 +1878,36 @@ private fun BatchResultDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981))
-                Text("Batch Compression Complete!", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text(
+                    "Batch Compression Complete!",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
             }
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Successfully processed ${completed.outputFiles.size} files", color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
-                val saved = completed.totalOriginalBytes - completed.totalNewBytes
-                val savedPercent = if (completed.totalOriginalBytes > 0) (saved.toFloat() / completed.totalOriginalBytes.toFloat() * 100).toInt() else 0
                 Text(
-                    text = "Total Size: ${com.medianest.util.formatBytesReport(completed.totalOriginalBytes)} ➔ ${com.medianest.util.formatBytesReport(completed.totalNewBytes)} (-$savedPercent%)",
+                    "Successfully processed ${completed.outputFiles.size} files",
+                    color = Color(0xFFF8F9FA),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.5.sp
+                )
+                val saved = completed.totalOriginalBytes - completed.totalNewBytes
+                val savedPercent =
+                    if (completed.totalOriginalBytes > 0) (saved.toFloat() / completed.totalOriginalBytes.toFloat() * 100).toInt() else 0
+                Text(
+                    text = "Total Size: ${com.medianest.util.formatBytesReport(completed.totalOriginalBytes)} ➔ ${
+                        com.medianest.util.formatBytesReport(
+                            completed.totalNewBytes
+                        )
+                    } (-$savedPercent%)",
                     color = Color.White,
                     fontSize = 12.sp
                 )
@@ -1553,7 +1916,7 @@ private fun BatchResultDialog(
         confirmButton = {
             Button(
                 onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF38BDF8)),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF8F9FA)),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Text("Done", color = Color.Black, fontWeight = FontWeight.Bold)
@@ -1580,25 +1943,43 @@ private fun MediaItemPickerModal(
 
     Dialog(onDismissRequest = onDismiss) {
         GlassSurface(
-            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.85f),
             shape = RoundedCornerShape(24.dp),
             backgroundColor = Color(0xF2080C18),
-            borderColor = Color(0x3338BDF8)
+            borderColor = Color(0x26FFFFFF)
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Select Media Source", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(
+                        "Select Media Source",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
                     }
                 }
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("ALL" to "All Media", "VIDEO" to "Videos", "AUDIO" to "Audio", "IMAGE" to "Images").forEach { (f, label) ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(
+                        "ALL" to "All Media",
+                        "VIDEO" to "Videos",
+                        "AUDIO" to "Audio",
+                        "IMAGE" to "Images"
+                    ).forEach { (f, label) ->
                         val isSel = pickerFilter == f
                         GlossyPillButton(
                             text = label,
@@ -1642,12 +2023,22 @@ private fun MediaItemPickerModal(
                                         else -> Icons.Default.Movie
                                     },
                                     contentDescription = null,
-                                    tint = Color(0xFF38BDF8),
+                                    tint = Color(0xFFF8F9FA),
                                     modifier = Modifier.size(22.dp)
                                 )
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(item.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
-                                    Text("${com.medianest.util.formatBytesReport(item.size)} · ${item.mimeType}", fontSize = 11.sp, color = Color(0xFF94A3B8))
+                                    Text(
+                                        item.title,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        "${com.medianest.util.formatBytesReport(item.size)} · ${item.mimeType}",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF94A3B8)
+                                    )
                                 }
                             }
                         }
@@ -1658,9 +2049,16 @@ private fun MediaItemPickerModal(
                     onClick = onPickExternal,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0x2EFFFFFF)),
-                    modifier = Modifier.fillMaxWidth().height(42.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp)
                 ) {
-                    Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    Icon(
+                        Icons.Default.FolderOpen,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Browse Storage / SD Card...", color = Color.White, fontSize = 13.sp)
                 }
@@ -1681,26 +2079,45 @@ private fun MultiMediaItemPickerModal(
 
     Dialog(onDismissRequest = onDismiss) {
         GlassSurface(
-            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.85f),
             shape = RoundedCornerShape(24.dp),
             backgroundColor = Color(0xF2080C18),
-            borderColor = Color(0x3338BDF8)
+            borderColor = Color(0x26FFFFFF)
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Select Multiple Files (${selectedList.size})", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(
+                        "Select Multiple Files (${selectedList.size})",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                     Row {
                         TextButton(onClick = {
-                            selectedList = if (selectedList.size == items.size) emptySet() else items.toSet()
+                            selectedList =
+                                if (selectedList.size == items.size) emptySet() else items.toSet()
                         }) {
-                            Text(if (selectedList.size == items.size) "Deselect All" else "Select All", color = Color(0xFF38BDF8), fontSize = 12.sp)
+                            Text(
+                                if (selectedList.size == items.size) "Deselect All" else "Select All",
+                                color = Color(0xFFF8F9FA),
+                                fontSize = 12.sp
+                            )
                         }
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = Color.White
+                            )
                         }
                     }
                 }
@@ -1713,11 +2130,15 @@ private fun MultiMediaItemPickerModal(
                         val isChecked = selectedList.contains(item)
                         Surface(
                             onClick = {
-                                selectedList = if (isChecked) selectedList - item else selectedList + item
+                                selectedList =
+                                    if (isChecked) selectedList - item else selectedList + item
                             },
                             shape = RoundedCornerShape(12.dp),
-                            color = if (isChecked) Color(0x2A38BDF8) else Color(0x14FFFFFF),
-                            border = BorderStroke(1.dp, if (isChecked) Color(0xFF38BDF8) else Color(0x1AFFFFFF)),
+                            color = if (isChecked) Color(0x2EFFFFFF) else Color(0x14FFFFFF),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isChecked) Color(0xFFF8F9FA) else Color(0x1AFFFFFF)
+                            ),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -1728,13 +2149,27 @@ private fun MultiMediaItemPickerModal(
                                 Checkbox(
                                     checked = isChecked,
                                     onCheckedChange = { checked ->
-                                        selectedList = if (checked) selectedList + item else selectedList - item
+                                        selectedList =
+                                            if (checked) selectedList + item else selectedList - item
                                     },
-                                    colors = CheckboxDefaults.colors(checkedColor = Color(0xFF38BDF8), checkmarkColor = Color.Black)
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = Color(0xFFF8F9FA),
+                                        checkmarkColor = Color.Black
+                                    )
                                 )
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(item.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
-                                    Text("${com.medianest.util.formatBytesReport(item.size)} · ${item.mimeType}", fontSize = 11.sp, color = Color(0xFF94A3B8))
+                                    Text(
+                                        item.title,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        "${com.medianest.util.formatBytesReport(item.size)} · ${item.mimeType}",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF94A3B8)
+                                    )
                                 }
                             }
                         }
@@ -1746,17 +2181,26 @@ private fun MultiMediaItemPickerModal(
                         onClick = onPickExternal,
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0x2EFFFFFF)),
-                        modifier = Modifier.weight(1f).height(44.dp)
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp)
                     ) {
                         Text("Browse Multi", color = Color.White, fontSize = 12.5.sp)
                     }
                     Button(
                         onClick = { onDone(selectedList.toList()) },
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF38BDF8)),
-                        modifier = Modifier.weight(1f).height(44.dp)
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF8F9FA)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp)
                     ) {
-                        Text("Confirm (${selectedList.size})", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                        Text(
+                            "Confirm (${selectedList.size})",
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.5.sp
+                        )
                     }
                 }
             }

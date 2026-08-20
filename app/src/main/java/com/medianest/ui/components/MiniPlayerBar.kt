@@ -194,11 +194,13 @@ fun MiniPlayerBar(
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.SkipPrevious,
-                            contentDescription = "Previous",
+                        CustomRoundedPreviousButton(
+                            onClick = { onPrevious?.invoke() ?: com.medianest.player.ExoPlayerManager.getInstance(context).previous() },
+                            buttonSize = 32.dp,
+                            iconSize = 22.dp,
+                            style = ControlButtonStyle.TRANSPARENT_MINIMAL,
                             tint = Color.White,
-                            modifier = Modifier.size(24.dp)
+                            useDoubleIcon = true
                         )
                     }
 
@@ -212,21 +214,14 @@ fun MiniPlayerBar(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (playerState.isPlaying) {
-                            Icon(
-                                imageVector = Icons.Default.Pause,
-                                contentDescription = "Pause",
-                                tint = Color.White,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = "Play",
-                                tint = Color.White,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
+                        CustomRoundedPlayPauseButton(
+                            isPlaying = playerState.isPlaying,
+                            onClick = onPlayPauseToggle,
+                            buttonSize = 38.dp,
+                            iconSize = 24.dp,
+                            style = ControlButtonStyle.TRANSPARENT_MINIMAL,
+                            tint = Color.White
+                        )
                     }
 
                     Box(
@@ -239,11 +234,13 @@ fun MiniPlayerBar(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.SkipNext,
-                            contentDescription = "Next",
+                        CustomRoundedNextButton(
+                            onClick = onNext,
+                            buttonSize = 32.dp,
+                            iconSize = 22.dp,
+                            style = ControlButtonStyle.TRANSPARENT_MINIMAL,
                             tint = Color.White,
-                            modifier = Modifier.size(24.dp)
+                            useDoubleIcon = true
                         )
                     }
                 }

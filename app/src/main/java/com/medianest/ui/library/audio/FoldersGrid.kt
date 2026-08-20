@@ -34,7 +34,7 @@ fun FoldersGrid(
     songs: List<MediaItem>,
     selectedUris: Set<String>,
     isSelectionMode: Boolean,
-    onSongClick: (MediaItem) -> Unit,
+    onSongClick: (List<MediaItem>, Int) -> Unit,
     onSongLongClick: (MediaItem) -> Unit,
     initialSelectedFolder: String? = null,
     onAddToPlaylist: (MediaItem) -> Unit = {},
@@ -81,27 +81,26 @@ fun FoldersGrid(
     }
 
     val allHiddenAudioFolders = remember(appHiddenFolders, selectiveAudioHidden) {
-        appHiddenFolders + selectiveAudioHidden
+        (appHiddenFolders + selectiveAudioHidden).map { it.lowercase() }.toSet()
+    }
+
+    fun isFolderExcluded(folderKey: String, items: List<MediaItem>?): Boolean {
+        val lowerKey = folderKey.lowercase()
+        val folderName = lowerKey.substringAfterLast('/')
+        if (com.medianest.util.FolderHiddenUtils.isFolderExcludedByDefault(folderKey, folderName)) return true
+        if (lowerKey in allHiddenAudioFolders || folderName in allHiddenAudioFolders) return true
+        return items?.any { it.isExcluded } == true
+    }
+
+    fun isFolderSystemHidden(folderKey: String, items: List<MediaItem>?): Boolean {
+        if (isFolderExcluded(folderKey, items)) return false
+        val lowerKey = folderKey.lowercase().trim('/')
+        val folderName = lowerKey.substringAfterLast('/')
+        return lowerKey.split('/').any { it.startsWith(".") && it.length > 1 } || folderName.startsWith(".")
     }
 
     fun isFolderHidden(folderKey: String, items: List<MediaItem>?): Boolean {
-        val folderName = folderKey.substringAfterLast('/')
-        if (folderKey.startsWith(".") || folderName.startsWith(".")) return true
-        if (folderKey in allHiddenAudioFolders || folderName in allHiddenAudioFolders) return true
-        if (items.isNullOrEmpty()) return false
-        return items.any { item ->
-            (item.relativePath != null && (
-                allHiddenAudioFolders.any { hidden ->
-                    hidden.equals(item.relativePath.trimEnd('/'), ignoreCase = true) ||
-                    item.relativePath.contains("/$hidden") ||
-                    item.relativePath.startsWith("$hidden/") ||
-                    hidden.equals(folderKey, ignoreCase = true)
-                } ||
-                item.relativePath.contains("/.") ||
-                item.relativePath.startsWith(".") ||
-                item.relativePath.split("/").any { it.startsWith(".") }
-            ))
-        }
+        return isFolderExcluded(folderKey, items) || isFolderSystemHidden(folderKey, items)
     }
 
     val sortedFolderNames = remember(folderMap, sortField, isAscending) {
@@ -121,8 +120,22 @@ fun FoldersGrid(
         baseSorted.sortedBy { fn -> isFolderHidden(fn, folderMap[fn]) && !showAllFoldersMode }
     }
 
-    var selectedFolder by remember(initialSelectedFolder) {
-        mutableStateOf<String?>(initialSelectedFolder)
+    val isExcludedFeed = remember(songs) { songs.isNotEmpty() && songs.all { it.isExcluded || com.medianest.util.FolderHiddenUtils.isItemHidden(it) } }
+    val isHiddenFeed = remember(songs) { songs.isNotEmpty() && songs.all { it.isHidden && !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) } }
+
+    val visibleFolderNames = remember(sortedFolderNames, folderMap, isExcludedFeed, isHiddenFeed, showHiddenSetting, allHiddenAudioFolders) {
+        when {
+            isExcludedFeed -> sortedFolderNames.filter { fn -> isFolderExcluded(fn, folderMap[fn]) }
+            isHiddenFeed -> sortedFolderNames.filter { fn -> isFolderSystemHidden(fn, folderMap[fn]) }
+            else -> sortedFolderNames.filter { fn ->
+                val items = folderMap[fn]
+                !isFolderExcluded(fn, items) && (showHiddenSetting || !isFolderSystemHidden(fn, items))
+            }
+        }
+    }
+
+    var selectedFolder by remember(initialSelectedFolder, visibleFolderNames) {
+        mutableStateOf<String?>(initialSelectedFolder ?: visibleFolderNames.firstOrNull())
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -136,7 +149,7 @@ fun FoldersGrid(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "ALL FOLDERS (${sortedFolderNames.size})",
+                    text = "ALL FOLDERS (${visibleFolderNames.size})",
                     fontSize = 11.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF8E95A5),
@@ -165,9 +178,10 @@ fun FoldersGrid(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(sortedFolderNames, key = { "all_folder_$it" }) { folderName ->
+                items(visibleFolderNames, key = { "all_folder_$it" }) { folderName ->
                     val folderSongs = folderMap[folderName] ?: emptyList()
                     val isHidden = isFolderHidden(folderName, folderSongs)
+                    val isExcluded = isFolderExcluded(folderName, folderSongs)
                     val totalSize = remember(folderSongs) { folderSongs.sumOf { it.size } }
                     val displaySizeStr = if (totalSize > 0L) com.medianest.util.formatBytesReport(totalSize) else "0 B"
 
@@ -181,65 +195,74 @@ fun FoldersGrid(
                                 selectedFolder = folderName
                                 showAllFoldersMode = false
                             },
-                        shape = RoundedCornerShape(20.dp),
-                        backgroundColor = if (isSelected) Color(0x3DFFFFFF) else Color(0x221C1F2B),
-                        borderColor = if (isSelected) Color(0x88FFFFFF) else Color(0x2EFFFFFF)
+                        shape = RoundedCornerShape(16.dp),
+                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x2EFFFFFF)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(46.dp)
-                                    .clip(RoundedCornerShape(14.dp))
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(10.dp))
                                     .background(if (isSelected) Color(0x55FFFFFF) else Color(0x33FFFFFF)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = if (isHidden) Icons.Default.VisibilityOff else Icons.Default.Folder,
+                                    imageVector = if (isExcluded || isHidden) Icons.Default.VisibilityOff else Icons.Default.Folder,
                                     contentDescription = null,
                                     tint = Color.White,
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
 
-                            Spacer(modifier = Modifier.width(14.dp))
-
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = if (isHidden) "${folderName.substringAfterLast('/')} (Hidden)" else folderName.substringAfterLast('/'),
-                                    fontWeight = FontWeight.Bold,
+                                    text = if (isExcluded) "$folderName (Excluded)" else if (isHidden) "$folderName (Hidden)" else folderName,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                                     fontSize = 15.sp,
                                     color = Color.White,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "${folderSongs.size} Audio Files • $displaySizeStr",
+                                    text = "${folderSongs.size} Songs • $displaySizeStr",
                                     fontSize = 12.sp,
-                                    color = Color(0xFF9EA3B0)
+                                    color = Color(0xFF8E95A5)
                                 )
                             }
 
                             Box {
-                                IconButton(onClick = { showFolderMenu = true }) {
+                                IconButton(
+                                    onClick = { showFolderMenu = true },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
                                     Icon(
-                                        imageVector = Icons.Default.MoreVert,
-                                        contentDescription = "Folder Options",
-                                        tint = Color(0xFF9EA3B0),
-                                        modifier = Modifier.size(20.dp)
+                                        Icons.Default.MoreVert,
+                                        contentDescription = "Options",
+                                        tint = Color(0xFF8E95A5),
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
+
                                 DropdownMenu(
                                     expanded = showFolderMenu,
                                     onDismissRequest = { showFolderMenu = false },
-                                    containerColor = if (com.medianest.ui.theme.LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-                                    shape = RoundedCornerShape(16.dp)
+                                    modifier = Modifier.background(Color(0xFF1E2230))
                                 ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Move Folder", color = Color.White) },
+                                        leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = Color.White) },
+                                        onClick = {
+                                            showFolderMenu = false
+                                            folderToMove = folderName
+                                        }
+                                    )
                                     DropdownMenuItem(
                                         text = { Text("Folder Info", color = Color.White) },
                                         leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = Color.White) },
@@ -249,19 +272,19 @@ fun FoldersGrid(
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text(if (isHidden) "Unhide Folder" else "Hide Folder", color = Color.White) },
-                                        leadingIcon = { Icon(if (isHidden) Icons.Default.Visibility else Icons.Default.VisibilityOff, contentDescription = null, tint = Color.White) },
+                                        text = { Text(if (isExcluded) "Include Folder" else "Exclude Folder", color = Color.White) },
+                                        leadingIcon = { Icon(if (isExcluded) Icons.Default.Visibility else Icons.Default.VisibilityOff, contentDescription = null, tint = Color.White) },
                                         onClick = {
                                             showFolderMenu = false
                                             scope.launch {
                                                 val current = settingsManager.hiddenFolders.first()
                                                 val folderPathKey = folderSongs.firstOrNull()?.relativePath?.trim('/') ?: folderName
-                                                if (isHidden) {
+                                                if (isExcluded) {
                                                     settingsManager.setHiddenFolders(current - folderName - folderPathKey)
                                                     db.selectiveHiddenFolderDao().unhideFolder(folderName, "AUDIO")
                                                     db.selectiveHiddenFolderDao().unhideFolder(folderPathKey, "AUDIO")
                                                 } else {
-                                                    settingsManager.setHiddenFolders(current + folderPathKey)
+                                                    settingsManager.setHiddenFolders(current + folderPathKey + folderName)
                                                     db.selectiveHiddenFolderDao().insertOrUpdate(
                                                         com.medianest.data.db.SelectiveHiddenFolder(
                                                             folderPath = folderPathKey,
@@ -375,7 +398,7 @@ fun FoldersGrid(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(sortedFolderNames, key = { "subfolder_$it" }) { folderName ->
+                    items(visibleFolderNames, key = { "subfolder_$it" }) { folderName ->
                         val folderSongs = folderMap[folderName] ?: emptyList()
                         val isHidden = isFolderHidden(folderName, folderSongs)
                         val totalSize = remember(folderSongs) { folderSongs.sumOf { it.size } }
@@ -427,9 +450,9 @@ fun FoldersGrid(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                val targetFolderName = selectedFolder ?: sortedFolderNames.firstOrNull() ?: ""
                 Text(
-                    text = if (selectedFolder != null) "AUDIO FILES IN ${selectedFolder!!.uppercase()}" else "AUDIO FILES IN DIRECTORY",
+                    text = if (targetFolderName.isNotEmpty()) "AUDIO FILES IN ${targetFolderName.uppercase()}" else "AUDIO FILES",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF8E95A5),
@@ -438,11 +461,22 @@ fun FoldersGrid(
                 )
             }
 
-            val activeFolderSongs = remember(selectedFolder, songs, folderMap) {
-                if (selectedFolder != null) {
-                    folderMap[selectedFolder] ?: emptyList()
+            val activeFolderSongs = remember(selectedFolder, sortedFolderNames, songs, folderMap) {
+                val target = selectedFolder ?: sortedFolderNames.firstOrNull()
+                if (target != null) {
+                    folderMap[target]
+                        ?: folderMap.entries.firstOrNull { (k, _) ->
+                            val normKey = k.trim('/').lowercase()
+                            val normTarget = target.trim('/').lowercase()
+                            normKey == normTarget ||
+                            normKey.substringAfterLast('/') == normTarget ||
+                            normTarget.substringAfterLast('/') == normKey ||
+                            normKey.endsWith("/$normTarget") ||
+                            normTarget.endsWith("/$normKey")
+                        }?.value
+                        ?: emptyList()
                 } else {
-                    songs
+                    emptyList()
                 }
             }
 

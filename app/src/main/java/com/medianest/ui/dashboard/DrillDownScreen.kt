@@ -1,5 +1,5 @@
 @file:kotlin.OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-package com.medianest.ui.analytics
+package com.medianest.ui.dashboard
 
 import android.content.Intent
 import android.net.Uri
@@ -9,7 +9,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -53,14 +53,12 @@ private val KNOWN_EXTENSIONS = setOf(
 private fun getEffectiveExtension(item: MediaItem, filterFormat: String? = null): String {
     if (filterFormat != null) return filterFormat.uppercase()
 
-    // 1. Check path / uri extension first
     val path = item.relativePath ?: item.uri.path ?: item.uri.toString()
     val pathExt = path.substringAfterLast('.', "").substringBefore('?').substringBefore('#').trim().uppercase()
     if (pathExt in KNOWN_EXTENSIONS) {
         return pathExt
     }
 
-    // 2. Check title extension only if it's in KNOWN_EXTENSIONS
     if (item.title.contains('.')) {
         val titleExt = item.title.substringAfterLast('.', "").trim().uppercase()
         if (titleExt in KNOWN_EXTENSIONS) {
@@ -68,7 +66,6 @@ private fun getEffectiveExtension(item: MediaItem, filterFormat: String? = null)
         }
     }
 
-    // 3. Fallback to MIME type
     if (item.mimeType.isNotBlank()) {
         val sub = item.mimeType.substringAfter('/').lowercase()
         when {
@@ -93,7 +90,6 @@ private fun getEffectiveExtension(item: MediaItem, filterFormat: String? = null)
         }
     }
 
-    // 4. Default by MediaType
     return when (item.type) {
         com.medianest.data.db.MediaType.AUDIO -> "MP3"
         com.medianest.data.db.MediaType.VIDEO -> "MP4"
@@ -104,8 +100,8 @@ private fun getEffectiveExtension(item: MediaItem, filterFormat: String? = null)
 @Composable
 fun DrillDownScreen(
     title: String,
-    filterCategory: String?, // IMAGE, VIDEO, AUDIO or null
-    filterFormat: String?,   // JPG, MP4, MP3, etc. or null
+    filterCategory: String?, 
+    filterFormat: String?,   
     allImages: List<MediaItem>,
     allVideos: List<MediaItem>,
     allAudio: List<MediaItem>,
@@ -130,7 +126,6 @@ fun DrillDownScreen(
         }
     }
 
-    // Filter matching files
     val filteredFiles = remember(allImages, allVideos, allAudio, filterCategory, filterFormat) {
         val candidates = when (filterCategory) {
             "IMAGE" -> allImages
@@ -165,7 +160,6 @@ fun DrillDownScreen(
         }
     }
 
-    // Sort files
     val sortedFiles = remember(filteredFiles, sortType) {
         when (sortType) {
             AnalyticsSortType.DATE_DESC -> filteredFiles.sortedByDescending { it.dateAdded }
@@ -196,81 +190,85 @@ fun DrillDownScreen(
         topBar = {
             GlassSurface(
                 shape = RoundedCornerShape(0.dp),
-                backgroundColor = Color(0x3B181A24),
-                borderColor = Color(0x28FFFFFF),
+                backgroundColor = Color.Transparent, 
+                borderColor = Color(0x1AFFFFFF),
                 enableBlur = true,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        titleContentColor = Color.White,
-                        navigationIconContentColor = Color.White,
-                        actionIconContentColor = Color.White
-                    ),
-                    title = {
-                        Column {
-                            Text(text = title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color.White)
-                            Text(
-                                text = "${sortedFiles.size} items • ${AnalyticsColors.formatBytes(totalSize)}",
-                                fontSize = 12.sp,
-                                color = Color(0xFF9EA3AF)
-                            )
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { isGridView = !isGridView }) {
-                            Icon(
-                                imageVector = if (isGridView) Icons.Default.ViewList else Icons.Default.GridView,
-                                contentDescription = "Toggle View Mode",
-                                tint = Color.White
-                            )
-                        }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding() 
+                        .padding(horizontal = 4.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    }
+                    
+                    Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+                        Text(
+                            text = title, 
+                            fontWeight = FontWeight.Bold, 
+                            maxLines = 1, 
+                            overflow = TextOverflow.Ellipsis, 
+                            color = Color.White,
+                            fontSize = 18.sp
+                        )
+                        Text(
+                            text = "${sortedFiles.size} items • ${AnalyticsColors.formatBytes(totalSize)}",
+                            fontSize = 11.sp,
+                            color = Color(0xFF9EA3AF)
+                        )
+                    }
 
-                        Box {
-                            IconButton(onClick = { showSortMenu = true }) {
-                                Icon(Icons.Default.Sort, contentDescription = "Sort", tint = Color.White)
-                            }
-                            DropdownMenu(
-                                expanded = showSortMenu,
-                                onDismissRequest = { showSortMenu = false },
-                                containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-                                shape = RoundedCornerShape(16.dp)
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Date (Newest First)") },
-                                    onClick = { sortType = AnalyticsSortType.DATE_DESC; showSortMenu = false },
-                                    leadingIcon = { if (sortType == AnalyticsSortType.DATE_DESC) Icon(Icons.Default.Check, null) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Date (Oldest First)") },
-                                    onClick = { sortType = AnalyticsSortType.DATE_ASC; showSortMenu = false },
-                                    leadingIcon = { if (sortType == AnalyticsSortType.DATE_ASC) Icon(Icons.Default.Check, null) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Size (Largest First)") },
-                                    onClick = { sortType = AnalyticsSortType.SIZE_DESC; showSortMenu = false },
-                                    leadingIcon = { if (sortType == AnalyticsSortType.SIZE_DESC) Icon(Icons.Default.Check, null) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Size (Smallest First)") },
-                                    onClick = { sortType = AnalyticsSortType.SIZE_ASC; showSortMenu = false },
-                                    leadingIcon = { if (sortType == AnalyticsSortType.SIZE_ASC) Icon(Icons.Default.Check, null) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Name (A to Z)") },
-                                    onClick = { sortType = AnalyticsSortType.NAME_ASC; showSortMenu = false },
-                                    leadingIcon = { if (sortType == AnalyticsSortType.NAME_ASC) Icon(Icons.Default.Check, null) }
-                                )
-                            }
+                    IconButton(onClick = { isGridView = !isGridView }) {
+                        Icon(
+                            imageVector = if (isGridView) Icons.Default.ViewList else Icons.Default.GridView,
+                            contentDescription = "Toggle View Mode",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Box {
+                        IconButton(onClick = { showSortMenu = true }) {
+                            Icon(Icons.Default.Sort, contentDescription = "Sort", tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { showSortMenu = false },
+                            containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Date (Newest First)") },
+                                onClick = { sortType = AnalyticsSortType.DATE_DESC; showSortMenu = false },
+                                leadingIcon = { if (sortType == AnalyticsSortType.DATE_DESC) Icon(Icons.Default.Check, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Date (Oldest First)") },
+                                onClick = { sortType = AnalyticsSortType.DATE_ASC; showSortMenu = false },
+                                leadingIcon = { if (sortType == AnalyticsSortType.DATE_ASC) Icon(Icons.Default.Check, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Size (Largest First)") },
+                                onClick = { sortType = AnalyticsSortType.SIZE_DESC; showSortMenu = false },
+                                leadingIcon = { if (sortType == AnalyticsSortType.SIZE_DESC) Icon(Icons.Default.Check, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Size (Smallest First)") },
+                                onClick = { sortType = AnalyticsSortType.SIZE_ASC; showSortMenu = false },
+                                leadingIcon = { if (sortType == AnalyticsSortType.SIZE_ASC) Icon(Icons.Default.Check, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Name (A to Z)") },
+                                onClick = { sortType = AnalyticsSortType.NAME_ASC; showSortMenu = false },
+                                leadingIcon = { if (sortType == AnalyticsSortType.NAME_ASC) Icon(Icons.Default.Check, null) }
+                            )
                         }
                     }
-                )
+                }
             }
         }
     ) { innerPadding ->
@@ -289,7 +287,7 @@ fun DrillDownScreen(
             } else if (isGridView) {
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 110.dp),
-                    contentPadding = PaddingValues(bottom = 80.dp, start = 8.dp, end = 8.dp, top = 8.dp),
+                    contentPadding = PaddingValues(bottom = 80.dp, start = 8.dp, end = 8.dp, top = 2.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxSize()
@@ -311,17 +309,24 @@ fun DrillDownScreen(
                                 .fillMaxWidth()
                                 .aspectRatio(1f)
                                 .clip(RoundedCornerShape(12.dp))
-                                .clickable {
-                                    if (isSelectionMode) {
-                                        selectedUris = if (isSelected) selectedUris - item.uri.toString() else selectedUris + item.uri.toString()
-                                    } else {
-                                        when {
-                                            allImages.contains(item) -> onOpenQuickView(item, sortedFiles.filter { it.type == com.medianest.data.db.MediaType.IMAGE })
-                                            allVideos.contains(item) -> onOpenVideoPlayer(item)
-                                            else -> onOpenAudioPlayer(item)
+                                .combinedClickable(
+                                    onClick = {
+                                        if (isSelectionMode) {
+                                            selectedUris = if (isSelected) selectedUris - item.uri.toString() else selectedUris + item.uri.toString()
+                                        } else {
+                                            when {
+                                                allImages.contains(item) -> onOpenQuickView(item, sortedFiles.filter { it.type == com.medianest.data.db.MediaType.IMAGE })
+                                                allVideos.contains(item) -> onOpenVideoPlayer(item)
+                                                else -> onOpenAudioPlayer(item)
+                                            }
+                                        }
+                                    },
+                                    onLongClick = {
+                                        if (!isSelectionMode) {
+                                            selectedUris = setOf(item.uri.toString())
                                         }
                                     }
-                                }
+                                )
                         ) {
                             Box(modifier = Modifier.fillMaxSize()) {
                                 AsyncImage(
@@ -334,7 +339,6 @@ fun DrillDownScreen(
                                     modifier = Modifier.fillMaxSize()
                                 )
 
-                                // Selection checkbox overlay
                                 if (isSelectionMode) {
                                     Box(
                                         modifier = Modifier
@@ -370,7 +374,6 @@ fun DrillDownScreen(
                                     }
                                 }
 
-                                // Format pill badge
                                 Surface(
                                     color = formatColor,
                                     shape = RoundedCornerShape(bottomEnd = 8.dp),
@@ -385,7 +388,6 @@ fun DrillDownScreen(
                                     )
                                 }
 
-                                // Size pill badge
                                 Surface(
                                     color = Color.Black.copy(alpha = 0.65f),
                                     shape = RoundedCornerShape(topStart = 8.dp),
@@ -481,24 +483,30 @@ fun DrillDownScreen(
                                     }
                                 }
                             },
-                            modifier = Modifier.clickable {
-                                if (isSelectionMode) {
-                                    selectedUris = if (isSelected) selectedUris - item.uri.toString() else selectedUris + item.uri.toString()
-                                } else {
-                                    when {
-                                        allImages.contains(item) -> onOpenQuickView(item, sortedFiles.filter { it.type == com.medianest.data.db.MediaType.IMAGE })
-                                        allVideos.contains(item) -> onOpenVideoPlayer(item)
-                                        else -> onOpenAudioPlayer(item)
+                            modifier = Modifier.combinedClickable(
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        selectedUris = if (isSelected) selectedUris - item.uri.toString() else selectedUris + item.uri.toString()
+                                    } else {
+                                        when {
+                                            allImages.contains(item) -> onOpenQuickView(item, sortedFiles.filter { it.type == com.medianest.data.db.MediaType.IMAGE })
+                                            allVideos.contains(item) -> onOpenVideoPlayer(item)
+                                            else -> onOpenAudioPlayer(item)
+                                        }
+                                    }
+                                },
+                                onLongClick = {
+                                    if (!isSelectionMode) {
+                                        selectedUris = setOf(item.uri.toString())
                                     }
                                 }
-                            }
+                            )
                         )
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     }
                 }
             }
 
-            // Multi-Select Batch Action Bar
             AnimatedVisibility(
                 visible = isSelectionMode,
                 enter = slideInVertically(initialOffsetY = { it }),

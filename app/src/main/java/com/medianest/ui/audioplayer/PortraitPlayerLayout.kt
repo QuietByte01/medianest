@@ -30,22 +30,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.medianest.data.model.ArtistInfo
 import com.medianest.data.model.LyricLine
 import com.medianest.data.model.MediaItem
 import com.medianest.player.ExoPlayerManager
 import com.medianest.player.PlayerState
-import com.medianest.ui.components.CustomPlaylistIcon
-import com.medianest.ui.components.CustomHeartIcon
-import com.medianest.ui.components.CustomPlusIcon
-import com.medianest.ui.components.CustomReplayCircleIcon
-import com.medianest.ui.components.CustomVolumeIcon
-import com.medianest.ui.components.CustomEqualizerIcon
-import com.medianest.ui.components.CustomMoreVertIcon
-import com.medianest.ui.components.ControlButtonStyle
-import com.medianest.ui.components.GlassSurface
-import com.medianest.ui.components.MaterialYouPlayerControlBar
-import com.medianest.ui.components.WavySeekBar
-import com.medianest.ui.components.formatDuration
+import com.medianest.ui.components.*
 
 @Composable
 fun PortraitPlayerLayout(
@@ -73,7 +63,11 @@ fun PortraitPlayerLayout(
     onOpenAddPlaylist: () -> Unit,
     onEditLyrics: () -> Unit,
     modifier: Modifier = Modifier,
-    onFullscreenVisualizerClick: () -> Unit = {}
+    onFullscreenVisualizerClick: () -> Unit = {},
+    onToggleArtistInfo: () -> Unit = {},
+    showArtistInfo: Boolean = false,
+    artistInfo: ArtistInfo? = null,
+    onOpenAlbum: (String) -> Unit = {}
 ) {
     Column(
         modifier = modifier,
@@ -88,7 +82,12 @@ fun PortraitPlayerLayout(
                 .fillMaxWidth(),
             contentAlignment = Alignment.Center
         ) {
-            if (showLyricsView) {
+            if (showArtistInfo && artistInfo != null) {
+                ArtistInfoPanel(
+                    artistInfo = artistInfo,
+                    onAlbumClick = onOpenAlbum
+                )
+            } else if (showLyricsView) {
                 LyricsView(
                     songTitle = currentItem?.title ?: "Unknown Track",
                     songArtist = currentItem?.artist ?: "Unknown Artist",
@@ -445,6 +444,20 @@ fun PortraitPlayerLayout(
                 CustomPlusIcon(
                     modifier = Modifier.size(24.dp),
                     tint = Color.White.copy(alpha = 0.85f)
+                )
+            }
+
+            IconButton(
+                onClick = onToggleArtistInfo,
+                modifier = Modifier
+                    .size(40.dp)
+                    .offset(x = 8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Artist Info",
+                    tint = if (showArtistInfo) Color(0xFF64B5F6) else Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }

@@ -16,18 +16,21 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
-// Helper — detect touch + drag on the scrollbar track and translate to list-scroll commands.
+// Helper — detect drag ONLY on the visible scrollbar thumb and translate to list-scroll commands.
+// Does NOT intercept or consume taps anywhere on the screen/track.
 private fun Modifier.scrollBarDrag(
-    scrollBarWidthPx: () -> Float,
-    touchZoneWidthPx: () -> Float,
-    totalItems: () -> Int,
+    getThumbBounds: (containerHeight: Float) -> Pair<Float, Float>?,
+    isScrollBarVisible: () -> Boolean,
+    touchZoneWidthPx: Float,
     onScroll: (fraction: Float) -> Unit,
     onInteraction: () -> Unit
 ): Modifier = this.pointerInput(Unit) {
@@ -35,22 +38,43 @@ private fun Modifier.scrollBarDrag(
         while (true) {
             val down = awaitPointerEvent(PointerEventPass.Initial)
             val touch = down.changes.firstOrNull() ?: continue
-            val xThreshold = size.width - touchZoneWidthPx()
+
+            // Only interact if scrollbar is visible and touch is on the rightmost strip
+            if (!isScrollBarVisible()) continue
+            val xThreshold = size.width - touchZoneWidthPx
             if (touch.position.x < xThreshold) continue
 
-            onInteraction()
-            touch.consume()
-            
+            val bounds = getThumbBounds(size.height.toFloat()) ?: continue
+            val (thumbY, thumbH) = bounds
+
+            // Check if touch is vertically on/near the actual scrollbar thumb (with padding)
+            val touchPaddingY = 16.dp.toPx()
+            if (touch.position.y < thumbY - touchPaddingY || touch.position.y > thumbY + thumbH + touchPaddingY) {
+                continue
+            }
+
+            // Touch is on the thumb. Wait to see if user actually drags (do NOT consume down on tap)
+            var isDragging = false
+            val initialTouchY = touch.position.y
+            val initialThumbY = thumbY
+
             while (true) {
                 val event = awaitPointerEvent(PointerEventPass.Initial)
                 val change = event.changes.firstOrNull() ?: break
                 if (!change.pressed) break
-                onInteraction()
-                change.consume()
 
-                val total = totalItems()
-                if (total > 0 && size.height > 0) {
-                    val fraction = (change.position.y / size.height.toFloat()).coerceIn(0f, 1f)
+                val deltaY = change.position.y - initialTouchY
+                if (!isDragging && abs(deltaY) > 8f) {
+                    isDragging = true
+                }
+
+                if (isDragging) {
+                    onInteraction()
+                    change.consume()
+
+                    val maxScrollY = (size.height - thumbH).coerceAtLeast(1f)
+                    val newThumbY = (initialThumbY + deltaY).coerceIn(0f, maxScrollY)
+                    val fraction = (newThumbY / maxScrollY).coerceIn(0f, 1f)
                     onScroll(fraction)
                 }
             }
@@ -64,7 +88,10 @@ fun Modifier.translucentScrollBar(
     width: Dp = 6.dp
 ): Modifier = composed {
     val alpha = remember { Animatable(0f) }
-    
+    val density = LocalDensity.current
+    val minHPx = remember(density) { with(density) { 36.dp.toPx() } }
+    val touchZonePx = remember(density) { with(density) { 36.dp.toPx() } }
+
     LaunchedEffect(listState.isScrollInProgress) {
         if (listState.isScrollInProgress) {
             alpha.snapTo(1f)
@@ -74,10 +101,28 @@ fun Modifier.translucentScrollBar(
         }
     }
 
+    fun computeThumb(containerHeight: Float): Pair<Float, Float>? {
+        val visibleItems = listState.layoutInfo.visibleItemsInfo
+        val totalItemsCount = listState.layoutInfo.totalItemsCount
+        if (totalItemsCount <= visibleItems.size || visibleItems.isEmpty() || containerHeight <= 0f) return null
+
+        val firstVisibleElementIndex = visibleItems.first().index
+        val visibleRatio = visibleItems.size.toFloat() / totalItemsCount
+
+        val minH = minHPx.coerceAtMost(containerHeight)
+        val maxH = (containerHeight * 0.7f).coerceAtLeast(minH)
+        val scrollBarHeight = (containerHeight * visibleRatio).coerceIn(minH, maxH)
+
+        val maxIndex = (totalItemsCount - visibleItems.size).coerceAtLeast(1)
+        val scrollProgress = (firstVisibleElementIndex.toFloat() / maxIndex).coerceIn(0f, 1f)
+        val scrollBarOffsetY = scrollProgress * (containerHeight - scrollBarHeight)
+        return Pair(scrollBarOffsetY, scrollBarHeight)
+    }
+
     this.scrollBarDrag(
-        scrollBarWidthPx = { width.value * 3 },
-        touchZoneWidthPx = { 56f },
-        totalItems = { listState.layoutInfo.totalItemsCount },
+        getThumbBounds = { h -> computeThumb(h) },
+        isScrollBarVisible = { alpha.value > 0.05f },
+        touchZoneWidthPx = touchZonePx,
         onScroll = { fraction ->
             val total = listState.layoutInfo.totalItemsCount
             val target = (fraction * total).toInt().coerceIn(0, (total - 1).coerceAtLeast(0))
@@ -90,20 +135,9 @@ fun Modifier.translucentScrollBar(
         }
     ).drawWithContent {
         drawContent()
-        val visibleItems = listState.layoutInfo.visibleItemsInfo
-        val totalItemsCount = listState.layoutInfo.totalItemsCount
-        if (totalItemsCount > visibleItems.size && visibleItems.isNotEmpty()) {
-            val firstVisibleElementIndex = visibleItems.first().index
-            val visibleRatio = visibleItems.size.toFloat() / totalItemsCount
-            
-            val minH = 36.dp.toPx().coerceAtMost(size.height)
-            val maxH = (size.height * 0.7f).coerceAtLeast(minH)
-            val scrollBarHeight = (size.height * visibleRatio).coerceIn(minH, maxH)
-            
-            val maxIndex = (totalItemsCount - visibleItems.size).coerceAtLeast(1)
-            val scrollProgress = (firstVisibleElementIndex.toFloat() / maxIndex).coerceIn(0f, 1f)
-            val scrollBarOffsetY = scrollProgress * (size.height - scrollBarHeight)
-
+        val thumb = computeThumb(size.height)
+        if (thumb != null) {
+            val (scrollBarOffsetY, scrollBarHeight) = thumb
             drawRoundRect(
                 color = color.copy(alpha = color.alpha * alpha.value),
                 topLeft = Offset(size.width - width.toPx() - 3.dp.toPx(), scrollBarOffsetY),
@@ -120,7 +154,10 @@ fun Modifier.translucentScrollBarGrid(
     width: Dp = 6.dp
 ): Modifier = composed {
     val alpha = remember { Animatable(0f) }
-    
+    val density = LocalDensity.current
+    val minHPx = remember(density) { with(density) { 36.dp.toPx() } }
+    val touchZonePx = remember(density) { with(density) { 36.dp.toPx() } }
+
     LaunchedEffect(gridState.isScrollInProgress) {
         if (gridState.isScrollInProgress) {
             alpha.snapTo(1f)
@@ -130,10 +167,28 @@ fun Modifier.translucentScrollBarGrid(
         }
     }
 
+    fun computeThumb(containerHeight: Float): Pair<Float, Float>? {
+        val visibleItems = gridState.layoutInfo.visibleItemsInfo
+        val totalItemsCount = gridState.layoutInfo.totalItemsCount
+        if (totalItemsCount <= visibleItems.size || visibleItems.isEmpty() || containerHeight <= 0f) return null
+
+        val firstVisibleElementIndex = visibleItems.first().index
+        val visibleRatio = visibleItems.size.toFloat() / totalItemsCount
+
+        val minH = minHPx.coerceAtMost(containerHeight)
+        val maxH = (containerHeight * 0.7f).coerceAtLeast(minH)
+        val scrollBarHeight = (containerHeight * visibleRatio).coerceIn(minH, maxH)
+
+        val maxIndex = (totalItemsCount - visibleItems.size).coerceAtLeast(1)
+        val scrollProgress = (firstVisibleElementIndex.toFloat() / maxIndex).coerceIn(0f, 1f)
+        val scrollBarOffsetY = scrollProgress * (containerHeight - scrollBarHeight)
+        return Pair(scrollBarOffsetY, scrollBarHeight)
+    }
+
     this.scrollBarDrag(
-        scrollBarWidthPx = { width.value * 3 },
-        touchZoneWidthPx = { 56f },
-        totalItems = { gridState.layoutInfo.totalItemsCount },
+        getThumbBounds = { h -> computeThumb(h) },
+        isScrollBarVisible = { alpha.value > 0.05f },
+        touchZoneWidthPx = touchZonePx,
         onScroll = { fraction ->
             val total = gridState.layoutInfo.totalItemsCount
             val target = (fraction * total).toInt().coerceIn(0, (total - 1).coerceAtLeast(0))
@@ -146,20 +201,9 @@ fun Modifier.translucentScrollBarGrid(
         }
     ).drawWithContent {
         drawContent()
-        val visibleItems = gridState.layoutInfo.visibleItemsInfo
-        val totalItemsCount = gridState.layoutInfo.totalItemsCount
-        if (totalItemsCount > visibleItems.size && visibleItems.isNotEmpty()) {
-            val firstVisibleElementIndex = visibleItems.first().index
-            val visibleRatio = visibleItems.size.toFloat() / totalItemsCount
-            
-            val minH = 36.dp.toPx().coerceAtMost(size.height)
-            val maxH = (size.height * 0.7f).coerceAtLeast(minH)
-            val scrollBarHeight = (size.height * visibleRatio).coerceIn(minH, maxH)
-            
-            val maxIndex = (totalItemsCount - visibleItems.size).coerceAtLeast(1)
-            val scrollProgress = (firstVisibleElementIndex.toFloat() / maxIndex).coerceIn(0f, 1f)
-            val scrollBarOffsetY = scrollProgress * (size.height - scrollBarHeight)
-
+        val thumb = computeThumb(size.height)
+        if (thumb != null) {
+            val (scrollBarOffsetY, scrollBarHeight) = thumb
             drawRoundRect(
                 color = color.copy(alpha = color.alpha * alpha.value),
                 topLeft = Offset(size.width - width.toPx() - 3.dp.toPx(), scrollBarOffsetY),
@@ -176,7 +220,10 @@ fun Modifier.translucentScrollBarStaggeredGrid(
     width: Dp = 6.dp
 ): Modifier = composed {
     val alpha = remember { Animatable(0f) }
-    
+    val density = LocalDensity.current
+    val minHPx = remember(density) { with(density) { 36.dp.toPx() } }
+    val touchZonePx = remember(density) { with(density) { 36.dp.toPx() } }
+
     LaunchedEffect(staggeredGridState.isScrollInProgress) {
         if (staggeredGridState.isScrollInProgress) {
             alpha.snapTo(1f)
@@ -186,10 +233,28 @@ fun Modifier.translucentScrollBarStaggeredGrid(
         }
     }
 
+    fun computeThumb(containerHeight: Float): Pair<Float, Float>? {
+        val visibleItems = staggeredGridState.layoutInfo.visibleItemsInfo
+        val totalItemsCount = staggeredGridState.layoutInfo.totalItemsCount
+        if (totalItemsCount <= visibleItems.size || visibleItems.isEmpty() || containerHeight <= 0f) return null
+
+        val firstVisibleElementIndex = visibleItems.first().index
+        val visibleRatio = visibleItems.size.toFloat() / totalItemsCount
+
+        val minH = minHPx.coerceAtMost(containerHeight)
+        val maxH = (containerHeight * 0.7f).coerceAtLeast(minH)
+        val scrollBarHeight = (containerHeight * visibleRatio).coerceIn(minH, maxH)
+
+        val maxIndex = (totalItemsCount - visibleItems.size).coerceAtLeast(1)
+        val scrollProgress = (firstVisibleElementIndex.toFloat() / maxIndex).coerceIn(0f, 1f)
+        val scrollBarOffsetY = scrollProgress * (containerHeight - scrollBarHeight)
+        return Pair(scrollBarOffsetY, scrollBarHeight)
+    }
+
     this.scrollBarDrag(
-        scrollBarWidthPx = { width.value * 3 },
-        touchZoneWidthPx = { 56f },
-        totalItems = { staggeredGridState.layoutInfo.totalItemsCount },
+        getThumbBounds = { h -> computeThumb(h) },
+        isScrollBarVisible = { alpha.value > 0.05f },
+        touchZoneWidthPx = touchZonePx,
         onScroll = { fraction ->
             val total = staggeredGridState.layoutInfo.totalItemsCount
             val target = (fraction * total).toInt().coerceIn(0, (total - 1).coerceAtLeast(0))
@@ -202,20 +267,9 @@ fun Modifier.translucentScrollBarStaggeredGrid(
         }
     ).drawWithContent {
         drawContent()
-        val visibleItems = staggeredGridState.layoutInfo.visibleItemsInfo
-        val totalItemsCount = staggeredGridState.layoutInfo.totalItemsCount
-        if (totalItemsCount > visibleItems.size && visibleItems.isNotEmpty()) {
-            val firstVisibleElementIndex = visibleItems.first().index
-            val visibleRatio = visibleItems.size.toFloat() / totalItemsCount
-            
-            val minH = 36.dp.toPx().coerceAtMost(size.height)
-            val maxH = (size.height * 0.7f).coerceAtLeast(minH)
-            val scrollBarHeight = (size.height * visibleRatio).coerceIn(minH, maxH)
-            
-            val maxIndex = (totalItemsCount - visibleItems.size).coerceAtLeast(1)
-            val scrollProgress = (firstVisibleElementIndex.toFloat() / maxIndex).coerceIn(0f, 1f)
-            val scrollBarOffsetY = scrollProgress * (size.height - scrollBarHeight)
-
+        val thumb = computeThumb(size.height)
+        if (thumb != null) {
+            val (scrollBarOffsetY, scrollBarHeight) = thumb
             drawRoundRect(
                 color = color.copy(alpha = color.alpha * alpha.value),
                 topLeft = Offset(size.width - width.toPx() - 3.dp.toPx(), scrollBarOffsetY),

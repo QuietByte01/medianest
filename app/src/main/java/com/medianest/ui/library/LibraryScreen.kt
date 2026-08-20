@@ -16,7 +16,7 @@ import com.medianest.data.db.MediaCategory
 import com.medianest.data.model.MediaItem
 import com.medianest.player.ExoPlayerManager
 import com.medianest.ui.MediaViewModel
-import com.medianest.ui.analytics.AnalyticsScreen
+import com.medianest.ui.dashboard.AnalyticsScreen
 import com.medianest.ui.components.dismissKeyboardOnOutsideTap
 import com.medianest.ui.library.audio.AudioTab
 import com.medianest.ui.library.image.ImagesTab
@@ -205,7 +205,7 @@ fun LibraryScreen(
                     )
 
                         isImagesTab -> ImagesTab(
-                            imagesList = filteredImages,
+                            imagesList = imagesList,
                             pagedImages = pagedImages,
                             imageCollections = imageCollections,
                             categoryCrossRefs = categoryCrossRefs,
@@ -235,7 +235,7 @@ fun LibraryScreen(
                         )
 
                     isVideosTab -> VideosTab(
-                        videosList = filteredVideos,
+                        videosList = videosList,
                         categories = videoCategories,
                         selectedCategory = selectedCategory,
                         selectedUris = selectedUris,
@@ -267,16 +267,15 @@ fun LibraryScreen(
                     )
 
                     isAudioTab -> AudioTab(
-                        audioList = filteredAudio,
+                        audioList = audioList,
                         pagedAudio = pagedAudio,
                         playlists = audioPlaylists,
                         selectedUris = selectedUris,
                         isSelectionMode = isSelectionMode,
                         gridSizeLevel = gridSizeLevel,
                         isLoading = isLoading,
-                        onSongClick = { item ->
-                            val idx = audioList.indexOf(item)
-                            if (idx != -1) exoPlayerManager.playMediaList(audioList, idx)
+                        onSongClick = { list, idx ->
+                            exoPlayerManager.playMediaList(list, idx)
                         },
                         onSongLongClick = { item ->
                             selectedUris = selectedUris + item.uri.toString()

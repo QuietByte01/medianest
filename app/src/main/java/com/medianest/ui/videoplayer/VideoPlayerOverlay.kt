@@ -122,10 +122,11 @@ fun CenterTransportControls(
     ) {
         CustomRoundedPreviousButton(
             onClick = onPrevious,
-            buttonSize = 48.dp,
-            iconSize = 30.dp,
+            buttonSize = 56.dp,
+            iconSize = 34.dp,
             style = ControlButtonStyle.TRANSPARENT_MINIMAL,
-            tint = Color.White
+            tint = Color.White,
+            useDoubleIcon = false
         )
 
         CustomRoundedPlayPauseButton(
@@ -139,10 +140,11 @@ fun CenterTransportControls(
 
         CustomRoundedNextButton(
             onClick = onNext,
-            buttonSize = 48.dp,
-            iconSize = 30.dp,
+            buttonSize = 56.dp,
+            iconSize = 34.dp,
             style = ControlButtonStyle.TRANSPARENT_MINIMAL,
-            tint = Color.White
+            tint = Color.White,
+            useDoubleIcon = false
         )
     }
 }

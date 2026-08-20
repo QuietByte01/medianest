@@ -61,6 +61,7 @@ fun ImagesFolderGrid(
             Text(
                 text = if (isFolderSelectionActive) "${selectedFolderNames.size} Folders Selected" 
                        else if (activeFilterTab == "HIDDEN") "Hidden Folders (${visibleFolders.size})" 
+                       else if (activeFilterTab == "EXCLUDED") "Excluded Folders (${visibleFolders.size})"
                        else "All Folders (${folderGroups.size})",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp,
@@ -121,9 +122,18 @@ fun ImagesFolderGrid(
                     ) {
                         Icon(Icons.Default.VisibilityOff, contentDescription = null, tint = Color(0xFFC0C5D0), modifier = Modifier.size(48.dp))
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text("No Hidden Folders", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(
+                            text = if (activeFilterTab == "EXCLUDED") "No Excluded Folders" else "No Hidden Folders",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("Folders marked hidden will be listed here", fontSize = 12.sp, color = Color(0xFF9EA3B0))
+                        Text(
+                            text = if (activeFilterTab == "EXCLUDED") "Folders manually hidden will be listed here" else "Folders marked hidden will be listed here",
+                            fontSize = 12.sp,
+                            color = Color(0xFF9EA3B0)
+                        )
                     }
                 }
             }
@@ -356,7 +366,7 @@ fun ImagesFolderGrid(
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text(if (isHidden) "Unhide Folder" else "Hide Folder") },
+                                            text = { Text(if (isHidden) "Include Folder" else "Exclude Folder") },
                                             leadingIcon = {
                                                 Icon(
                                                     imageVector = if (isHidden) Icons.Default.Visibility else Icons.Default.VisibilityOff,

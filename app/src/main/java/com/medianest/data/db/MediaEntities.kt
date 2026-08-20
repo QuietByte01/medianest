@@ -110,3 +110,20 @@ data class LocationCache(
     val longitude: Double? = null,
     val resolvedAt: Long = System.currentTimeMillis()
 )
+
+@Entity(tableName = "artist_metadata")
+data class ArtistMetadata(
+    @PrimaryKey val artistName: String,
+    val about: String? = null,
+    val awards: String? = null,           // Comma-separated or JSON
+    val imageUrl: String? = null,
+    val popularAlbumsJson: String? = null, // JSON list of PopularAlbum
+    val genres: String? = null,           // Comma-separated
+    val similarArtistsJson: String? = null, // JSON list of SimilarArtist
+    val topGlobalTracksJson: String? = null,
+    val latestReleaseJson: String? = null,
+    val socialLinksJson: String? = null,
+    val yearsActive: String? = null,
+    val origin: String? = null,
+    val lastUpdated: Long = System.currentTimeMillis()
+)

@@ -10,28 +10,6 @@ enum class StudioTool {
     TRIM, CROP, FILTERS, ADJUST, TEXT, AUDIO
 }
 
-enum class CropPreset(val label: String) {
-    ORIGINAL("Original"),
-    P_16_9("16:9"),
-    P_9_16("9:16"),
-    P_1_1("1:1"),
-    P_4_3("4:3"),
-    P_4_5("4:5"),
-    P_21_9("21:9")
-}
-
-enum class VideoStudioFilter(val label: String, val previewColor: Color) {
-    ORIGINAL("Original", Color(0xFF333333)),
-    CINEMA("Cinema 35mm", Color(0xFF1B4965)),
-    VIVID("Vivid", Color(0xFFE63946)),
-    NOIR("Noir B&W", Color(0xFF555555)),
-    VINTAGE("Vintage", Color(0xFFC4A482)),
-    WARM("Warm Sun", Color(0xFFFFA500)),
-    COOL("Cool Cyan", Color(0xFF00BFFF)),
-    CYBERPUNK("Cyberpunk", Color(0xFFFF007F)),
-    DREAMY("Dreamy", Color(0xFFB388FF))
-}
-
 enum class StudioBlurMode(val label: String) {
     NONE("No Blur"),
     GAUSSIAN("Gaussian"),

@@ -39,7 +39,7 @@ fun AudioTab(
     isSelectionMode: Boolean,
     gridSizeLevel: Int = 1,
     isLoading: Boolean = false,
-    onSongClick: (MediaItem) -> Unit,
+    onSongClick: (List<MediaItem>, Int) -> Unit,
     onSongLongClick: (MediaItem) -> Unit,
     onCreatePlaylistClick: () -> Unit,
     initialSubTab: Int = 0,
@@ -59,6 +59,7 @@ fun AudioTab(
     var itemToAddToPlaylist by remember { mutableStateOf<MediaItem?>(null) }
 
     val settingsManager = MediaNestApp.instance.settingsManager
+    val showHiddenSetting by settingsManager.showHiddenFiles.collectAsState(initial = false)
     val persistedSortField by settingsManager.audioSortField.collectAsState(initial = "Name")
     val persistedSortAscending by settingsManager.audioSortAscending.collectAsState(initial = true)
     
@@ -67,6 +68,14 @@ fun AudioTab(
     
     LaunchedEffect(sortField, isAscending) {
         viewModel.updateAudioSort(sortField, isAscending)
+    }
+
+    LaunchedEffect(subTabState) {
+        val tabId = when (subTabState) {
+            7 -> "EXCLUDED"
+            else -> "ALL" // Default to all if not excluded, as other tabs are handled differently
+        }
+        viewModel.updateAudioFilter(tabId)
     }
     
     val (isSortVisible, nestedScrollConnection) = rememberSortRevealConnection()
@@ -112,8 +121,18 @@ fun AudioTab(
     val cachedMetadataList by db.metadataCacheDao().getAllCacheFlow().collectAsState(initial = emptyList<com.medianest.data.db.AudioMetadataCache>())
     val cacheMap = remember(cachedMetadataList) { cachedMetadataList.associateBy { it.audioUri } }
     
-    val effectiveAudioList = remember(audioList, cacheMap, sortField, isAscending, subTabState) {
-        val list = audioList.map { item ->
+    val effectiveAudioList = remember(audioList, cacheMap, sortField, isAscending, subTabState, showHiddenSetting) {
+        val baseList = when (subTabState) {
+            7 -> audioList.filter { it.isExcluded || com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+            8 -> audioList.filter { it.isHidden && !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+            5 -> audioList.filter { !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+            else -> audioList.filter { item ->
+                !item.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(item) &&
+                (showHiddenSetting || !item.isHidden)
+            }
+        }
+
+        val list = baseList.map { item ->
             val cached = cacheMap[item.uri.toString()]
             if (cached != null) {
                 item.copy(
@@ -128,7 +147,7 @@ fun AudioTab(
         }
         
         // Sorting logic based on tab and field (Tracks & Albums & Artists & Folders)
-        if (subTabState == 0 || subTabState == 3 || subTabState == 4 || subTabState == 5) {
+        if (subTabState == 0 || subTabState == 3 || subTabState == 4 || subTabState == 5 || subTabState == 7) {
             val comp = when (sortField) {
                 "Name" -> compareBy<MediaItem> { it.title.lowercase() }
                 "Artist" -> compareBy<MediaItem> { (it.artist ?: "").lowercase() }
@@ -160,13 +179,15 @@ fun AudioTab(
     }
 
     val recentSongs = remember(recentlyPlayedStates, effectiveAudioList) {
-        val audioMap = effectiveAudioList.associateBy { it.uri.toString() }
+        val audioMap = audioList.associateBy { it.uri.toString() }
         recentlyPlayedStates.mapNotNull { state -> audioMap[state.mediaUri] }
+            .filter { !it.isExcluded }
     }
 
     val mostPlayedSongs = remember(mostPlayedStates, effectiveAudioList) {
-        val audioMap = effectiveAudioList.associateBy { it.uri.toString() }
+        val audioMap = audioList.associateBy { it.uri.toString() }
         mostPlayedStates.mapNotNull { state -> audioMap[state.mediaUri] }
+            .filter { !it.isExcluded }
     }
 
     BackHandler(enabled = subTabState != 0 || targetAlbum != null || targetArtist != null || targetFolder != null || targetPlaylist != null || previousSubTabState != null) {
@@ -186,8 +207,8 @@ fun AudioTab(
 
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
 
-    val subTabs = remember {
-        listOf(
+    val subTabs = remember(showHiddenSetting) {
+        val base = mutableListOf(
             SubTabInfo(0, "All Songs", Icons.Default.MusicNote),
             SubTabInfo(3, "Albums", Icons.Default.Album),
             SubTabInfo(4, "Artists", Icons.Default.Person),
@@ -196,6 +217,11 @@ fun AudioTab(
             SubTabInfo(1, "Recent", Icons.Default.Schedule),
             SubTabInfo(2, "Most Played", Icons.Default.LocalFireDepartment)
         )
+        if (showHiddenSetting) {
+            base.add(SubTabInfo(7, "Excluded", Icons.Default.VisibilityOff))
+            base.add(SubTabInfo(8, "Hidden Folders", Icons.Default.FolderZip))
+        }
+        base
     }
 
     val visibleCategories = remember(subTabs, effectiveAudioList, recentSongs, mostPlayedSongs, playlists, subTabState) {
@@ -208,14 +234,27 @@ fun AudioTab(
                 4 -> effectiveAudioList.any { !it.artist.isNullOrBlank() } || subTabState == 4
                 5 -> true
                 6 -> true
+                7 -> audioList.any { it.isExcluded } || subTabState == 7
+                8 -> audioList.any { it.isHidden && !it.isExcluded } || subTabState == 8
                 else -> true
             }
         }
     }
 
     val contentBlock: @Composable () -> Unit = {
-        when (subTabState) {
-            0 -> SongsList(
+        if (isLoading && (audioList.isEmpty() || (effectiveAudioList.isEmpty() && subTabState !in listOf(1, 2, 6)))) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                com.medianest.ui.components.MediaLoadingAnimation(
+                    mediaType = com.medianest.data.db.MediaType.AUDIO,
+                    iconSize = 52.dp
+                )
+            }
+        } else {
+            when (subTabState) {
+                0 -> SongsList(
                 songs = effectiveAudioList,
                 selectedUris = selectedUris,
                 isSelectionMode = isSelectionMode,
@@ -263,6 +302,40 @@ fun AudioTab(
                     if (artist != null) targetArtist = artist
                     if (folder != null) targetFolder = folder
                 }
+            )
+            7 -> FoldersGrid(
+                songs = effectiveAudioList,
+                selectedUris = selectedUris,
+                isSelectionMode = isSelectionMode,
+                onSongClick = onSongClick,
+                onSongLongClick = onSongLongClick,
+                initialSelectedFolder = targetFolder,
+                onAddToPlaylist = { itemToAddToPlaylist = it },
+                onNavigateSubTab = { tab, album, artist, folder ->
+                    subTabState = tab
+                    if (album != null) targetAlbum = album
+                    if (artist != null) targetArtist = artist
+                    if (folder != null) targetFolder = folder
+                },
+                sortField = sortField,
+                isAscending = isAscending
+            )
+            8 -> FoldersGrid(
+                songs = effectiveAudioList,
+                selectedUris = selectedUris,
+                isSelectionMode = isSelectionMode,
+                onSongClick = onSongClick,
+                onSongLongClick = onSongLongClick,
+                initialSelectedFolder = targetFolder,
+                onAddToPlaylist = { itemToAddToPlaylist = it },
+                onNavigateSubTab = { tab, album, artist, folder ->
+                    subTabState = tab
+                    if (album != null) targetAlbum = album
+                    if (artist != null) targetArtist = artist
+                    if (folder != null) targetFolder = folder
+                },
+                sortField = sortField,
+                isAscending = isAscending
             )
             3 -> AlbumsGrid(
                 songs = effectiveAudioList,
@@ -333,6 +406,7 @@ fun AudioTab(
             )
         }
     }
+}
 
     if (isTablet) {
         Row(

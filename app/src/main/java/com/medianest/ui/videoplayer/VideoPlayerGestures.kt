@@ -14,17 +14,19 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
-enum class SwipeEdge { NONE, LEFT }
+enum class SwipeEdge { NONE, LEFT, RIGHT }
 
 fun Modifier.videoPlayerGestures(
     playerState: PlayerState,
     isControlsLocked: Boolean,
+    isZoomed: Boolean,
     onToggleControls: () -> Unit,
     onSeekDelta: (Long) -> Unit,
     onSeekTo: (Long) -> Unit,
     onVolumeChange: (Float) -> Unit,
     onBrightnessChange: (Float) -> Unit,
     onScaleChange: (Float) -> Unit,
+    onPanDelta: (Offset) -> Unit,
     onSeekBackward: () -> Unit,
     onSeekForward: () -> Unit,
     onTogglePlayPause: () -> Unit,
@@ -33,37 +35,35 @@ fun Modifier.videoPlayerGestures(
     onDragEnded: () -> Unit,
     onEdgeSwipeProgress: (SwipeEdge, Float) -> Unit,
     coroutineScope: CoroutineScope
-): Modifier = this.pointerInput(playerState.currentItem) {
-    val edgeThresholdPx = 32.dp.toPx()
+): Modifier = this.pointerInput(playerState.currentItem, isZoomed, isControlsLocked) {
+    val edgeThresholdPx = 48.dp.toPx() 
     val maxEdgeSwipeDistancePx = 140.dp.toPx()
     val doubleTapTimeout = 300L
-    val slop = 10f
+    val slop = 15f 
 
     var lastTapTime = 0L
     var singleTapJob: Job? = null
 
     awaitPointerEventScope {
         while (true) {
-            // 1. Wait for initial pointer down event
             val down = awaitFirstDown(requireUnconsumed = false)
             val initialX = down.position.x
+            val screenWidth = size.width
 
-            val isTouchNearLeftEdge = initialX < edgeThresholdPx
             val initialEdge = when {
-                isTouchNearLeftEdge -> SwipeEdge.LEFT
+                initialX < edgeThresholdPx -> SwipeEdge.LEFT
+                initialX > screenWidth - edgeThresholdPx -> SwipeEdge.RIGHT
                 else -> SwipeEdge.NONE
             }
 
-            var isPinching = false
-            var dragType = 0 // 0: None, 1: Vertical, 2: Horizontal Seek, 3: Edge Swipe
+            var dragType = 0 // 0: None, 1: Vertical, 2: Horizontal Seek, 3: Edge Swipe, 4: Pan
             var totalDragOffset = Offset.Zero
+            var isPinching = false
 
-            // 2. Track pointer event loop
             while (true) {
                 val event = awaitPointerEvent()
                 val changes = event.changes
 
-                // --- Handle Pointer Release ---
                 if (event.type == PointerEventType.Release) {
                     if (changes.size == 1 && !isPinching && dragType == 0) {
                         val currentTime = System.currentTimeMillis()
@@ -93,41 +93,41 @@ fun Modifier.videoPlayerGestures(
                         }
                     }
 
-                    if (dragType == 2) {
-                        onDragEnded() // Trigger final seek
-                    } else if (dragType == 1) {
-                        onDragEnded() // Clean up vertical drag state
-                    }
+                    if (dragType == 2) onDragEnded()
+                    if (dragType == 3) onEdgeSwipeProgress(SwipeEdge.NONE, 0f)
 
-                    if (dragType == 3) {
-                        onEdgeSwipeProgress(SwipeEdge.NONE, 0f) // Dismiss edge overlay on release
+                    if (changes.all { !it.pressed }) {
+                        isPinching = false
+                        break
                     }
-
-                    if (changes.all { !it.pressed }) break
                 }
 
-                // --- Handle Pointer Movement ---
                 if (event.type == PointerEventType.Move) {
                     if (changes.size > 1) {
-                        // Pinch Zoom (Multi-touch)
                         isPinching = true
                         dragType = -1
                         val zoom = event.calculateZoom()
                         if (!isControlsLocked) onScaleChange(zoom)
                         changes.forEach { it.consume() }
-                    } else if (changes.size == 1 && !isPinching && dragType != -1) {
+                    } else if (changes.size == 1 && dragType != -1) {
                         val change = changes[0]
                         val dragAmount = change.position - change.previousPosition
                         totalDragOffset += dragAmount
 
-                        // Lock gesture orientation once passing slop threshold
                         if (dragType == 0) {
                             if (abs(totalDragOffset.y) > slop && abs(totalDragOffset.y) > abs(totalDragOffset.x)) {
-                                dragType = 1 // Vertical Lock (Brightness / Volume)
+                                if (isZoomed) {
+                                    dragType = 4 // Vertical Pan
+                                } else {
+                                    dragType = 1 // Vertical Lock (Brightness / Volume)
+                                }
                                 onDragStarted()
                             } else if (abs(totalDragOffset.x) > slop && abs(totalDragOffset.x) > abs(totalDragOffset.y)) {
                                 if (initialEdge != SwipeEdge.NONE) {
-                                    dragType = 3 // Edge Swipe Lock (Back / Next Edge)
+                                    dragType = 3 // Edge Swipe Lock - EXCLUSIVE
+                                } else if (isZoomed) {
+                                    dragType = 4 // Horizontal Pan
+                                    onDragStarted()
                                 } else {
                                     dragType = 2 // Standard Horizontal Seek Drag
                                     onDragStarted()
@@ -135,26 +135,26 @@ fun Modifier.videoPlayerGestures(
                             }
                         }
 
-                        // --- Gesture Action Execution ---
-                        if (dragType == 3) {
-                            // Track left edge swipe progress without consuming events (allows system back swipe)
-                            val pullDistance = totalDragOffset.x
-                            val progress = (pullDistance / maxEdgeSwipeDistancePx).coerceIn(0f, 1.2f)
-                            onEdgeSwipeProgress(initialEdge, progress)
-                        } else if (dragType == 1 && !isControlsLocked) {
-                            // Vertical Brightness & Volume control
-                            val delta = -dragAmount.y / size.height.toFloat()
-                            if (change.position.x < size.width / 2f) {
-                                onBrightnessChange(delta)
-                            } else {
-                                onVolumeChange(delta)
+                        when (dragType) {
+                            3 -> {
+                                val pullDistance = if (initialEdge == SwipeEdge.LEFT) totalDragOffset.x else -totalDragOffset.x
+                                val progress = (pullDistance / maxEdgeSwipeDistancePx).coerceIn(0f, 1.2f)
+                                onEdgeSwipeProgress(initialEdge, progress)
                             }
-                            change.consume()
-                        } else if (dragType == 2 && !isControlsLocked) {
-                            // Horizontal Seek control
-                            val deltaRatio = dragAmount.x / size.width.toFloat()
-                            onSeekDelta((deltaRatio * 120_000).toLong())
-                            change.consume()
+                            1 -> if (!isControlsLocked) {
+                                val delta = -dragAmount.y / size.height.toFloat()
+                                if (change.position.x < screenWidth / 2f) onBrightnessChange(delta) else onVolumeChange(delta)
+                                change.consume()
+                            }
+                            2 -> if (!isControlsLocked) {
+                                val deltaRatio = dragAmount.x / screenWidth.toFloat()
+                                onSeekDelta((deltaRatio * 120_000).toLong())
+                                change.consume()
+                            }
+                            4 -> if (!isControlsLocked) {
+                                onPanDelta(dragAmount)
+                                change.consume()
+                            }
                         }
                     }
                 }

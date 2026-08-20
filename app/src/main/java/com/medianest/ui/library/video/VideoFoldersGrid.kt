@@ -64,28 +64,26 @@ fun VideoFoldersGrid(
     }
 
     val allHiddenVideoFolders = remember(appHiddenFolders, selectiveVideoHidden) {
-        appHiddenFolders + selectiveVideoHidden
+        (appHiddenFolders + selectiveVideoHidden).map { it.lowercase() }.toSet()
     }
 
-    fun checkFolderHidden(folderKey: String, items: List<MediaItem>?): Boolean {
-        val folderName = folderKey.substringAfterLast('/')
-        if (folderKey.startsWith(".") || folderName.startsWith(".")) return true
-        if (folderKey in allHiddenVideoFolders || folderName in allHiddenVideoFolders) return true
-        if (items.isNullOrEmpty()) return false
-        return items.any { item ->
-            item.title.startsWith(".") ||
-                    (item.relativePath != null && (
-                            allHiddenVideoFolders.any { hidden ->
-                                hidden.equals(item.relativePath.trimEnd('/'), ignoreCase = true) ||
-                                        item.relativePath.contains("/$hidden") ||
-                                        item.relativePath.startsWith("$hidden/") ||
-                                        hidden.equals(folderKey, ignoreCase = true)
-                            } ||
-                                    item.relativePath.contains("/.") ||
-                                    item.relativePath.startsWith(".") ||
-                                    item.relativePath.split("/").any { it.startsWith(".") }
-                            ))
-        }
+    fun isFolderExcluded(folderKey: String, items: List<MediaItem>?): Boolean {
+        val lowerKey = folderKey.lowercase()
+        val folderName = lowerKey.substringAfterLast('/')
+        if (com.medianest.util.FolderHiddenUtils.isFolderExcludedByDefault(folderKey, folderName)) return true
+        if (lowerKey in allHiddenVideoFolders || folderName in allHiddenVideoFolders) return true
+        return items?.any { it.isExcluded } == true
+    }
+
+    fun isFolderSystemHidden(folderKey: String, items: List<MediaItem>?): Boolean {
+        if (isFolderExcluded(folderKey, items)) return false
+        val lowerKey = folderKey.lowercase().trim('/')
+        val folderName = lowerKey.substringAfterLast('/')
+        return lowerKey.split('/').any { it.startsWith(".") && it.length > 1 } || folderName.startsWith(".")
+    }
+
+    fun isFolderHidden(folderKey: String, items: List<MediaItem>?): Boolean {
+        return isFolderExcluded(folderKey, items) || isFolderSystemHidden(folderKey, items)
     }
 
     val sortedFolderNames = remember(videoFolderGroups, sortField, isAscending) {
@@ -102,14 +100,22 @@ fun VideoFoldersGrid(
         }
 
         val baseSorted = if (isAscending) keys.sortedWith(comp) else keys.sortedWith(comp).reversed()
-        baseSorted.sortedBy { fn -> checkFolderHidden(fn, videoFolderGroups[fn]) && activeFilterTab != "HIDDEN" }
+        baseSorted.sortedBy { fn -> 
+            val items = videoFolderGroups[fn]
+            (isFolderExcluded(fn, items) || isFolderSystemHidden(fn, items)) && activeFilterTab != "HIDDEN" && activeFilterTab != "EXCLUDED"
+        }
     }
 
-    val visibleFolders = remember(sortedFolderNames, videoFolderGroups, activeFilterTab) {
-        if (activeFilterTab == "HIDDEN") {
-            sortedFolderNames.filter { fn -> checkFolderHidden(fn, videoFolderGroups[fn]) }
-        } else {
-            sortedFolderNames
+    val showHiddenSetting by settingsManager.showHiddenFiles.collectAsState(initial = false)
+
+    val visibleFolders = remember(sortedFolderNames, videoFolderGroups, activeFilterTab, showHiddenSetting) {
+        when (activeFilterTab) {
+            "HIDDEN" -> sortedFolderNames.filter { fn -> isFolderSystemHidden(fn, videoFolderGroups[fn]) }
+            "EXCLUDED" -> sortedFolderNames.filter { fn -> isFolderExcluded(fn, videoFolderGroups[fn]) }
+            else -> sortedFolderNames.filter { fn -> 
+                val items = videoFolderGroups[fn]
+                !isFolderExcluded(fn, items) && (showHiddenSetting || !isFolderSystemHidden(fn, items))
+            }
         }
     }
 
@@ -128,7 +134,11 @@ fun VideoFoldersGrid(
                 modifier = Modifier.size(16.dp)
             )
             Text(
-                text = "ALL DIRECTORY FOLDERS",
+                text = when (activeFilterTab) {
+                    "HIDDEN" -> "HIDDEN DIRECTORY FOLDERS"
+                    "EXCLUDED" -> "EXCLUDED DIRECTORY FOLDERS"
+                    else -> "ALL DIRECTORY FOLDERS"
+                },
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.5.sp,
@@ -148,7 +158,7 @@ fun VideoFoldersGrid(
         ) {
             items(visibleFolders, key = { "vfolder_$it" }) { folderName ->
                 val folderItems = videoFolderGroups[folderName] ?: emptyList()
-                val isHidden = checkFolderHidden(folderName, folderItems)
+                val isHidden = isFolderHidden(folderName, folderItems)
                 val totalSizeBytes = remember(folderItems) { folderItems.sumOf { it.size } }
                 val formattedSize = remember(totalSizeBytes) { formatFolderSize(totalSizeBytes) }
                 val itemCountText = if (folderItems.size == 1) "1 Video" else "${folderItems.size} Videos"
@@ -220,7 +230,7 @@ fun VideoFoldersGrid(
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text(if (isHidden) "Unhide Folder" else "Hide Folder") },
+                                            text = { Text(if (isHidden) "Include Folder" else "Exclude Folder") },
                                             leadingIcon = {
                                                 Icon(
                                                     imageVector = if (isHidden) Icons.Default.Visibility else Icons.Default.VisibilityOff,
@@ -237,7 +247,7 @@ fun VideoFoldersGrid(
                                                         db.selectiveHiddenFolderDao().unhideFolder(folderName, "VIDEO")
                                                         db.selectiveHiddenFolderDao().unhideFolder(folderPathKey, "VIDEO")
                                                     } else {
-                                                        settingsManager.setHiddenFolders(current + folderPathKey)
+                                                        settingsManager.setHiddenFolders(current + folderPathKey + folderName)
                                                         db.selectiveHiddenFolderDao().insertOrUpdate(
                                                             SelectiveHiddenFolder(
                                                                 folderPath = folderPathKey,

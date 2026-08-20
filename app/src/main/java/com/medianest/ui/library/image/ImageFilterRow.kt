@@ -29,6 +29,7 @@ fun ImageFilterRow(
     onSelectedCategoryChange: (MediaCategory?) -> Unit,
     onSelectedFolderChange: (String?) -> Unit,
     onShowHiddenFiles: () -> Unit,
+    showHiddenFiles: Boolean = false,
     filterCounts: Map<String, Int> = emptyMap()
 ) {
     LazyRow(
@@ -53,17 +54,20 @@ fun ImageFilterRow(
             FilterItem("AI Generated", "AI_GENERATED", Icons.Default.AutoAwesome, 0),
             FilterItem("Anime", "ANIME", Icons.Default.Brush, 0),
             FilterItem("Wallpapers", "WALLPAPERS", Icons.Default.Wallpaper, 0),
-            FilterItem("Hidden Folders", "HIDDEN", Icons.Default.FolderZip, 1)
+            FilterItem("Hidden Folders", "HIDDEN", Icons.Default.FolderZip, 1),
+            FilterItem("Excluded", "EXCLUDED", Icons.Default.VisibilityOff, 1)
             // FilterItem("Trash", "TRASH", Icons.Default.Delete, 0)
         )
 
         // Filter out empty categories unless they are selected (or if counts are not yet computed)
-        val visibleFilters = if (filterCounts.isEmpty()) {
-            allFilters
-        } else {
-            allFilters.filter { filter ->
-                val count = filterCounts[filter.id] ?: 0
-                val isAlwaysVisible = filter.id in listOf("ALL", "FOLDERS", "HIDDEN")
+        val visibleFilters = allFilters.filter { filter ->
+            val count = filterCounts[filter.id] ?: 0
+            val isAlwaysVisible = filter.id in listOf("ALL", "FOLDERS")
+            val isHiddenOrExcluded = filter.id in listOf("HIDDEN", "EXCLUDED")
+            
+            if (isHiddenOrExcluded) {
+                showHiddenFiles
+            } else {
                 isAlwaysVisible || count > 0 || activeFilterTab == filter.id
             }
         }

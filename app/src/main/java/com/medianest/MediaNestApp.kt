@@ -18,6 +18,9 @@ class MediaNestApp : Application() {
     lateinit var settingsManager: SettingsManager
         private set
 
+    lateinit var artistMetadataRepository: com.medianest.data.repository.ArtistMetadataRepository
+        private set
+
     val exoPlayerManager by lazy { com.medianest.player.ExoPlayerManager.getInstance(this) }
 
     override fun onCreate() {
@@ -25,6 +28,7 @@ class MediaNestApp : Application() {
         instance = this
         database = AppDatabase.getDatabase(this)
         settingsManager = SettingsManager(this)
+        artistMetadataRepository = com.medianest.data.repository.ArtistMetadataRepository(this)
 
         // Initialize Android Hardware Engine & Capability Detection
         val hwCaps = com.medianest.hardware.AndroidHardwareEngine.detectCapabilities(this)

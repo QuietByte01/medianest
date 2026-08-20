@@ -482,7 +482,7 @@ fun MediaInfoBottomSheet(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(16.dp),
                                 backgroundColor = Color(0x1F24293A),
-                                borderColor = Color(0x3364B5F6)
+                                borderColor = Color(0x26FFFFFF)
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
                                     Text(
@@ -980,8 +980,8 @@ fun MediaInfoBottomSheet(
 private fun QualityBadgePill(text: String) {
     GlassSurface(
         shape = RoundedCornerShape(12.dp),
-        backgroundColor = Color(0x26FFFFFF),
-        borderColor = Color(0x3DFFFFFF)
+        backgroundColor = Color(0x3364B5F6),
+        borderColor = Color(0x6638BDF8)
     ) {
         Text(
             text = text,
@@ -1210,7 +1210,7 @@ private fun VideoFilePropertiesContent(
                                     .padding(8.dp)
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(Color(0xCC000000))
-                                    .border(0.5.dp, Color(0x66FFFFFF), RoundedCornerShape(6.dp))
+                                    .border(0.5.dp, Color(0x6638BDF8), RoundedCornerShape(6.dp))
                                     .padding(horizontal = 8.dp, vertical = 3.dp)
                             ) {
                                 Text(
@@ -1340,7 +1340,7 @@ private fun VideoFilePropertiesContent(
                                     .padding(6.dp)
                                     .clip(RoundedCornerShape(4.dp))
                                     .background(Color(0xCC000000))
-                                    .border(0.5.dp, Color(0x66FFFFFF), RoundedCornerShape(4.dp))
+                                    .border(0.5.dp, Color(0x6638BDF8), RoundedCornerShape(4.dp))
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(

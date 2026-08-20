@@ -43,7 +43,9 @@ data class MediaCounts(
     val shorts: Int = 0,
     val social: Int = 0,
     val edited: Int = 0,
-    val downloaded: Int = 0
+    val downloaded: Int = 0,
+    val excluded: Int = 0,
+    val hidden: Int = 0
 )
 
 class MediaViewModel(application: Application) : AndroidViewModel(application) {
@@ -70,15 +72,18 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     val videoCounts = combine(_videosList, sharedTitleWords) { list, words ->
         withContext(Dispatchers.Default) {
+            val visibleList = list.filter { !it.isExcluded && !it.isHidden }
             MediaCounts(
-                music = list.count { isMusicVideo(it) },
-                movies = list.count { isMovie(it, words) },
-                series = list.count { isTVSeries(it, words) },
-                clips = list.count { isClipsAndRecordings(it) },
-                shorts = list.count { isShorts(it) },
-                social = list.count { isSocialMediaVideo(it) },
-                edited = list.count { isEditedVideo(it) },
-                downloaded = list.count { isDownloaded(it) }
+                music = visibleList.count { isMusicVideo(it) },
+                movies = visibleList.count { isMovie(it, words) },
+                series = visibleList.count { isTVSeries(it, words) },
+                clips = visibleList.count { isClipsAndRecordings(it) },
+                shorts = visibleList.count { isShorts(it) },
+                social = visibleList.count { isSocialMediaVideo(it) },
+                edited = visibleList.count { isEditedVideo(it) },
+                downloaded = visibleList.count { isDownloaded(it) },
+                excluded = list.count { it.isExcluded },
+                hidden = list.count { it.isHidden && !it.isExcluded }
             )
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, MediaCounts())
@@ -95,6 +100,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _videoFilterTab = MutableStateFlow("ALL")
     val videoFilterTab: StateFlow<String> = _videoFilterTab
+
+    private val _imageFilterTab = MutableStateFlow("ALL")
+    val imageFilterTab: StateFlow<String> = _imageFilterTab
+
+    private val _audioFilterTab = MutableStateFlow("ALL")
+    val audioFilterTab: StateFlow<String> = _audioFilterTab
 
     private val _videoSortField = MutableStateFlow("Date")
     val videoSortField: StateFlow<String> = _videoSortField
@@ -115,10 +126,25 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     val audioSortAscending: StateFlow<Boolean> = _audioSortAscending
 
     val filteredImagesList = combine(
-        _imagesList, _searchQuery, _imageSortField, _imageSortAscending
-    ) { list, query, sort, asc ->
+        combine(_imagesList, _searchQuery, _imageFilterTab) { list, query, tab -> Triple(list, query, tab) },
+        combine(_imageSortField, _imageSortAscending, settingsManager.showHiddenFiles) { sort, asc, showHidden -> Triple(sort, asc, showHidden) }
+    ) { (list, query, tab), (sort, asc, showHidden) ->
         withContext(Dispatchers.Default) {
-            val filtered = if (query.isEmpty()) list else list.filter { it.title.contains(query, ignoreCase = true) }
+            val baseList = when (tab) {
+                "EXCLUDED" -> list.filter { it.isExcluded || com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+                "HIDDEN" -> list.filter { it.isHidden && !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+                else -> list.filter { item ->
+                    !item.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(item) &&
+                    (showHidden || !item.isHidden)
+                }
+            }
+
+            var filtered = if (query.isEmpty()) baseList else baseList.filter { it.title.contains(query, ignoreCase = true) }
+            
+            if (tab != "ALL" && tab != "EXCLUDED" && tab != "HIDDEN") {
+                filtered = com.medianest.ui.library.image.filterImageList(filtered, tab, emptySet(), emptySet())
+            }
+
             val comp = when (sort) {
                 "Name" -> compareBy<MediaItem> { it.title.lowercase() }
                 "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
@@ -130,10 +156,20 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val filteredAudioList = combine(
-        _audioList, _searchQuery, _audioSortField, _audioSortAscending
-    ) { list, query, sort, asc ->
+        combine(_audioList, _searchQuery, _audioFilterTab) { list, query, tab -> Triple(list, query, tab) },
+        combine(_audioSortField, _audioSortAscending, settingsManager.showHiddenFiles) { sort, asc, showHidden -> Triple(sort, asc, showHidden) }
+    ) { (list, query, tab), (sort, asc, showHidden) ->
         withContext(Dispatchers.Default) {
-            val filtered = if (query.isEmpty()) list else list.filter { 
+            val baseList = when (tab) {
+                "EXCLUDED" -> list.filter { it.isExcluded || com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+                "HIDDEN" -> list.filter { it.isHidden && !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+                else -> list.filter { item ->
+                    !item.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(item) &&
+                    (showHidden || !item.isHidden)
+                }
+            }
+
+            val filtered = if (query.isEmpty()) baseList else baseList.filter { 
                 it.title.contains(query, ignoreCase = true) || (it.artist?.contains(query, ignoreCase = true) == true) 
             }
             val comp = when (sort) {
@@ -147,13 +183,14 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val filteredVideosList = combine(
-        _videosList, _searchQuery, _videoFilterTab, _videoSortField, _videoSortAscending
-    ) { list, query, tab, sort, asc ->
+        combine(_videosList, _searchQuery, _videoFilterTab) { list, query, tab -> Triple(list, query, tab) },
+        combine(_videoSortField, _videoSortAscending, settingsManager.showHiddenFiles) { sort, asc, showHidden -> Triple(sort, asc, showHidden) }
+    ) { (list, query, tab), (sort, asc, showHidden) ->
         withContext(Dispatchers.Default) {
             var filtered = if (query.isEmpty()) list else list.filter { it.title.contains(query, ignoreCase = true) }
             
             // Basic filtering logic (matching VideosTab.kt's filterVideoList)
-            filtered = com.medianest.ui.library.video.filterVideoList(filtered, tab)
+            filtered = com.medianest.ui.library.video.filterVideoList(filtered, tab, showHidden)
 
             val comp = when (sort) {
                 "Name" -> compareBy<MediaItem> { it.title.lowercase() }
@@ -166,6 +203,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     fun updateVideoFilter(tab: String) { _videoFilterTab.value = tab }
+    fun updateImageFilter(tab: String) { _imageFilterTab.value = tab }
+    fun updateAudioFilter(tab: String) { _audioFilterTab.value = tab }
     fun updateVideoSort(field: String, ascending: Boolean) {
         _videoSortField.value = field
         _videoSortAscending.value = ascending

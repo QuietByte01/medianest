@@ -40,7 +40,7 @@ fun AlbumsGrid(
     songs: List<MediaItem>,
     selectedUris: Set<String>,
     isSelectionMode: Boolean,
-    onSongClick: (MediaItem) -> Unit,
+    onSongClick: (List<MediaItem>, Int) -> Unit,
     onSongLongClick: (MediaItem) -> Unit,
     gridSizeLevel: Int = 1,
     initialSelectedAlbum: String? = null,
@@ -168,7 +168,7 @@ fun AlbumsGrid(
                     GlassSurface(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
-                            .clickable { if (albumSongs.isNotEmpty()) onSongClick(albumSongs.first()) },
+                            .clickable { if (albumSongs.isNotEmpty()) onSongClick(albumSongs, 0) },
                         shape = RoundedCornerShape(20.dp),
                         backgroundColor = Color(0x3338BDF8),
                         borderColor = Color(0x6638BDF8)
@@ -199,7 +199,7 @@ fun AlbumsGrid(
                             .clickable {
                                 if (albumSongs.isNotEmpty()) {
                                     val shuffled = albumSongs.shuffled()
-                                    onSongClick(shuffled.first())
+                                    onSongClick(shuffled, 0)
                                 }
                             },
                         shape = RoundedCornerShape(20.dp),

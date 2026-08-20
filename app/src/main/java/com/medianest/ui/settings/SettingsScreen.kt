@@ -82,13 +82,19 @@ fun SettingsScreen(
     var imageItems by remember { mutableStateOf<List<com.medianest.data.model.MediaItem>>(emptyList()) }
     var videoItems by remember { mutableStateOf<List<com.medianest.data.model.MediaItem>>(emptyList()) }
     var audioItems by remember { mutableStateOf<List<com.medianest.data.model.MediaItem>>(emptyList()) }
+    var isLoadingFolders by remember { mutableStateOf(false) }
 
-    // Combined Trash sheet commented out
-    // var showCombinedTrashSheet by remember { mutableStateOf(false) }
-    // if (showCombinedTrashSheet) {
-    //     CombinedTrashSheet(onDismiss = { showCombinedTrashSheet = false })
-    // }
+    LaunchedEffect(folderCategoryTab) {
+        isLoadingFolders = true
+        when (folderCategoryTab) {
+            0 -> audioItems = mediaStoreRepository.getAudio(emptySet(), showHidden = true)
+            1 -> imageItems = mediaStoreRepository.getImages(emptySet(), showHidden = true)
+            2 -> videoItems = mediaStoreRepository.getVideos(emptySet(), showHidden = true)
+        }
+        isLoadingFolders = false
+    }
 
+    /*
     var hwAccelMode by remember { mutableStateOf("Enabled (Full GPU/DSP)") }
 
     val m3uPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -152,12 +158,7 @@ fun SettingsScreen(
             }
         }
     }
-
-    LaunchedEffect(showHiddenFiles, folderCategoryTab) {
-        imageItems = mediaStoreRepository.getImages(emptySet(), showHiddenFiles)
-        videoItems = mediaStoreRepository.getVideos(emptySet(), showHiddenFiles)
-        audioItems = mediaStoreRepository.getAudio(emptySet(), showHiddenFiles)
-    }
+    */
 
     BackHandler { onClose() }
 
@@ -488,9 +489,20 @@ fun SettingsScreen(
                         (folderGroups.keys + hiddenForType).sorted()
                     }
 
-                    if (folderNamesList.isEmpty()) {
+                    if (isLoadingFolders) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().height(100.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                color = Color(0xFF6366F1),
+                                strokeWidth = 3.dp,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    } else if (folderNamesList.isEmpty()) {
                         Text(
-                            text = "/Internal Storage/Recordings",
+                            text = "No folders found for this category.",
                             fontSize = 13.sp,
                             color = Color(0xFF94A3B8),
                             modifier = Modifier.padding(vertical = 4.dp)
@@ -542,6 +554,7 @@ fun SettingsScreen(
                     }
                 }
 
+                /*
                 // Import External Playlists
                 SettingsRowItem(
                     title = "Import External Playlists",
@@ -551,7 +564,7 @@ fun SettingsScreen(
                         GlassSurface(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
-                                .clickable { m3uPickerLauncher.launch(arrayOf("*/*")) },
+                                .clickable { },
                             shape = RoundedCornerShape(10.dp),
                             backgroundColor = Color(0x33FFFFFF),
                             borderColor = Color(0x33FFFFFF)
@@ -572,6 +585,7 @@ fun SettingsScreen(
                         }
                     }
                 )
+                */
             }
 
             // SECTION 3: PLAYBACK & ENGINE

@@ -115,6 +115,7 @@ class MainActivity : ComponentActivity() {
                     val appLockPin by settingsManager.appLockPin.collectAsState(initial = "")
                     val hideFromRecents by settingsManager.hideFromRecents.collectAsState(initial = false)
                     val showHiddenFiles by settingsManager.showHiddenFiles.collectAsState(initial = false)
+                    val hiddenFolders by settingsManager.hiddenFolders.collectAsState(initial = emptySet())
                     val enableAnalyticsTab by settingsManager.enableAnalyticsTab.collectAsState(initial = true)
 
                     val analyticsSnapshot by analyticsRepository.snapshot.collectAsState(initial = null)
@@ -291,7 +292,10 @@ class MainActivity : ComponentActivity() {
                                             targetAudioFolder.value = folder
                                             currentScreen = "LIBRARY"
                                         },
-                                        onOpenSettings = { currentScreen = "SETTINGS" }
+                                        onOpenSettings = { currentScreen = "SETTINGS" },
+                                        allAudioItems = audioList,
+                                        showHidden = showHiddenFiles,
+                                        hiddenFolders = hiddenFolders
                                     )
                                 }
 

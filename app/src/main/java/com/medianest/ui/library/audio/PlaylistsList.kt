@@ -43,7 +43,7 @@ fun PlaylistsList(
     recentSongs: List<MediaItem> = emptyList(),
     mostPlayedSongs: List<MediaItem> = emptyList(),
     onCreatePlaylistClick: () -> Unit,
-    onSongClick: (MediaItem) -> Unit,
+    onSongClick: (List<MediaItem>, Int) -> Unit,
     isLoading: Boolean = false,
     initialSelectedPlaylist: MediaCategory? = null,
     onSelectPlaylist: (MediaCategory?) -> Unit = {},

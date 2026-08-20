@@ -273,12 +273,15 @@ fun VideosTab(
             editedCount = editedCount,
             downloadedCount = downloadedCount,
             trashedCount = 0,
+            excludedCount = videoCounts.excluded,
+            hiddenCount = videoCounts.hidden,
+            showHiddenFiles = showHiddenSetting,
             onFilterSelect = { tab ->
                 when (tab) {
-                    "FOLDERS" -> {
+                    "FOLDERS", "HIDDEN", "EXCLUDED" -> {
                         isFolderViewActive = true
                         selectedFolder = null
-                        activeFilterTab = "FOLDERS"
+                        activeFilterTab = tab
                         onCategorySelect(null)
                     }
                     "ALL" -> {
@@ -343,10 +346,20 @@ fun VideosTab(
             }
         )
 
-        val displayList = remember(videosList, videoFolderGroups, activeFilterTab, isFolderViewActive, selectedFolder, selectedCategory, categoryUris) {
-            if (isFolderViewActive) {
+        val displayList = remember(videosList, videoFolderGroups, activeFilterTab, isFolderViewActive, selectedFolder, selectedCategory, categoryUris, showHiddenSetting) {
+            if (isFolderViewActive || selectedFolder != null) {
                 if (selectedFolder != null) {
-                    videoFolderGroups[selectedFolder] ?: emptyList()
+                    videoFolderGroups[selectedFolder]
+                        ?: videoFolderGroups.entries.firstOrNull { (k, _) ->
+                            val normKey = k.trim('/').lowercase()
+                            val normTarget = selectedFolder!!.trim('/').lowercase()
+                            normKey == normTarget ||
+                            normKey.substringAfterLast('/') == normTarget ||
+                            normTarget.substringAfterLast('/') == normKey ||
+                            normKey.endsWith("/$normTarget") ||
+                            normTarget.endsWith("/$normKey")
+                        }?.value
+                        ?: emptyList()
                 } else {
                     videosList
                 }
@@ -355,7 +368,7 @@ fun VideosTab(
             } else if (activeFilterTab == "CATEGORIES") {
                 emptyList()
             } else {
-                filterVideoList(videosList, activeFilterTab)
+                filterVideoList(videosList, activeFilterTab, showHiddenSetting)
             }
         }
 
@@ -504,7 +517,7 @@ fun VideosTab(
                 isFolderViewActive = isFolderViewActive,
                 gridState = wideGridState,
                 staggeredGridState = mainGridState,
-                pagedVideos = pagedVideos
+                pagedVideos = if (activeFilterTab == "ALL" && !isFolderViewActive && selectedFolder == null && selectedCategory == null) pagedVideos else null
             )
         }
 

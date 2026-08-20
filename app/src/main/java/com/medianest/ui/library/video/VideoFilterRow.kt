@@ -33,6 +33,9 @@ fun VideoFilterRow(
     editedCount: Int,
     downloadedCount: Int,
     trashedCount: Int,
+    excludedCount: Int = 0,
+    hiddenCount: Int = 0,
+    showHiddenFiles: Boolean = false,
     onFilterSelect: (String) -> Unit
 ) {
     LazyRow(
@@ -159,6 +162,26 @@ fun VideoFilterRow(
         //         )
         //     }
         // }
+
+        if (showHiddenFiles) {
+            item {
+                FilterTabItem(
+                    label = if (excludedCount > 0) "Excluded ($excludedCount)" else "Excluded",
+                    icon = Icons.Default.VisibilityOff,
+                    isSelected = activeFilterTab == "EXCLUDED",
+                    onClick = { onFilterSelect("EXCLUDED") }
+                )
+            }
+
+            item {
+                FilterTabItem(
+                    label = if (hiddenCount > 0) "Hidden Folders ($hiddenCount)" else "Hidden Folders",
+                    icon = Icons.Default.FolderZip,
+                    isSelected = activeFilterTab == "HIDDEN",
+                    onClick = { onFilterSelect("HIDDEN") }
+                )
+            }
+        }
 
         item {
             FilterTabItem(

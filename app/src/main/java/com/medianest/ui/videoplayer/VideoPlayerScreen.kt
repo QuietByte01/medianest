@@ -73,15 +73,16 @@ import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.MediaInfoBottomSheet
 import com.medianest.ui.videoplayer.studio.VideoEditorStudioSheet
 import com.medianest.ui.videoplayer.panels.*
+import com.medianest.ui.components.SidebarQueueDrawer
+import com.medianest.ui.components.media.*
 import com.medianest.ui.components.dismissKeyboardOnOutsideTap
 import com.medianest.ui.components.formatDuration
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * TODO: Architectural Refactor Required.
- * This file exceeds 2,500 lines. Logic for gestures, picture-in-picture, and complex UI states
- * should be moved to smaller components and a dedicated VideoViewModel.
+ * Main Video Playback Screen.
+ * Logic for gestures, picture-in-picture, and UI states is handled here.
  */
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
@@ -98,13 +99,14 @@ fun VideoPlayerScreen(
     val scope = rememberCoroutineScope()
 
     val playerState by playerManager.playerState.collectAsState()
-    // Explicitly filter current item to only show VIDEO in this screen
     val currentItem = playerState.currentItem?.takeIf { it.type == com.medianest.data.db.MediaType.VIDEO }
     val settingsManager = MediaNestApp.instance.settingsManager
 
     val showStatusBar by settingsManager.showStatusBarInPlayback.collectAsState(initial = false)
     val keepScreenOn by settingsManager.keepScreenOn.collectAsState(initial = true)
     val offlineMode by settingsManager.offlineMode.collectAsState(initial = false)
+    val showHiddenFiles by settingsManager.showHiddenFiles.collectAsState(initial = false)
+    val hiddenFolders by settingsManager.hiddenFolders.collectAsState(initial = emptySet())
 
     val pictureModeEnabled by settingsManager.pictureModeEnabled.collectAsState(initial = true)
     val pictureMode by settingsManager.pictureMode.collectAsState(initial = "BALANCED")
@@ -116,7 +118,7 @@ fun VideoPlayerScreen(
     val filmGrainIntensity by settingsManager.filmGrainIntensity.collectAsState(initial = 0.15f)
 
     var showControls by remember { mutableStateOf(true) }
-    var cropMode by remember { mutableStateOf("FIT") } 
+    var cropMode by remember { mutableStateOf(MediaAspectRatio.FIT) } 
     val savedDecoderMode by settingsManager.decoderMode.collectAsState(initial = "HW+")
     var decoderMode by remember(savedDecoderMode) { mutableStateOf(savedDecoderMode) }
     var showAspectRatioMenu by remember { mutableStateOf(false) }
@@ -125,11 +127,12 @@ fun VideoPlayerScreen(
     var gestureFeedbackText by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(gestureFeedbackText) {
         if (gestureFeedbackText != null) {
-            kotlinx.coroutines.delay(1200L)
+            kotlinx.coroutines.delay(1000L) // Hide feedback after 1s
             gestureFeedbackText = null
         }
     }
     var scale by remember { mutableFloatStateOf(1f) }
+    var panOffset by remember { mutableStateOf(Offset.Zero) }
 
     var isDraggingBrightness by remember { mutableStateOf(false) }
     var isDraggingVolume by remember { mutableStateOf(false) }
@@ -188,23 +191,42 @@ fun VideoPlayerScreen(
             showAspectRatioMenu || showSpeedMenu
 
     BackHandler(enabled = true) {
-        when {
-            showOverflowMenu -> showOverflowMenu = false
-            showDetailsSheet -> showDetailsSheet = false
-            showDrawer -> showDrawer = false
-            showSubtitleSheet -> showSubtitleSheet = false
-            showSubtitleCustomizationSheet -> showSubtitleCustomizationSheet = false
-            showSettingsSheet -> showSettingsSheet = false
-            showAudioTrackSheet -> showAudioTrackSheet = false
-            showAspectRatioMenu -> showAspectRatioMenu = false
-            showSpeedMenu -> showSpeedMenu = false
-            isControlsLocked -> isControlsLocked = false
-            else -> onClose()
+        if (anyOverlayOpen) {
+            when {
+                showOverflowMenu -> showOverflowMenu = false
+                showDetailsSheet -> showDetailsSheet = false
+                showDrawer -> showDrawer = false
+                showSubtitleSheet -> showSubtitleSheet = false
+                showSubtitleCustomizationSheet -> showSubtitleCustomizationSheet = false
+                showSettingsSheet -> showSettingsSheet = false
+                showAudioTrackSheet -> showAudioTrackSheet = false
+                showAspectRatioMenu -> showAspectRatioMenu = false
+                showSpeedMenu -> showSpeedMenu = false
+            }
+        } else if (isControlsLocked) {
+            isControlsLocked = false
+        } else {
+            onClose()
         }
+    }
+
+    var activeVideoSize by remember(playerManager.exoPlayer) {
+        mutableStateOf(playerManager.exoPlayer.videoSize)
     }
 
     DisposableEffect(playerManager.exoPlayer) {
         val listener = object : androidx.media3.common.Player.Listener {
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                if (videoSize.width > 0 && videoSize.height > 0) {
+                    activeVideoSize = videoSize
+                }
+            }
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                val vs = playerManager.exoPlayer.videoSize
+                if (vs.width > 0 && vs.height > 0) {
+                    activeVideoSize = vs
+                }
+            }
             override fun onCues(cueGroup: androidx.media3.common.text.CueGroup) {
                 if (selectedSubtitleTrackIndex != -1 && cueGroup.cues.isNotEmpty()) {
                     activeSubtitleText = cueGroup.cues.joinToString("\n") { it.text ?: "" }.trim().ifEmpty { null }
@@ -214,6 +236,10 @@ fun VideoPlayerScreen(
             }
         }
         playerManager.exoPlayer.addListener(listener)
+        val initialVs = playerManager.exoPlayer.videoSize
+        if (initialVs.width > 0 && initialVs.height > 0) {
+            activeVideoSize = initialVs
+        }
         onDispose { playerManager.exoPlayer.removeListener(listener) }
     }
 
@@ -234,7 +260,7 @@ fun VideoPlayerScreen(
 
     LaunchedEffect(showControls, anyOverlayOpen, isControlsLocked) {
         if (showControls && !isControlsLocked && !anyOverlayOpen) {
-            delay(4000)
+            delay(3000) // Hide controls after 3s
             showControls = false
         }
     }
@@ -242,6 +268,8 @@ fun VideoPlayerScreen(
     val audioManager = remember { context.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager }
     var currentVolume by remember { mutableFloatStateOf(audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC).toFloat() / audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).toFloat()) }
     var currentBrightness by remember { mutableFloatStateOf(0.7f) }
+
+    val controlsFadeSpec = tween<Float>(durationMillis = 500)
 
     Box(
         modifier = Modifier
@@ -255,6 +283,7 @@ fun VideoPlayerScreen(
                 .videoPlayerGestures(
                     playerState = playerState,
                     isControlsLocked = isControlsLocked,
+                    isZoomed = scale > 1.05f,
                     onToggleControls = { showControls = !showControls },
                     onSeekDelta = { delta ->
                         isHorizontalDragging = true
@@ -277,8 +306,6 @@ fun VideoPlayerScreen(
                     },
                     onBrightnessChange = { delta ->
                         isDraggingBrightness = true
-                        // BUG: Gesture displays up to 200% because it mistakenly uses the volume-boost logic
-                        // for its display value. Brightness should be capped at 100% in the UI.
                         currentBrightness = (currentBrightness + delta).coerceIn(0.05f, 1f)
                         activity?.let { act ->
                             val lp = act.window.attributes
@@ -286,7 +313,16 @@ fun VideoPlayerScreen(
                             act.window.attributes = lp
                         }
                     },
-                    onScaleChange = { zoom -> scale = (scale * zoom).coerceIn(0.25f, 10f) },
+                    onScaleChange = { zoom -> 
+                        scale = (scale * zoom).coerceIn(1f, 10f)
+                        if (scale <= 1.05f) {
+                            scale = 1f
+                            panOffset = Offset.Zero
+                        }
+                    },
+                    onPanDelta = { delta ->
+                        panOffset += delta
+                    },
                     onSeekBackward = { playerManager.seekBackward(10000L); gestureFeedbackText = "-10s" },
                     onSeekForward = { playerManager.seekForward(10000L); gestureFeedbackText = "+10s" },
                     onTogglePlayPause = { playerManager.togglePlayPause() },
@@ -304,47 +340,62 @@ fun VideoPlayerScreen(
                     onEdgeSwipeProgress = { edge, progress ->
                         swipeEdgeState = edge
                         swipeProgressState = progress
-                        if (edge == SwipeEdge.LEFT && progress >= 1.0f) {
-                            onClose()
-                        }
                     },
                     coroutineScope = scope
                 )
         ) {
             // Video Surface Container with Aspect Ratio Bounds
             val density = LocalDensity.current
-            val videoFormat = remember(currentItem) {
-                try { playerManager.exoPlayer.videoFormat } catch (_: Exception) { null }
-            }
-            val videoWidth = (videoFormat?.width?.takeIf { it > 0 } ?: currentItem?.width?.takeIf { it > 0 } ?: 1920)
-            val videoHeight = (videoFormat?.height?.takeIf { it > 0 } ?: currentItem?.height?.takeIf { it > 0 } ?: 1080)
-            val videoAspectRatio = (videoWidth.toFloat() / videoHeight.toFloat().coerceAtLeast(1f)).coerceIn(0.2f, 5.0f)
+            
+            // Check rotation and swap dimensions for vertical/rotated videos dynamically
+            val rotation = activeVideoSize.unappliedRotationDegrees
+            val isRotated = rotation == 90 || rotation == 270
+            val rawWidth = if (activeVideoSize.width > 0) activeVideoSize.width.toFloat()
+                           else (currentItem?.width?.takeIf { it > 0 } ?: 1920).toFloat()
+            val rawHeight = if (activeVideoSize.height > 0) activeVideoSize.height.toFloat()
+                            else (currentItem?.height?.takeIf { it > 0 } ?: 1080).toFloat()
+            
+            val videoWidth = if (isRotated) rawHeight else rawWidth
+            val videoHeight = if (isRotated) rawWidth else rawHeight
+            val videoAspectRatio = (videoWidth / videoHeight.coerceAtLeast(1f)).coerceIn(0.1f, 10.0f)
 
-            val contentModifier = when (cropMode.uppercase()) {
-                "CROP" -> Modifier.fillMaxSize()
-                "STRETCH" -> Modifier.fillMaxSize()
-                "16:9" -> Modifier.aspectRatio(16f / 9f, matchHeightConstraintsFirst = false)
-                "16:10" -> Modifier.aspectRatio(16f / 10f, matchHeightConstraintsFirst = false)
-                "4:3" -> Modifier.aspectRatio(4f / 3f, matchHeightConstraintsFirst = false)
-                "1:1" -> Modifier.aspectRatio(1f / 1f, matchHeightConstraintsFirst = false)
-                "ORIGINAL" -> {
-                    with(density) {
-                        Modifier.size(videoWidth.toDp(), videoHeight.toDp())
-                    }
-                }
-                else -> Modifier.aspectRatio(videoAspectRatio, matchHeightConstraintsFirst = false)
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer(scaleX = scale, scaleY = scale),
+            BoxWithConstraints(
+                modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
+                val containerRatio = maxWidth.value / maxHeight.value.coerceAtLeast(0.01f)
+                val targetRatio = cropMode.ratio ?: videoAspectRatio
+                val matchHeight = targetRatio < containerRatio
+
+                val contentModifier = when {
+                    cropMode == MediaAspectRatio.CROP -> Modifier.fillMaxSize()
+                    cropMode == MediaAspectRatio.STRETCH -> Modifier.fillMaxSize()
+                    cropMode == MediaAspectRatio.ORIGINAL -> {
+                        // Original 1:1 pixel resolution: 1 video pixel = 1 screen pixel (unbounded by screen)
+                        val widthDp = with(density) { videoWidth.toDp() }
+                        val heightDp = with(density) { videoHeight.toDp() }
+                        Modifier
+                            .wrapContentSize(Alignment.Center, unbounded = true)
+                            .requiredSize(widthDp, heightDp)
+                    }
+                    else -> Modifier.aspectRatio(targetRatio, matchHeightConstraintsFirst = matchHeight)
+                }
+
                 Box(
-                    modifier = contentModifier,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer(
+                            scaleX = scale, 
+                            scaleY = scale,
+                            translationX = panOffset.x,
+                            translationY = panOffset.y
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
+                    Box(
+                        modifier = contentModifier,
+                        contentAlignment = Alignment.Center
+                    ) {
                     androidx.compose.runtime.key(playerState.activeEngineName) {
                         if (playerState.activeEngineName == "Media3") {
                             AndroidView(
@@ -371,14 +422,16 @@ fun VideoPlayerScreen(
                                             Log.e("VideoPlayerScreen", "Error syncing player", e)
                                         }
                                         
-                                        // FIXED: Ratios now change by cropping (RESIZE_MODE_ZOOM) while maintaining proportions.
-                                        view.resizeMode = when (cropMode.uppercase()) {
-                                            "FIT" -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                            "CROP" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                            "16:9", "16:10", "4:3", "1:1" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                            "ORIGINAL" -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                            "STRETCH" -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                                            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                        // Aspect ratio modes using crop logic to maintain proportions without stretching.
+                                        view.resizeMode = when (cropMode) {
+                                            MediaAspectRatio.FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                            MediaAspectRatio.CROP -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                            MediaAspectRatio.ORIGINAL -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                            MediaAspectRatio.STRETCH -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                            else -> {
+                                                if (cropMode.ratio != null) AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                                else AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                            }
                                         }
                                     }
                                     applySettings()
@@ -399,7 +452,7 @@ fun VideoPlayerScreen(
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            // FFmpeg Rendering Path (TextureView allows hardware layer color matrix filters & seamless Compose blending)
+                            // FFmpeg Rendering Path (TextureView)
                             AndroidView(
                                 factory = { ctx ->
                                     Log.i("VideoPlayerScreen", "Creating TextureView for FFmpeg")
@@ -431,6 +484,45 @@ fun VideoPlayerScreen(
                                     }
                                 },
                                 update = { view ->
+                                    // FFmpeg Path Aspect Ratio Support via TextureView Matrix
+                                    val viewWidth = view.width.toFloat()
+                                    val viewHeight = view.height.toFloat()
+                                    if (viewWidth > 0 && viewHeight > 0 && videoWidth > 0 && videoHeight > 0) {
+                                        val matrix = android.graphics.Matrix()
+                                        val viewRatio = viewWidth / viewHeight
+                                        val vidRatio = videoWidth / videoHeight
+                                        
+                                        val scaleX: Float
+                                        val scaleY: Float
+                                        
+                                        when (cropMode) {
+                                            MediaAspectRatio.STRETCH -> {
+                                                scaleX = 1f
+                                                scaleY = 1f
+                                            }
+                                            MediaAspectRatio.FIT, MediaAspectRatio.ORIGINAL -> {
+                                                if (vidRatio > viewRatio) {
+                                                    scaleX = 1f
+                                                    scaleY = viewRatio / vidRatio
+                                                } else {
+                                                    scaleX = vidRatio / viewRatio
+                                                    scaleY = 1f
+                                                }
+                                            }
+                                            else -> { // CROP and fixed ratios (e.g., 4:3) with crop logic
+                                                if (vidRatio > viewRatio) {
+                                                    scaleX = vidRatio / viewRatio
+                                                    scaleY = 1f
+                                                } else {
+                                                    scaleX = 1f
+                                                    scaleY = viewRatio / vidRatio
+                                                }
+                                            }
+                                        }
+                                        matrix.setScale(scaleX, scaleY, viewWidth / 2f, viewHeight / 2f)
+                                        view.setTransform(matrix)
+                                    }
+
                                     try {
                                         val androidFilter = com.medianest.ui.components.PictureModeUtils.getAndroidColorFilter(
                                             modeKey = pictureMode,
@@ -450,23 +542,30 @@ fun VideoPlayerScreen(
                         }
                     }
 
-                    // Film Grain overlay clamped ONLY to active video frame (excluding black bars)
                     if (isFilmGrainEnabled) {
                         FilmGrainOverlay(intensity = filmGrainIntensity, modifier = Modifier.matchParentSize())
                     }
                 }
             }
+        }
 
-
-
-
-
-
-            ZoomPercentagePill(scale = scale, onReset = { scale = 1f }, modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 160.dp, end = 24.dp))
+            ZoomPercentagePill(
+                scale = scale, 
+                onReset = { 
+                    scale = 1f
+                    panOffset = Offset.Zero
+                }, 
+                modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 160.dp, end = 24.dp)
+            )
             SubtitleTextOverlay(text = activeSubtitleText, isVisible = showControls, fontSizeSp = subtitleFontSizeSp, textColor = subtitleTextColor, bgColor = subtitleBgColor, hasShadow = subtitleHasShadow, modifier = Modifier.align(Alignment.BottomCenter))
         }
 
-        AnimatedVisibility(visible = showControls && !isControlsLocked && !isHorizontalDragging, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.Center)) {
+        AnimatedVisibility(
+            visible = showControls && !isControlsLocked && !isHorizontalDragging,
+            enter = fadeIn(animationSpec = controlsFadeSpec),
+            exit = fadeOut(animationSpec = controlsFadeSpec),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
             CenterTransportControls(isPlaying = playerState.isPlaying, onPrevious = { playerManager.previous() }, onNext = { playerManager.next() }, onTogglePlayPause = { playerManager.togglePlayPause() })
         }
 
@@ -478,16 +577,16 @@ fun VideoPlayerScreen(
             VerticalGestureHUD(value = currentVolume, icon = Icons.Default.VolumeUp, color = Color.White)
         }
 
-        // Center Seek HUD commented out as requested
-        // AnimatedVisibility(visible = isHorizontalDragging, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut(), modifier = Modifier.align(Alignment.Center)) {
-        //     SeekHUD(deltaMs = seekDeltaMs, targetPositionMs = seekTargetPositionMs, durationMs = playerState.durationMs)
-        // }
-
         AnimatedVisibility(visible = gestureFeedbackText != null, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut(), modifier = Modifier.align(Alignment.Center)) {
             gestureFeedbackText?.let { GestureFeedbackHUD(text = it) }
         }
 
-        AnimatedVisibility(visible = (showControls || showOverflowMenu || showDetailsSheet || showSubtitleSheet) && !isHorizontalDragging && !showDrawer, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.TopCenter)) {
+        AnimatedVisibility(
+            visible = (showControls || showOverflowMenu || showDetailsSheet || showSubtitleSheet) && !isHorizontalDragging && !showDrawer,
+            enter = fadeIn(animationSpec = controlsFadeSpec),
+            exit = fadeOut(animationSpec = controlsFadeSpec),
+            modifier = Modifier.align(Alignment.TopCenter)
+        ) {
             VideoPlayerTopBar(
                 playerState = playerState, onClose = onClose, decoderMode = decoderMode,
                 onDecoderModeClick = {
@@ -501,7 +600,12 @@ fun VideoPlayerScreen(
             )
         }
 
-        AnimatedVisibility(visible = (showControls || isHorizontalDragging) && !showDrawer && !showSubtitleSheet && !showDetailsSheet && !showSettingsSheet && !showAudioTrackSheet, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.BottomCenter)) {
+        AnimatedVisibility(
+            visible = (showControls || isHorizontalDragging) && !showDrawer && !showSubtitleSheet && !showDetailsSheet && !showSettingsSheet && !showAudioTrackSheet,
+            enter = fadeIn(animationSpec = controlsFadeSpec),
+            exit = fadeOut(animationSpec = controlsFadeSpec),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
             VideoPlayerBottomBar(
                 playerState = playerState, isControlsLocked = isControlsLocked, isHorizontalDragging = isHorizontalDragging,
                 seekTargetPositionMs = seekTargetPositionMs, onSeek = { playerManager.seekTo(it) },
@@ -518,18 +622,22 @@ fun VideoPlayerScreen(
                 },
                 onSpeedLongPress = { showSpeedMenu = true }, onPipClick = onEnterPip,
                 onAspectRatioClick = {
-                    cropMode = when (cropMode.uppercase()) {
-                        "FIT" -> "CROP"
-                        "CROP" -> "16:9"
-                        "16:9" -> "16:10"
-                        "16:10" -> "4:3"
-                        "4:3" -> "1:1"
-                        "1:1" -> "ORIGINAL"
-                        "ORIGINAL" -> "STRETCH"
-                        else -> "FIT"
+                    cropMode = when (cropMode) {
+                        MediaAspectRatio.FIT -> MediaAspectRatio.CROP
+                        MediaAspectRatio.CROP -> MediaAspectRatio.P_16_9
+                        MediaAspectRatio.P_16_9 -> MediaAspectRatio.P_16_10
+                        MediaAspectRatio.P_16_10 -> MediaAspectRatio.P_4_3
+                        MediaAspectRatio.P_4_3 -> MediaAspectRatio.P_1_1
+                        MediaAspectRatio.P_1_1 -> MediaAspectRatio.P_9_16
+                        MediaAspectRatio.P_9_16 -> MediaAspectRatio.P_4_5
+                        MediaAspectRatio.P_4_5 -> MediaAspectRatio.P_21_9
+                        MediaAspectRatio.P_21_9 -> MediaAspectRatio.ORIGINAL
+                        MediaAspectRatio.ORIGINAL -> MediaAspectRatio.STRETCH
+                        else -> MediaAspectRatio.FIT
                     }
                     scale = 1f
-                    gestureFeedbackText = "Aspect Ratio: $cropMode"
+                    panOffset = Offset.Zero
+                    gestureFeedbackText = "Aspect Ratio: ${cropMode.label}"
                 },
                 onAspectRatioLongPress = { showAspectRatioMenu = true }
             )
@@ -550,6 +658,8 @@ fun VideoPlayerScreen(
                 onVideoClick = { playerManager.playMediaList(playerState.queue, playerState.queue.indexOf(it)) },
                 onClose = { showDrawer = false },
                 context = context,
+                showHidden = showHiddenFiles,
+                hiddenFolders = hiddenFolders,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .statusBarsPadding()
@@ -571,7 +681,6 @@ fun VideoPlayerScreen(
                     scope.launch {
                         isSearchingSubtitles = true
                         subtitleStatusMessage = null
-                        // We reset the list when searching a specific provider to avoid confusion
                         subtitleList = emptyList() 
                         subtitleList = networkRepository.searchOnlineSubtitles(
                             currentItem?.title ?: "", 
@@ -620,13 +729,13 @@ fun VideoPlayerScreen(
         
         if (showVideoFxSheet) {
             VideoPostProcessingPanel(
-                currentEffect = pictureMode,
-                onEffectChange = { newMode ->
+                currentEffect = MediaEffect.fromString(pictureMode),
+                onEffectChange = { newMode: MediaEffect -> 
                     scope.launch {
-                        settingsManager.setPictureMode(newMode)
+                        settingsManager.setPictureMode(newMode.name)
                         settingsManager.setPictureModeEnabled(true)
                     }
-                    gestureFeedbackText = "Video FX: $newMode"
+                    gestureFeedbackText = "Video FX: ${newMode.label}"
                 },
                 onDismiss = { showVideoFxSheet = false }
             )
@@ -654,10 +763,10 @@ fun VideoPlayerScreen(
             onShowDetails = { showSettingsSheet = false; showDetailsSheet = true }
         )
         
-        if (showAspectRatioMenu) AspectRatioModal(currentMode = cropMode, onModeChange = { 
-            cropMode = it
+        if (showAspectRatioMenu) AspectRatioModal(currentMode = cropMode, onModeChange = { mode: MediaAspectRatio -> 
+            cropMode = mode
             scale = 1f
-            gestureFeedbackText = "Aspect Ratio: $cropMode"
+            gestureFeedbackText = "Aspect Ratio: ${mode.label}"
         }, onDismiss = { showAspectRatioMenu = false })
         
         if (showSpeedMenu) PlaybackSpeedModal(currentSpeed = playerState.playbackSpeed, onSpeedChange = { playerManager.setPlaybackSpeed(it) }, onDismiss = { showSpeedMenu = false })
@@ -765,14 +874,12 @@ fun FilmGrainOverlay(
     intensity: Float,
     modifier: Modifier = Modifier
 ) {
-    // 1. Generate organic 35mm film grain texture (Simulating silver halide grain distribution)
     val noiseBitmap = remember {
         val size = 128
         val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
         val pixels = IntArray(size * size)
         val random = java.util.Random()
         for (i in pixels.indices) {
-            // Gaussian-like grain curve instead of harsh uniform rain noise
             val v1 = random.nextFloat()
             val v2 = random.nextFloat()
             val gaussian = (kotlin.math.sqrt(-2.0 * kotlin.math.ln(v1.toDouble())) * kotlin.math.cos(2.0 * Math.PI * v2.toDouble())).toFloat()
@@ -783,19 +890,17 @@ fun FilmGrainOverlay(
         bitmap
     }
 
-    // 2. Random frame-by-frame transformation matrix (Eliminates "raining" linear motion)
     val infiniteTransition = rememberInfiniteTransition(label = "FilmGrainCinema")
     val frameStep by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(100, easing = LinearEasing), // 10 FPS film flicker
+            animation = tween(100, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "GrainFlicker"
     )
 
-    // 3. Hardware-Accelerated BitmapShader mapped strictly to video surface
     androidx.compose.foundation.Canvas(modifier = modifier) {
         val paint = android.graphics.Paint().apply {
             shader = android.graphics.BitmapShader(

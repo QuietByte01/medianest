@@ -5,6 +5,9 @@ import android.widget.EditText
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -63,7 +66,8 @@ internal fun KeyboardStickerReceiverDialog(
                             setHintTextColor(android.graphics.Color.GRAY)
                             setTextColor(android.graphics.Color.WHITE)
                             setBackgroundColor(android.graphics.Color.parseColor("#22FFFFFF"))
-                            setPadding(32, 28, 32, 28)
+                            setPadding(40, 0, 40, 0)
+                            gravity = android.view.Gravity.CENTER_VERTICAL
 
                             val mimeTypes = arrayOf("image/gif", "image/png", "image/webp", "image/jpeg", "image/*")
                             ViewCompat.setOnReceiveContentListener(
@@ -89,7 +93,7 @@ internal fun KeyboardStickerReceiverDialog(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp)
+                        .height(72.dp)
                         .clip(RoundedCornerShape(12.dp))
                 )
 
@@ -209,8 +213,10 @@ internal fun AddRichTextDialog(
 
                 Text("Font Color", fontSize = 12.sp, color = Color(0xFFFFD54F))
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     colors.forEach { c ->
                         Box(
@@ -226,7 +232,9 @@ internal fun AddRichTextDialog(
 
                 Text("Background Badge", fontSize = 12.sp, color = Color(0xFFFFD54F))
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     TextBackgroundStyle.entries.forEach { bg ->
@@ -282,16 +290,21 @@ internal fun CategoryStickerPickerDialog(
         GlassSurface(
             shape = RoundedCornerShape(20.dp),
             backgroundColor = Color(0xF0111625),
-            borderColor = Color(0x33FFFFFF)
+            borderColor = Color(0x33FFFFFF),
+            modifier = Modifier.fillMaxWidth(0.92f)
         ) {
             Column(
-                modifier = Modifier.padding(20.dp),
+                modifier = Modifier
+                    .padding(20.dp)
+                    .heightIn(max = 450.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text("Pick Stickers & Badges", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     categories.forEachIndexed { index, cat ->
@@ -315,20 +328,22 @@ internal fun CategoryStickerPickerDialog(
                     else -> shapeList
                 }
 
-                Row(
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 64.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .weight(1f, fill = false),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(bottom = 8.dp)
                 ) {
-                    currentItems.forEach { sticker ->
+                    items(currentItems) { sticker ->
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(Color(0x33FFFFFF))
                                 .clickable { onSelectSticker(sticker) }
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                .padding(vertical = 12.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -374,7 +389,9 @@ internal fun ExportStudioDialog(
                 )
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     listOf("MP4", "GIF", "WEBP").forEach { fmt ->

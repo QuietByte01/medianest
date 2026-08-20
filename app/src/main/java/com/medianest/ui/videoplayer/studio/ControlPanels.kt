@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.ui.components.AppSlider
 import com.medianest.ui.components.AppSliderStyle
+import com.medianest.ui.components.media.*
 
 @Composable
 internal fun TrimControlPanel(
@@ -60,9 +61,9 @@ internal fun TrimControlPanel(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CropControlPanel(
-    currentPreset: CropPreset,
+    currentPreset: MediaAspectRatio,
     isCustomCrop: Boolean,
-    onSelectPreset: (CropPreset) -> Unit,
+    onSelectPreset: (MediaAspectRatio) -> Unit,
     onEnableCustomCrop: () -> Unit,
     onRotate: () -> Unit,
     onFlipH: () -> Unit,
@@ -87,20 +88,17 @@ internal fun CropControlPanel(
             )
         )
 
-        CropPreset.entries.forEach { preset ->
-            val isSel = currentPreset == preset && !isCustomCrop
-            FilterChip(
-                selected = isSel,
-                onClick = { onSelectPreset(preset) },
-                label = { Text(preset.label, fontSize = 11.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal) },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Color(0xFFFFD54F),
-                    selectedLabelColor = Color.Black,
-                    containerColor = Color(0x22FFFFFF),
-                    labelColor = Color.White
-                )
-            )
-        }
+        MediaAspectRatioSelector(
+            options = listOf(
+                MediaAspectRatio.ORIGINAL, MediaAspectRatio.P_16_9, MediaAspectRatio.P_9_16,
+                MediaAspectRatio.P_1_1, MediaAspectRatio.P_4_3, MediaAspectRatio.P_4_5,
+                MediaAspectRatio.P_21_9
+            ),
+            selected = if (isCustomCrop) MediaAspectRatio.FIT else currentPreset, // Dummy selected if custom
+            onSelect = { onSelectPreset(it) },
+            style = AspectRatioSelectorStyle.STUDIO_CHIP,
+            modifier = Modifier.weight(1f, fill = false)
+        )
 
         IconButton(onClick = onRotate) {
             Icon(Icons.Default.RotateRight, contentDescription = "Rotate", tint = Color.White)
@@ -114,8 +112,8 @@ internal fun CropControlPanel(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun FiltersAndBlurControlPanel(
-    activeFilter: VideoStudioFilter,
-    onSelectFilter: (VideoStudioFilter) -> Unit,
+    activeFilter: MediaEffect,
+    onSelectFilter: (MediaEffect) -> Unit,
     blurMode: StudioBlurMode,
     onSelectBlurMode: (StudioBlurMode) -> Unit,
     blurIntensity: Float,
@@ -154,45 +152,17 @@ internal fun FiltersAndBlurControlPanel(
         }
 
         if (selectedSubTab == 0) {
-            LazyRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                items(VideoStudioFilter.entries) { filter ->
-                    val isSel = activeFilter == filter
-                    Column(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onSelectFilter(filter) }
-                            .padding(horizontal = 4.dp, vertical = 2.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(filter.previewColor)
-                                .border(
-                                    width = if (isSel) 1.0.dp else 0.dp,
-                                    color = if (isSel) Color(0xFFFFD54F) else Color.Transparent,
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = filter.label,
-                            fontSize = 9.5.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSel) Color(0xFFFFD54F) else Color.White
-                        )
-                    }
-                }
-            }
+            MediaFilterCarousel(
+                filters = listOf(
+                    MediaEffect.ORIGINAL, MediaEffect.CINEMA, MediaEffect.VIVID,
+                    MediaEffect.NOIR, MediaEffect.VINTAGE, MediaEffect.WARM,
+                    MediaEffect.COOL, MediaEffect.CYBERPUNK, MediaEffect.DREAMY
+                ),
+                activeFilter = activeFilter,
+                onFilterChange = onSelectFilter,
+                style = FilterCarouselStyle.STUDIO_PREVIEW
+            )
         } else {
-            // Blur Mode Selector & Intensity Slider
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier
@@ -331,7 +301,6 @@ internal fun TextAndStickersControlPanel(
             Text("Stickers", fontSize = 11.sp, color = Color.White)
         }
 
-        // Keyboard Stickers / GIFs Button
         Button(
             onClick = onOpenKeyboardStickers,
             colors = ButtonDefaults.buttonColors(containerColor = Color(0x33FFD54F)),
@@ -343,16 +312,15 @@ internal fun TextAndStickersControlPanel(
             Text("Keyboard GIF / Sticker", fontSize = 11.sp, color = Color(0xFFFFD54F), fontWeight = FontWeight.Bold)
         }
 
-        // Pick GIF from Storage
         Button(
             onClick = onPickFileGif,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0x3364B5F6)),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0x26FFFFFF)),
             shape = RoundedCornerShape(12.dp),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
         ) {
             Icon(Icons.Default.Gif, contentDescription = null, tint = Color(0xFF64B5F6), modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(4.dp))
-            Text("+ File GIF", fontSize = 11.sp, color = Color(0xFF64B5F6))
+            Text("+ GIF / Image", fontSize = 11.sp, color = Color(0xFF64B5F6))
         }
     }
 }
@@ -372,7 +340,6 @@ internal fun AudioControlPanel(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 1. Original Video Audio Volume Slider
         Column(modifier = Modifier.weight(1f)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -410,7 +377,6 @@ internal fun AudioControlPanel(
             )
         }
 
-        // 2. Added Background Music Volume Slider
         if (bgmTitle != null) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(
@@ -434,7 +400,7 @@ internal fun AudioControlPanel(
         } else {
             Button(
                 onClick = onPickMusic,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0x3364B5F6)),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0x26FFFFFF)),
                 shape = RoundedCornerShape(10.dp),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
             ) {

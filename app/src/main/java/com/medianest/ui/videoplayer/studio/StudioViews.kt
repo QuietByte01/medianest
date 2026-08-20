@@ -71,7 +71,7 @@ internal fun CropViewfinderView(
         val bottomPx = topPx + heightPx
 
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val maskColor = Color(0xA6000000)
+            val maskColor = Color(0xB3000000)
             drawRect(color = maskColor, topLeft = Offset.Zero, size = Size(size.width, topPx))
             drawRect(color = maskColor, topLeft = Offset(0f, bottomPx), size = Size(size.width, size.height - bottomPx))
             drawRect(color = maskColor, topLeft = Offset(0f, topPx), size = Size(leftPx, heightPx))
@@ -423,7 +423,7 @@ internal fun StudioFilmstripTrack(
                 )
             }
 
-            val playheadX = (startLeftPx + handleWidthPx + (currentFrac * (selectionWidthPx - handleWidthPx * 2))).coerceIn(startLeftPx, endRightPx)
+            val playheadX = (handleWidthPx + (currentFrac * (trackWidthPx - handleWidthPx * 2))).coerceIn(0f, trackWidthPx)
             Box(
                 modifier = Modifier
                     .fillMaxHeight()

@@ -309,7 +309,7 @@ fun QuickViewScreen(
                         Color(0xFFFDF6E3), // Cream
                         Color(0xFF0D1117), // Deep Navy
                         Color(0xFF1E1E1E), // Slate
-                        Color(0xFF2C3E50), // Midnight Blue
+                        Color(0xFF2C3E50), // Midnight Blue / Charcoal
                         Color(0xFF34495E), // Wet Asphalt
                         Color(0xFF7F8C8D), // Asbestos Gray
                         Color(0xFFE67E22), // Pumpkin

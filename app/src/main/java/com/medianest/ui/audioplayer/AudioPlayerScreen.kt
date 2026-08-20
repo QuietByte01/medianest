@@ -29,7 +29,7 @@ import androidx.compose.ui.unit.sp
 import com.medianest.MediaNestApp
 import com.medianest.data.db.CategoryMediaCrossRef
 import com.medianest.data.db.MediaCategory
-import com.medianest.data.model.LyricLine
+import com.medianest.data.model.*
 import com.medianest.data.repository.NetworkRepository
 import com.medianest.player.ExoPlayerManager
 import com.medianest.ui.components.MediaInfoBottomSheet
@@ -41,8 +41,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
- * TODO: Architectural Refactor Required.
- * This file is being decomposed. Logic for lyrics, favorites, and specific panels moved to sub-components.
+ * Main Audio Playback Screen.
+ * Handles lyrics synchronization, favorites, and playback control layouts.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,7 +53,10 @@ fun AudioPlayerScreen(
     onOpenAlbum: (String) -> Unit = {},
     onOpenArtist: (String) -> Unit = {},
     onOpenFolder: (String) -> Unit = {},
-    onOpenSettings: () -> Unit = {}
+    onOpenSettings: () -> Unit = {},
+    allAudioItems: List<MediaItem> = emptyList(),
+    showHidden: Boolean = false,
+    hiddenFolders: Set<String> = emptySet()
 ) {
     val playerState by playerManager.playerState.collectAsState()
     val currentItem = playerState.currentItem?.takeIf { it.type == com.medianest.data.db.MediaType.AUDIO }
@@ -91,13 +94,59 @@ fun AudioPlayerScreen(
     var showAlbumSongsInPanel by remember { mutableStateOf(false) }
     var showAlbumSongsInPortraitBox by remember { mutableStateOf(false) }
     var showAddAlbumToPlaylistDialog by remember { mutableStateOf(false) }
-    var showFullscreenVisualizer by remember { mutableStateOf(false) }
+    var isVisualizerFullscreen by remember { mutableStateOf(false) }
+    var showArtistInfoPanel by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
     val db = MediaNestApp.instance.database
+    
+    val artistMetadataRepo = remember { MediaNestApp.instance.artistMetadataRepository }
+    var artistInfo by remember { mutableStateOf<ArtistInfo?>(null) }
+
+    LaunchedEffect(currentItem?.artist, allAudioItems) {
+        val artistName = currentItem?.artist ?: "Unknown Artist"
+        val info = artistMetadataRepo.getArtistInfo(artistName)
+        
+        // 1. Find real albums in library
+        val artistSongs = allAudioItems.filter { it.artist.equals(artistName, ignoreCase = true) }
+        val realLocalAlbums = if (artistSongs.isNotEmpty()) {
+            artistSongs.groupBy { it.album ?: "Unknown Album" }
+                .map { (title, songs) ->
+                    LocalAlbumInfo(
+                        title = title,
+                        artworkUri = songs.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: songs.firstOrNull()?.uri,
+                        songCount = songs.size
+                    )
+                }
+                .sortedBy { it.title.lowercase() }
+        } else {
+            info.localAlbums
+        }
+
+        // 2. Personal Library Stats
+        val uris = artistSongs.map { it.uri.toString() }
+        val playbackStates = if (uris.isNotEmpty()) db.playbackStateDao().getPlaybackStatesForUris(uris) else emptyList<com.medianest.data.db.PlaybackState>()
+        
+        val totalPlays = playbackStates.sumOf { it.playCount }
+        val topPlayedUri = playbackStates.maxByOrNull { it.playCount }?.mediaUri
+        val topPlayedSong = artistSongs.find { it.uri.toString() == topPlayedUri }?.title
+        val firstDiscovered = artistSongs.minOfOrNull { it.dateAdded } ?: 0L
+        
+        val pStats = PersonalArtistStats(
+            totalPlays = totalPlays,
+            topPlayedSong = topPlayedSong,
+            firstDiscovered = firstDiscovered
+        )
+
+        artistInfo = info.copy(
+            localAlbums = realLocalAlbums,
+            personalStats = pStats
+        )
+    }
+
     val audioPlaylists by db.categoryDao().getCategoriesByType("AUDIO").collectAsState(initial = emptyList())
 
-    // BUG Fix: Reactive Favorite Status
+    // Reactive Favorite Status
     val isFavorite by remember(currentItem, audioPlaylists) {
         if (currentItem == null) kotlinx.coroutines.flow.flowOf(false)
         else db.categoryDao().getAllCrossRefs()
@@ -228,7 +277,7 @@ fun AudioPlayerScreen(
         if (isLandscape) {
             LandscapePlayerLayout(
                 playerState = playerState, currentItem = currentItem, playerManager = playerManager,
-                showLyricsView = showLyricsView, showAudioVisualizer = showAudioVisualizer && !showFullscreenVisualizer,
+                showLyricsView = showLyricsView, showAudioVisualizer = showAudioVisualizer && !isVisualizerFullscreen,
                 showAlbumSongsInPanel = showAlbumSongsInPanel, isLoadingLyrics = isLoadingLyrics,
                 lyricsLines = lyricsLines, rawLyricsText = rawLyricsText, activeLyricIndex = activeLyricIndex,
                 listState = listState, isFavorite = isFavorite, isTablet = isTablet,
@@ -241,7 +290,15 @@ fun AudioPlayerScreen(
                 onOpenAddPlaylist = { showAddAlbumToPlaylistDialog = true },
                 onEditLyrics = { manualLyricsInput = rawLyricsText ?: ""; showManualLyricsDialog = true },
                 onToggleVisualizer = { scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) } },
-                onFullscreenVisualizerClick = { showFullscreenVisualizer = true },
+                onFullscreenVisualizerClick = { isVisualizerFullscreen = true },
+                onOpenAlbum = { albumName ->
+                    onClose()
+                    onOpenAlbum(albumName)
+                },
+                allAudioItems = allAudioItems,
+                showHidden = showHidden,
+                hiddenFolders = hiddenFolders,
+                artistInfo = artistInfo,
                 modifier = Modifier.fillMaxSize()
             )
         } else {
@@ -263,7 +320,7 @@ fun AudioPlayerScreen(
                                 if (currentItem != null) {
                                     DropdownMenuItem(text = { Text("Show Album", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Album, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; onClose(); onOpenAlbum(currentItem.album ?: "Unknown Album") })
                                     DropdownMenuItem(text = { Text("Show Artist", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Person, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; onClose(); onOpenArtist(currentItem.artist ?: "Unknown Artist") })
-                                    DropdownMenuItem(text = { Text("Show In Folder", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Folder, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; onClose(); onOpenFolder(currentItem.bucketName ?: currentItem.relativePath ?: "Music") })
+                                    DropdownMenuItem(text = { Text("Show In Folder", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Folder, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; onClose(); onOpenFolder(currentItem.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (currentItem.bucketName ?: "Music")) })
                                 }
                                 DropdownMenuItem(text = { Text("Native Audio DSP", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Equalizer, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; showDspSheet = true })
                                 DropdownMenuItem(text = { Text(if (showAudioVisualizer) "Hide Audio Visualizer" else "Show Audio Visualizer", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.GraphicEq, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) } })
@@ -275,7 +332,7 @@ fun AudioPlayerScreen(
                 PortraitPlayerLayout(
                     playerState = playerState, currentItem = currentItem, playerManager = playerManager,
                     albumArtSize = albumArtSize, isTablet = isTablet, showLyricsView = showLyricsView,
-                    showAudioVisualizer = showAudioVisualizer && !showFullscreenVisualizer,
+                    showAudioVisualizer = showAudioVisualizer && !isVisualizerFullscreen,
                     showAlbumSongsInPortraitBox = showAlbumSongsInPortraitBox,
                     isLoadingLyrics = isLoadingLyrics, lyricsLines = lyricsLines, rawLyricsText = rawLyricsText,
                     activeLyricIndex = activeLyricIndex, listState = listState, isFavorite = isFavorite,
@@ -287,7 +344,14 @@ fun AudioPlayerScreen(
                     onToggleFavorite = { toggleFavoriteLambda() },
                     onOpenAddPlaylist = { showAddAlbumToPlaylistDialog = true },
                     onEditLyrics = { manualLyricsInput = rawLyricsText ?: ""; showManualLyricsDialog = true },
-                    onFullscreenVisualizerClick = { showFullscreenVisualizer = true },
+                    onFullscreenVisualizerClick = { isVisualizerFullscreen = true },
+                    onToggleArtistInfo = { showArtistInfoPanel = !showArtistInfoPanel },
+                    showArtistInfo = showArtistInfoPanel,
+                    artistInfo = artistInfo,
+                    onOpenAlbum = { albumName ->
+                        onClose()
+                        onOpenAlbum(albumName)
+                    },
                     modifier = Modifier.fillMaxSize().weight(1f)
                 )
             }
@@ -299,6 +363,6 @@ fun AudioPlayerScreen(
         if (showDetailsSheet && currentItem != null) MediaInfoBottomSheet(item = currentItem, onDismiss = { showDetailsSheet = false })
         if (showManualLyricsDialog) ManualLyricsDialog(currentItem = currentItem, rawLyricsText = rawLyricsText, initialInput = manualLyricsInput, networkRepository = networkRepository, context = context, onLyricsUpdated = { raw, lines -> rawLyricsText = raw; lyricsLines = lines; if (raw != null) showLyricsView = true }, onDismiss = { showManualLyricsDialog = false })
         if (showDspSheet) com.medianest.ui.components.NativeAudioDspSheet(playerState = playerState, playerManager = playerManager, onDismiss = { showDspSheet = false }, backgroundImage = currentItem?.albumArtUri ?: currentItem?.uri)
-        if (showFullscreenVisualizer) FullscreenVisualizerDialog(isPlaying = playerState.isPlaying, audioSessionId = playerState.audioSessionId, albumArtHue = albumArtHue, currentItem = currentItem, onDismiss = { showFullscreenVisualizer = false })
+        if (isVisualizerFullscreen) FullscreenVisualizerDialog(isPlaying = playerState.isPlaying, audioSessionId = playerState.audioSessionId, albumArtHue = albumArtHue, currentItem = currentItem, onDismiss = { isVisualizerFullscreen = false })
     }
 }

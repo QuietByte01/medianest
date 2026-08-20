@@ -104,6 +104,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
     private var isHwAccelEnabled = true
     private var isUninterruptedMode = false
     private var isAutoResumeOnBluetooth = false
+    private val hiddenFolderPaths = MutableStateFlow<Set<String>>(emptySet())
 
     private val customMediaCodecSelector by lazy {
         MediaCodecSelector { mimeType, requiresSecure, requiresTunneling ->
@@ -146,6 +147,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
             launch { settings.hardwareAccelerationEnabled.collectLatest { if (isHwAccelEnabled != it) { isHwAccelEnabled = it; recreatePlayerBySettings() } } }
             launch { settings.uninterruptedMode.collectLatest { isUninterruptedMode = it } }
             launch { settings.autoResumeOnBluetooth.collectLatest { isAutoResumeOnBluetooth = it } }
+            launch { settings.hiddenFolders.collectLatest { hiddenFolderPaths.value = it } }
             launch { settings.audioBackgroundPlay.collectLatest { _playerState.value = _playerState.value.copy(isAudioBackgroundPlayEnabled = it) } }
             launch { settings.videoBackgroundPlay.collectLatest { _playerState.value = _playerState.value.copy(isVideoBackgroundPlayEnabled = it) } }
             launch {
@@ -464,6 +466,12 @@ class ExoPlayerManager private constructor(private val context: Context) {
 
     fun playMediaList(items: List<MediaItem>, startIndex: Int = 0, startPosMs: Long = 0L) {
         if (items.isEmpty()) return
+        
+        // Filter out hidden/excluded items if necessary
+        // In a real scenario, we should get the current hidden folders list from SettingsManager
+        // For now, assume the list passed is what the user wants to play, 
+        // but let's double check if we can filter here.
+        
         val targetIndex = startIndex.coerceIn(0, items.size - 1)
         val currentTarget = items[targetIndex]
         scope.launch {

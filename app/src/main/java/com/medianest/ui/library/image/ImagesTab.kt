@@ -85,6 +85,10 @@ fun ImagesTab(
         viewModel.updateImageSort(sortField, isAscending)
     }
 
+    LaunchedEffect(activeFilterTab) {
+        viewModel.updateImageFilter(activeFilterTab)
+    }
+
     val db = remember { MediaNestApp.instance.database }
     val observedCrossRefs by db.categoryDao().getAllCrossRefs().collectAsState(initial = emptyList())
     val effectiveCrossRefs = if (observedCrossRefs.isNotEmpty()) observedCrossRefs else categoryCrossRefs
@@ -114,7 +118,7 @@ fun ImagesTab(
         kotlinx.coroutines.delay(600)
         withContext(Dispatchers.Default) {
             val counts = mutableMapOf<String, Int>()
-            val ids = listOf("CAMERA", "FAVORITES", "NOTES", "SCREENSHOTS", "GIFS", "SOCIAL", "PNG_SVG", "EDITED", "AI_GENERATED", "ANIME", "WALLPAPERS")
+            val ids = listOf("CAMERA", "FAVORITES", "NOTES", "SCREENSHOTS", "GIFS", "SOCIAL", "PNG_SVG", "EDITED", "AI_GENERATED", "ANIME", "WALLPAPERS", "EXCLUDED")
             ids.forEach { id ->
                 counts[id] = filterImageList(imagesList, id, favoriteUris, emptySet()).size
             }
@@ -198,8 +202,8 @@ fun ImagesTab(
 
     val showHiddenSetting by settingsManager.showHiddenFiles.collectAsState(initial = false)
 
-    val folderGroups = remember(imagesList, showHiddenSetting, viewMode, activeFilterTab) {
-        if (viewMode != 1 && activeFilterTab != "FOLDERS" && activeFilterTab != "HIDDEN") {
+    val folderGroups = remember(imagesList, showHiddenSetting, viewMode, activeFilterTab, selectedFolder) {
+        if (viewMode != 1 && activeFilterTab != "FOLDERS" && activeFilterTab != "HIDDEN" && activeFilterTab != "EXCLUDED" && selectedFolder == null) {
             emptyMap()
         } else {
             val filteredList = if (showHiddenSetting) {
@@ -232,16 +236,23 @@ fun ImagesTab(
         (appHiddenFolders + selectiveImageHidden).map { it.lowercase() }.toSet()
     }
 
-    fun isFolderHidden(folderKey: String, items: List<MediaItem>?): Boolean {
+    fun isFolderExcluded(folderKey: String, items: List<MediaItem>?): Boolean {
         val lowerKey = folderKey.lowercase()
         val folderName = lowerKey.substringAfterLast('/')
-        if (folderKey.startsWith(".") || folderName.startsWith(".")) return true
+        if (com.medianest.util.FolderHiddenUtils.isFolderExcludedByDefault(folderKey, folderName)) return true
         if (lowerKey in allHiddenImageFolders || folderName in allHiddenImageFolders) return true
-        if (items.isNullOrEmpty()) return false
-        return items.any { item ->
-            item.title.startsWith(".") ||
-                    (item.relativePath != null && item.relativePath.contains("/."))
-        }
+        return items?.any { it.isExcluded } == true
+    }
+
+    fun isFolderSystemHidden(folderKey: String, items: List<MediaItem>?): Boolean {
+        if (isFolderExcluded(folderKey, items)) return false
+        val lowerKey = folderKey.lowercase().trim('/')
+        val folderName = lowerKey.substringAfterLast('/')
+        return lowerKey.split('/').any { it.startsWith(".") && it.length > 1 } || folderName.startsWith(".")
+    }
+
+    fun isFolderHidden(folderKey: String, items: List<MediaItem>?): Boolean {
+        return isFolderExcluded(folderKey, items) || isFolderSystemHidden(folderKey, items)
     }
 
     val sortedFolderNames = remember(folderGroups, allHiddenImageFolders, sortField, isAscending) {
@@ -260,7 +271,7 @@ fun ImagesTab(
             }
 
             val baseSorted = if (isAscending) keys.sortedWith(comp) else keys.sortedWith(comp).reversed()
-            baseSorted.sortedBy { fn -> isFolderHidden(fn, folderGroups[fn]) && activeFilterTab != "HIDDEN" }
+            baseSorted.sortedBy { fn -> isFolderHidden(fn, folderGroups[fn]) && activeFilterTab != "HIDDEN" && activeFilterTab != "EXCLUDED" }
         }
     }
 
@@ -288,6 +299,7 @@ fun ImagesTab(
                 onSelectedCategoryChange = { selectedCategory = it },
                 onSelectedFolderChange = { selectedFolder = it },
                 onShowHiddenFiles = { scope.launch { settingsManager.setShowHiddenFiles(true) } },
+                showHiddenFiles = showHiddenSetting,
                 filterCounts = filterCounts
             )
 
@@ -315,24 +327,46 @@ fun ImagesTab(
 
 
             Box(modifier = Modifier.weight(1f)) {
-                val visibleFolders = remember(sortedFolderNames, folderGroups, activeFilterTab, allHiddenImageFolders) {
-                    if (activeFilterTab == "HIDDEN") {
-                        sortedFolderNames.filter { isFolderHidden(it, folderGroups[it]) }
-                    } else {
-                        sortedFolderNames
+                val visibleFolders = remember(sortedFolderNames, folderGroups, activeFilterTab, allHiddenImageFolders, showHiddenSetting) {
+                    when (activeFilterTab) {
+                        "HIDDEN" -> sortedFolderNames.filter { fn -> isFolderSystemHidden(fn, folderGroups[fn]) }
+                        "EXCLUDED" -> sortedFolderNames.filter { fn -> isFolderExcluded(fn, folderGroups[fn]) }
+                        else -> sortedFolderNames.filter { fn ->
+                            val items = folderGroups[fn]
+                            !isFolderExcluded(fn, items) && (showHiddenSetting || !isFolderSystemHidden(fn, items))
+                        }
                     }
                 }
 
-                val displayList = remember(imagesList, activeFilterTab, favoriteUris, trashUris) {
-                    if (activeFilterTab == "ALL") {
-                        imagesList
+                val displayList = remember(imagesList, activeFilterTab, favoriteUris, trashUris, showHiddenSetting) {
+                    val baseList = when (activeFilterTab) {
+                        "EXCLUDED" -> imagesList.filter { it.isExcluded || com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+                        "HIDDEN" -> imagesList.filter { it.isHidden && !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+                        else -> imagesList.filter { item ->
+                            !item.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(item) &&
+                            (showHiddenSetting || !item.isHidden)
+                        }
+                    }
+
+                    if (activeFilterTab == "ALL" || activeFilterTab == "EXCLUDED" || activeFilterTab == "HIDDEN") {
+                        baseList
                     } else {
-                        filterImageList(imagesList, activeFilterTab, favoriteUris, trashUris)
+                        filterImageList(baseList, activeFilterTab, favoriteUris, trashUris)
                     }
                 }
 
-                val currentDisplayList = if (viewMode == 1 && selectedFolder != null) {
-                    folderGroups[selectedFolder] ?: emptyList()
+                val currentDisplayList = if ((viewMode == 1 || activeFilterTab == "FOLDERS" || activeFilterTab == "HIDDEN") && selectedFolder != null) {
+                    folderGroups[selectedFolder]
+                        ?: folderGroups.entries.firstOrNull { (k, _) ->
+                            val normKey = k.trim('/').lowercase()
+                            val normTarget = selectedFolder!!.trim('/').lowercase()
+                            normKey == normTarget ||
+                            normKey.substringAfterLast('/') == normTarget ||
+                            normTarget.substringAfterLast('/') == normKey ||
+                            normKey.endsWith("/$normTarget") ||
+                            normTarget.endsWith("/$normKey")
+                        }?.value
+                        ?: emptyList()
                 } else {
                     displayList
                 }
@@ -352,6 +386,18 @@ fun ImagesTab(
                 }
 
                 when {
+                    isLoading && (imagesList.isEmpty() || (sortedDisplayList.isEmpty() && selectedCategory == null && viewMode == 0 && activeFilterTab != "FOLDERS")) -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            com.medianest.ui.components.MediaLoadingAnimation(
+                                mediaType = com.medianest.data.db.MediaType.IMAGE,
+                                iconSize = 52.dp
+                            )
+                        }
+                    }
+
                     selectedCategory != null || viewMode == 2 -> {
                         // Filter out empty collections for display in Grid view, but allow selected one to show
                         val displayCollections = remember(allImageCategories, categoryFolderMap, imagesList) {
@@ -413,7 +459,7 @@ fun ImagesTab(
                                         db.selectiveHiddenFolderDao().unhideFolder(folderName, "IMAGE")
                                         db.selectiveHiddenFolderDao().unhideFolder(folderPathKey, "IMAGE")
                                     } else {
-                                        settingsManager.setHiddenFolders(current + folderPathKey)
+                                        settingsManager.setHiddenFolders(current + folderPathKey + folderName)
                                         db.selectiveHiddenFolderDao().insertOrUpdate(
                                             SelectiveHiddenFolder(
                                                 folderPath = folderPathKey,
@@ -456,7 +502,7 @@ fun ImagesTab(
                             isLoading = isLoading,
                             activeFilterTab = activeFilterTab,
                             gridState = mainGridState,
-                            pagedImages = pagedImages
+                            pagedImages = if (viewMode == 0 && activeFilterTab == "ALL" && selectedFolder == null && selectedCategory == null) pagedImages else null
                         )
                     }
                 }

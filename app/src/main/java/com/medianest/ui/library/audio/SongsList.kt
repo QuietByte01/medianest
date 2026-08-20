@@ -51,7 +51,7 @@ fun SongsList(
     songs: List<MediaItem>,
     selectedUris: Set<String>,
     isSelectionMode: Boolean,
-    onSongClick: (MediaItem) -> Unit,
+    onSongClick: (List<MediaItem>, Int) -> Unit,
     onSongLongClick: (MediaItem) -> Unit,
     isLoading: Boolean = false,
     showDeleteOption: Boolean = false,
@@ -121,7 +121,11 @@ fun SongsList(
                             currentlyPlayingUri = currentlyPlayingUri,
                             isAlphabetical = isAlphabetical,
                             isSelected = selectedUris.contains(item.uri.toString()),
-                            onSongClick = onSongClick,
+                            onSongClick = { 
+                                val list = pagedSongs.itemSnapshotList.items.filterNotNull()
+                                val idx = list.indexOf(it)
+                                if (idx != -1) onSongClick(list, idx)
+                            },
                             onAddToPlaylist = onAddToPlaylist,
                             onRemoveFromPlaylist = onRemoveFromPlaylist,
                             onInfoClick = { infoItem = it },
@@ -140,7 +144,10 @@ fun SongsList(
                             currentlyPlayingUri = currentlyPlayingUri,
                             isAlphabetical = isAlphabetical,
                             isSelected = selectedUris.contains(item.uri.toString()),
-                            onSongClick = onSongClick,
+                            onSongClick = {
+                                val idx = songs.indexOf(it)
+                                if (idx != -1) onSongClick(songs, idx)
+                            },
                             onAddToPlaylist = onAddToPlaylist,
                             onRemoveFromPlaylist = onRemoveFromPlaylist,
                             onInfoClick = { infoItem = it },
@@ -428,7 +435,8 @@ private fun SongRow(
                             if (showInGallery) {
                                 com.medianest.util.IntentUtils.openInGallery(context, item)
                             } else {
-                                onNavigateSubTab(5, null, null, item.bucketName ?: "Music")
+                                val targetFolderKey = item.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (item.bucketName ?: "Music")
+                                onNavigateSubTab(5, null, null, targetFolderKey)
                             }
                         }
                     )
