@@ -78,7 +78,10 @@ fun filterImageList(
             val aiKeywords = listOf(
                 "ai_generated", "midjourney", "dall-e", "stable diffusion",
                 "chatgpt", "gemini", "bing image creator", "leonardo",
-                "civitai", "flux", "imagen", "generative fill"
+                "civitai", "flux", "imagen", "generative fill",
+                "openai", "anthropic", "claude", "perplexity", "firefly", 
+                "stablediffusion", "dreamstudio", "nightcafe", "wombo", 
+                "craiyon", "artbreeder", "runwayml", "pika", "sora", "deepai"
             )
             val matchesKeywords = aiKeywords.any { path.contains(it) }
 
@@ -96,8 +99,50 @@ fun filterImageList(
         }
         "ANIME" -> imagesList.filter { item ->
             val full = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
-            val animeKeywords = listOf("anime", "manga", "otaku", "crunchyroll", "goku", "naruto", "luffy")
+            val animeKeywords = listOf(
+                "anime", "manga", "otaku", "crunchyroll", "goku", "naruto", "luffy",
+                "waifu", "husbando", "kawaii", "one piece", "bleach", "dragon ball", 
+                "attack on titan", "demon slayer", "jujutsu kaisen", "my hero academia", 
+                "death note", "evangelion", "ghibli", "cosplay", "pixiv"
+            )
             animeKeywords.any { full.contains(it) }
+        }
+        "COOKING" -> imagesList.filter { item ->
+            val path = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "")).lowercase()
+            val title = item.title.lowercase()
+            
+            val cookingFolders = setOf("cooking", "veg", "non-veg", "nonveg", "recipe", "recipes", "food", "kitchen", "bakery")
+            val pathSegments = path.split(Regex("[/_\\s\\.\\-]+")).filter { it.isNotBlank() }
+            
+            val folderMatch = pathSegments.any { it in cookingFolders }
+            
+            val cookingKeywords = listOf(
+                "recipe", "food", "kitchen", "cooking", "bake", "cake", "meal", 
+                "dinner", "breakfast", "lunch", "chef", "cook", "dish", 
+                "ingredients", "menu", "restaurant", "bakery", "delicious", 
+                "yummy", "cuisine", "veg", "non-veg", "nonveg", "meat", "vegetable", "curry"
+            )
+            val titleMatch = cookingKeywords.any { title.contains(it) }
+            
+            folderMatch || titleMatch
+        }
+        "GARDENING" -> imagesList.filter { item ->
+            val path = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "")).lowercase()
+            val title = item.title.lowercase()
+            
+            val gardeningFolders = setOf("gardening", "garden", "flowers", "flower", "nature", "farm", "park", "botany", "botanical")
+            val pathSegments = path.split(Regex("[/_\\s\\.\\-]+")).filter { it.isNotBlank() }
+            
+            val folderMatch = pathSegments.any { it in gardeningFolders }
+            
+            val gardeningKeywords = listOf(
+                "garden", "gardening", "plant", "flower", "flowers", "leaf", "tree", "nature", 
+                "seeds", "soil", "farm", "forest", "bloom", "blossom", "botanical", "botany", "organic", 
+                "agriculture", "park", "yard", "grass", "environment", "landscape"
+            )
+            val titleMatch = gardeningKeywords.any { title.contains(it) }
+            
+            folderMatch || titleMatch
         }
         "WALLPAPERS" -> imagesList.filter { item ->
             val full = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()

@@ -17,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -29,6 +30,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
+import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
 import com.medianest.data.model.ArtistInfo
 import com.medianest.data.model.LyricLine
@@ -46,19 +50,18 @@ fun PortraitPlayerLayout(
     isTablet: Boolean,
     showLyricsView: Boolean,
     showAudioVisualizer: Boolean,
-    showAlbumSongsInPortraitBox: Boolean,
+    showQueueInPortraitBox: Boolean,
     isLoadingLyrics: Boolean,
     lyricsLines: List<LyricLine>,
     rawLyricsText: String?,
     activeLyricIndex: Int,
     listState: LazyListState,
     isFavorite: Boolean,
-    albumSongs: List<MediaItem>,
     albumArtHue: Float?,
     onSeekChange: (Float) -> Unit,
     onSeekFinished: () -> Unit,
     onToggleShowLyrics: (Boolean) -> Unit,
-    onToggleAlbumSongsPortraitBox: () -> Unit,
+    onToggleQueueInPortraitBox: () -> Unit,
     onToggleFavorite: () -> Unit,
     onOpenAddPlaylist: () -> Unit,
     onEditLyrics: () -> Unit,
@@ -105,7 +108,7 @@ fun PortraitPlayerLayout(
                     glassSurfaceModifier = Modifier.fillMaxSize(),
                     cardShapeRadius = 16.dp
                 )
-            } else if (showAlbumSongsInPortraitBox) {
+            } else if (showQueueInPortraitBox) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
@@ -125,16 +128,16 @@ fun PortraitPlayerLayout(
                                 .verticalScroll(rememberScrollState())
                         ) {
                             Text(
-                                text = "ALBUM SONGS",
+                                text = "UP NEXT",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF64B5F6),
                                 letterSpacing = 1.2.sp
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            if (albumSongs.isNotEmpty()) {
+                            if (playerState.queue.isNotEmpty()) {
                                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    for (track in albumSongs) {
+                                    for (track in playerState.queue) {
                                         val isSelected = track.uri == currentItem?.uri
                                         GlassSurface(
                                             shape = RoundedCornerShape(12.dp),
@@ -165,7 +168,7 @@ fun PortraitPlayerLayout(
                                     }
                                 }
                             } else {
-                                Text("No other tracks in album", fontSize = 12.sp, color = Color.White.copy(alpha = 0.5f))
+                                Text("Queue is empty", fontSize = 12.sp, color = Color.White.copy(alpha = 0.5f))
                             }
                         }
                     }
@@ -298,65 +301,74 @@ fun PortraitPlayerLayout(
                         shape = RoundedCornerShape(16.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
                     ) {
-                        if (currentItem?.albumArtUri != null) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(LocalContext.current)
-                                    .data(currentItem.albumArtUri)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = currentItem.title,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            /*
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            if (currentItem?.albumArtUri != null) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(currentItem.albumArtUri)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = currentItem.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                GlassSurface(
+                                    modifier = Modifier.fillMaxSize(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    backgroundColor = Color.White.copy(alpha = 0.10f), // 90% Transparent
+                                    borderColor = Color.White.copy(alpha = 0.25f),
+                                    backgroundImage = currentItem?.uri, // Use blurred media context as backdrop
+                                    blurRadius = 32.dp
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MusicNote,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.9f),
+                                        modifier = Modifier
+                                            .size(if (isTablet) 96.dp else 72.dp)
+                                            .align(Alignment.Center)
+                                    )
+                                }
+                            }
+
+                            // Artist Image Small Icon (Top Right)
                             Box(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(
-                                        Brush.linearGradient(
-                                            listOf(
-                                                Color.White.copy(alpha = 0.28f),
-                                                Color.White.copy(alpha = 0.10f)
-                                            )
-                                        )
-                                    )
+                                    .align(Alignment.TopEnd)
+                                    .padding(12.dp)
+                                    .size(48.dp)
+                                    .clip(CircleShape)
                                     .border(
-                                        width = 1.dp,
-                                        brush = Brush.linearGradient(
-                                            listOf(
-                                                Color.White.copy(alpha = 0.45f),
-                                                Color.White.copy(alpha = 0.15f)
-                                            )
-                                        ),
-                                        shape = RoundedCornerShape(16.dp)
-                                    ),
-                                contentAlignment = Alignment.Center
+                                        width = if (artistInfo?.imageUrl != null) 1.5.dp else 0.dp,
+                                        color = if (artistInfo?.imageUrl != null) Color.White.copy(0.6f) else Color.Transparent,
+                                        shape = CircleShape
+                                    )
+                                    .clickable { onToggleArtistInfo() }
+                                    .background(Color.Black.copy(0.4f))
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.MusicNote,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(if (isTablet) 96.dp else 72.dp)
-                                )
-                            }
-                            */
-                            GlassSurface(
-                                modifier = Modifier.fillMaxSize(),
-                                shape = RoundedCornerShape(16.dp),
-                                backgroundColor = Color.White.copy(alpha = 0.10f), // 90% Transparent
-                                borderColor = Color.White.copy(alpha = 0.25f),
-                                backgroundImage = currentItem?.uri, // Use blurred media context as backdrop
-                                blurRadius = 32.dp
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.MusicNote,
-                                    contentDescription = null,
-                                    tint = Color.White.copy(alpha = 0.9f),
-                                    modifier = Modifier
-                                        .size(if (isTablet) 96.dp else 72.dp)
-                                        .align(Alignment.Center)
-                                )
+                                SubcomposeAsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(artistInfo?.imageUrl)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = "Artist Info",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    val state = painter.state
+                                    if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
+                                        val fallback = com.medianest.util.ArtistImageUtils.getFallbackArtistImageUrl(currentItem?.artist)
+                                        AsyncImage(
+                                            model = fallback,
+                                            contentDescription = null,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize().alpha(0.1f)
+                                        )
+                                    } else {
+                                        SubcomposeAsyncImageContent()
+                                    }
+                                }
                             }
                         }
                     }
@@ -412,14 +424,14 @@ fun PortraitPlayerLayout(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
-                onClick = onToggleAlbumSongsPortraitBox,
+                onClick = onToggleQueueInPortraitBox,
                 modifier = Modifier
                     .size(40.dp)
                     .offset(x = (-8).dp)
             ) {
                 CustomPlaylistIcon(
                     modifier = Modifier.size(24.dp),
-                    tint = if (showAlbumSongsInPortraitBox) Color(0xFF64B5F6) else Color.White.copy(alpha = 0.85f)
+                    tint = if (showQueueInPortraitBox) Color(0xFF64B5F6) else Color.White.copy(alpha = 0.85f)
                 )
             }
 
@@ -444,20 +456,6 @@ fun PortraitPlayerLayout(
                 CustomPlusIcon(
                     modifier = Modifier.size(24.dp),
                     tint = Color.White.copy(alpha = 0.85f)
-                )
-            }
-
-            IconButton(
-                onClick = onToggleArtistInfo,
-                modifier = Modifier
-                    .size(40.dp)
-                    .offset(x = 8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = "Artist Info",
-                    tint = if (showArtistInfo) Color(0xFF64B5F6) else Color.White.copy(alpha = 0.85f),
-                    modifier = Modifier.size(24.dp)
                 )
             }
         }

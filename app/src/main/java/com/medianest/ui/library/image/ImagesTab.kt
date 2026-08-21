@@ -118,7 +118,7 @@ fun ImagesTab(
         kotlinx.coroutines.delay(600)
         withContext(Dispatchers.Default) {
             val counts = mutableMapOf<String, Int>()
-            val ids = listOf("CAMERA", "FAVORITES", "NOTES", "SCREENSHOTS", "GIFS", "SOCIAL", "PNG_SVG", "EDITED", "AI_GENERATED", "ANIME", "WALLPAPERS", "EXCLUDED")
+            val ids = listOf("CAMERA", "FAVORITES", "NOTES", "SCREENSHOTS", "GIFS", "SOCIAL", "PNG_SVG", "EDITED", "AI_GENERATED", "ANIME", "COOKING", "GARDENING", "WALLPAPERS", "EXCLUDED")
             ids.forEach { id ->
                 counts[id] = filterImageList(imagesList, id, favoriteUris, emptySet()).size
             }

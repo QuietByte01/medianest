@@ -53,6 +53,8 @@ fun ImageFilterRow(
             FilterItem("Edited", "EDITED", Icons.Default.Edit, 0),
             FilterItem("AI Generated", "AI_GENERATED", Icons.Default.AutoAwesome, 0),
             FilterItem("Anime", "ANIME", Icons.Default.Brush, 0),
+            FilterItem("Cooking", "COOKING", Icons.Default.Restaurant, 0),
+            FilterItem("Gardening", "GARDENING", Icons.Default.Park, 0),
             FilterItem("Wallpapers", "WALLPAPERS", Icons.Default.Wallpaper, 0),
             FilterItem("Hidden Folders", "HIDDEN", Icons.Default.FolderZip, 1),
             FilterItem("Excluded", "EXCLUDED", Icons.Default.VisibilityOff, 1)

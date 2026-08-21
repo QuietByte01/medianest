@@ -92,7 +92,7 @@ fun AudioPlayerScreen(
     var showDspSheet by remember { mutableStateOf(false) }
     var showAlbumSongsSheet by remember { mutableStateOf(false) }
     var showAlbumSongsInPanel by remember { mutableStateOf(false) }
-    var showAlbumSongsInPortraitBox by remember { mutableStateOf(false) }
+    var showQueueInPortraitBox by remember { mutableStateOf(false) }
     var showAddAlbumToPlaylistDialog by remember { mutableStateOf(false) }
     var isVisualizerFullscreen by remember { mutableStateOf(false) }
     var showArtistInfoPanel by remember { mutableStateOf(false) }
@@ -333,14 +333,14 @@ fun AudioPlayerScreen(
                     playerState = playerState, currentItem = currentItem, playerManager = playerManager,
                     albumArtSize = albumArtSize, isTablet = isTablet, showLyricsView = showLyricsView,
                     showAudioVisualizer = showAudioVisualizer && !isVisualizerFullscreen,
-                    showAlbumSongsInPortraitBox = showAlbumSongsInPortraitBox,
+                    showQueueInPortraitBox = showQueueInPortraitBox,
                     isLoadingLyrics = isLoadingLyrics, lyricsLines = lyricsLines, rawLyricsText = rawLyricsText,
                     activeLyricIndex = activeLyricIndex, listState = listState, isFavorite = isFavorite,
-                    albumSongs = albumSongs, albumArtHue = albumArtHue,
+                    albumArtHue = albumArtHue,
                     onSeekChange = { sliderPos = it; isSeeking = true },
                     onSeekFinished = { isSeeking = false; playerManager.seekTo(sliderPos.toLong()) },
                     onToggleShowLyrics = { showLyricsView = it },
-                    onToggleAlbumSongsPortraitBox = { showAlbumSongsInPortraitBox = !showAlbumSongsInPortraitBox },
+                    onToggleQueueInPortraitBox = { showQueueInPortraitBox = !showQueueInPortraitBox },
                     onToggleFavorite = { toggleFavoriteLambda() },
                     onOpenAddPlaylist = { showAddAlbumToPlaylistDialog = true },
                     onEditLyrics = { manualLyricsInput = rawLyricsText ?: ""; showManualLyricsDialog = true },

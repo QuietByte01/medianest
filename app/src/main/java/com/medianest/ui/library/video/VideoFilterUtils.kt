@@ -191,15 +191,24 @@ fun computeSharedTitleWords(items: List<MediaItem>): Set<String> {
 }
 
 fun isTVSeries(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean {
-    // Construct a comprehensive lowercase string combining relative path, title, and URI for pattern matching
-    val path = ((item.relativePath ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
+    // 1. Enforce duration constraints (at least 10 minutes)
+    val isAtLeast10Min = item.durationMs >= 600_000L
+    if (!isAtLeast10Min) return false
+
+    val fullPath = ((item.relativePath ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
     val title = item.title.lowercase()
+    
+    // Segmented folder check
+    val folderPath = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "")).lowercase()
+    val pathSegments = folderPath.split(Regex("[/_\\s.\\-]+")).filter { it.isNotBlank() }.toSet()
+    val seriesFolders = setOf("series", "tv", "shows", "web-series", "webseries", "anime")
+    val isSeriesFolder = pathSegments.any { it in seriesFolders }
 
-    // 1. Exclusion keywords for non-series content
+    // 2. Exclusion keywords for non-series content
     val exclusionKeywords = listOf("recording", "screen_recording", "live", "test", "interview", "webinar", "zoom", "meeting", "tutorial", "presentation", "exam")
-    if (exclusionKeywords.any { title.contains(it) || path.contains(it) }) return false
+    if (exclusionKeywords.any { title.contains(it) || fullPath.contains(it) }) return false
 
-    // Define regular expressions for standard TV show naming conventions
+    // 3. Define regular expressions for standard TV show naming conventions
     val patternSeasonEpisode = Regex("(?i)s\\d{1,2}e\\d{1,2}")
     val patternNumberXNumber = Regex("(?i)\\d{1,2}x\\d{1,2}")
     
@@ -208,25 +217,18 @@ fun isTVSeries(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean 
     val patternAnimeEpisode = Regex("(?i)[_\\-\\s]+(\\d{1,3})(?:\\s*[(\\[]|\\s*$)")
 
     // Check if path or title contains explicit episode/season formatting
-    val hasPattern = patternSeasonEpisode.containsMatchIn(path) || 
-                     patternNumberXNumber.containsMatchIn(path) ||
-                     patternEpisodeExplicit.containsMatchIn(path) ||
+    val hasPattern = patternSeasonEpisode.containsMatchIn(fullPath) || 
+                     patternNumberXNumber.containsMatchIn(fullPath) ||
+                     patternEpisodeExplicit.containsMatchIn(fullPath) ||
                      patternAnimeEpisode.containsMatchIn(item.title)
 
-    // Check if the file resides in a designated directory for television content
-    val isSeriesFolder = path.contains("/series/") || path.contains("/tv/") || path.contains("/shows/") || 
-                         path.contains("/web series/") || path.contains("/anime/")
-
-    // Enforce duration constraints (at least 10 minutes, or 0L if duration is unknown/unprocessed)
-    val isAtLeast10Min = item.durationMs >= 600_000L || item.durationMs == 0L
-
-    // Evaluate explicit television markers combined with duration rules
-    val matchesExplicitCriteria = isAtLeast10Min && (hasPattern || isSeriesFolder || path.contains("season"))
+    // Evaluate explicit television markers
+    val matchesExplicitCriteria = hasPattern || isSeriesFolder || fullPath.contains("season")
 
     if (matchesExplicitCriteria) return true
 
-    // Fallback: Check if this video shares significant repeated words with other videos in O(1)
-    if (sharedWords.isNotEmpty() && isAtLeast10Min) {
+    // 4. Fallback: Check if this video shares significant repeated words with other videos in O(1)
+    if (sharedWords.isNotEmpty()) {
         val cleanedTitleWords = extractSignificantWords(item.title)
         if (cleanedTitleWords.any { it in sharedWords }) {
             return true
@@ -242,31 +244,31 @@ fun isTVSeries(item: MediaItem, allItems: List<MediaItem>): Boolean {
 }
 
 fun isMovie(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean {
-    val title = item.title.lowercase()
-    val path = ((item.relativePath ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
-
-    // 1. Exclusion keywords for non-movie content
-    val exclusionKeywords = listOf("recording", "screen_recording", "live", "test", "interview", "webinar", "zoom", "meeting", "tutorial", "presentation", "exam")
-    if (exclusionKeywords.any { title.contains(it) || path.contains(it) }) return false
-
-    // 2. Fundamental duration requirement (User specified: 20 min is right)
+    // 1. Fundamental duration requirement (User specified: 20 min is right)
     val isAtLeast20Min = item.durationMs >= 1_200_000L
     if (!isAtLeast20Min) return false
 
-    // 3. Strong Movie Markers (Override series detection if these are present)
-    val inMovieFolder = path.contains("/movies/") ||
-            path.contains("/movie/") ||
-            path.contains("/cinema/") ||
-            path.contains("/films/") ||
-            path.contains("film")
+    val title = item.title.lowercase()
+    val fullPath = ((item.relativePath ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
+    
+    // Segmented folder check
+    val folderPath = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "")).lowercase()
+    val pathSegments = folderPath.split(Regex("[/_\\s.\\-]+")).filter { it.isNotBlank() }.toSet()
+    val movieFolders = setOf("movies", "movie", "cinema", "films", "film")
+    val inMovieFolder = pathSegments.any { it in movieFolders }
 
-    val hasMovieQualityTag = path.contains("1080p") || path.contains("720p") ||
-            path.contains("2160p") || path.contains("4k") ||
-            path.contains("bluray") || path.contains("webrip") ||
-            path.contains("web-dl") || path.contains("webdl") ||
-            path.contains("remux") || path.contains("bdrip") ||
-            path.contains("x264") || path.contains("x265") || path.contains("hdrip") ||
-            path.contains("h264") || path.contains("h265") || path.contains("hevc")
+    // 2. Exclusion keywords for non-movie content
+    val exclusionKeywords = listOf("recording", "screen_recording", "live", "test", "interview", "webinar", "zoom", "meeting", "tutorial", "presentation", "exam")
+    if (exclusionKeywords.any { title.contains(it) || fullPath.contains(it) }) return false
+
+    // 3. Strong Movie Markers (Override series detection if these are present)
+    val hasMovieQualityTag = fullPath.contains("1080p") || fullPath.contains("720p") ||
+            fullPath.contains("2160p") || fullPath.contains("4k") ||
+            fullPath.contains("bluray") || fullPath.contains("webrip") ||
+            fullPath.contains("web-dl") || fullPath.contains("webdl") ||
+            fullPath.contains("remux") || fullPath.contains("bdrip") ||
+            fullPath.contains("x264") || fullPath.contains("x265") || fullPath.contains("hdrip") ||
+            fullPath.contains("h264") || fullPath.contains("h265") || fullPath.contains("hevc")
 
     val isVeryLong = item.durationMs >= 2_400_000L // 40+ minutes
 
@@ -279,9 +281,9 @@ fun isMovie(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean {
     // 5. TV Series Check (Sequels/Collections are treated as Series/Collections if they share words)
     if (isTVSeries(item, sharedWords)) return false
 
-    val inGeneralFolder = path.contains("/videos/") ||
-            path.contains("/download/") ||
-            path.contains("/downloads/")
+    val inGeneralFolder = fullPath.contains("/videos/") ||
+            fullPath.contains("/download/") ||
+            fullPath.contains("/downloads/")
 
     return hasStrongMarkers || (inGeneralFolder && isVeryLong) || isVeryLong
 }
