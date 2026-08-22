@@ -12,6 +12,7 @@ import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -118,6 +119,94 @@ fun GlassSurface(
             modifier = Modifier
                 .matchParentSize()
                 .background(brush = finalBgBrush, shape = shape)
+        )
+
+        content()
+    }
+}
+
+/**
+ * Ambient Glass Surface component matching the exact rich luminous ambient background of the Info Sheet & Library.
+ * Uses dynamic radial glow orbs (electric indigo and violet), an obsidian glass base, vertical sheen, and gradient border.
+ */
+@Composable
+fun AmbientGlassSurface(
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(16.dp),
+    borderWidth: Dp = 0.5.dp,
+    content: @Composable BoxScope.() -> Unit
+) {
+    val isDark = LocalDarkTheme.current
+
+    // Signature vibrant ambient glow colors matching the Library & Info Sheet
+    val ambientTopColor = if (isDark) Color(0x456366F1) else Color(0x35818CF8) // Vibrant Indigo Glow
+    val ambientBottomColor = if (isDark) Color(0x358B5CF6) else Color(0x28A78BFA) // Soft Purple Glow
+    val baseBackground = if (isDark) Color(0xF20F121C) else Color(0xF2F8FAFC)
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.22f) else Color.Black.copy(alpha = 0.12f)
+
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .border(
+                width = borderWidth,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        borderColor,
+                        borderColor.copy(alpha = 0.06f)
+                    )
+                ),
+                shape = shape
+            )
+            .background(baseBackground)
+    ) {
+        // 1. Top-Left Vibrant Ambient Radial Glow
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            ambientTopColor,
+                            Color.Transparent
+                        ),
+                        center = Offset(0f, 0f),
+                        radius = 260f
+                    ),
+                    shape = shape
+                )
+        )
+
+        // 2. Bottom-Right Ambient Radial Glow
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            ambientBottomColor,
+                            Color.Transparent
+                        ),
+                        center = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+                        radius = 280f
+                    ),
+                    shape = shape
+                )
+        )
+
+        // 3. Subtle Glass Sheen
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = if (isDark) {
+                            listOf(Color(0x1CFFFFFF), Color(0x05FFFFFF), Color(0x28000000))
+                        } else {
+                            listOf(Color(0x35FFFFFF), Color(0x08FFFFFF), Color(0x10000000))
+                        }
+                    ),
+                    shape = shape
+                )
         )
 
         content()

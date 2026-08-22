@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.medianest.R
 import com.medianest.data.model.MediaItem
 import com.medianest.player.PlayerState
+import com.medianest.ui.components.AmbientGlassSurface
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.media.*
 import com.medianest.ui.theme.LocalDarkTheme
@@ -66,7 +67,7 @@ internal fun VideoPlayerOverflowMenu(
                 indication = null
             ) { onDismiss() }
     ) {
-        GlassSurface(
+        AmbientGlassSurface(
             modifier = modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
@@ -74,11 +75,7 @@ internal fun VideoPlayerOverflowMenu(
                 .width(220.dp)
                 .clickable(enabled = false) {},
             shape = RoundedCornerShape(16.dp),
-            backgroundColor = Color.Transparent,
-            borderColor = Color(0x33FFFFFF),
-            backgroundImage = bgRes,
-            backgroundImageAlpha = 1.0f,
-            enableBlur = false
+            borderWidth = 0.5.dp
         ) {
             Column(
                 modifier = Modifier
@@ -172,17 +169,13 @@ internal fun AspectRatioModal(
             .clickable { onDismiss() },
         contentAlignment = Alignment.BottomCenter
     ) {
-        GlassSurface(
+        AmbientGlassSurface(
             modifier = Modifier
                 .fillMaxWidth(0.85f)
                 .padding(bottom = 24.dp)
                 .clickable(enabled = false) {},
             shape = RoundedCornerShape(20.dp),
-            backgroundColor = Color.Transparent,
-            borderColor = Color(0x33FFFFFF),
-            enableBlur = false,
-            backgroundImage = bgRes,
-            backgroundImageAlpha = 1.0f
+            borderWidth = 0.5.dp
         ) {
             Column(
                 modifier = Modifier
@@ -216,7 +209,6 @@ internal fun PlaybackSpeedModal(
     onDismiss: () -> Unit
 ) {
     val isDark = LocalDarkTheme.current
-    val bgRes = R.drawable.bg_596
 
     Box(
         modifier = Modifier
@@ -225,17 +217,13 @@ internal fun PlaybackSpeedModal(
             .clickable { onDismiss() },
         contentAlignment = Alignment.BottomCenter
     ) {
-        GlassSurface(
+        AmbientGlassSurface(
             modifier = Modifier
                 .fillMaxWidth(0.85f)
                 .padding(bottom = 24.dp)
                 .clickable(enabled = false) {},
             shape = RoundedCornerShape(20.dp),
-            backgroundColor = Color.Transparent,
-            borderColor = Color(0x33FFFFFF),
-            enableBlur = false,
-            backgroundImage = bgRes,
-            backgroundImageAlpha = 1.0f
+            borderWidth = 0.5.dp
         ) {
             Column(
                 modifier = Modifier
@@ -277,7 +265,6 @@ internal fun VideoPostProcessingPanel(
     onDismiss: () -> Unit
 ) {
     val isDark = LocalDarkTheme.current
-    val bgRes = R.drawable.bg_596
 
     Box(
         modifier = Modifier
@@ -286,17 +273,13 @@ internal fun VideoPostProcessingPanel(
             .clickable { onDismiss() },
         contentAlignment = Alignment.BottomCenter
     ) {
-        GlassSurface(
+        AmbientGlassSurface(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .padding(bottom = 24.dp)
                 .clickable(enabled = false) {},
             shape = RoundedCornerShape(20.dp),
-            backgroundColor = Color.Transparent,
-            borderColor = Color(0x33FFFFFF),
-            enableBlur = false,
-            backgroundImage = bgRes,
-            backgroundImageAlpha = 1.0f
+            borderWidth = 0.5.dp
         ) {
             Column(
                 modifier = Modifier

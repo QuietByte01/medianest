@@ -15,13 +15,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
-import com.medianest.R
-import com.medianest.ui.theme.LocalDarkTheme
 
 /**
- * Premium Blurred Glass Dropdown Menu component.
- * Uses 70% opacity blurred backdrop texture (64dp blur) with unblurred crisp contents on top.
- * When [useImageBackground] is false (e.g., in sort dropdowns), uses a transparent frosted glass background with blur.
+ * Premium Ambient Glass Dropdown Menu component matching the exact background of the Info Sheet.
+ * Features an obsidian background, warm top-left and cool bottom-right ambient radial glow orbs,
+ * a vertical glass sheen, and a sleek gradient border with zero JPG image dependency.
  */
 @Composable
 fun GlassDropdownMenu(
@@ -34,29 +32,9 @@ fun GlassDropdownMenu(
     shape: Shape = RoundedCornerShape(16.dp),
     containerColor: Color = Color.Transparent,
     shadowElevation: Dp = 12.dp,
-    useImageBackground: Boolean = true,
+    useImageBackground: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val isDark = LocalDarkTheme.current
-    val bgRes = if (useImageBackground) R.drawable.bg_596 else null
-    val effectiveBgColor = if (useImageBackground) {
-        if (containerColor != Color.Transparent && containerColor != Color.Unspecified) {
-            containerColor
-        } else if (isDark) {
-            Color(0x33000000) // subtle dark tint to blend naturally
-        } else {
-            Color(0x1AFFFFFF) // subtle light sheen
-        }
-    } else {
-        if (containerColor != Color.Transparent && containerColor != Color.Unspecified) {
-            containerColor
-        } else if (isDark) {
-            Color(0x730F1015)
-        } else {
-            Color(0x73F0F4F8)
-        }
-    }
-
     DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismissRequest,
@@ -69,15 +47,9 @@ fun GlassDropdownMenu(
         tonalElevation = 0.dp,
         shadowElevation = shadowElevation
     ) {
-        GlassSurface(
+        AmbientGlassSurface(
             shape = shape,
-            backgroundColor = effectiveBgColor,
-            borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x22000000),
-            borderWidth = 1.dp,
-            backgroundImage = bgRes,
-            backgroundImageAlpha = if (useImageBackground) 1.0f else 0f,
-            enableBlur = !useImageBackground,
-            blurRadius = 16.dp
+            borderWidth = 0.5.dp
         ) {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                 content()
