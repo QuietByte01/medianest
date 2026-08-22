@@ -163,9 +163,10 @@ object MediaProcessorEngine {
             } else if (isImageOnly) {
                 cmd.append("-vframes 1 ")
             } else {
-                when (videoCodec) {
-                    "libx265" -> cmd.append("-c:v libx265 -crf $qualityCrf -preset medium -tag:v hvc1 ")
-                    "libvpx-vp9" -> cmd.append("-c:v libvpx-vp9 -crf $qualityCrf -b:v 0 ")
+                when (videoCodec.lowercase()) {
+                    "libsvtav1", "libaom-av1", "av1" -> cmd.append("-c:v libsvtav1 -crf $qualityCrf -preset 6 -pix_fmt yuv420p10le ")
+                    "libx265", "hevc", "h265" -> cmd.append("-c:v libx265 -crf $qualityCrf -preset medium -tag:v hvc1 ")
+                    "libvpx-vp9", "vp9" -> cmd.append("-c:v libvpx-vp9 -crf $qualityCrf -b:v 0 ")
                     "copy" -> cmd.append("-c:v copy ")
                     else -> cmd.append("-c:v libx264 -crf $qualityCrf -preset fast -pix_fmt yuv420p ")
                 }
@@ -198,6 +199,7 @@ object MediaProcessorEngine {
         targetLimitMb: Int = 25,
         crf: Int = 26,
         resolutionScale: String = "ORIGINAL",
+        videoCodec: String = "libx265",
         isCreateNewFile: Boolean = true,
         customSuffix: String = "_compressed"
     ): Boolean = withContext(Dispatchers.IO) {
@@ -222,6 +224,7 @@ object MediaProcessorEngine {
             targetLimitMb = targetLimitMb,
             crf = crf,
             resolutionScale = resolutionScale,
+            videoCodec = videoCodec,
             durationSecs = totalSecs
         )
 
@@ -236,27 +239,48 @@ object MediaProcessorEngine {
         targetLimitMb: Int = 25,
         crf: Int = 26,
         resolutionScale: String = "ORIGINAL",
+        videoCodec: String = "libx265",
         durationSecs: Double = 60.0
     ): String {
         val cmd = StringBuilder("-y -i \"$resolvedInput\" ")
-        val scaleFilter = when (resolutionScale) {
+        val scaleFilter = when (resolutionScale.uppercase()) {
+            "1440P" -> "scale='min(2560,iw)':-2"
             "1080P" -> "scale='min(1920,iw)':-2"
             "720P" -> "scale='min(1280,iw)':-2"
             "480P" -> "scale='min(854,iw)':-2"
+            "360P" -> "scale='min(640,iw)':-2"
             else -> null
         }
         if (scaleFilter != null) {
             cmd.append("-vf \"$scaleFilter\" ")
         }
 
-        when (targetMode) {
+        val isAv1 = videoCodec.contains("av1", ignoreCase = true) || videoCodec.contains("svt", ignoreCase = true) || targetMode.equals("AV1", ignoreCase = true)
+
+        when (targetMode.uppercase()) {
+            "AUTO" -> {
+                if (isAv1) {
+                    cmd.append("-c:v libsvtav1 -crf 26 -preset 6 -pix_fmt yuv420p10le ")
+                } else {
+                    cmd.append("-c:v libx265 -crf 26 -preset medium -tag:v hvc1 ")
+                }
+                cmd.append("-c:a aac -b:a 128k ")
+            }
+            "AV1" -> {
+                cmd.append("-c:v libsvtav1 -crf $crf -preset 6 -pix_fmt yuv420p10le ")
+                cmd.append("-c:a aac -b:a 128k ")
+            }
             "LIMIT_SIZE" -> {
                 val targetBitsTotal = targetLimitMb.toDouble() * 8.0 * 1024.0 * 1024.0 * 0.94
                 val totalBitrateKbps = (targetBitsTotal / durationSecs / 1000.0).coerceAtLeast(200.0)
                 val audioBitrateKbps = if (totalBitrateKbps > 800) 128 else 64
                 val videoBitrateKbps = (totalBitrateKbps - audioBitrateKbps).toInt().coerceAtLeast(150)
 
-                cmd.append("-c:v libx265 -b:v ${videoBitrateKbps}k -maxrate ${(videoBitrateKbps * 1.3).toInt()}k -bufsize ${videoBitrateKbps * 2}k -preset medium -tag:v hvc1 ")
+                if (isAv1) {
+                    cmd.append("-c:v libsvtav1 -b:v ${videoBitrateKbps}k -maxrate ${(videoBitrateKbps * 1.3).toInt()}k -bufsize ${videoBitrateKbps * 2}k -preset 6 -pix_fmt yuv420p10le ")
+                } else {
+                    cmd.append("-c:v libx265 -b:v ${videoBitrateKbps}k -maxrate ${(videoBitrateKbps * 1.3).toInt()}k -bufsize ${videoBitrateKbps * 2}k -preset medium -tag:v hvc1 ")
+                }
                 cmd.append("-c:a aac -b:a ${audioBitrateKbps}k ")
             }
             "PERCENT" -> {
@@ -265,11 +289,19 @@ object MediaProcessorEngine {
                     targetPercentage >= 50 -> 26
                     else -> 23
                 }
-                cmd.append("-c:v libx265 -crf $effectiveCrf -preset medium -tag:v hvc1 ")
+                if (isAv1) {
+                    cmd.append("-c:v libsvtav1 -crf $effectiveCrf -preset 6 -pix_fmt yuv420p10le ")
+                } else {
+                    cmd.append("-c:v libx265 -crf $effectiveCrf -preset medium -tag:v hvc1 ")
+                }
                 cmd.append("-c:a aac -b:a 128k ")
             }
             else -> {
-                cmd.append("-c:v libx265 -crf $crf -preset medium -tag:v hvc1 ")
+                if (isAv1) {
+                    cmd.append("-c:v libsvtav1 -crf $crf -preset 6 -pix_fmt yuv420p10le ")
+                } else {
+                    cmd.append("-c:v libx265 -crf $crf -preset medium -tag:v hvc1 ")
+                }
                 cmd.append("-c:a aac -b:a 160k ")
             }
         }
@@ -419,6 +451,8 @@ object MediaProcessorEngine {
             "16_9" -> "crop='min(iw,ih*16/9)':'min(ih,iw*9/16)':(iw-out_w)/2:(ih-out_h)/2"
             "21_9" -> "crop='min(iw,ih*21/9)':'min(ih,iw*9/21)':(iw-out_w)/2:(ih-out_h)/2"
             "4_3" -> "crop='min(iw,ih*4/3)':'min(ih,iw*3/4)':(iw-out_w)/2:(ih-out_h)/2"
+            "3_4", "P_3_4" -> "crop='min(iw,ih*3/4)':'min(ih,iw*4/3)':(iw-out_w)/2:(ih-out_h)/2"
+            "4_5", "P_4_5" -> "crop='min(iw,ih*4/5)':'min(ih,iw*5/4)':(iw-out_w)/2:(ih-out_h)/2"
             "CUSTOM" -> if (customCropW > 0 && customCropH > 0) "crop=$customCropW:$customCropH:$customCropX:$customCropY" else "crop='min(iw,ih)':'min(iw,ih)'"
             else -> "crop='min(iw,ih)':'min(iw,ih)'"
         }
@@ -604,6 +638,7 @@ object MediaProcessorEngine {
                 "P_16_9", "16_9" -> vFilters.add("crop='min(iw,ih*16/9)':'min(ih,iw*9/16)':(iw-out_w)/2:(ih-out_h)/2")
                 "P_21_9", "21_9" -> vFilters.add("crop='min(iw,ih*21/9)':'min(ih,iw*9/21)':(iw-out_w)/2:(ih-out_h)/2")
                 "P_4_3", "4_3" -> vFilters.add("crop='min(iw,ih*4/3)':'min(ih,iw*3/4)':(iw-out_w)/2:(ih-out_h)/2")
+                "P_3_4", "3_4" -> vFilters.add("crop='min(iw,ih*3/4)':'min(ih,iw*4/3)':(iw-out_w)/2:(ih-out_h)/2")
                 "P_4_5", "4_5" -> vFilters.add("crop='min(iw,ih*4/5)':'min(ih,iw*5/4)':(iw-out_w)/2:(ih-out_h)/2")
             }
         }

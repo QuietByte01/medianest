@@ -28,6 +28,10 @@ import androidx.core.view.OnReceiveContentListener
 import androidx.core.view.ViewCompat
 import com.medianest.ui.components.AppSlider
 import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.components.GlossyChip
+import com.medianest.ui.components.PaletteTagChip
+import com.medianest.ui.components.TypographyTagChip
+import com.medianest.ui.dashboard.AnalyticsColors
 import kotlin.math.roundToInt
 
 @Composable
@@ -132,16 +136,12 @@ internal fun SpeedSelectionDialog(
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(speeds) { sp ->
                         val isSel = kotlin.math.abs(currentSpeed - sp) < 0.05f
-                        FilterChip(
-                            selected = isSel,
+                        GlossyChip(
+                            label = "${sp}x",
+                            isSelected = isSel,
                             onClick = { onSpeedSelect(sp) },
-                            label = { Text("${sp}x", fontSize = 12.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFFFFD54F),
-                                selectedLabelColor = Color.Black,
-                                containerColor = Color(0x22FFFFFF),
-                                labelColor = Color.White
-                            )
+                            accentColor = Color(0xFFFFD54F),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp)
                         )
                     }
                 }
@@ -197,16 +197,16 @@ internal fun AddRichTextDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     StudioFontFamily.entries.forEach { f ->
-                        FilterChip(
-                            selected = selectedFont == f,
+                        TypographyTagChip(
+                            label = f.label,
+                            isSelected = selectedFont == f,
                             onClick = { selectedFont = f },
-                            label = { Text(f.label, fontSize = 11.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFFFFD54F),
-                                selectedLabelColor = Color.Black,
-                                containerColor = Color(0x22FFFFFF),
-                                labelColor = Color.White
-                            )
+                            fontFamily = when (f) {
+                                StudioFontFamily.SERIF -> androidx.compose.ui.text.font.FontFamily.Serif
+                                StudioFontFamily.MONOSPACE -> androidx.compose.ui.text.font.FontFamily.Monospace
+                                StudioFontFamily.CURSIVE -> androidx.compose.ui.text.font.FontFamily.Cursive
+                                else -> androidx.compose.ui.text.font.FontFamily.SansSerif
+                            }
                         )
                     }
                 }
@@ -238,16 +238,10 @@ internal fun AddRichTextDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     TextBackgroundStyle.entries.forEach { bg ->
-                        FilterChip(
-                            selected = selectedBgStyle == bg,
-                            onClick = { selectedBgStyle = bg },
-                            label = { Text(bg.label, fontSize = 11.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFFFFD54F),
-                                selectedLabelColor = Color.Black,
-                                containerColor = Color(0x22FFFFFF),
-                                labelColor = Color.White
-                            )
+                        TypographyTagChip(
+                            label = bg.label,
+                            isSelected = selectedBgStyle == bg,
+                            onClick = { selectedBgStyle = bg }
                         )
                     }
                 }
@@ -308,16 +302,16 @@ internal fun CategoryStickerPickerDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     categories.forEachIndexed { index, cat ->
-                        FilterChip(
-                            selected = selectedCategory == index,
-                            onClick = { selectedCategory = index },
-                            label = { Text(cat, fontSize = 11.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFFFFD54F),
-                                selectedLabelColor = Color.Black,
-                                containerColor = Color(0x22FFFFFF),
-                                labelColor = Color.White
-                            )
+                        val emoji = when (index) {
+                            0 -> "😍"
+                            1 -> "🏷️"
+                            else -> "➔"
+                        }
+                        TypographyTagChip(
+                            label = cat,
+                            emoji = emoji,
+                            isSelected = selectedCategory == index,
+                            onClick = { selectedCategory = index }
                         )
                     }
                 }
@@ -396,16 +390,11 @@ internal fun ExportStudioDialog(
                 ) {
                     listOf("MP4", "GIF", "WEBP").forEach { fmt ->
                         val isSel = selectedFormat == fmt
-                        FilterChip(
-                            selected = isSel,
-                            onClick = { selectedFormat = fmt },
-                            label = { Text(if (fmt == "MP4") "Video (MP4)" else if (fmt == "GIF") "Animated GIF" else "Animated WebP", fontSize = 11.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFFFFD54F),
-                                selectedLabelColor = Color.Black,
-                                containerColor = Color(0x22FFFFFF),
-                                labelColor = Color.White
-                            )
+                        PaletteTagChip(
+                            label = if (fmt == "MP4") "MP4 (Video)" else if (fmt == "GIF") "GIF (Animation)" else "WEBP (Animated)",
+                            formatKey = fmt,
+                            isSelected = isSel,
+                            onClick = { selectedFormat = fmt }
                         )
                     }
                 }

@@ -33,6 +33,8 @@ import com.medianest.player.ExoPlayerManager
 import com.medianest.player.PlayerState
 
 import androidx.compose.foundation.horizontalScroll
+import com.medianest.R
+import com.medianest.ui.theme.LocalDarkTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,10 +44,13 @@ fun NativeAudioDspSheet(
     onDismiss: () -> Unit,
     backgroundImage: Any? = null
 ) {
+    val isDark = LocalDarkTheme.current
+    val effectiveBg = backgroundImage ?: R.drawable.bg_596
+
     AdaptiveBottomSheet(
         onDismissRequest = onDismiss,
-        backgroundImage = backgroundImage,
-        isSolidGlossy = true,
+        backgroundImage = effectiveBg,
+        isSolidGlossy = false,
         dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.3f)) }
     ) {
         Column(

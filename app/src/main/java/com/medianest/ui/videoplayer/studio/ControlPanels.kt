@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.ui.components.AppSlider
 import com.medianest.ui.components.AppSliderStyle
+import com.medianest.ui.components.IconActionChip
+import com.medianest.ui.components.TypographyTagChip
 import com.medianest.ui.components.media.*
 
 @Composable
@@ -58,7 +60,6 @@ internal fun TrimControlPanel(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CropControlPanel(
     currentPreset: MediaAspectRatio,
@@ -76,23 +77,18 @@ internal fun CropControlPanel(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        FilterChip(
-            selected = isCustomCrop,
-            onClick = onEnableCustomCrop,
-            label = { Text("Custom", fontSize = 11.sp, fontWeight = if (isCustomCrop) FontWeight.Bold else FontWeight.Normal) },
-            colors = FilterChipDefaults.filterChipColors(
-                selectedContainerColor = Color(0xFFFFD54F),
-                selectedLabelColor = Color.Black,
-                containerColor = Color(0x22FFFFFF),
-                labelColor = Color.White
-            )
+        IconActionChip(
+            label = "Custom",
+            icon = Icons.Default.Crop,
+            isSelected = isCustomCrop,
+            onClick = onEnableCustomCrop
         )
 
         MediaAspectRatioSelector(
             options = listOf(
                 MediaAspectRatio.ORIGINAL, MediaAspectRatio.P_16_9, MediaAspectRatio.P_9_16,
-                MediaAspectRatio.P_1_1, MediaAspectRatio.P_4_3, MediaAspectRatio.P_4_5,
-                MediaAspectRatio.P_21_9
+                MediaAspectRatio.P_4_3, MediaAspectRatio.P_3_4, MediaAspectRatio.P_1_1,
+                MediaAspectRatio.P_4_5, MediaAspectRatio.P_21_9
             ),
             selected = if (isCustomCrop) MediaAspectRatio.FIT else currentPreset, // Dummy selected if custom
             onSelect = { onSelectPreset(it) },
@@ -279,49 +275,34 @@ internal fun TextAndStickersControlPanel(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Button(
-            onClick = onAddText,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0x33FFFFFF)),
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-        ) {
-            Icon(Icons.Default.TextFields, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("Add Text", fontSize = 11.sp, color = Color.White)
-        }
+        TypographyTagChip(
+            label = "Add Text",
+            icon = Icons.Default.TextFields,
+            accentColor = Color(0xFF60A5FA),
+            onClick = onAddText
+        )
 
-        Button(
-            onClick = onAddEmoji,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0x33FFFFFF)),
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-        ) {
-            Icon(Icons.Default.InsertEmoticon, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("Stickers", fontSize = 11.sp, color = Color.White)
-        }
+        TypographyTagChip(
+            label = "Stickers",
+            icon = Icons.Default.InsertEmoticon,
+            accentColor = Color(0xFFF472B6),
+            onClick = onAddEmoji
+        )
 
-        Button(
-            onClick = onOpenKeyboardStickers,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0x33FFD54F)),
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-        ) {
-            Icon(Icons.Default.Keyboard, contentDescription = null, tint = Color(0xFFFFD54F), modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("Keyboard GIF / Sticker", fontSize = 11.sp, color = Color(0xFFFFD54F), fontWeight = FontWeight.Bold)
-        }
+        TypographyTagChip(
+            label = "Keyboard GIF / Sticker",
+            icon = Icons.Default.Keyboard,
+            accentColor = Color(0xFFFFD54F),
+            isSelected = true,
+            onClick = onOpenKeyboardStickers
+        )
 
-        Button(
-            onClick = onPickFileGif,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0x26FFFFFF)),
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-        ) {
-            Icon(Icons.Default.Gif, contentDescription = null, tint = Color(0xFF64B5F6), modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("+ GIF / Image", fontSize = 11.sp, color = Color(0xFF64B5F6))
-        }
+        TypographyTagChip(
+            label = "+ GIF / Image",
+            icon = Icons.Default.Gif,
+            accentColor = Color(0xFF38BDF8),
+            onClick = onPickFileGif
+        )
     }
 }
 

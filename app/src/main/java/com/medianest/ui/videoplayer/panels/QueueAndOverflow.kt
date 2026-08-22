@@ -25,10 +25,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.medianest.R
 import com.medianest.data.model.MediaItem
 import com.medianest.player.PlayerState
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.media.*
+import com.medianest.ui.theme.LocalDarkTheme
 import com.medianest.ui.videoplayer.getBreadcrumbParts
 import com.medianest.ui.videoplayer.safeFormatDuration
 import kotlinx.coroutines.withContext
@@ -53,6 +55,9 @@ internal fun VideoPlayerOverflowMenu(
     onShowInfo: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val isDark = LocalDarkTheme.current
+    val bgRes = R.drawable.bg_596
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -69,8 +74,11 @@ internal fun VideoPlayerOverflowMenu(
                 .width(220.dp)
                 .clickable(enabled = false) {},
             shape = RoundedCornerShape(16.dp),
-            backgroundColor = Color(0xF20E111A),
-            borderColor = Color(0x33FFFFFF)
+            backgroundColor = Color.Transparent,
+            borderColor = Color(0x33FFFFFF),
+            backgroundImage = bgRes,
+            backgroundImageAlpha = 1.0f,
+            enableBlur = false
         ) {
             Column(
                 modifier = Modifier
@@ -154,6 +162,9 @@ internal fun AspectRatioModal(
     onModeChange: (MediaAspectRatio) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val isDark = LocalDarkTheme.current
+    val bgRes = R.drawable.bg_596
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -167,10 +178,11 @@ internal fun AspectRatioModal(
                 .padding(bottom = 24.dp)
                 .clickable(enabled = false) {},
             shape = RoundedCornerShape(20.dp),
-            backgroundColor = Color(0xF2121522),
+            backgroundColor = Color.Transparent,
             borderColor = Color(0x33FFFFFF),
-            enableBlur = true,
-            blurRadius = 16.dp
+            enableBlur = false,
+            backgroundImage = bgRes,
+            backgroundImageAlpha = 1.0f
         ) {
             Column(
                 modifier = Modifier
@@ -203,6 +215,9 @@ internal fun PlaybackSpeedModal(
     onSpeedChange: (Float) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val isDark = LocalDarkTheme.current
+    val bgRes = R.drawable.bg_596
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -216,10 +231,11 @@ internal fun PlaybackSpeedModal(
                 .padding(bottom = 24.dp)
                 .clickable(enabled = false) {},
             shape = RoundedCornerShape(20.dp),
-            backgroundColor = Color(0xF2121522),
+            backgroundColor = Color.Transparent,
             borderColor = Color(0x33FFFFFF),
-            enableBlur = true,
-            blurRadius = 16.dp
+            enableBlur = false,
+            backgroundImage = bgRes,
+            backgroundImageAlpha = 1.0f
         ) {
             Column(
                 modifier = Modifier
@@ -239,14 +255,14 @@ internal fun PlaybackSpeedModal(
                         val isSelected = speed == currentSpeed
                         val rawLabel = if (speed == speed.toInt().toFloat()) "${speed.toInt()}" else "$speed"
                         val displayLabel = if (isSelected) "${rawLabel}x" else if (speed == 1.0f) "1.0x" else rawLabel
-                        Box(
-                            modifier = Modifier
-                                .clickable { onSpeedChange(speed); onDismiss() }
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(text = displayLabel, color = if (isSelected) Color.White else Color(0x80FFFFFF), fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, fontSize = 14.sp)
-                        }
+                        com.medianest.ui.components.PlaybackSpeedChip(
+                            label = displayLabel,
+                            isSelected = isSelected,
+                            onClick = { onSpeedChange(speed); onDismiss() },
+                            fontSize = 14.sp,
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        )
                     }
                 }
             }
@@ -260,6 +276,9 @@ internal fun VideoPostProcessingPanel(
     onEffectChange: (MediaEffect) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val isDark = LocalDarkTheme.current
+    val bgRes = R.drawable.bg_596
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -273,10 +292,11 @@ internal fun VideoPostProcessingPanel(
                 .padding(bottom = 24.dp)
                 .clickable(enabled = false) {},
             shape = RoundedCornerShape(20.dp),
-            backgroundColor = Color(0xF2121522),
+            backgroundColor = Color.Transparent,
             borderColor = Color(0x33FFFFFF),
-            enableBlur = true,
-            blurRadius = 16.dp
+            enableBlur = false,
+            backgroundImage = bgRes,
+            backgroundImageAlpha = 1.0f
         ) {
             Column(
                 modifier = Modifier

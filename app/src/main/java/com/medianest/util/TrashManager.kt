@@ -4,7 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import com.medianest.data.model.MediaItem
-import com.medianest.ui.components.getFilePathFromUri
+import com.medianest.ui.components.mediainfo.getFilePathFromUri
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File

@@ -39,6 +39,7 @@ fun AudioTab(
     isSelectionMode: Boolean,
     gridSizeLevel: Int = 1,
     isLoading: Boolean = false,
+    isScanningHidden: Boolean = false,
     onSongClick: (List<MediaItem>, Int) -> Unit,
     onSongLongClick: (MediaItem) -> Unit,
     onCreatePlaylistClick: () -> Unit,
@@ -242,14 +243,17 @@ fun AudioTab(
     }
 
     val contentBlock: @Composable () -> Unit = {
-        if (isLoading && (audioList.isEmpty() || (effectiveAudioList.isEmpty() && subTabState !in listOf(1, 2, 6)))) {
+        if ((isLoading && (audioList.isEmpty() || (effectiveAudioList.isEmpty() && subTabState !in listOf(1, 2, 6)))) ||
+            (isScanningHidden && subTabState == 8 && effectiveAudioList.isEmpty())) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 com.medianest.ui.components.MediaLoadingAnimation(
                     mediaType = com.medianest.data.db.MediaType.AUDIO,
-                    iconSize = 52.dp
+                    iconSize = 52.dp,
+                    showLabel = isScanningHidden && subTabState == 8,
+                    customMessage = if (isScanningHidden && subTabState == 8) "Scanning hidden audio..." else null
                 )
             }
         } else {
@@ -317,6 +321,8 @@ fun AudioTab(
                     if (artist != null) targetArtist = artist
                     if (folder != null) targetFolder = folder
                 },
+                isLoading = isLoading,
+                isScanningHidden = isScanningHidden,
                 sortField = sortField,
                 isAscending = isAscending
             )
@@ -334,6 +340,8 @@ fun AudioTab(
                     if (artist != null) targetArtist = artist
                     if (folder != null) targetFolder = folder
                 },
+                isLoading = isLoading,
+                isScanningHidden = isScanningHidden,
                 sortField = sortField,
                 isAscending = isAscending
             )

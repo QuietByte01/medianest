@@ -41,7 +41,8 @@ class ArtistMetadataRepository(
                 awards = emptyList(),
                 popularAlbums = emptyList(),
                 localAlbums = emptyList(),
-                about = "Information not available offline."
+                about = "Information not available offline.",
+                isPlaceholder = true
             )
         }
 
@@ -58,7 +59,8 @@ class ArtistMetadataRepository(
             awards = emptyList(),
             popularAlbums = emptyList(),
             localAlbums = emptyList(),
-            about = "Failed to fetch artist details."
+            about = "Failed to fetch artist details.",
+            isPlaceholder = true
         )
     }
 

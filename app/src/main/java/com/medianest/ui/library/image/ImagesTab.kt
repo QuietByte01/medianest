@@ -27,18 +27,16 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.paging.compose.LazyPagingItems
 import com.medianest.MediaNestApp
-import com.medianest.data.db.CategoryMediaCrossRef
-import com.medianest.data.db.MediaCategory
 import com.medianest.data.db.MediaType
 import com.medianest.data.db.SelectiveHiddenFolder
 import com.medianest.data.model.MediaItem
 import com.medianest.data.settings.SettingsManager
+import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.MediaInfoBottomSheet
 import com.medianest.ui.components.RenameFileDialog
 import com.medianest.ui.components.SortRow
 import com.medianest.ui.theme.LocalDarkTheme
 import com.medianest.util.FolderHiddenUtils
-import com.medianest.util.TrashManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -48,8 +46,6 @@ import kotlinx.coroutines.withContext
 @Composable
 fun ImagesTab(
     imagesList: List<MediaItem>,
-    imageCollections: List<MediaCategory> = emptyList(),
-    categoryCrossRefs: List<CategoryMediaCrossRef> = emptyList(),
     selectedUris: Set<String>,
     isSelectionMode: Boolean,
     gridGapDp: Int,
@@ -57,9 +53,7 @@ fun ImagesTab(
     cornerRadiusDp: Int = 8,
     roundedCornersEnabled: Boolean = true,
     isLoading: Boolean = false,
-    onCreateCollection: (String, List<String>, String?) -> Unit = { _, _, _ -> },
-    onUpdateCollection: (Long, String, List<String>, String?) -> Unit = { _, _, _, _ -> },
-    onDeleteCollection: (Long) -> Unit = {},
+    isScanningHidden: Boolean = false,
     onImageClick: (MediaItem, List<MediaItem>) -> Unit,
     onImageLongClick: (MediaItem) -> Unit,
     onBackToDashboard: () -> Unit = {},
@@ -72,7 +66,6 @@ fun ImagesTab(
     var activeFilterTab by remember { mutableStateOf("ALL") }
     var viewMode by remember { mutableIntStateOf(0) }
     var selectedFolder by remember { mutableStateOf<String?>(null) }
-    var selectedCategory by remember { mutableStateOf<MediaCategory?>(null) }
 
     val settingsManager = MediaNestApp.instance.settingsManager
     val persistedSortField by settingsManager.imageSortField.collectAsState(initial = "Date")
@@ -91,54 +84,31 @@ fun ImagesTab(
 
     val db = remember { MediaNestApp.instance.database }
     val observedCrossRefs by db.categoryDao().getAllCrossRefs().collectAsState(initial = emptyList())
-    val effectiveCrossRefs = if (observedCrossRefs.isNotEmpty()) observedCrossRefs else categoryCrossRefs
 
     val allImageCategories by db.categoryDao().getCategoriesByType("IMAGE").collectAsState(initial = emptyList())
     val favoriteCat = remember(allImageCategories) { allImageCategories.find { it.name.equals("Favorites", ignoreCase = true) } }
 
-    val favoriteUris = remember(effectiveCrossRefs, favoriteCat) {
-        if (favoriteCat != null) effectiveCrossRefs.filter { it.categoryId == favoriteCat.id }.map { it.mediaUri }.toSet()
+    val favoriteUris = remember(observedCrossRefs, favoriteCat) {
+        if (favoriteCat != null) observedCrossRefs.filter { it.categoryId == favoriteCat.id }.map { it.mediaUri }.toSet()
         else emptySet()
     }
 
-    val trashUris by remember { mutableStateOf(setOf<String>()) }
-    // Trash functionality commented out
-    // var trashedItems by remember { mutableStateOf<List<com.medianest.util.TrashedMediaItem>>(emptyList()) }
-    // LaunchedEffect(currentContext) {
-    //     withContext(Dispatchers.IO) {
-    //         trashedItems = TrashManager.getTrashedItems(currentContext)
-    //     }
-    // }
-
     var filterCounts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
 
-    // TODO: Optimize Scanning Performance. Hardcoded 600ms delay causes visible lag in UI updates.
-    // Logic should be reactive to imagesList changes without artificial throttling.
     LaunchedEffect(imagesList, favoriteUris) {
         kotlinx.coroutines.delay(600)
         withContext(Dispatchers.Default) {
             val counts = mutableMapOf<String, Int>()
             val ids = listOf("CAMERA", "FAVORITES", "NOTES", "SCREENSHOTS", "GIFS", "SOCIAL", "PNG_SVG", "EDITED", "AI_GENERATED", "ANIME", "COOKING", "GARDENING", "WALLPAPERS", "EXCLUDED")
             ids.forEach { id ->
-                counts[id] = filterImageList(imagesList, id, favoriteUris, emptySet()).size
+                counts[id] = filterImageList(imagesList, id, favoriteUris).size
             }
-            // counts["TRASH"] = 0
             filterCounts = counts
         }
     }
 
     var isFolderSelectionActive by remember { mutableStateOf(false) }
     var selectedFolderNames by remember { mutableStateOf<Set<String>>(emptySet()) }
-
-    var showCreateCollectionDialog by remember { mutableStateOf(false) }
-    var newCollectionName by remember { mutableStateOf("") }
-
-    var showSortMenu by remember { mutableStateOf(false) }
-
-    var showEditCollectionDialog by remember { mutableStateOf(false) }
-    var editCollectionName by remember { mutableStateOf("") }
-    var editSelectedFolders by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var showUngroupConfirmDialog by remember { mutableStateOf(false) }
 
     var folderToMove by remember { mutableStateOf<String?>(null) }
     var folderToDelete by remember { mutableStateOf<String?>(null) }
@@ -154,7 +124,6 @@ fun ImagesTab(
     // Persistent Scroll States
     val mainGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState()
     val folderGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState()
-    val collectionsGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState()
 
     // Smooth Scroll on Sort Change
     var isInitialSortEffect by remember { mutableStateOf(true) }
@@ -165,16 +134,10 @@ fun ImagesTab(
         }
         scope.launch {
             try {
-                when {
-                    selectedCategory != null || viewMode == 2 -> {
-                        if (collectionsGridState.layoutInfo.totalItemsCount > 0) collectionsGridState.animateScrollToItem(0)
-                    }
-                    viewMode == 1 && selectedFolder == null -> {
-                        if (folderGridState.layoutInfo.totalItemsCount > 0) folderGridState.animateScrollToItem(0)
-                    }
-                    else -> {
-                        if (mainGridState.layoutInfo.totalItemsCount > 0) mainGridState.animateScrollToItem(0)
-                    }
+                if (viewMode == 1 && selectedFolder == null) {
+                    if (folderGridState.layoutInfo.totalItemsCount > 0) folderGridState.animateScrollToItem(0)
+                } else {
+                    if (mainGridState.layoutInfo.totalItemsCount > 0) mainGridState.animateScrollToItem(0)
                 }
             } catch (_: Exception) {
                 // Ignore if list is not yet ready
@@ -183,19 +146,14 @@ fun ImagesTab(
     }
 
     BackHandler(
-        enabled = showUngroupConfirmDialog || showEditCollectionDialog || showCreateCollectionDialog ||
-                isFolderSelectionActive || selectedFolder != null || selectedCategory != null || viewMode != 0
+        enabled = isFolderSelectionActive || selectedFolder != null || viewMode != 0
     ) {
         when {
-            showUngroupConfirmDialog -> showUngroupConfirmDialog = false
-            showEditCollectionDialog -> showEditCollectionDialog = false
-            showCreateCollectionDialog -> showCreateCollectionDialog = false
             isFolderSelectionActive -> {
                 isFolderSelectionActive = false
                 selectedFolderNames = emptySet()
             }
             selectedFolder != null -> selectedFolder = null
-            selectedCategory != null -> selectedCategory = null
             viewMode != 0 -> viewMode = 0
         }
     }
@@ -275,12 +233,6 @@ fun ImagesTab(
         }
     }
 
-    val categoryFolderMap = remember(effectiveCrossRefs) {
-        effectiveCrossRefs.groupBy({ it.categoryId }, { it.mediaUri })
-    }
-
-    val cardShape = if (roundedCornersEnabled) RoundedCornerShape(cornerRadiusDp.dp) else RoundedCornerShape(0.dp)
-
     val imageMinSize = when (gridSizeLevel) {
         0 -> 100.dp
         2 -> 180.dp
@@ -295,8 +247,8 @@ fun ImagesTab(
                 onFilterTabChange = { activeFilterTab = it },
                 viewMode = viewMode,
                 onViewModeChange = { viewMode = it },
-                selectedCategory = selectedCategory,
-                onSelectedCategoryChange = { selectedCategory = it },
+                selectedCategory = null,
+                onSelectedCategoryChange = {},
                 onSelectedFolderChange = { selectedFolder = it },
                 onShowHiddenFiles = { scope.launch { settingsManager.setShowHiddenFiles(true) } },
                 showHiddenFiles = showHiddenSetting,
@@ -310,21 +262,18 @@ fun ImagesTab(
                 onIsAscendingChange = { scope.launch { settingsManager.setImageSortAscending(it) } },
                 isVisible = isSortVisible.value,
                 onBack = when {
-                    selectedCategory != null -> ({ selectedCategory = null })
                     selectedFolder != null -> ({ selectedFolder = null })
                     activeFilterTab != "ALL" -> ({ activeFilterTab = "ALL" })
                     viewMode == 1 -> ({ viewMode = 0 })
                     else -> onBackToDashboard
                 },
                 backLabel = when {
-                    selectedCategory != null -> selectedCategory!!.name
                     selectedFolder != null -> selectedFolder!!.substringAfterLast('/')
                     activeFilterTab != "ALL" -> "All Photos"
                     viewMode == 1 -> "All Photos"
                     else -> "Dashboard"
                 }
             )
-
 
             Box(modifier = Modifier.weight(1f)) {
                 val visibleFolders = remember(sortedFolderNames, folderGroups, activeFilterTab, allHiddenImageFolders, showHiddenSetting) {
@@ -338,7 +287,7 @@ fun ImagesTab(
                     }
                 }
 
-                val displayList = remember(imagesList, activeFilterTab, favoriteUris, trashUris, showHiddenSetting) {
+                val displayList = remember(imagesList, activeFilterTab, favoriteUris, showHiddenSetting) {
                     val baseList = when (activeFilterTab) {
                         "EXCLUDED" -> imagesList.filter { it.isExcluded || com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
                         "HIDDEN" -> imagesList.filter { it.isHidden && !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
@@ -351,7 +300,7 @@ fun ImagesTab(
                     if (activeFilterTab == "ALL" || activeFilterTab == "EXCLUDED" || activeFilterTab == "HIDDEN") {
                         baseList
                     } else {
-                        filterImageList(baseList, activeFilterTab, favoriteUris, trashUris)
+                        filterImageList(baseList, activeFilterTab, favoriteUris)
                     }
                 }
 
@@ -386,54 +335,19 @@ fun ImagesTab(
                 }
 
                 when {
-                    isLoading && (imagesList.isEmpty() || (sortedDisplayList.isEmpty() && selectedCategory == null && viewMode == 0 && activeFilterTab != "FOLDERS")) -> {
+                    (isLoading && (imagesList.isEmpty() || (sortedDisplayList.isEmpty() && viewMode == 0 && activeFilterTab != "FOLDERS"))) ||
+                    (isScanningHidden && activeFilterTab == "HIDDEN" && sortedDisplayList.isEmpty()) -> {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
                             com.medianest.ui.components.MediaLoadingAnimation(
                                 mediaType = com.medianest.data.db.MediaType.IMAGE,
-                                iconSize = 52.dp
+                                iconSize = 52.dp,
+                                showLabel = isScanningHidden && activeFilterTab == "HIDDEN",
+                                customMessage = if (isScanningHidden && activeFilterTab == "HIDDEN") "Scanning hidden photos..." else null
                             )
                         }
-                    }
-
-                    selectedCategory != null || viewMode == 2 -> {
-                        // Filter out empty collections for display in Grid view, but allow selected one to show
-                        val displayCollections = remember(allImageCategories, categoryFolderMap, imagesList) {
-                            allImageCategories.filter { cat ->
-                                val memberFolders = categoryFolderMap[cat.id] ?: emptyList()
-                                val hasItems = imagesList.any { (it.bucketName ?: "Pictures") in memberFolders }
-                                hasItems || cat.id == selectedCategory?.id
-                            }
-                        }
-
-                        CollectionViews(
-                            selectedCategory = selectedCategory,
-                            onSelectedCategoryChange = { selectedCategory = it },
-                            imageCollections = displayCollections,
-                            categoryFolderMap = categoryFolderMap,
-                            imagesList = imagesList,
-                            isLoading = isLoading,
-                            viewMode = viewMode,
-                            onViewModeChange = { viewMode = it },
-                            onIsFolderSelectionActiveChange = { isFolderSelectionActive = it },
-                            onEditCollectionRequest = { cat, folders ->
-                                editCollectionName = cat.name
-                                editSelectedFolders = folders
-                                showEditCollectionDialog = true
-                            },
-                            onImageClick = onImageClick,
-                            onImageLongClick = onImageLongClick,
-                            onContextSheetItemChange = { contextSheetItem = it },
-                            selectedUris = selectedUris,
-                            isSelectionMode = isSelectionMode,
-                            cornerRadiusDp = cornerRadiusDp,
-                            roundedCornersEnabled = roundedCornersEnabled,
-                            gridGapDp = gridGapDp,
-                            imageMinSize = imageMinSize,
-                            gridState = collectionsGridState
-                        )
                     }
 
                     viewMode == 1 && selectedFolder == null -> {
@@ -445,6 +359,7 @@ fun ImagesTab(
                             selectedFolderNames = selectedFolderNames,
                             onSelectedFolderNamesChange = { selectedFolderNames = it },
                             isLoading = isLoading,
+                            isScanningHidden = isScanningHidden,
                             activeFilterTab = activeFilterTab,
                             onSelectedFolderChange = { selectedFolder = it },
                             onFolderDeleteRequest = { folderToDelete = it },
@@ -493,16 +408,12 @@ fun ImagesTab(
                             onInfoItemChange = { infoItem = it },
                             onImageToDeleteChange = { imageToDelete = it },
                             onContextSheetItemChange = { contextSheetItem = it },
-                            onRemoveFromCategory = { item ->
-                                scope.launch(Dispatchers.IO) {
-                                    db.categoryDao().removeMediaFromCategory(selectedCategory!!.id, item.uri.toString())
-                                }
-                            },
-                            selectedCategory = selectedCategory,
+                            onRemoveFromCategory = {},
+                            selectedCategory = null,
                             isLoading = isLoading,
                             activeFilterTab = activeFilterTab,
                             gridState = mainGridState,
-                            pagedImages = if (viewMode == 0 && activeFilterTab == "ALL" && selectedFolder == null && selectedCategory == null) pagedImages else null
+                            pagedImages = if (viewMode == 0 && activeFilterTab == "ALL" && selectedFolder == null) pagedImages else null
                         )
                     }
                 }
@@ -518,63 +429,11 @@ fun ImagesTab(
                 selectedFolderNames = if (selectedFolderNames.size == folderGroups.size) emptySet() else folderGroups.keys.toSet()
             },
             onShowBatchInfo = { showFolderBatchInfoModal = true },
-            onGroupClick = {
-                newCollectionName = if (selectedFolderNames.size == 1) {
-                    selectedFolderNames.first() + " Collection"
-                } else {
-                    "New Collection"
-                }
-                showCreateCollectionDialog = true
-            },
             onClearSelection = {
                 isFolderSelectionActive = false
                 selectedFolderNames = emptySet()
             }
         )
-
-        if (showCreateCollectionDialog) {
-            CreateCollectionDialog(
-                selectedFolderNames = selectedFolderNames,
-                initialCollectionName = newCollectionName,
-                imagesList = imagesList,
-                onCreateCollection = { name, folders, cover ->
-                    onCreateCollection(name, folders, cover)
-                    isFolderSelectionActive = false
-                    selectedFolderNames = emptySet()
-                    viewMode = 2
-                },
-                onDismiss = { showCreateCollectionDialog = false }
-            )
-        }
-
-        if (showEditCollectionDialog && selectedCategory != null) {
-            val memberFolders = categoryFolderMap[selectedCategory!!.id] ?: emptyList()
-            EditCollectionDialog(
-                selectedCategory = selectedCategory!!,
-                initialFolders = memberFolders.toSet(),
-                folderGroups = folderGroups,
-                imagesList = imagesList,
-                onUpdateCollection = onUpdateCollection,
-                onUngroupRequest = {
-                    showEditCollectionDialog = false
-                    showUngroupConfirmDialog = true
-                },
-                onDismiss = { showEditCollectionDialog = false }
-            )
-        }
-
-        if (showUngroupConfirmDialog && selectedCategory != null) {
-            UngroupConfirmDialog(
-                categoryName = selectedCategory!!.name,
-                onConfirmUngroup = {
-                    showUngroupConfirmDialog = false
-                    onDeleteCollection(selectedCategory!!.id)
-                    selectedCategory = null
-                    viewMode = 2
-                },
-                onDismiss = { showUngroupConfirmDialog = false }
-            )
-        }
 
         if (folderToMove != null) {
             MoveImageFolderDialog(
@@ -607,16 +466,14 @@ fun ImagesTab(
         }
 
         if (contextSheetItem != null) {
-            val isDark = LocalDarkTheme.current
             val activeItem = contextSheetItem!!
-            val menuBg = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF)
+            val isDark = LocalDarkTheme.current
 
-            DropdownMenu(
+            GlassDropdownMenu(
                 expanded = true,
                 onDismissRequest = { contextSheetItem = null },
-                containerColor = menuBg,
-                shape = RoundedCornerShape(20.dp),
-                modifier = Modifier.width(220.dp).border(1.dp, if (isDark) Color(0x28FFFFFF) else Color(0x33000000), RoundedCornerShape(20.dp))
+                modifier = Modifier.width(220.dp),
+                shape = RoundedCornerShape(20.dp)
             ) {
                 Text(
                     text = activeItem.title,
@@ -646,7 +503,6 @@ fun ImagesTab(
                         val target = activeItem
                         contextSheetItem = null
                         val listForContext = when {
-                            selectedCategory != null -> imagesList.filter { (it.bucketName ?: "Pictures") in (categoryFolderMap[selectedCategory!!.id] ?: emptyList()) }
                             selectedFolder != null -> folderGroups[selectedFolder] ?: emptyList()
                             else -> imagesList
                         }
@@ -662,21 +518,6 @@ fun ImagesTab(
                         onImageLongClick(target)
                     }
                 )
-
-                if (selectedCategory != null) {
-                    DropdownMenuItem(
-                        text = { Text("Remove from Collection", color = MaterialTheme.colorScheme.error) },
-                        leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
-                        onClick = {
-                            val target = activeItem
-                            val cat = selectedCategory!!
-                            contextSheetItem = null
-                            scope.launch(Dispatchers.IO) {
-                                db.categoryDao().removeMediaFromCategory(cat.id, target.uri.toString())
-                            }
-                        }
-                    )
-                }
 
                 if (selectedFolder != null) {
                     DropdownMenuItem(
@@ -731,7 +572,6 @@ fun ImagesTab(
                     infoItem = null
                     activeFilterTab = "FOLDERS"
                     viewMode = 1
-                    selectedCategory = null
                     val relPath = item.relativePath?.trim('/')
                     val folderKey = if (!relPath.isNullOrBlank()) relPath else (item.bucketName ?: "Pictures")
                     selectedFolder = folderGroups.keys.firstOrNull { key ->

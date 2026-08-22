@@ -4,8 +4,6 @@ import android.content.Context
 import java.util.Locale
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.*
@@ -19,7 +17,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.medianest.data.model.MediaItem
+import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.theme.LocalDarkTheme
 import com.medianest.util.FolderHiddenUtils
 
@@ -31,80 +31,74 @@ fun FolderBatchActionBar(
     context: Context,
     onSelectAllToggle: () -> Unit,
     onShowBatchInfo: () -> Unit,
-    onGroupClick: () -> Unit,
     onClearSelection: () -> Unit
 ) {
     AnimatedVisibility(
         visible = visible,
-        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
+        enter = slideInVertically(initialOffsetY = { it }),
+        exit = slideOutVertically(targetOffsetY = { it }),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.primaryContainer,
-            shadowElevation = 8.dp,
-            modifier = Modifier.fillMaxWidth(0.95f)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Box(contentAlignment = Alignment.BottomCenter) {
+            GlassSurface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(20.dp),
+                backgroundColor = Color(0x331C1F2B),
+                borderColor = Color(0x38FFFFFF)
             ) {
-                Text(
-                    text = "${selectedFolderNames.size} folder(s)",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${selectedFolderNames.size} folders selected",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onSelectAllToggle) {
-                        Icon(Icons.Default.SelectAll, contentDescription = "Select All", tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                    }
-
-                    IconButton(onClick = onShowBatchInfo) {
-                        Icon(Icons.Default.Info, contentDescription = "Folder Info", tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                    }
-
-                    IconButton(onClick = {
-                        val selectedItems = selectedFolderNames.flatMap { folderGroups[it] ?: emptyList() }
-                        val urisToShare = selectedItems.map { it.uri }
-                        val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                            type = "*/*"
-                            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(urisToShare))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onSelectAllToggle) {
+                            Icon(Icons.Default.SelectAll, contentDescription = "Select All", tint = Color.White)
                         }
-                        context.startActivity(Intent.createChooser(shareIntent, "Share Folders"))
-                    }) {
-                        Icon(Icons.Default.Share, contentDescription = "Share Folders", tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                    }
 
-                    IconButton(onClick = {
-                        val itemsToDelete = selectedFolderNames.flatMap { folderGroups[it] ?: emptyList() }
-                        itemsToDelete.forEach { item ->
-                            try {
-                                FolderHiddenUtils.deleteMediaUri(context, item.uri)
-                            } catch (e: Exception) {
-                                e.printStackTrace()
+                        IconButton(onClick = onShowBatchInfo) {
+                            Icon(Icons.Default.Info, contentDescription = "Folder Info", tint = Color.White)
+                        }
+
+                        IconButton(onClick = {
+                            val selectedItems = selectedFolderNames.flatMap { folderGroups[it] ?: emptyList() }
+                            val urisToShare = selectedItems.map { it.uri }
+                            val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                                type = "*/*"
+                                putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(urisToShare))
                             }
+                            context.startActivity(Intent.createChooser(shareIntent, "Share Folders"))
+                        }) {
+                            Icon(Icons.Default.Share, contentDescription = "Share Folders", tint = Color.White)
                         }
-                        onClearSelection()
-                    }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete Folders", tint = MaterialTheme.colorScheme.error)
-                    }
 
-                    Button(
-                        enabled = selectedFolderNames.isNotEmpty(),
-                        onClick = onGroupClick
-                    ) {
-                        Icon(Icons.Default.GroupWork, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Group")
-                    }
+                        IconButton(onClick = {
+                            val itemsToDelete = selectedFolderNames.flatMap { folderGroups[it] ?: emptyList() }
+                            itemsToDelete.forEach { item ->
+                                try {
+                                    FolderHiddenUtils.deleteMediaUri(context, item.uri)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }
+                            onClearSelection()
+                        }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete Folders", tint = Color(0xFFFF5252))
+                        }
 
-                    IconButton(onClick = onClearSelection) {
-                        Icon(Icons.Default.Close, contentDescription = "Clear Folder Selection", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        IconButton(onClick = onClearSelection) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear Selection", tint = Color.White.copy(alpha = 0.7f))
+                        }
                     }
                 }
             }

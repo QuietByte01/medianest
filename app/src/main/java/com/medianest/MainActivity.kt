@@ -122,6 +122,7 @@ class MainActivity : ComponentActivity() {
                     val analyticsFormatStats by analyticsRepository.formatStats.collectAsState(initial = emptyList())
                     var isAnalyticsRefreshing by remember { mutableStateOf(false) }
                     var isScanLoading by remember { mutableStateOf(true) }
+                    var isScanningHidden by remember { mutableStateOf(false) }
 
                     var isUnlocked by remember { mutableStateOf(!appLockEnabled) }
                     var currentScreen by rememberSaveable { mutableStateOf("LIBRARY") } // LIBRARY, SETTINGS, AUDIO_PLAYER
@@ -157,9 +158,7 @@ class MainActivity : ComponentActivity() {
                         onDispose {}
                     }
 
-                    // Observe hidden folders and scan MediaStore
-                    // FIXME: Hidden folder changes (disabling) do not reflect immediately in the UI.
-                    // The LaunchedEffect might be missing a trigger or experiencing a race condition when settings update.
+                    // Observe hidden folders and scan MediaStore (Fast immediate load + asynchronous hidden scan)
                     val resumeCount by resumeTrigger.collectAsState()
                     LaunchedEffect(showHiddenFiles, resumeCount) {
                         combine(
@@ -176,11 +175,44 @@ class MainActivity : ComponentActivity() {
 
                             Triple(selectiveImage + appHiddenFolders, selectiveVideo + appHiddenFolders, selectiveAudio + appHiddenFolders)
                         }.collectLatest { (imageHiddenPaths, videoHiddenPaths, audioHiddenPaths) ->
+                            // 1. Fast immediate fetch from MediaStore (<50ms)
                             isScanLoading = true
-                            imagesList = mediaStoreRepository.getImages(imageHiddenPaths, showHidden = showHiddenFiles)
-                            videosList = mediaStoreRepository.getVideos(videoHiddenPaths, showHidden = showHiddenFiles)
-                            audioList = mediaStoreRepository.getAudio(audioHiddenPaths, showHidden = showHiddenFiles)
+                            imagesList = mediaStoreRepository.getImages(imageHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false)
+                            videosList = mediaStoreRepository.getVideos(videoHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false)
+                            audioList = mediaStoreRepository.getAudio(audioHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false)
                             isScanLoading = false
+
+                            // 2. Delayed background filesystem scan for hidden folders so UI never blocks
+                            if (showHiddenFiles) {
+                                isScanningHidden = true
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    kotlinx.coroutines.delay(150) // Let main screen compose immediately
+                                    val hiddenImages = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.IMAGE, imageHiddenPaths)
+                                    val hiddenVideos = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.VIDEO, videoHiddenPaths)
+                                    val hiddenAudio = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.AUDIO, audioHiddenPaths)
+
+                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        if (hiddenImages.isNotEmpty()) {
+                                            val existingUris = imagesList.map { it.uri.toString() }.toSet()
+                                            val toAdd = hiddenImages.filter { !existingUris.contains(it.uri.toString()) }
+                                            if (toAdd.isNotEmpty()) imagesList = imagesList + toAdd
+                                        }
+                                        if (hiddenVideos.isNotEmpty()) {
+                                            val existingUris = videosList.map { it.uri.toString() }.toSet()
+                                            val toAdd = hiddenVideos.filter { !existingUris.contains(it.uri.toString()) }
+                                            if (toAdd.isNotEmpty()) videosList = videosList + toAdd
+                                        }
+                                        if (hiddenAudio.isNotEmpty()) {
+                                            val existingUris = audioList.map { it.uri.toString() }.toSet()
+                                            val toAdd = hiddenAudio.filter { !existingUris.contains(it.uri.toString()) }
+                                            if (toAdd.isNotEmpty()) audioList = audioList + toAdd
+                                        }
+                                        isScanningHidden = false
+                                    }
+                                }
+                            } else {
+                                isScanningHidden = false
+                            }
                         }
                     }
 
@@ -314,6 +346,7 @@ class MainActivity : ComponentActivity() {
                                         roundedCornersEnabled = roundedCornersEnabled,
                                         enableAnalyticsTab = enableAnalyticsTab,
                                         isLoading = isScanLoading,
+                                        isScanningHidden = isScanningHidden,
                                         analyticsSnapshot = analyticsSnapshot,
                                         analyticsFormatStats = analyticsFormatStats,
                                         isAnalyticsRefreshing = isAnalyticsRefreshing,

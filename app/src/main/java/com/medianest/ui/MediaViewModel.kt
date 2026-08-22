@@ -142,7 +142,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             var filtered = if (query.isEmpty()) baseList else baseList.filter { it.title.contains(query, ignoreCase = true) }
             
             if (tab != "ALL" && tab != "EXCLUDED" && tab != "HIDDEN") {
-                filtered = com.medianest.ui.library.image.filterImageList(filtered, tab, emptySet(), emptySet())
+                filtered = com.medianest.ui.library.image.filterImageList(filtered, tab, emptySet())
             }
 
             val comp = when (sort) {

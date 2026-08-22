@@ -83,7 +83,6 @@ fun ImagesMainGrid(
                         Icon(
                             imageVector = when (activeFilterTab) {
                                 "FAVORITES" -> Icons.Default.Favorite
-                                "TRASH" -> Icons.Default.Delete
                                 "CAMERA" -> Icons.Default.PhotoCamera
                                 else -> Icons.Default.PhotoLibrary
                             },
@@ -95,7 +94,6 @@ fun ImagesMainGrid(
                         Text(
                             text = when (activeFilterTab) {
                                 "FAVORITES" -> "No Favorite Photos"
-                                "TRASH" -> "Trash is Empty"
                                 "CAMERA" -> "No Camera Photos"
                                 else -> "No Images Found"
                             },
@@ -107,7 +105,6 @@ fun ImagesMainGrid(
                         Text(
                             text = when (activeFilterTab) {
                                 "FAVORITES" -> "Photos you mark as favorite will appear here"
-                                "TRASH" -> "Deleted photos in trash will appear here"
                                 "CAMERA" -> "Photos taken with your camera will appear here"
                                 else -> "Photos added to your device will appear here"
                             },

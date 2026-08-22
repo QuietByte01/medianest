@@ -54,7 +54,10 @@ class StandardBitmapRenderer(
             },
             loading = {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(modifier = Modifier.size(40.dp), color = Color.White.copy(alpha = 0.5f))
+                    com.medianest.ui.components.MediaLoadingAnimation(
+                        mediaType = com.medianest.data.db.MediaType.IMAGE,
+                        iconSize = 38.dp
+                    )
                 }
             },
             error = {

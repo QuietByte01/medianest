@@ -374,7 +374,7 @@ private fun SongRow(
                 ) {
                     DropdownMenuItem(
                         text = { Text("Add to Playlist") },
-                        leadingIcon = { Icon(Icons.Default.PlaylistAdd, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.Default.PlaylistAdd, contentDescription = null, tint = Color.White) },
                         onClick = {
                             showMenu = false
                             onAddToPlaylist(item)
@@ -383,7 +383,7 @@ private fun SongRow(
                     if (onRemoveFromPlaylist != null) {
                         DropdownMenuItem(
                             text = { Text("Remove from Playlist") },
-                            leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, contentDescription = null) },
+                            leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, contentDescription = null, tint = Color.White) },
                             onClick = {
                                 showMenu = false
                                 onRemoveFromPlaylist(item)
@@ -392,7 +392,7 @@ private fun SongRow(
                     }
                     DropdownMenuItem(
                         text = { Text("File Info") },
-                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = Color.White) },
                         onClick = {
                             showMenu = false
                             onInfoClick(item)
@@ -400,7 +400,7 @@ private fun SongRow(
                     )
                     DropdownMenuItem(
                         text = { Text("Edit Tag & Metadata") },
-                        leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null, tint = Color.White) },
                         onClick = {
                             showMenu = false
                             onEditMetadataClick(item)
@@ -408,7 +408,7 @@ private fun SongRow(
                     )
                     DropdownMenuItem(
                         text = { Text("Show Album") },
-                        leadingIcon = { Icon(Icons.Default.Album, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.Default.Album, contentDescription = null, tint = Color.White) },
                         onClick = {
                             showMenu = false
                             onNavigateSubTab(3, item.album ?: "Unknown Album", null, null)
@@ -416,7 +416,7 @@ private fun SongRow(
                     )
                     DropdownMenuItem(
                         text = { Text("Show Artist") },
-                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = Color.White) },
                         onClick = {
                             showMenu = false
                             onNavigateSubTab(4, null, item.artist ?: "Unknown Artist", null)
@@ -427,7 +427,8 @@ private fun SongRow(
                         leadingIcon = { 
                             Icon(
                                 if (showInGallery) Icons.Default.MusicNote else Icons.Default.Folder, 
-                                contentDescription = null
+                                contentDescription = null,
+                                tint = Color.White
                             ) 
                         },
                         onClick = {

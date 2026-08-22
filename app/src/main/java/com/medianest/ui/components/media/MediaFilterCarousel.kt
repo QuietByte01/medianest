@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -73,11 +74,22 @@ fun MediaFilterCarousel(
                     }
                 }
                 FilterCarouselStyle.PLAYER_CHIP -> {
+                    val glossyWhiteBrush = Brush.verticalGradient(
+                        colors = listOf(Color(0xFFFFFFFF), Color(0xFFE2E8F0))
+                    )
                     Surface(
                         onClick = { onFilterChange(filter) },
                         shape = RoundedCornerShape(14.dp),
-                        color = if (isSelected) Color(0xF5FFFFFF) else Color(0x1AFFFFFF),
-                        border = BorderStroke(1.dp, if (isSelected) Color(0xFFFFFFFF) else Color(0x14FFFFFF))
+                        color = Color.Transparent,
+                        border = BorderStroke(
+                            width = 1.dp,
+                            brush = Brush.verticalGradient(
+                                colors = if (isSelected) listOf(Color.White, Color.White.copy(alpha = 0.5f))
+                                else listOf(Color.White.copy(alpha = 0.2f), Color.White.copy(alpha = 0.05f))
+                            )
+                        ),
+                        modifier = Modifier.clip(RoundedCornerShape(14.dp))
+                            .then(if (isSelected) Modifier.background(glossyWhiteBrush) else Modifier.background(Color(0x1AFFFFFF)))
                     ) {
                         Text(
                             text = filter.label,

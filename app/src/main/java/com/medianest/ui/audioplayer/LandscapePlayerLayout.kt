@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
@@ -72,6 +73,10 @@ fun LandscapePlayerLayout(
     modifier: Modifier = Modifier,
     onToggleVisualizer: () -> Unit = {},
     onFullscreenVisualizerClick: () -> Unit = {},
+    onToggleArtistInfo: () -> Unit = {},
+    showArtistInfo: Boolean = false,
+    showSidePanel: Boolean = false,
+    onToggleSidePanel: (Boolean) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
     allAudioItems: List<MediaItem> = emptyList(),
     showHidden: Boolean = false,
@@ -94,6 +99,10 @@ fun LandscapePlayerLayout(
         showHidden = showHidden,
         hiddenFolders = hiddenFolders,
         passedArtistInfo = artistInfo,
+        showArtistInfo = showArtistInfo,
+        onToggleArtistInfo = onToggleArtistInfo,
+        showSidePanel = showSidePanel,
+        onToggleSidePanel = onToggleSidePanel,
         modifier = modifier
     )
 }
@@ -114,6 +123,10 @@ private fun ImmersiveLandscapeLayout(
     allAudioItems: List<MediaItem>,
     showHidden: Boolean,
     hiddenFolders: Set<String>,
+    showArtistInfo: Boolean,
+    onToggleArtistInfo: () -> Unit,
+    showSidePanel: Boolean,
+    onToggleSidePanel: (Boolean) -> Unit,
     passedArtistInfo: ArtistInfo? = null,
     modifier: Modifier = Modifier
 ) {
@@ -124,7 +137,6 @@ private fun ImmersiveLandscapeLayout(
     var showNextIndicator by remember { mutableStateOf(false) }
     var showFavoriteIndicator by remember { mutableStateOf(false) }
 
-    var showSidePanel by remember { mutableStateOf(false) }
     var sidePanelSwipeOffset by remember { mutableFloatStateOf(0f) }
     val animatedSidePanelOffset by animateFloatAsState(
         targetValue = if (showSidePanel) 1f else sidePanelSwipeOffset,
@@ -139,9 +151,8 @@ private fun ImmersiveLandscapeLayout(
         }
     }
 
-    var artistInfoExpanded by remember { mutableStateOf(false) }
     val animatedArtistSlide by animateFloatAsState(
-        targetValue = if (artistInfoExpanded) -1f else 0f,
+        targetValue = if (showArtistInfo) -1f else 0f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy),
         label = "ArtistSlide"
     )
@@ -226,10 +237,10 @@ private fun ImmersiveLandscapeLayout(
                 detectTapGestures(
                     onTap = {
                         if (showSidePanel) {
-                            showSidePanel = false
+                            onToggleSidePanel(false)
                             sidePanelSwipeOffset = 0f
-                        } else if (artistInfoExpanded) {
-                            artistInfoExpanded = false
+                        } else if (showArtistInfo) {
+                            onToggleArtistInfo()
                         }
                     },
                     onDoubleTap = { offset ->
@@ -250,17 +261,17 @@ private fun ImmersiveLandscapeLayout(
                 detectHorizontalDragGestures(
                     onHorizontalDrag = { change, dragAmount ->
                         change.consume()
-                        if (!artistInfoExpanded) {
+                        if (!showArtistInfo) {
                             val dragStep = dragAmount / size.width.toFloat()
                             sidePanelSwipeOffset = (sidePanelSwipeOffset + dragStep * 2.5f).coerceIn(0f, 1f)
                         }
                     },
                     onDragEnd = {
                         if (sidePanelSwipeOffset > 0.3f) {
-                            showSidePanel = true
+                            onToggleSidePanel(true)
                             sidePanelSwipeOffset = 1f
                         } else {
-                            showSidePanel = false
+                            onToggleSidePanel(false)
                             sidePanelSwipeOffset = 0f
                         }
                     }
@@ -365,30 +376,57 @@ private fun ImmersiveLandscapeLayout(
                         }
 
                         // Artist Image Small Icon (Top Right)
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(12.dp)
-                                .size(52.dp)
-                                .clip(CircleShape)
-                                .border(
-                                    width = if (artistInfo?.imageUrl != null) 1.5.dp else 0.dp,
-                                    color = if (artistInfo?.imageUrl != null) Color.White.copy(0.6f) else Color.Transparent,
-                                    shape = CircleShape
-                                )
-                                .clickable { artistInfoExpanded = !artistInfoExpanded }
-                                .background(Color.Black.copy(0.4f))
-                        ) {
-                            AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(artistInfo?.imageUrl)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = "Artist Info",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
+                        val currentArtist = artistInfo
+                        if (currentArtist != null && !currentArtist.isPlaceholder) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(12.dp)
+                                    .size(52.dp)
+                                    .clip(CircleShape)
+                                    .border(
+                                        width = 1.2.dp,
+                                        color = Color.White.copy(0.35f),
+                                        shape = CircleShape
+                                    )
+                                    .clickable { onToggleArtistInfo() }
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(Color.White.copy(0.25f), Color.White.copy(0.05f))
+                                        )
+                                    )
+                            ) {
+                                SubcomposeAsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(currentArtist.imageUrl)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = "Artist Info",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    val state = painter.state
+                                    if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
+                                        // Transparent Glossy Fallback
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(Color.White.copy(alpha = 0.1f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Person,
+                                                contentDescription = null,
+                                                tint = Color.White.copy(alpha = 0.5f),
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+                                    } else {
+                                        SubcomposeAsyncImageContent()
+                                    }
+                                }
+                            }
+                        }
 
                     // Seekbar as bottom border of the Card
                         val currentPosMs = playerState.currentPositionMs
@@ -542,7 +580,7 @@ private fun ImmersiveLandscapeLayout(
         }
 
         // 5. Artist Info Panel (Right)
-        if (artistInfoExpanded || animatedArtistSlide < 0f) {
+        if (showArtistInfo || animatedArtistSlide < 0f) {
             Box(
                 modifier = Modifier
                     .fillMaxHeight()

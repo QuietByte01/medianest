@@ -5,8 +5,7 @@ import com.medianest.data.model.MediaItem
 fun filterImageList(
     imagesList: List<MediaItem>,
     activeFilterTab: String,
-    favoriteUris: Set<String>,
-    trashUris: Set<String>
+    favoriteUris: Set<String> = emptySet()
 ): List<MediaItem> {
     val result = when (activeFilterTab) {
         "HIDDEN" -> imagesList.filter { it.isHidden && !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
@@ -27,7 +26,6 @@ fun filterImageList(
             !isExcluded
         }
         "FAVORITES" -> imagesList.filter { favoriteUris.contains(it.uri.toString()) || it.title.lowercase().contains("fav") }
-        "TRASH" -> imagesList.filter { trashUris.contains(it.uri.toString()) }
         "SOCIAL" -> imagesList.filter { item ->
             val title = (item.title ?: "").lowercase()
             val path = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
@@ -100,8 +98,8 @@ fun filterImageList(
         "ANIME" -> imagesList.filter { item ->
             val full = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
             val animeKeywords = listOf(
-                "anime", "manga", "otaku", "crunchyroll", "goku", "naruto", "luffy",
-                "waifu", "husbando", "kawaii", "one piece", "bleach", "dragon ball", 
+                "anime", "manga", "otaku", "crunchyroll", "goku", "naruto", "Itachi", "shakura", "hinata", "kakashi", "pain", "luffy",
+                "waifu", "husbando", "kawaii", "one piece", "bleach", "dragon ball", "aot", "suzume", "asta", "rustage", "cartoon",
                 "attack on titan", "demon slayer", "jujutsu kaisen", "my hero academia", 
                 "death note", "evangelion", "ghibli", "cosplay", "pixiv"
             )
@@ -129,19 +127,28 @@ fun filterImageList(
         "GARDENING" -> imagesList.filter { item ->
             val path = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "")).lowercase()
             val title = item.title.lowercase()
-            
-            val gardeningFolders = setOf("gardening", "garden", "flowers", "flower", "nature", "farm", "park", "botany", "botanical")
+
+            // 1. Define folders you want to EXCLUDE
+            val excludedFolders = setOf("screenshot", "Quick Share", "WhatsApp", "telegram", "Documents", "Notes")
             val pathSegments = path.split(Regex("[/_\\s\\.\\-]+")).filter { it.isNotBlank() }
-            
+
+            // Check if the path contains any of the excluded folders
+            val isExcluded = pathSegments.any { it in excludedFolders }
+
+            // If it's in an excluded folder, skip it immediately
+            if (isExcluded) return@filter false
+
+            // 2. Your existing matching logic (using || or && depending on your preference)
+            val gardeningFolders = setOf("gardening", "garden", "flowers", "flower", "nature", "farm", "park", "botany", "botanical", "plants")
             val folderMatch = pathSegments.any { it in gardeningFolders }
-            
+
             val gardeningKeywords = listOf(
-                "garden", "gardening", "plant", "flower", "flowers", "leaf", "tree", "nature", 
-                "seeds", "soil", "farm", "forest", "bloom", "blossom", "botanical", "botany", "organic", 
+                "garden", "gardening", "plant", "plants", "flower", "flowers", "leaf", "tree", "nature",
+                "seeds", "soil", "farm", "forest", "bloom", "blossom", "botanical", "botany", "organic",
                 "agriculture", "park", "yard", "grass", "environment", "landscape"
             )
             val titleMatch = gardeningKeywords.any { title.contains(it) }
-            
+
             folderMatch || titleMatch
         }
         "WALLPAPERS" -> imagesList.filter { item ->

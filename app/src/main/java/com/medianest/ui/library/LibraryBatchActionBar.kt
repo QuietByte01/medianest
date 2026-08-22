@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.medianest.data.model.MediaItem
+import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.GlassSurface
 
 @Composable
@@ -85,11 +86,9 @@ fun LibraryBatchActionBar(
                                 IconButton(onClick = { showSelectionMoreMenu = true }) {
                                     Icon(Icons.Default.MoreVert, contentDescription = "More Options", tint = Color.White)
                                 }
-                                DropdownMenu(
+                                GlassDropdownMenu(
                                     expanded = showSelectionMoreMenu,
-                                    onDismissRequest = { showSelectionMoreMenu = false },
-                                    containerColor = Color(0xEF12151F),
-                                    shape = RoundedCornerShape(16.dp)
+                                    onDismissRequest = { showSelectionMoreMenu = false }
                                 ) {
                                     DropdownMenuItem(
                                         text = { Text("Move Selected") },

@@ -97,7 +97,10 @@ fun LyricsView(
             Spacer(modifier = Modifier.height(12.dp))
 
             if (isLoadingLyrics) {
-                CircularProgressIndicator(color = Color(0xFFF5F5F5))
+                com.medianest.ui.components.MediaLoadingAnimation(
+                    mediaType = com.medianest.data.db.MediaType.AUDIO,
+                    iconSize = 36.dp
+                )
             } else if (lyricsLines.isNotEmpty()) {
                 LazyColumn(
                     state = listState,

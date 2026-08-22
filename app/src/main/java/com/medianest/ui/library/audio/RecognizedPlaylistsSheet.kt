@@ -179,8 +179,11 @@ fun RecognizedPlaylistsSheet(
 
             if (isScanning || isImporting) {
                 Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CircularProgressIndicator()
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        com.medianest.ui.components.MediaLoadingAnimation(
+                            mediaType = com.medianest.data.db.MediaType.AUDIO,
+                            iconSize = 36.dp
+                        )
                         Text(if (isImporting) "Importing playlists..." else "Scanning for playlists...", fontSize = 12.sp, color = Color.White)
                     }
                 }

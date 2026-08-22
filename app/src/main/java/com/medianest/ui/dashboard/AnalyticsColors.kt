@@ -18,12 +18,15 @@ object AnalyticsColors {
     val Webm = Color(0xFF8338EC)
     val Mkv = Color(0xFF00B4D8)
     val Avi = Color(0xFF0077B6)
+    val Mov = Color(0xFF0284C7)
 
     val Mp3 = Color(0xFFFF006E)
     val Flac = Color(0xFFFFBE0B)
     val Wav = Color(0xFF3A86EF)
     val Aac = Color(0xFFF15BB5)
     val M4a = Color(0xFFE63946)
+    val Opus = Color(0xFF10B981)
+    val Ogg = Color(0xFF6366F1)
 
     private val FallbackColors = listOf(
         Color(0xFF457B9D),
@@ -45,11 +48,14 @@ object AnalyticsColors {
             "WEBM" -> Webm
             "MKV" -> Mkv
             "AVI" -> Avi
+            "MOV" -> Mov
             "MP3" -> Mp3
             "FLAC" -> Flac
             "WAV" -> Wav
             "AAC" -> Aac
             "M4A" -> M4a
+            "OPUS" -> Opus
+            "OGG" -> Ogg
             else -> {
                 when (category) {
                     "IMAGE" -> CategoryImages

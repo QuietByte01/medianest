@@ -625,6 +625,7 @@ fun VideoEditorStudioSheet(
                                         MediaAspectRatio.P_9_16 -> { cropNormX = 0.22f; cropNormY = 0f; cropNormW = 0.56f; cropNormH = 1f }
                                         MediaAspectRatio.P_16_9 -> { cropNormX = 0f; cropNormY = 0.15f; cropNormW = 1f; cropNormH = 0.7f }
                                         MediaAspectRatio.P_4_3 -> { cropNormX = 0.1f; cropNormY = 0f; cropNormW = 0.8f; cropNormH = 1f }
+                                        MediaAspectRatio.P_3_4 -> { cropNormX = 0.125f; cropNormY = 0f; cropNormW = 0.75f; cropNormH = 1f }
                                         MediaAspectRatio.P_4_5 -> { cropNormX = 0.15f; cropNormY = 0f; cropNormW = 0.7f; cropNormH = 0.875f }
                                         MediaAspectRatio.P_21_9 -> { cropNormX = 0f; cropNormY = 0.25f; cropNormW = 1f; cropNormH = 0.5f }
                                         else -> {}

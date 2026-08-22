@@ -22,8 +22,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.data.model.MediaItem
+import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.GlassSurface
-import com.medianest.ui.components.getFilePathFromUri
+import com.medianest.ui.components.mediainfo.getFilePathFromUri
 import com.medianest.util.formatBytesReport
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -39,6 +40,8 @@ fun FoldersGrid(
     initialSelectedFolder: String? = null,
     onAddToPlaylist: (MediaItem) -> Unit = {},
     onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?) -> Unit = { _, _, _, _ -> },
+    isLoading: Boolean = false,
+    isScanningHidden: Boolean = false,
     sortField: String = "Name",
     isAscending: Boolean = true
 ) {
@@ -139,7 +142,58 @@ fun FoldersGrid(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        if (showAllFoldersMode) {
+        if ((isLoading && visibleFolderNames.isEmpty()) || (isScanningHidden && isHiddenFeed && visibleFolderNames.isEmpty())) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                com.medianest.ui.components.MediaLoadingAnimation(
+                    mediaType = com.medianest.data.db.MediaType.AUDIO,
+                    iconSize = 52.dp,
+                    showLabel = isScanningHidden && isHiddenFeed,
+                    customMessage = if (isScanningHidden && isHiddenFeed) "Scanning hidden folders..." else null
+                )
+            }
+        } else if (visibleFolderNames.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                GlassSurface(
+                    modifier = Modifier.padding(16.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    backgroundColor = Color(0x221C1F2B),
+                    borderColor = Color(0x28FFFFFF)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isHiddenFeed) Icons.Default.VisibilityOff else Icons.Default.FolderOff,
+                            contentDescription = null,
+                            tint = Color(0xFFC0C5D0),
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Text(
+                            text = if (isHiddenFeed) "No Hidden Audio Folders" else if (isExcludedFeed) "No Excluded Audio Folders" else "No Audio Folders Found",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = if (isHiddenFeed) "Folders marked with .nomedia or hidden in Settings will appear here." else "No audio directories match your current filter.",
+                            fontSize = 12.sp,
+                            color = Color(0xFF94A3B8),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            }
+        } else if (showAllFoldersMode) {
             // Full Folders View (Show All)
             Row(
                 modifier = Modifier
@@ -250,10 +304,9 @@ fun FoldersGrid(
                                     )
                                 }
 
-                                DropdownMenu(
+                                GlassDropdownMenu(
                                     expanded = showFolderMenu,
-                                    onDismissRequest = { showFolderMenu = false },
-                                    modifier = Modifier.background(Color(0xFF1E2230))
+                                    onDismissRequest = { showFolderMenu = false }
                                 ) {
                                     DropdownMenuItem(
                                         text = { Text("Move Folder", color = Color.White) },

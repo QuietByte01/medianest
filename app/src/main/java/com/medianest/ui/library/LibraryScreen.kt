@@ -38,6 +38,7 @@ fun LibraryScreen(
     roundedCornersEnabled: Boolean = true,
     enableAnalyticsTab: Boolean = true,
     isLoading: Boolean = false,
+    isScanningHidden: Boolean = false,
     analyticsSnapshot: FileStatSnapshot? = null,
     analyticsFormatStats: List<FormatStat> = emptyList(),
     isAnalyticsRefreshing: Boolean = false,
@@ -207,8 +208,6 @@ fun LibraryScreen(
                         isImagesTab -> ImagesTab(
                             imagesList = imagesList,
                             pagedImages = pagedImages,
-                            imageCollections = imageCollections,
-                            categoryCrossRefs = categoryCrossRefs,
                             selectedUris = selectedUris,
                             isSelectionMode = isSelectionMode,
                             gridGapDp = gridGapDp,
@@ -216,9 +215,7 @@ fun LibraryScreen(
                             cornerRadiusDp = cornerRadiusDp,
                             roundedCornersEnabled = roundedCornersEnabled,
                             isLoading = isLoading,
-                            onCreateCollection = onCreateImageCollection,
-                            onUpdateCollection = onUpdateImageCollection,
-                            onDeleteCollection = onDeleteImageCollection,
+                            isScanningHidden = isScanningHidden,
                             onImageClick = { item, currentList ->
                                 if (isSelectionMode) {
                                     val uriStr = item.uri.toString()
@@ -245,6 +242,7 @@ fun LibraryScreen(
                         cornerRadiusDp = cornerRadiusDp,
                         roundedCornersEnabled = roundedCornersEnabled,
                         isLoading = isLoading,
+                        isScanningHidden = isScanningHidden,
                         onCategorySelect = { selectedCategory = it },
                         onCreateCategoryClick = { showCreateCategoryModal = true },
                         onVideoClick = { item ->
@@ -274,6 +272,7 @@ fun LibraryScreen(
                         isSelectionMode = isSelectionMode,
                         gridSizeLevel = gridSizeLevel,
                         isLoading = isLoading,
+                        isScanningHidden = isScanningHidden,
                         onSongClick = { list, idx ->
                             exoPlayerManager.playMediaList(list, idx)
                         },

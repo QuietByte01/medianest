@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.medianest.data.db.SelectiveHiddenFolder
+import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.data.model.MediaItem
 import com.medianest.data.settings.SettingsManager
 import com.medianest.ui.components.GlassSurface
@@ -48,6 +49,8 @@ fun VideoFoldersGrid(
     onFolderDelete: (String) -> Unit,
     onFolderInfo: (String) -> Unit,
     onCreateCategoryClick: () -> Unit,
+    isLoading: Boolean = false,
+    isScanningHidden: Boolean = false,
     sortField: String = "Date",
     isAscending: Boolean = false,
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
@@ -146,17 +149,69 @@ fun VideoFoldersGrid(
             )
         }
 
-        LazyVerticalGrid(
-            state = gridState,
-            columns = GridCells.Adaptive(minSize = 280.dp),
-            modifier = Modifier
-                .fillMaxSize()
-                .translucentScrollBarGrid(gridState),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            items(visibleFolders, key = { "vfolder_$it" }) { folderName ->
+        if ((isLoading && visibleFolders.isEmpty()) || (isScanningHidden && activeFilterTab == "HIDDEN" && visibleFolders.isEmpty())) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                com.medianest.ui.components.MediaLoadingAnimation(
+                    mediaType = com.medianest.data.db.MediaType.VIDEO,
+                    iconSize = 52.dp,
+                    showLabel = isScanningHidden && activeFilterTab == "HIDDEN",
+                    customMessage = if (isScanningHidden && activeFilterTab == "HIDDEN") "Scanning hidden folders..." else null
+                )
+            }
+        } else if (visibleFolders.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                GlassSurface(
+                    modifier = Modifier.padding(16.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    backgroundColor = Color(0x221C1F2B),
+                    borderColor = Color(0x28FFFFFF)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (activeFilterTab == "HIDDEN") Icons.Default.VisibilityOff else Icons.Default.FolderOff,
+                            contentDescription = null,
+                            tint = Color(0xFFC0C5D0),
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Text(
+                            text = if (activeFilterTab == "HIDDEN") "No Hidden Video Folders" else if (activeFilterTab == "EXCLUDED") "No Excluded Video Folders" else "No Video Folders Found",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = if (activeFilterTab == "HIDDEN") "Folders marked with .nomedia or hidden in Settings will appear here." else "No video directories match your current filter.",
+                            fontSize = 12.sp,
+                            color = Color(0xFF94A3B8),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            }
+        } else {
+            LazyVerticalGrid(
+                state = gridState,
+                columns = GridCells.Adaptive(minSize = 280.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .translucentScrollBarGrid(gridState),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                items(visibleFolders, key = { "vfolder_$it" }) { folderName ->
                 val folderItems = videoFolderGroups[folderName] ?: emptyList()
                 val isHidden = isFolderHidden(folderName, folderItems)
                 val totalSizeBytes = remember(folderItems) { folderItems.sumOf { it.size } }
@@ -215,26 +270,25 @@ fun VideoFoldersGrid(
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
-                                    DropdownMenu(
+                                    GlassDropdownMenu(
                                         expanded = showFolderMenu,
-                                        onDismissRequest = { showFolderMenu = false },
-                                        containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-                                        shape = RoundedCornerShape(16.dp)
+                                        onDismissRequest = { showFolderMenu = false }
                                     ) {
                                         DropdownMenuItem(
-                                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                            text = { Text("Folder Info", color = Color.White) },
+                                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = Color.White) },
                                             onClick = {
                                                 showFolderMenu = false
-                                                onFolderDelete(folderName)
+                                                onFolderInfo(folderName)
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text(if (isHidden) "Include Folder" else "Exclude Folder") },
+                                            text = { Text(if (isHidden) "Include Folder" else "Exclude Folder", color = Color.White) },
                                             leadingIcon = {
                                                 Icon(
                                                     imageVector = if (isHidden) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                                    contentDescription = null
+                                                    contentDescription = null,
+                                                    tint = Color.White
                                                 )
                                             },
                                             onClick = {
@@ -261,11 +315,11 @@ fun VideoFoldersGrid(
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("Folder Info") },
-                                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                            text = { Text("Delete Folder", color = MaterialTheme.colorScheme.error) },
+                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                                             onClick = {
                                                 showFolderMenu = false
-                                                onFolderInfo(folderName)
+                                                onFolderDelete(folderName)
                                             }
                                         )
                                     }
@@ -409,4 +463,5 @@ fun VideoFoldersGrid(
 //            }
         }
     }
+}
 }

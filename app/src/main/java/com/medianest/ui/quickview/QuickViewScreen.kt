@@ -33,13 +33,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.medianest.ui.components.AdaptiveBottomSheet
+import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.MediaInfoBottomSheet
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
@@ -208,7 +208,10 @@ fun QuickViewScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = Color.White)
+                com.medianest.ui.components.MediaLoadingAnimation(
+                    mediaType = currentItem?.type ?: MediaType.IMAGE,
+                    iconSize = 52.dp
+                )
             }
         } else if (mutableMediaList.isNotEmpty()) {
             HorizontalPager(
@@ -288,7 +291,7 @@ fun QuickViewScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        imageVector = Icons.Default.ArrowBack,
                         contentDescription = "Back",
                         tint = Color.White
                     )
@@ -410,11 +413,9 @@ fun QuickViewScreen(
                             )
                         }
 
-                        DropdownMenu(
+                        GlassDropdownMenu(
                             expanded = showOverflowMenu,
-                            onDismissRequest = { showOverflowMenu = false },
-                            containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-                            shape = RoundedCornerShape(16.dp)
+                            onDismissRequest = { showOverflowMenu = false }
                         ) {
                             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                                 if (pictureModeEnabled) {

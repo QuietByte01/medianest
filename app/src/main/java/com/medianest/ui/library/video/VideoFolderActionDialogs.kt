@@ -12,7 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.data.model.MediaItem
-import com.medianest.ui.components.getFilePathFromUri
+import com.medianest.ui.components.mediainfo.getFilePathFromUri
 import com.medianest.ui.theme.LocalDarkTheme
 import com.medianest.util.FolderHiddenUtils
 import com.medianest.util.formatBytesReport

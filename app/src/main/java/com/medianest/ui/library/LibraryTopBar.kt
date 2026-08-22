@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.GlassSurface
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -261,11 +262,10 @@ fun LibraryTopBar(
                         tint = Color.White
                     )
                 }
-                DropdownMenu(
+                GlassDropdownMenu(
                     expanded = showSortMenu,
                     onDismissRequest = { showSortMenu = false },
-                    containerColor = Color(0xEF12151F),
-                    shape = RoundedCornerShape(16.dp)
+                    useImageBackground = false
                 ) {
                     DropdownMenuItem(
                         text = { Text("Date (Newest First)") },

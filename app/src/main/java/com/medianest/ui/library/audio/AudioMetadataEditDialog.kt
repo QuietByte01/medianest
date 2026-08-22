@@ -91,7 +91,10 @@ fun AudioMetadataEditDialog(
                     }
                     if (isFetching) {
                         Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(modifier = Modifier.size(32.dp), color = Color.White)
+                            com.medianest.ui.components.MediaLoadingAnimation(
+                                mediaType = com.medianest.data.db.MediaType.AUDIO,
+                                iconSize = 28.dp
+                            )
                         }
                     }
                 }

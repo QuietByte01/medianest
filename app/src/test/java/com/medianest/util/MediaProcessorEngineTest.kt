@@ -152,6 +152,95 @@ class MediaProcessorEngineTest {
     }
 
     @Test
+    fun `test buildConvertCommand with AV1 video codec generates libsvtav1 and 10bit pixel format`() {
+        val input = "/storage/emulated/0/Movies/sample.mov"
+        val output = "/storage/emulated/0/Movies/MediaNest_Studio/sample_av1.mp4"
+
+        val cmd = MediaProcessorEngine.buildConvertCommand(
+            resolvedInput = input,
+            outputFilePath = output,
+            outputFormat = "mp4",
+            isLosslessCopy = false,
+            videoCodec = "libsvtav1",
+            qualityCrf = 24,
+            audioBitrateKbps = 192
+        )
+
+        assertTrue(cmd.contains("-c:v libsvtav1 -crf 24"))
+        assertTrue(cmd.contains("-pix_fmt yuv420p10le"))
+        assertTrue(cmd.contains("-c:a aac -b:a 192k"))
+    }
+
+    @Test
+    fun `test buildCompressCommand with AV1 and AUTO mode`() {
+        val input = "/storage/emulated/0/Movies/video.mp4"
+        val output = "/storage/emulated/0/Movies/MediaNest_Studio/video_av1_compressed.mp4"
+
+        val cmdAuto = MediaProcessorEngine.buildCompressCommand(
+            resolvedInput = input,
+            outputFilePath = output,
+            targetMode = "AUTO",
+            crf = 26,
+            videoCodec = "libsvtav1"
+        )
+        assertTrue(cmdAuto.contains("-c:v libsvtav1 -crf 26"))
+        assertTrue(cmdAuto.contains("-pix_fmt yuv420p10le"))
+        assertTrue(cmdAuto.contains("-c:a aac -b:a 128k"))
+
+        val cmdAv1 = MediaProcessorEngine.buildCompressCommand(
+            resolvedInput = input,
+            outputFilePath = output,
+            targetMode = "AV1",
+            crf = 28,
+            videoCodec = "libsvtav1"
+        )
+        assertTrue(cmdAv1.contains("-c:v libsvtav1 -crf 28"))
+    }
+
+    @Test
+    fun `test buildCompressCommand with 1440p and 360p downscaling`() {
+        val input = "/storage/emulated/0/Movies/4k_video.mp4"
+        val output1440 = "/storage/emulated/0/Movies/MediaNest_Studio/video_1440p.mp4"
+
+        val cmd1440 = MediaProcessorEngine.buildCompressCommand(
+            resolvedInput = input,
+            outputFilePath = output1440,
+            targetMode = "AUTO",
+            resolutionScale = "1440P"
+        )
+        assertTrue(cmd1440.contains("-vf \"scale='min(2560,iw)':-2\""))
+
+        val output360 = "/storage/emulated/0/Movies/MediaNest_Studio/video_360p.mp4"
+        val cmd360 = MediaProcessorEngine.buildCompressCommand(
+            resolvedInput = input,
+            outputFilePath = output360,
+            targetMode = "AUTO",
+            resolutionScale = "360P"
+        )
+        assertTrue(cmd360.contains("-vf \"scale='min(640,iw)':-2\""))
+    }
+
+    @Test
+    fun `test buildCropCommand with 3_4 aspect ratio preset`() {
+        val input = "/storage/emulated/0/Movies/clip.mp4"
+        val output = "/storage/emulated/0/Movies/MediaNest_Studio/clip_3_4.mp4"
+
+        val cmd34 = MediaProcessorEngine.buildCropCommand(
+            resolvedInput = input,
+            outputFilePath = output,
+            cropPreset = "3_4"
+        )
+        assertTrue(cmd34.contains("crop='min(iw,ih*3/4)':'min(ih,iw*4/3)'"))
+
+        val cmdP34 = MediaProcessorEngine.buildCropCommand(
+            resolvedInput = input,
+            outputFilePath = output,
+            cropPreset = "P_3_4"
+        )
+        assertTrue(cmdP34.contains("crop='min(iw,ih*3/4)':'min(ih,iw*4/3)'"))
+    }
+
+    @Test
     fun `test state management and cancel`() {
         MediaProcessorEngine.resetState()
         assertEquals(MediaProcessorEngine.ProcessingState.Idle, MediaProcessorEngine.processingState.value)

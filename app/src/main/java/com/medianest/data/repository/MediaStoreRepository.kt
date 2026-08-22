@@ -10,7 +10,7 @@ import android.os.Looper
 import android.provider.MediaStore
 import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
-import com.medianest.ui.components.getFilePathFromUri
+import com.medianest.ui.components.mediainfo.getFilePathFromUri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -34,7 +34,8 @@ class MediaStoreRepository(private val context: Context) {
         showHidden: Boolean = false,
         limit: Int = -1,
         offset: Int = 0,
-        bucketId: String? = null
+        bucketId: String? = null,
+        includeFileSystemScan: Boolean = false
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val imagesList = mutableListOf<MediaItem>()
         val collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
@@ -115,9 +116,10 @@ class MediaStoreRepository(private val context: Context) {
                     
                     val isHidden = name.startsWith(".") || folderName.startsWith(".") || (relativePath != null && relativePath.split("/").any { it.startsWith(".") })
 
-
-
-                    val mimeType = c.getString(mimeColumn) ?: "image/*"
+                    if (!showHidden && (isExcluded || isHidden)) {
+                        continue
+                    }
+                    val mimeType = if (mimeColumn >= 0) c.getString(mimeColumn) ?: "image/*" else "image/*"
                     val width = if (widthColumn >= 0) c.getInt(widthColumn) else 0
                     val height = if (heightColumn >= 0) c.getInt(heightColumn) else 0
                     val size = c.getLong(sizeColumn)
@@ -156,7 +158,7 @@ class MediaStoreRepository(private val context: Context) {
         // FIXME: Cache synchronization issue. Deleted files keep showing in the library
         // because the UI/ViewModel list isn't updated immediately after a file is deleted
         // from the filesystem. Needs a more robust observer or immediate local list invalidation.
-        if (showHidden) {
+        if (showHidden && includeFileSystemScan) {
             val hiddenFromFileSystem = scanFileSystemHiddenMedia(MediaType.IMAGE, hiddenFolders, showHidden = showHidden)
             val existingUris = imagesList.map { it.uri.toString() }.toSet()
             val existingNameSize = imagesList.map { "${it.title.substringAfterLast('/')}_${it.size}" }.toSet()
@@ -177,7 +179,8 @@ class MediaStoreRepository(private val context: Context) {
         showHidden: Boolean = false,
         limit: Int = -1,
         offset: Int = 0,
-        bucketId: String? = null
+        bucketId: String? = null,
+        includeFileSystemScan: Boolean = false
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val videosList = mutableListOf<MediaItem>()
         val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -270,7 +273,9 @@ class MediaStoreRepository(private val context: Context) {
                     
                     val isHidden = name.startsWith(".") || folderName.startsWith(".") || (relativePath != null && relativePath.split("/").any { it.startsWith(".") })
 
-
+                    if (!showHidden && (isExcluded || isHidden)) {
+                        continue
+                    }
 
                     val mimeType = c.getString(mimeColumn) ?: "video/*"
                     val rawWidth = if (widthColumn >= 0) c.getInt(widthColumn) else 0
@@ -318,7 +323,7 @@ class MediaStoreRepository(private val context: Context) {
         // FIXME: Cache synchronization issue. Deleted files keep showing in the library
         // because the UI/ViewModel list isn't updated immediately after a file is deleted
         // from the filesystem. Needs a more robust observer or immediate local list invalidation.
-        if (showHidden) {
+        if (showHidden && includeFileSystemScan) {
             val hiddenFromFileSystem = scanFileSystemHiddenMedia(MediaType.VIDEO, hiddenFolders, showHidden = showHidden)
             val existingUris = videosList.map { it.uri.toString() }.toSet()
             val existingNameSize = videosList.map { "${it.title.substringAfterLast('/')}_${it.size}" }.toSet()
@@ -339,7 +344,8 @@ class MediaStoreRepository(private val context: Context) {
         showHidden: Boolean = false,
         limit: Int = -1,
         offset: Int = 0,
-        bucketId: String? = null
+        bucketId: String? = null,
+        includeFileSystemScan: Boolean = false
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val audioList = mutableListOf<MediaItem>()
         val mediaStoreFileNames = mutableSetOf<String>()
@@ -433,6 +439,9 @@ class MediaStoreRepository(private val context: Context) {
                     
                     val isHidden = name.startsWith(".") || folderName.startsWith(".") || (relativePath != null && relativePath.split("/").any { it.startsWith(".") })
 
+                    if (!showHidden && (isExcluded || isHidden)) {
+                        continue
+                    }
 
                     val mimeType = c.getString(mimeColumn) ?: "audio/*"
                     val duration = if (durationColumn >= 0) c.getLong(durationColumn) else 0L
@@ -492,7 +501,7 @@ class MediaStoreRepository(private val context: Context) {
         // FIXME: Cache synchronization issue. Deleted files keep showing in the library
         // because the UI/ViewModel list isn't updated immediately after a file is deleted
         // from the filesystem. Needs a more robust observer or immediate local list invalidation.
-        if (showHidden) {
+        if (showHidden && includeFileSystemScan) {
             val hiddenFromFileSystem = scanFileSystemHiddenMedia(MediaType.AUDIO, hiddenFolders, showHidden = showHidden)
             val existingUris = audioList.map { it.uri.toString() }.toSet()
             val existingPaths = audioList.mapNotNull { item ->
@@ -649,6 +658,13 @@ class MediaStoreRepository(private val context: Context) {
             context.contentResolver.unregisterContentObserver(observer)
         }
     }.flowOn(Dispatchers.IO)
+
+    suspend fun scanHiddenMedia(
+        mediaType: MediaType,
+        hiddenFolders: Set<String> = emptySet()
+    ): List<MediaItem> = withContext(Dispatchers.IO) {
+        scanFileSystemHiddenMedia(mediaType, hiddenFolders, showHidden = true)
+    }
 
     private val commonDotFolders = listOf(
         ".secret", ".hidden", ".pictures", ".videos", ".audio", ".photos",

@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -59,13 +60,26 @@ fun WideVideoCard(
     val timeStr = if (item.dateAdded > 0) timeFormat.format(Date(timeMillis)) else "N/A"
     val context = androidx.compose.ui.platform.LocalContext.current
     var fallbackBitmap by remember(item.uri) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var rebuildToken by remember(item.uri) { mutableStateOf(0) }
 
-    val imageRequest = remember(item.uri, item.durationMs) {
+    val videoSeekMicros = remember(item.durationMs) {
+        when {
+            item.durationMs > 10_000 -> 2_500_000L
+            item.durationMs > 5_000  -> 1_500_000L
+            item.durationMs > 2_000  -> 800_000L
+            item.durationMs > 1_000  -> 400_000L
+            else -> 0L
+        }
+    }
+
+    val imageRequest = remember(item.uri, item.durationMs, rebuildToken) {
         ImageRequest.Builder(context)
             .data(item.uri)
+            .diskCacheKey("wide_${item.uri}_${item.size}_${item.dateAdded}_$rebuildToken")
+            .memoryCacheKey("wide_${item.uri}_${item.size}_${item.dateAdded}_$rebuildToken")
             .crossfade(true)
             .decoderFactory(VideoFrameDecoder.Factory())
-            .videoFrameMicros(if (item.durationMs > 5000) 3_000_000L else if (item.durationMs > 2000) 1_000_000L else 0L)
+            .videoFrameMicros(videoSeekMicros)
             .build()
     }
 
@@ -86,7 +100,7 @@ fun WideVideoCard(
                 val thumbModifier = if (useRealRatio) {
                     Modifier
                         .fillMaxWidth()
-                        .aspectRatio(item.aspectRatio.coerceIn(0.5f, 2.0f))
+                        .aspectRatio(item.aspectRatio.coerceIn(0.3f, 2.5f))
                 } else {
                     Modifier
                         .fillMaxWidth()
@@ -113,15 +127,7 @@ fun WideVideoCard(
                             onError = {
                                 if (fallbackBitmap == null) {
                                     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                                        try {
-                                            val retriever = android.media.MediaMetadataRetriever()
-                                            retriever.setDataSource(context, item.uri)
-                                            val seekMicros = if (item.durationMs > 5000) 2_000_000L else if (item.durationMs > 2000) 1_000_000L else 0L
-                                            val frame = retriever.getFrameAtTime(seekMicros, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                                                ?: retriever.getFrameAtTime(0L, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                                            retriever.release()
-                                            fallbackBitmap = frame
-                                        } catch (_: Exception) {}
+                                        fallbackBitmap = extractVideoThumbnailWide(context, item)
                                     }
                                 }
                             }
@@ -227,6 +233,15 @@ fun WideVideoCard(
                             if (onShowInfo != null) onShowInfo()
                         }
                     )
+                    DropdownMenuItem(
+                        text = { Text("Rebuild Thumbnail") },
+                        leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
+                        onClick = {
+                            menuExpanded = false
+                            fallbackBitmap = null
+                            rebuildToken++
+                        }
+                    )
                     if (onRemoveFromCategory != null) {
                         DropdownMenuItem(
                             text = { Text("Remove from Category") },
@@ -272,3 +287,50 @@ fun WideVideoCard(
         }
     }
 }
+
+private fun extractVideoThumbnailWide(
+    context: android.content.Context,
+    item: com.medianest.data.model.MediaItem
+): android.graphics.Bitmap? {
+    return try {
+        val retriever = android.media.MediaMetadataRetriever()
+        retriever.setDataSource(context, item.uri)
+        val durationMs = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+            ?.toLongOrNull() ?: item.durationMs
+        val candidates = listOfNotNull(
+            if (durationMs > 2_000) (durationMs * 1000L / 10L) else null,
+            if (durationMs > 5_000) 2_000_000L else null,
+            if (durationMs > 10_000) 5_000_000L else null,
+            0L
+        )
+        var result: android.graphics.Bitmap? = null
+        for (seekMicros in candidates) {
+            val frame = retriever.getFrameAtTime(seekMicros, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            if (frame != null) {
+                val luma = frame.let {
+                    var sum = 0.0
+                    val step = (it.width / 4).coerceAtLeast(1)
+                    val stepY = (it.height / 4).coerceAtLeast(1)
+                    var count = 0
+                    var xi = 0
+                    while (xi < it.width) {
+                        var yi = 0
+                        while (yi < it.height) {
+                            val px = it.getPixel(xi, yi)
+                            sum += 0.299 * android.graphics.Color.red(px) + 0.587 * android.graphics.Color.green(px) + 0.114 * android.graphics.Color.blue(px)
+                            count++
+                            yi += stepY
+                        }
+                        xi += step
+                    }
+                    if (count > 0) sum / count else 0.0
+                }
+                if (luma > 10.0) { result = frame; break }
+                if (result == null) result = frame
+            }
+        }
+        retriever.release()
+        result
+    } catch (_: Exception) { null }
+}
+

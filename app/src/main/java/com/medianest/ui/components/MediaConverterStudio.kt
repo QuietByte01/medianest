@@ -26,7 +26,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -40,6 +39,7 @@ import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
+import com.medianest.ui.dashboard.AnalyticsColors
 import com.medianest.util.MediaProcessorEngine
 import com.medianest.util.MediaProcessorEngine.ProcessingState
 import kotlinx.coroutines.launch
@@ -81,7 +81,6 @@ fun MediaConverterStudioDialog(
     var isBatchMode by remember { mutableStateOf(false) }
 
     var showMediaPickerSheet by remember { mutableStateOf(false) }
-    var showBatchPickerSheet by remember { mutableStateOf(false) }
 
     val processingState by MediaProcessorEngine.processingState.collectAsState()
 
@@ -109,7 +108,7 @@ fun MediaConverterStudioDialog(
                 com.medianest.util.AudioMetadataUtils.extractMetadata(
                     context,
                     uri,
-                    rawTitleHint = uri.lastPathSegment ?: "Image"
+                    rawTitleHint = uri.lastPathSegment ?: "Media"
                 )
             }
             selectedBatchItems = items
@@ -123,15 +122,16 @@ fun MediaConverterStudioDialog(
     // Parameters - Convert
     var convertOutputFormat by remember { mutableStateOf("mp4") }
     var isLosslessCopy by remember { mutableStateOf(false) }
-    var videoCodec by remember { mutableStateOf("libx264") }
+    var videoCodec by remember { mutableStateOf("libsvtav1") }
     var qualityPreset by remember { mutableStateOf("HIGH") }
     var audioBitrate by remember { mutableIntStateOf(256) }
 
     // Parameters - Compress
-    var compressTargetMode by remember { mutableStateOf("PERCENT") }
+    var compressTargetMode by remember { mutableStateOf("AUTO") }
     var compressPercent by remember { mutableIntStateOf(50) }
     var compressTargetMb by remember { mutableIntStateOf(25) }
     var compressResolution by remember { mutableStateOf("ORIGINAL") }
+    var compressCrf by remember { mutableIntStateOf(26) }
     var imageQuality by remember { mutableIntStateOf(80) }
     var imageFormat by remember { mutableStateOf("webp") }
 
@@ -277,30 +277,19 @@ fun MediaConverterStudioDialog(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        // 1. Source Media Card with Single/Batch Switch
-                        if (selectedTab == StudioTab.COMPRESS && isBatchMode && selectedBatchItems.isNotEmpty()) {
+                        // 1. Source Media Card (Single & Batch from unified library)
+                        if (isBatchMode && selectedBatchItems.isNotEmpty()) {
                             BatchSourceMediaCard(
                                 batchItems = selectedBatchItems,
-                                onChangeClick = { showBatchPickerSheet = true },
+                                onChangeClick = { showMediaPickerSheet = true },
                                 onPickStorage = { multipleFilesPickerLauncher.launch("image/*") },
                                 onSwitchToSingle = { isBatchMode = false }
                             )
                         } else {
                             SourceMediaSelectorCard(
                                 selectedItem = selectedMediaItem,
-                                isBatchAvailable = selectedTab == StudioTab.COMPRESS,
                                 onChangeClick = { showMediaPickerSheet = true },
-                                onPickStorage = { singleFilePickerLauncher.launch("*/*") },
-                                onSwitchToBatch = {
-                                    val curItem = selectedMediaItem
-                                    if (curItem != null && curItem.type == MediaType.IMAGE) {
-                                        selectedBatchItems = listOf(curItem)
-                                    } else if (imagesList.isNotEmpty()) {
-                                        selectedBatchItems = listOf(imagesList.first())
-                                    }
-                                    isBatchMode = true
-                                    showBatchPickerSheet = true
-                                }
+                                onPickStorage = { singleFilePickerLauncher.launch("*/*") }
                             )
                         }
 
@@ -341,6 +330,8 @@ fun MediaConverterStudioDialog(
                                     onMbChange = { compressTargetMb = it },
                                     resolution = compressResolution,
                                     onResolutionChange = { compressResolution = it },
+                                    compressCrf = compressCrf,
+                                    onCrfChange = { compressCrf = it },
                                     imageQuality = imageQuality,
                                     onImageQualityChange = { imageQuality = it },
                                     imageFormat = imageFormat,
@@ -450,6 +441,7 @@ fun MediaConverterStudioDialog(
                                     }
 
                                     StudioTab.COMPRESS -> {
+                                        val codec = if (compressTargetMode == "AV1" || compressTargetMode == "AUTO") "libsvtav1" else "libx265"
                                         MediaProcessorEngine.compressMedia(
                                             context = context,
                                             inputPath = path,
@@ -457,7 +449,9 @@ fun MediaConverterStudioDialog(
                                             targetMode = compressTargetMode,
                                             targetPercentage = compressPercent,
                                             targetLimitMb = compressTargetMb,
+                                            crf = compressCrf,
                                             resolutionScale = compressResolution,
+                                            videoCodec = codec,
                                             isCreateNewFile = isCreateNewFile
                                         )
                                     }
@@ -613,40 +607,35 @@ fun MediaConverterStudioDialog(
                 )
             }
 
-            // Single Item Picker Sheet
+            // Unified Library Picker Sheet (Single & Batch Modes)
             if (showMediaPickerSheet) {
-                MediaItemPickerModal(
+                UnifiedMediaPickerModal(
                     imagesList = imagesList,
                     videosList = videosList,
                     audioList = audioList,
-                    onSelect = { item ->
+                    initialBatchItems = selectedBatchItems,
+                    initialIsBatch = isBatchMode,
+                    onSelectSingle = { item ->
                         selectedMediaItem = item
                         isBatchMode = false
                         showMediaPickerSheet = false
                     },
-                    onPickExternal = {
+                    onSelectBatch = { batch ->
+                        if (batch.isNotEmpty()) {
+                            selectedBatchItems = batch
+                            isBatchMode = true
+                        }
+                        showMediaPickerSheet = false
+                    },
+                    onPickSingleExternal = {
                         showMediaPickerSheet = false
                         singleFilePickerLauncher.launch("*/*")
                     },
-                    onDismiss = { showMediaPickerSheet = false }
-                )
-            }
-
-            // Multi-Select Batch Picker Sheet
-            if (showBatchPickerSheet) {
-                MultiMediaItemPickerModal(
-                    items = imagesList.ifEmpty { videosList },
-                    initialSelected = selectedBatchItems,
-                    onDone = { selected ->
-                        selectedBatchItems = selected
-                        isBatchMode = true
-                        showBatchPickerSheet = false
-                    },
-                    onPickExternal = {
-                        showBatchPickerSheet = false
+                    onPickMultiExternal = {
+                        showMediaPickerSheet = false
                         multipleFilesPickerLauncher.launch("image/*")
                     },
-                    onDismiss = { showBatchPickerSheet = false }
+                    onDismiss = { showMediaPickerSheet = false }
                 )
             }
         }
@@ -656,6 +645,20 @@ fun MediaConverterStudioDialog(
 // ==========================================
 // GLOSSY BUTTON COMPONENTS
 // ==========================================
+enum class FormatCategory {
+    VIDEO, AUDIO, GIF_IMAGE
+}
+
+fun getFormatCategory(fmt: String): FormatCategory {
+    val f = fmt.lowercase()
+    return when {
+        listOf("mp3", "flac", "wav", "aac", "m4a", "opus", "ogg").contains(f) -> FormatCategory.AUDIO
+        listOf("gif", "webp", "png", "jpg", "jpeg", "avif").contains(f) -> FormatCategory.GIF_IMAGE
+        else -> FormatCategory.VIDEO
+    }
+}
+
+
 @Composable
 private fun GlossyPillButton(
     text: String,
@@ -744,28 +747,33 @@ private fun GlossyActionButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit
 ) {
-    Surface(
+    Button(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
-        color = Color(0x33FFFFFF),
-        border = BorderStroke(1.0.dp, Color(0xFFF8F9FA)),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color.White,
+            contentColor = Color.Black
+        ),
         modifier = Modifier
             .fillMaxWidth()
-            .height(50.dp)
+            .height(52.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxSize(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
             Icon(
                 icon,
                 contentDescription = null,
-                tint = Color(0xFFF8F9FA),
-                modifier = Modifier.size(19.dp)
+                tint = Color.Black,
+                modifier = Modifier.size(20.dp)
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(text, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = text,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
         }
     }
 }
@@ -776,10 +784,8 @@ private fun GlossyActionButton(
 @Composable
 private fun SourceMediaSelectorCard(
     selectedItem: MediaItem?,
-    isBatchAvailable: Boolean,
     onChangeClick: () -> Unit,
-    onPickStorage: () -> Unit,
-    onSwitchToBatch: () -> Unit
+    onPickStorage: () -> Unit
 ) {
     GlassSurface(
         shape = RoundedCornerShape(18.dp),
@@ -854,38 +860,21 @@ private fun SourceMediaSelectorCard(
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFFF8F9FA),
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
                     )
                 }
-                if (isBatchAvailable) {
-                    Surface(
-                        onClick = onSwitchToBatch,
-                        shape = RoundedCornerShape(10.dp),
-                        color = Color(0x26FFFFFF),
-                        border = BorderStroke(1.dp, Color(0x26FFFFFF))
-                    ) {
-                        Text(
-                            text = "Batch (Multi)",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFE9ECEF),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
-                        )
-                    }
-                } else {
-                    Surface(
-                        onClick = onPickStorage,
-                        shape = RoundedCornerShape(10.dp),
-                        color = Color(0x1FFFFFFF),
-                        border = BorderStroke(1.dp, Color(0x22FFFFFF))
-                    ) {
-                        Text(
-                            text = "Browse",
-                            fontSize = 11.5.sp,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                        )
-                    }
+                Surface(
+                    onClick = onPickStorage,
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0x1FFFFFFF),
+                    border = BorderStroke(1.dp, Color(0x22FFFFFF))
+                ) {
+                    Text(
+                        text = "Browse",
+                        fontSize = 11.5.sp,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                    )
                 }
             }
         }
@@ -1053,7 +1042,6 @@ private fun OutputFileSafetyCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.weight(1f)
             ) {
-//                Icon(Icons.Default.Security, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(18.dp))
                 Column {
                     Text(
                         text = "Output: Create New File",
@@ -1074,7 +1062,9 @@ private fun OutputFileSafetyCard(
                 onCheckedChange = onToggle,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
-                    checkedTrackColor = Color(0xFFF8F9FA)
+                    checkedTrackColor = Color(0xFF6366F1),
+                    uncheckedThumbColor = Color(0xFF94A3B8),
+                    uncheckedTrackColor = Color(0x33FFFFFF)
                 )
             )
         }
@@ -1103,12 +1093,18 @@ private fun ConvertControlsCard(
     val audioFormats = listOf("mp3", "flac", "wav", "aac", "m4a", "opus", "ogg")
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            "Target Output Format",
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Target Output Format",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
 
         Row(
             modifier = Modifier
@@ -1119,9 +1115,17 @@ private fun ConvertControlsCard(
             val formatList = if (isAudioSource) audioFormats else (videoFormats + audioFormats)
             formatList.forEach { fmt ->
                 val isSelected = outputFormat.equals(fmt, ignoreCase = true)
-                GlossyPillButton(
-                    text = fmt.uppercase(),
+                val category = getFormatCategory(fmt)
+                val chipColor = when(category) {
+                    FormatCategory.VIDEO -> AnalyticsColors.Ogg
+                    FormatCategory.AUDIO -> AnalyticsColors.Mp3
+                    FormatCategory.GIF_IMAGE -> AnalyticsColors.Gif
+                }
+                
+                PaletteTagChip(
+                    label = fmt,
                     isSelected = isSelected,
+                    paletteColor = chipColor,
                     onClick = { onFormatChange(fmt) }
                 )
             }
@@ -1208,8 +1212,9 @@ private fun ConvertControlsCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     listOf(
+                        "libsvtav1" to ("AV1" to "Next-Gen 60% Savings"),
+                        "libx265" to ("H.265" to "HEVC High Efficiency"),
                         "libx264" to ("H.264" to "Universal"),
-                        "libx265" to ("H.265" to "HEVC 50% Size"),
                         "libvpx-vp9" to ("VP9" to "WebM Format"),
                         "copy" to ("Stream Copy" to "Direct Passthrough")
                     ).forEach { (codec, pair) ->
@@ -1220,7 +1225,7 @@ private fun ConvertControlsCard(
                             subtitle = sub,
                             isSelected = isSel,
                             onClick = { onCodecChange(codec) },
-                            modifier = Modifier.width(130.dp)
+                            modifier = Modifier.width(165.dp)
                         )
                     }
                 }
@@ -1245,11 +1250,30 @@ private fun CompressControlsCard(
     onMbChange: (Int) -> Unit,
     resolution: String,
     onResolutionChange: (String) -> Unit,
+    compressCrf: Int,
+    onCrfChange: (Int) -> Unit,
     imageQuality: Int,
     onImageQualityChange: (Int) -> Unit,
     imageFormat: String,
     onImageFormatChange: (String) -> Unit
 ) {
+    val context = LocalContext.current
+    val sourceHeight = selectedItem?.height ?: 0
+    val sourceWidth = selectedItem?.width ?: 0
+    val maxSourceDim = maxOf(sourceHeight, sourceWidth)
+
+    fun isUpscale(resKey: String): Boolean {
+        if (maxSourceDim <= 0 && sourceHeight <= 0) return false
+        return when (resKey) {
+            "1440P" -> (sourceHeight in 1..1439 && maxSourceDim < 2560)
+            "1080P" -> (sourceHeight in 1..1079 && maxSourceDim < 1920)
+            "720P" -> (sourceHeight in 1..719 && maxSourceDim < 1280)
+            "480P" -> (sourceHeight in 1..479 && maxSourceDim < 854)
+            "360P" -> (sourceHeight in 1..359 && maxSourceDim < 640)
+            else -> false
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         if (isBatchMode) {
             Text(
@@ -1265,14 +1289,16 @@ private fun CompressControlsCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 listOf(
-                    "webp" to "WebP (Ultra Efficient)",
-                    "jpg" to "JPEG",
-                    "png" to "PNG Lossless"
+                    "webp" to "WEBP",
+                    "jpg" to "JPG",
+                    "png" to "PNG"
                 ).forEach { (fmt, label) ->
                     val isSel = imageFormat == fmt
-                    GlossyPillButton(
-                        text = label,
+                    PaletteTagChip(
+                        label = label,
+                        formatKey = fmt,
                         isSelected = isSel,
+                        paletteColor = AnalyticsColors.Gif,
                         onClick = { onImageFormatChange(fmt) },
                         modifier = Modifier.weight(1f)
                     )
@@ -1309,11 +1335,15 @@ private fun CompressControlsCard(
         )
 
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             listOf(
-                "PERCENT" to ("Percentage" to "50% / 75% Scale"),
+                "AUTO" to ("Smart Auto" to "Optimal ~60% Savings"),
+                "AV1" to ("AV1 Next-Gen" to "Ultra Efficiency"),
+                "PERCENT" to ("Percentage" to "Custom Scale"),
                 "LIMIT_SIZE" to ("Target Limit" to "Discord / Email"),
                 "HEVC" to ("Smart HEVC" to "H.265 CRF")
             ).forEach { (mode, pair) ->
@@ -1324,12 +1354,82 @@ private fun CompressControlsCard(
                     subtitle = sub,
                     isSelected = isSel,
                     onClick = { onModeChange(mode) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.width(165.dp)
                 )
             }
         }
 
         when (targetMode) {
+            "AUTO" -> {
+                GlassSurface(
+                    shape = RoundedCornerShape(14.dp),
+                    backgroundColor = Color(0x1F0284C7),
+                    borderColor = Color(0x4038BDF8),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = Color(0xFF38BDF8),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                "Auto-Optimized Profile Applied",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFBAE6FD)
+                            )
+                        }
+                        Text(
+                            "• Engine: Next-Gen AV1 / HEVC Encoding\n• Quality: CRF $compressCrf (Perceptually Lossless Fidelity)\n• Audio: 128 kbps AAC Stereo\n• Expected Size Reduction: ~55% - 70%",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFE0F2FE),
+                            lineHeight = 18.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Fine-Tune Quality (CRF)", fontSize = 12.sp, color = Color(0xFFBAE6FD))
+                            Text("CRF $compressCrf", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                        AppSlider(
+                            value = compressCrf.toFloat(),
+                            onValueChange = { onCrfChange(it.toInt()) },
+                            valueRange = 18f..34f,
+                            steps = 16,
+                            accentColor = Color.White
+                        )
+                    }
+                }
+            }
+
+            "AV1", "HEVC" -> {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Constant Rate Factor (CRF)", fontSize = 13.sp, color = Color.White)
+                    Text("CRF $compressCrf (${if (compressCrf <= 22) "Ultra Crisp" else if (compressCrf <= 28) "Balanced" else "High Compression"})", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF8F9FA))
+                }
+                AppSlider(
+                    value = compressCrf.toFloat(),
+                    onValueChange = { onCrfChange(it.toInt()) },
+                    valueRange = 18f..34f,
+                    steps = 16,
+                    accentColor = Color(0xFFF8F9FA)
+                )
+            }
+
             "LIMIT_SIZE" -> {
                 Text(
                     "Target Maximum Size",
@@ -1380,23 +1480,29 @@ private fun CompressControlsCard(
                     accentColor = Color(0xFFF8F9FA)
                 )
             }
+        }
 
-            else -> {
+        // Resolution Downscaler
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Downscale Resolution (Optional)",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            if (sourceHeight > 0) {
                 Text(
-                    "High Efficiency H.265 encoding with near-zero visual degradation.",
-                    fontSize = 12.sp,
+                    "Source: ${if (sourceWidth > 0) "${sourceWidth}x${sourceHeight}" else "${sourceHeight}p"}",
+                    fontSize = 11.sp,
                     color = Color(0xFF94A3B8)
                 )
             }
         }
 
-        // Resolution Downscaler
-        Text(
-            "Downscale Resolution (Optional)",
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1405,16 +1511,53 @@ private fun CompressControlsCard(
         ) {
             listOf(
                 "ORIGINAL" to "Original",
+                "1440P" to "1440p 2K",
                 "1080P" to "1080p FHD",
                 "720P" to "720p HD",
-                "480P" to "480p SD"
+                "480P" to "480p SD",
+                "360P" to "360p Data Saver"
             ).forEach { (res, label) ->
                 val isSel = resolution == res
-                GlossyPillButton(
-                    text = label,
-                    isSelected = isSel,
-                    onClick = { onResolutionChange(res) }
-                )
+                val isBlocked = isUpscale(res)
+
+                if (isBlocked) {
+                    Surface(
+                        onClick = {
+                            Toast.makeText(
+                                context,
+                                "Cannot convert to $label: higher than source video resolution",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0x08FFFFFF),
+                        border = BorderStroke(0.5.dp, Color(0x15FFFFFF))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = Color(0x40FFFFFF),
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = label,
+                                fontSize = 12.sp,
+                                color = Color(0x4DFFFFFF)
+                            )
+                        }
+                    }
+                } else {
+                    GlossyPillButton(
+                        text = label,
+                        isSelected = isSel,
+                        onClick = { onResolutionChange(res) }
+                    )
+                }
             }
         }
     }
@@ -1439,10 +1582,12 @@ private fun CropControlsCard(
 
         val presets = listOf(
             "9_16" to "9:16 (Instagram Reels / YouTube Shorts / TikTok)",
+            "3_4" to "3:4 (Portrait Standard / Social Feed)",
             "1_1" to "1:1 (Square Post)",
             "16_9" to "16:9 (Standard Widescreen)",
             "21_9" to "21:9 (Cinematic Ultra-Wide)",
-            "4_3" to "4:3 (Classic Television)"
+            "4_3" to "4:3 (Classic Television)",
+            "4_5" to "4:5 (Instagram Portrait)"
         )
 
         presets.forEach { (preset, label) ->
@@ -1928,24 +2073,30 @@ private fun BatchResultDialog(
 }
 
 // ==========================================
-// MEDIA ITEM PICKER MODALS
+// UNIFIED MEDIA ITEM PICKER MODAL (SINGLE & BATCH)
 // ==========================================
 @Composable
-private fun MediaItemPickerModal(
+private fun UnifiedMediaPickerModal(
     imagesList: List<MediaItem>,
     videosList: List<MediaItem>,
     audioList: List<MediaItem>,
-    onSelect: (MediaItem) -> Unit,
-    onPickExternal: () -> Unit,
+    initialBatchItems: List<MediaItem>,
+    initialIsBatch: Boolean,
+    onSelectSingle: (MediaItem) -> Unit,
+    onSelectBatch: (List<MediaItem>) -> Unit,
+    onPickSingleExternal: () -> Unit,
+    onPickMultiExternal: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    var isBatchSelection by remember { mutableStateOf(initialIsBatch) }
+    var selectedBatchSet by remember { mutableStateOf(initialBatchItems.toSet()) }
     var pickerFilter by remember { mutableStateOf("ALL") }
 
     Dialog(onDismissRequest = onDismiss) {
         GlassSurface(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.85f),
+                .fillMaxHeight(0.88f),
             shape = RoundedCornerShape(24.dp),
             backgroundColor = Color(0xF2080C18),
             borderColor = Color(0x26FFFFFF)
@@ -1954,22 +2105,75 @@ private fun MediaItemPickerModal(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "Select Media Source",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    Column {
+                        Text(
+                            "Select Media Source",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            if (isBatchSelection) "Multi-select mode (${selectedBatchSet.size} items)" else "Single file mode",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
                     }
                 }
 
+                // Mode Selector: Single vs Batch
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0x1AFFFFFF))
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Surface(
+                        onClick = { isBatchSelection = false },
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (!isBatchSelection) Color(0x33FFFFFF) else Color.Transparent,
+                        border = if (!isBatchSelection) BorderStroke(1.dp, Color(0x4DFFFFFF)) else null,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(modifier = Modifier.padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
+                            Text(
+                                "Single File",
+                                fontSize = 12.sp,
+                                fontWeight = if (!isBatchSelection) FontWeight.Bold else FontWeight.Normal,
+                                color = if (!isBatchSelection) Color(0xFFF8F9FA) else Color(0xFF94A3B8)
+                            )
+                        }
+                    }
+
+                    Surface(
+                        onClick = { isBatchSelection = true },
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isBatchSelection) Color(0x33FFFFFF) else Color.Transparent,
+                        border = if (isBatchSelection) BorderStroke(1.dp, Color(0x4DFFFFFF)) else null,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(modifier = Modifier.padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
+                            Text(
+                                "Batch Queue (${selectedBatchSet.size})",
+                                fontSize = 12.sp,
+                                fontWeight = if (isBatchSelection) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isBatchSelection) Color(0xFFF8F9FA) else Color(0xFF94A3B8)
+                            )
+                        }
+                    }
+                }
+
+                // Category Filters
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1999,146 +2203,48 @@ private fun MediaItemPickerModal(
                     }
                 }
 
+                if (isBatchSelection) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "${selectedBatchSet.size} of ${allList.size} selected",
+                            fontSize = 12.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                        TextButton(
+                            onClick = {
+                                selectedBatchSet = if (selectedBatchSet.size == allList.size) emptySet() else allList.toSet()
+                            }
+                        ) {
+                            Text(
+                                if (selectedBatchSet.size == allList.size) "Clear All" else "Select All",
+                                color = Color(0xFFF8F9FA),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+
                 LazyColumn(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(allList) { item ->
-                        Surface(
-                            onClick = { onSelect(item) },
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0x14FFFFFF),
-                            border = BorderStroke(1.dp, Color(0x1AFFFFFF)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Icon(
-                                    imageVector = when (item.type) {
-                                        MediaType.AUDIO -> Icons.Default.MusicNote
-                                        MediaType.IMAGE -> Icons.Default.Image
-                                        else -> Icons.Default.Movie
-                                    },
-                                    contentDescription = null,
-                                    tint = Color(0xFFF8F9FA),
-                                    modifier = Modifier.size(22.dp)
-                                )
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        item.title,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                        maxLines = 1
-                                    )
-                                    Text(
-                                        "${com.medianest.util.formatBytesReport(item.size)} · ${item.mimeType}",
-                                        fontSize = 11.sp,
-                                        color = Color(0xFF94A3B8)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Button(
-                    onClick = onPickExternal,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0x2EFFFFFF)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(42.dp)
-                ) {
-                    Icon(
-                        Icons.Default.FolderOpen,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Browse Storage / SD Card...", color = Color.White, fontSize = 13.sp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MultiMediaItemPickerModal(
-    items: List<MediaItem>,
-    initialSelected: List<MediaItem>,
-    onDone: (List<MediaItem>) -> Unit,
-    onPickExternal: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    var selectedList by remember { mutableStateOf(initialSelected.toSet()) }
-
-    Dialog(onDismissRequest = onDismiss) {
-        GlassSurface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.85f),
-            shape = RoundedCornerShape(24.dp),
-            backgroundColor = Color(0xF2080C18),
-            borderColor = Color(0x26FFFFFF)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Select Multiple Files (${selectedList.size})",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Row {
-                        TextButton(onClick = {
-                            selectedList =
-                                if (selectedList.size == items.size) emptySet() else items.toSet()
-                        }) {
-                            Text(
-                                if (selectedList.size == items.size) "Deselect All" else "Select All",
-                                color = Color(0xFFF8F9FA),
-                                fontSize = 12.sp
-                            )
-                        }
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Close",
-                                tint = Color.White
-                            )
-                        }
-                    }
-                }
-
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(items) { item ->
-                        val isChecked = selectedList.contains(item)
+                        val isChecked = selectedBatchSet.contains(item)
                         Surface(
                             onClick = {
-                                selectedList =
-                                    if (isChecked) selectedList - item else selectedList + item
+                                if (isBatchSelection) {
+                                    selectedBatchSet = if (isChecked) selectedBatchSet - item else selectedBatchSet + item
+                                } else {
+                                    onSelectSingle(item)
+                                }
                             },
                             shape = RoundedCornerShape(12.dp),
-                            color = if (isChecked) Color(0x2EFFFFFF) else Color(0x14FFFFFF),
-                            border = BorderStroke(
-                                1.dp,
-                                if (isChecked) Color(0xFFF8F9FA) else Color(0x1AFFFFFF)
-                            ),
+                            color = if (isBatchSelection && isChecked) Color(0x2EFFFFFF) else Color(0x14FFFFFF),
+                            border = BorderStroke(1.dp, if (isBatchSelection && isChecked) Color(0xFFF8F9FA) else Color(0x1AFFFFFF)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -2146,17 +2252,29 @@ private fun MultiMediaItemPickerModal(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Checkbox(
-                                    checked = isChecked,
-                                    onCheckedChange = { checked ->
-                                        selectedList =
-                                            if (checked) selectedList + item else selectedList - item
-                                    },
-                                    colors = CheckboxDefaults.colors(
-                                        checkedColor = Color(0xFFF8F9FA),
-                                        checkmarkColor = Color.Black
+                                if (isBatchSelection) {
+                                    Checkbox(
+                                        checked = isChecked,
+                                        onCheckedChange = { checked ->
+                                            selectedBatchSet = if (checked) selectedBatchSet + item else selectedBatchSet - item
+                                        },
+                                        colors = CheckboxDefaults.colors(
+                                            checkedColor = Color(0xFFF8F9FA),
+                                            checkmarkColor = Color.Black
+                                        )
                                     )
-                                )
+                                } else {
+                                    Icon(
+                                        imageVector = when (item.type) {
+                                            MediaType.AUDIO -> Icons.Default.MusicNote
+                                            MediaType.IMAGE -> Icons.Default.Image
+                                            else -> Icons.Default.Movie
+                                        },
+                                        contentDescription = null,
+                                        tint = Color(0xFFF8F9FA),
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         item.title,
@@ -2176,31 +2294,52 @@ private fun MultiMediaItemPickerModal(
                     }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Footer Actions
+                if (isBatchSelection) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onPickMultiExternal,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0x2EFFFFFF)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                        ) {
+                            Text("Browse Multi", color = Color.White, fontSize = 12.5.sp)
+                        }
+                        Button(
+                            onClick = { onSelectBatch(selectedBatchSet.toList()) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF8F9FA)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                        ) {
+                            Text(
+                                "Confirm (${selectedBatchSet.size})",
+                                color = Color.Black,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.5.sp
+                            )
+                        }
+                    }
+                } else {
                     Button(
-                        onClick = onPickExternal,
+                        onClick = onPickSingleExternal,
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0x2EFFFFFF)),
                         modifier = Modifier
-                            .weight(1f)
+                            .fillMaxWidth()
                             .height(44.dp)
                     ) {
-                        Text("Browse Multi", color = Color.White, fontSize = 12.5.sp)
-                    }
-                    Button(
-                        onClick = { onDone(selectedList.toList()) },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF8F9FA)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(44.dp)
-                    ) {
-                        Text(
-                            "Confirm (${selectedList.size})",
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp
+                        Icon(
+                            Icons.Default.FolderOpen,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
                         )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Browse Storage / SD Card...", color = Color.White, fontSize = 13.sp)
                     }
                 }
             }

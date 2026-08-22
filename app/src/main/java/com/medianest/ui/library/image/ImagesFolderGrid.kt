@@ -27,6 +27,7 @@ import coil.compose.AsyncImage
 import com.medianest.data.db.MediaType
 import com.medianest.data.db.SelectiveHiddenFolder
 import com.medianest.data.model.MediaItem
+import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.MediaLoadingAnimation
 import com.medianest.ui.components.translucentScrollBarStaggeredGrid
@@ -42,6 +43,7 @@ fun ImagesFolderGrid(
     selectedFolderNames: Set<String>,
     onSelectedFolderNamesChange: (Set<String>) -> Unit,
     isLoading: Boolean,
+    isScanningHidden: Boolean = false,
     activeFilterTab: String,
     onSelectedFolderChange: (String?) -> Unit,
     onFolderDeleteRequest: (String) -> Unit,
@@ -93,14 +95,16 @@ fun ImagesFolderGrid(
             }
         }
 
-        if (isLoading && visibleFolders.isEmpty()) {
+        if ((isLoading && visibleFolders.isEmpty()) || (isScanningHidden && activeFilterTab == "HIDDEN" && visibleFolders.isEmpty())) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 MediaLoadingAnimation(
                     mediaType = MediaType.IMAGE,
-                    iconSize = 52.dp
+                    iconSize = 52.dp,
+                    showLabel = isScanningHidden && activeFilterTab == "HIDDEN",
+                    customMessage = if (isScanningHidden && activeFilterTab == "HIDDEN") "Scanning hidden folders..." else null
                 )
             }
         } else if (visibleFolders.isEmpty()) {
@@ -351,26 +355,25 @@ fun ImagesFolderGrid(
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
-                                    DropdownMenu(
+                                    GlassDropdownMenu(
                                         expanded = showFolderMenu,
-                                        onDismissRequest = { showFolderMenu = false },
-                                        containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-                                        shape = RoundedCornerShape(16.dp)
+                                        onDismissRequest = { showFolderMenu = false }
                                     ) {
                                         DropdownMenuItem(
-                                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                            text = { Text("Folder Info", color = Color.White) },
+                                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = Color.White) },
                                             onClick = {
                                                 showFolderMenu = false
-                                                onFolderDeleteRequest(folderName)
+                                                onFolderInfoRequest(folderName)
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text(if (isHidden) "Include Folder" else "Exclude Folder") },
+                                            text = { Text(if (isHidden) "Include Folder" else "Exclude Folder", color = Color.White) },
                                             leadingIcon = {
                                                 Icon(
                                                     imageVector = if (isHidden) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                                    contentDescription = null
+                                                    contentDescription = null,
+                                                    tint = Color.White
                                                 )
                                             },
                                             onClick = {
@@ -379,11 +382,11 @@ fun ImagesFolderGrid(
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("Folder Info") },
-                                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                            text = { Text("Delete Folder", color = MaterialTheme.colorScheme.error) },
+                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                                             onClick = {
                                                 showFolderMenu = false
-                                                onFolderInfoRequest(folderName)
+                                                onFolderDeleteRequest(folderName)
                                             }
                                         )
                                     }

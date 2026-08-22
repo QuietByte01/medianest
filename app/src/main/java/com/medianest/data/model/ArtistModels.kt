@@ -57,7 +57,8 @@ data class ArtistInfo(
     val yearsActive: String? = null,
     val origin: String? = null,
     val about: String? = null,
-    val topSongTitle: String? = null
+    val topSongTitle: String? = null,
+    val isPlaceholder: Boolean = false
 )
 
 object MockArtistDataSource {

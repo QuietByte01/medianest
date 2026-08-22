@@ -1,20 +1,24 @@
 package com.medianest.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -36,7 +40,8 @@ fun GlassSurface(
     borderWidth: Dp = 0.5.dp,
     backgroundImage: Any? = null,
     enableBlur: Boolean = false,
-    blurRadius: Dp = 24.dp,
+    blurRadius: Dp = 12.dp,
+    backgroundImageAlpha: Float = 1f,
     backgroundBrush: Brush? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
@@ -77,20 +82,38 @@ fun GlassSurface(
                 shape = shape
             )
     ) {
-        if (backgroundImage != null) {
+        // 1. Background Image (Lower layer) - Instant synchronous rendering for drawable resources
+        val imageModifier = Modifier
+            .matchParentSize()
+            .alpha(backgroundImageAlpha)
+            .let { m ->
+                if (enableBlur && blurRadius > 0.dp) {
+                    m.blur(radius = blurRadius, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+                } else {
+                    m
+                }
+            }
+
+        if (backgroundImage is Int) {
+            Image(
+                painter = painterResource(id = backgroundImage),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = imageModifier
+            )
+        } else if (backgroundImage != null) {
             AsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(backgroundImage)
-                    .crossfade(true)
+                    .crossfade(false)
                     .build(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .matchParentSize()
-                    .blur(blurRadius)
+                modifier = imageModifier
             )
         }
 
+        // 2. Background Color Tint (Overlay layer)
         Box(
             modifier = Modifier
                 .matchParentSize()

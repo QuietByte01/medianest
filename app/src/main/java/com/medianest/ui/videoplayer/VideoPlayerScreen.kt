@@ -42,6 +42,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
@@ -269,6 +270,20 @@ fun VideoPlayerScreen(
     var currentVolume by remember { mutableFloatStateOf(audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC).toFloat() / audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).toFloat()) }
     var currentBrightness by remember { mutableFloatStateOf(0.7f) }
 
+    LaunchedEffect(isDraggingBrightness, currentBrightness) {
+        if (isDraggingBrightness) {
+            delay(1200L)
+            isDraggingBrightness = false
+        }
+    }
+
+    LaunchedEffect(isDraggingVolume, currentVolume) {
+        if (isDraggingVolume) {
+            delay(1200L)
+            isDraggingVolume = false
+        }
+    }
+
     val controlsFadeSpec = tween<Float>(durationMillis = 500)
 
     Box(
@@ -347,38 +362,101 @@ fun VideoPlayerScreen(
             // Video Surface Container with Aspect Ratio Bounds
             val density = LocalDensity.current
             
-            // Check rotation and swap dimensions for vertical/rotated videos dynamically
+            // ExoPlayer VideoSize reports the *encoded* width/height plus any unapplied rotation.
+            // We need to compute the *display* aspect ratio (what the user actually sees).
+            // pixelWidthHeightRatio compensates for non-square pixels (mostly = 1.0 for modern content).
             val rotation = activeVideoSize.unappliedRotationDegrees
             val isRotated = rotation == 90 || rotation == 270
-            val rawWidth = if (activeVideoSize.width > 0) activeVideoSize.width.toFloat()
-                           else (currentItem?.width?.takeIf { it > 0 } ?: 1920).toFloat()
-            val rawHeight = if (activeVideoSize.height > 0) activeVideoSize.height.toFloat()
-                            else (currentItem?.height?.takeIf { it > 0 } ?: 1080).toFloat()
-            
-            val videoWidth = if (isRotated) rawHeight else rawWidth
-            val videoHeight = if (isRotated) rawWidth else rawHeight
-            val videoAspectRatio = (videoWidth / videoHeight.coerceAtLeast(1f)).coerceIn(0.1f, 10.0f)
+            val pixelRatio = if (activeVideoSize.pixelWidthHeightRatio > 0f) activeVideoSize.pixelWidthHeightRatio else 1f
+
+            val rawEncodedWidth = if (activeVideoSize.width > 0) activeVideoSize.width.toFloat() else 0f
+            val rawEncodedHeight = if (activeVideoSize.height > 0) activeVideoSize.height.toFloat() else 0f
+
+            val videoAspectRatio: Float
+            if (rawEncodedWidth > 0f && rawEncodedHeight > 0f) {
+                // Player told us the actual dimensions — swap if needed for rotated videos
+                val displayWidth = (if (isRotated) rawEncodedHeight else rawEncodedWidth) * pixelRatio
+                val displayHeight = if (isRotated) rawEncodedWidth else rawEncodedHeight
+                videoAspectRatio = (displayWidth / displayHeight.coerceAtLeast(1f)).coerceIn(0.1f, 10.0f)
+            } else {
+                // Player hasn't reported size yet — use MediaStore dimensions directly.
+                // Note: MediaStoreRepository already swapped width/height for rotated videos,
+                // so currentItem.width/height represent the correct *display* dimensions.
+                val itemW = (currentItem?.width?.takeIf { it > 0 } ?: 1920).toFloat()
+                val itemH = (currentItem?.height?.takeIf { it > 0 } ?: 1080).toFloat()
+                videoAspectRatio = (itemW / itemH.coerceAtLeast(1f)).coerceIn(0.1f, 10.0f)
+            }
 
             BoxWithConstraints(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                val containerRatio = maxWidth.value / maxHeight.value.coerceAtLeast(0.01f)
-                val targetRatio = cropMode.ratio ?: videoAspectRatio
-                val matchHeight = targetRatio < containerRatio
+                val containerW = maxWidth.value
+                val containerH = maxHeight.value.coerceAtLeast(0.01f)
+                val containerRatio = containerW / containerH
 
-                val contentModifier = when {
-                    cropMode == MediaAspectRatio.CROP -> Modifier.fillMaxSize()
-                    cropMode == MediaAspectRatio.STRETCH -> Modifier.fillMaxSize()
-                    cropMode == MediaAspectRatio.ORIGINAL -> {
-                        // Original 1:1 pixel resolution: 1 video pixel = 1 screen pixel (unbounded by screen)
-                        val widthDp = with(density) { videoWidth.toDp() }
-                        val heightDp = with(density) { videoHeight.toDp() }
+                // Natural rendered dimensions of the video under FIT mode on this screen:
+                val videoFitW: Float
+                val videoFitH: Float
+                if (videoAspectRatio > containerRatio) {
+                    videoFitW = containerW
+                    videoFitH = containerW / videoAspectRatio
+                } else {
+                    videoFitH = containerH
+                    videoFitW = containerH * videoAspectRatio
+                }
+
+                val surfaceModifier = when (cropMode) {
+                    MediaAspectRatio.FIT -> {
+                        Modifier.aspectRatio(videoAspectRatio, matchHeightConstraintsFirst = videoAspectRatio <= containerRatio)
+                    }
+                    MediaAspectRatio.CROP, MediaAspectRatio.STRETCH -> {
+                        Modifier.fillMaxSize()
+                    }
+                    MediaAspectRatio.ORIGINAL -> {
+                        val w = if (rawEncodedWidth > 0f) rawEncodedWidth else (currentItem?.width?.takeIf { it > 0 } ?: 1920).toFloat()
+                        val h = if (rawEncodedHeight > 0f) rawEncodedHeight else (currentItem?.height?.takeIf { it > 0 } ?: 1080).toFloat()
+                        val widthDp = with(density) { w.toDp() }
+                        val heightDp = with(density) { h.toDp() }
                         Modifier
                             .wrapContentSize(Alignment.Center, unbounded = true)
                             .requiredSize(widthDp, heightDp)
                     }
-                    else -> Modifier.aspectRatio(targetRatio, matchHeightConstraintsFirst = matchHeight)
+                    else -> {
+                        // Fixed Aspect Ratio Presets (16:9, 16:10, 4:3, 1:1, 9:16, 4:5, 21:9):
+                        // Scale the crop window anchored to the video's full width or full height,
+                        // expanding/cropping the other dimension and bounded only by the physical screen container.
+                        val targetRatio = cropMode.ratio ?: videoAspectRatio
+                        val targetW: Float
+                        val targetH: Float
+
+                        if (targetRatio <= videoAspectRatio) {
+                            // Target ratio is narrower than video (e.g. 16:10, 4:3, 1:1, 9:16 on a 16:9 video):
+                            // To crop vertically (increasing video height) up to the screen edge:
+                            val expandedH = videoFitW / targetRatio
+                            if (expandedH <= containerH) {
+                                // Full width is preserved, height expands (crops top/bottom from the video view):
+                                targetW = videoFitW
+                                targetH = expandedH
+                            } else {
+                                // Screen height limit reached: use full container height and crop sides:
+                                targetH = containerH
+                                targetW = containerH * targetRatio
+                            }
+                        } else {
+                            // Target ratio is wider than video (e.g. 21:9 on a 16:9 video, or 16:9 on a 9:16 video):
+                            // Height is preserved at full videoFitH, width expands up to screen width:
+                            val expandedW = videoFitH * targetRatio
+                            if (expandedW <= containerW) {
+                                targetH = videoFitH
+                                targetW = expandedW
+                            } else {
+                                targetW = containerW
+                                targetH = containerW / targetRatio
+                            }
+                        }
+                        Modifier.size(targetW.dp, targetH.dp)
+                    }
                 }
 
                 Box(
@@ -393,161 +471,164 @@ fun VideoPlayerScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Box(
-                        modifier = contentModifier,
+                        modifier = surfaceModifier.clipToBounds(),
                         contentAlignment = Alignment.Center
                     ) {
-                    androidx.compose.runtime.key(playerState.activeEngineName) {
-                        if (playerState.activeEngineName == "Media3") {
-                            AndroidView(
-                                factory = { ctx ->
-                                    Log.i("VideoPlayerScreen", "Creating NEW PlayerView for Media3")
-                                    PlayerView(ctx).apply {
-                                        useController = false
+                        androidx.compose.runtime.key(playerState.activeEngineName) {
+                            if (playerState.activeEngineName == "Media3") {
+                                AndroidView(
+                                    factory = { ctx ->
+                                        Log.i("VideoPlayerScreen", "Creating NEW PlayerView for Media3")
+                                        PlayerView(ctx).apply {
+                                            useController = false
+                                            try {
+                                                this.player = playerManager.exoPlayer
+                                            } catch (_: Exception) {}
+                                            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                                        }
+                                    },
+                                    update = { view ->
+                                        @androidx.annotation.OptIn(UnstableApi::class)
+                                        fun applySettings() {
+                                            try {
+                                                val currentExo = playerManager.exoPlayer
+                                                if (view.player != currentExo) {
+                                                    Log.i("VideoPlayerScreen", "Syncing PlayerView with new ExoPlayer instance")
+                                                    view.player = currentExo
+                                                }
+                                            } catch (e: Exception) {
+                                                Log.e("VideoPlayerScreen", "Error syncing player", e)
+                                            }
+                                            
+                                            // FIT & ORIGINAL: fit video into the frame.
+                                            // STRETCH: fill frame without preserving aspect ratio.
+                                            // CROP & all fixed presets (16:9, 16:10, 4:3, 1:1, 9:16, 4:5, 21:9):
+                                            // RESIZE_MODE_ZOOM zooms the video so it completely fills the target frame and crops the excess!
+                                            view.resizeMode = when (cropMode) {
+                                                MediaAspectRatio.FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                                MediaAspectRatio.ORIGINAL -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                                MediaAspectRatio.STRETCH -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                                else -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                            }
+                                        }
+                                        applySettings()
                                         try {
-                                            this.player = playerManager.exoPlayer
+                                            val androidFilter = com.medianest.ui.components.PictureModeUtils.getAndroidColorFilter(
+                                                modeKey = pictureMode,
+                                                customSat = customSat, customCon = customCon, customWarmth = customWarmth,
+                                                enabled = pictureModeEnabled
+                                            )
+                                            if (androidFilter != null) {
+                                                val paint = android.graphics.Paint().apply { colorFilter = androidFilter }
+                                                view.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, paint)
+                                            } else {
+                                                view.setLayerType(android.view.View.LAYER_TYPE_NONE, null)
+                                            }
                                         } catch (_: Exception) {}
-                                        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                                    }
-                                },
-                                update = { view ->
-                                    @androidx.annotation.OptIn(UnstableApi::class)
-                                    fun applySettings() {
-                                        try {
-                                            val currentExo = playerManager.exoPlayer
-                                            if (view.player != currentExo) {
-                                                Log.i("VideoPlayerScreen", "Syncing PlayerView with new ExoPlayer instance")
-                                                view.player = currentExo
-                                            }
-                                        } catch (e: Exception) {
-                                            Log.e("VideoPlayerScreen", "Error syncing player", e)
-                                        }
-                                        
-                                        // Aspect ratio modes using crop logic to maintain proportions without stretching.
-                                        view.resizeMode = when (cropMode) {
-                                            MediaAspectRatio.FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                            MediaAspectRatio.CROP -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                            MediaAspectRatio.ORIGINAL -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                            MediaAspectRatio.STRETCH -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                                            else -> {
-                                                if (cropMode.ratio != null) AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                                else AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                            }
-                                        }
-                                    }
-                                    applySettings()
-                                    try {
-                                        val androidFilter = com.medianest.ui.components.PictureModeUtils.getAndroidColorFilter(
-                                            modeKey = pictureMode,
-                                            customSat = customSat, customCon = customCon, customWarmth = customWarmth,
-                                            enabled = pictureModeEnabled
-                                        )
-                                        if (androidFilter != null) {
-                                            val paint = android.graphics.Paint().apply { colorFilter = androidFilter }
-                                            view.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, paint)
-                                        } else {
-                                            view.setLayerType(android.view.View.LAYER_TYPE_NONE, null)
-                                        }
-                                    } catch (_: Exception) {}
-                                },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            // FFmpeg Rendering Path (TextureView)
-                            AndroidView(
-                                factory = { ctx ->
-                                    Log.i("VideoPlayerScreen", "Creating TextureView for FFmpeg")
-                                    android.view.TextureView(ctx).apply {
-                                        surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
-                                            private var activeSurface: android.view.Surface? = null
-                                            override fun onSurfaceTextureAvailable(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
-                                                Log.i("VideoPlayerScreen", "FFmpeg SurfaceTexture Available")
-                                                activeSurface?.release()
-                                                activeSurface = android.view.Surface(st)
-                                                playerManager.setVideoSurface(activeSurface)
-                                            }
-                                            override fun onSurfaceTextureSizeChanged(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
-                                                if (activeSurface == null) {
+                                    },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                // FFmpeg Rendering Path (TextureView)
+                                AndroidView(
+                                    factory = { ctx ->
+                                        Log.i("VideoPlayerScreen", "Creating TextureView for FFmpeg")
+                                        android.view.TextureView(ctx).apply {
+                                            surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
+                                                private var activeSurface: android.view.Surface? = null
+                                                override fun onSurfaceTextureAvailable(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
+                                                    Log.i("VideoPlayerScreen", "FFmpeg SurfaceTexture Available")
+                                                    activeSurface?.release()
                                                     activeSurface = android.view.Surface(st)
+                                                    playerManager.setVideoSurface(activeSurface)
                                                 }
-                                                playerManager.setVideoSurface(activeSurface)
+                                                override fun onSurfaceTextureSizeChanged(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
+                                                    if (activeSurface == null) {
+                                                        activeSurface = android.view.Surface(st)
+                                                    }
+                                                    playerManager.setVideoSurface(activeSurface)
+                                                }
+                                                override fun onSurfaceTextureDestroyed(st: android.graphics.SurfaceTexture): Boolean {
+                                                    Log.i("VideoPlayerScreen", "FFmpeg SurfaceTexture Destroyed")
+                                                    playerManager.setVideoSurface(null)
+                                                    activeSurface?.release()
+                                                    activeSurface = null
+                                                    return true
+                                                }
+                                                override fun onSurfaceTextureUpdated(st: android.graphics.SurfaceTexture) {}
                                             }
-                                            override fun onSurfaceTextureDestroyed(st: android.graphics.SurfaceTexture): Boolean {
-                                                Log.i("VideoPlayerScreen", "FFmpeg SurfaceTexture Destroyed")
-                                                playerManager.setVideoSurface(null)
-                                                activeSurface?.release()
-                                                activeSurface = null
-                                                return true
-                                            }
-                                            override fun onSurfaceTextureUpdated(st: android.graphics.SurfaceTexture) {}
+                                            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                                         }
-                                        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                                    }
-                                },
-                                update = { view ->
-                                    // FFmpeg Path Aspect Ratio Support via TextureView Matrix
-                                    val viewWidth = view.width.toFloat()
-                                    val viewHeight = view.height.toFloat()
-                                    if (viewWidth > 0 && viewHeight > 0 && videoWidth > 0 && videoHeight > 0) {
-                                        val matrix = android.graphics.Matrix()
-                                        val viewRatio = viewWidth / viewHeight
-                                        val vidRatio = videoWidth / videoHeight
-                                        
-                                        val scaleX: Float
-                                        val scaleY: Float
-                                        
-                                        when (cropMode) {
-                                            MediaAspectRatio.STRETCH -> {
-                                                scaleX = 1f
-                                                scaleY = 1f
-                                            }
-                                            MediaAspectRatio.FIT, MediaAspectRatio.ORIGINAL -> {
-                                                if (vidRatio > viewRatio) {
+                                    },
+                                    update = { view ->
+                                        val viewWidth = view.width.toFloat()
+                                        val viewHeight = view.height.toFloat()
+                                        val dispWidth = (if (isRotated) rawEncodedHeight else rawEncodedWidth)
+                                            .let { if (it > 0f) it else (currentItem?.width?.takeIf { w -> w > 0 } ?: 1920).toFloat() }
+                                        val dispHeight = (if (isRotated) rawEncodedWidth else rawEncodedHeight)
+                                            .let { if (it > 0f) it else (currentItem?.height?.takeIf { h -> h > 0 } ?: 1080).toFloat() }
+                                        if (viewWidth > 0 && viewHeight > 0 && dispWidth > 0 && dispHeight > 0) {
+                                            val matrix = android.graphics.Matrix()
+                                            val viewRatio = viewWidth / viewHeight
+                                            val vidRatio = dispWidth / dispHeight
+                                            
+                                            val scaleX: Float
+                                            val scaleY: Float
+                                            
+                                            when (cropMode) {
+                                                MediaAspectRatio.STRETCH -> {
                                                     scaleX = 1f
-                                                    scaleY = viewRatio / vidRatio
-                                                } else {
-                                                    scaleX = vidRatio / viewRatio
                                                     scaleY = 1f
                                                 }
-                                            }
-                                            else -> { // CROP and fixed ratios (e.g., 4:3) with crop logic
-                                                if (vidRatio > viewRatio) {
-                                                    scaleX = vidRatio / viewRatio
-                                                    scaleY = 1f
-                                                } else {
-                                                    scaleX = 1f
-                                                    scaleY = viewRatio / vidRatio
+                                                MediaAspectRatio.FIT, MediaAspectRatio.ORIGINAL -> {
+                                                    if (vidRatio > viewRatio) {
+                                                        scaleX = 1f
+                                                        scaleY = viewRatio / vidRatio
+                                                    } else {
+                                                        scaleX = vidRatio / viewRatio
+                                                        scaleY = 1f
+                                                    }
+                                                }
+                                                else -> {
+                                                    // Crop mode & all fixed ratios: zoom to cover entire view without stretching
+                                                    if (vidRatio > viewRatio) {
+                                                        scaleX = vidRatio / viewRatio
+                                                        scaleY = 1f
+                                                    } else {
+                                                        scaleX = 1f
+                                                        scaleY = viewRatio / vidRatio
+                                                    }
                                                 }
                                             }
+                                            matrix.setScale(scaleX, scaleY, viewWidth / 2f, viewHeight / 2f)
+                                            view.setTransform(matrix)
                                         }
-                                        matrix.setScale(scaleX, scaleY, viewWidth / 2f, viewHeight / 2f)
-                                        view.setTransform(matrix)
-                                    }
 
-                                    try {
-                                        val androidFilter = com.medianest.ui.components.PictureModeUtils.getAndroidColorFilter(
-                                            modeKey = pictureMode,
-                                            customSat = customSat, customCon = customCon, customWarmth = customWarmth,
-                                            enabled = pictureModeEnabled
-                                        )
-                                        if (androidFilter != null) {
-                                            val paint = android.graphics.Paint().apply { colorFilter = androidFilter }
-                                            view.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, paint)
-                                        } else {
-                                            view.setLayerType(android.view.View.LAYER_TYPE_NONE, null)
-                                        }
-                                    } catch (_: Exception) {}
-                                },
-                                modifier = Modifier.fillMaxSize()
-                            )
+                                        try {
+                                            val androidFilter = com.medianest.ui.components.PictureModeUtils.getAndroidColorFilter(
+                                                modeKey = pictureMode,
+                                                customSat = customSat, customCon = customCon, customWarmth = customWarmth,
+                                                enabled = pictureModeEnabled
+                                            )
+                                            if (androidFilter != null) {
+                                                val paint = android.graphics.Paint().apply { colorFilter = androidFilter }
+                                                view.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, paint)
+                                            } else {
+                                                view.setLayerType(android.view.View.LAYER_TYPE_NONE, null)
+                                            }
+                                        } catch (_: Exception) {}
+                                    },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                         }
-                    }
 
-                    if (isFilmGrainEnabled) {
-                        FilmGrainOverlay(intensity = filmGrainIntensity, modifier = Modifier.matchParentSize())
+                        if (isFilmGrainEnabled) {
+                            FilmGrainOverlay(intensity = filmGrainIntensity, modifier = Modifier.matchParentSize())
+                        }
                     }
                 }
             }
-        }
 
             ZoomPercentagePill(
                 scale = scale, 

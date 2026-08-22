@@ -85,7 +85,7 @@ fun saveScreenshot(context: Context, bitmap: Bitmap) {
 }
 
 fun getBreadcrumbParts(context: Context, item: MediaItem?): List<String> {
-    val realPath = item?.uri?.let { com.medianest.ui.components.getFilePathFromUri(context, it) } ?: ""
+    val realPath = item?.uri?.let { com.medianest.ui.components.mediainfo.getFilePathFromUri(context, it) } ?: ""
     return if (realPath.isNotBlank()) {
         val storagePrefix = "/storage/emulated/0/"
         val cleanPath = if (realPath.startsWith(storagePrefix)) {

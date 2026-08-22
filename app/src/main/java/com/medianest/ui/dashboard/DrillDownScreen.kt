@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,6 +36,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.medianest.data.model.MediaItem
 
+import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.theme.LocalDarkTheme
 
@@ -147,13 +147,13 @@ fun DrillDownScreen(
 
                 when (targetFmt) {
                     "MP3" -> combined.contains(".mp3") || mime.contains("mpeg") || mime.contains("mp3") || targetFmt.lowercase() in mime
-                    "MP4" -> combined.contains(".mp4") || mime.contains("mp4")
+                    "MP4" -> (combined.contains(".mp4") || mime.contains("mp4")) && (item.type == com.medianest.data.db.MediaType.VIDEO || filterCategory != "AUDIO")
                     "JPG", "JPEG" -> combined.contains(".jpg") || combined.contains(".jpeg") || mime.contains("jpeg") || mime.contains("jpg")
                     "PNG" -> combined.contains(".png") || mime.contains("png")
                     "FLAC" -> combined.contains(".flac") || mime.contains("flac")
-                    "WAV" -> combined.contains(".wav") || mime.contains("wav")
+                    "WAV" -> combined.contains(".wav") || mime.contains("wav") || mime.contains("wave")
                     "AAC" -> combined.contains(".aac") || mime.contains("aac")
-                    "M4A" -> combined.contains(".m4a") || mime.contains("m4a")
+                    "M4A" -> combined.contains(".m4a") || mime.contains("m4a") || (mime.contains("mp4") && (item.type == com.medianest.data.db.MediaType.AUDIO || filterCategory == "AUDIO"))
                     else -> combined.contains(targetFmt.lowercase()) || mime.contains(targetFmt.lowercase())
                 }
             }
@@ -203,7 +203,7 @@ fun DrillDownScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
                     
                     Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
@@ -235,36 +235,32 @@ fun DrillDownScreen(
                         IconButton(onClick = { showSortMenu = true }) {
                             Icon(Icons.Default.Sort, contentDescription = "Sort", tint = Color.White, modifier = Modifier.size(20.dp))
                         }
-                        DropdownMenu(
+                        GlassDropdownMenu(
                             expanded = showSortMenu,
                             onDismissRequest = { showSortMenu = false },
-                            containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-                            shape = RoundedCornerShape(16.dp)
+                            useImageBackground = false
                         ) {
+                            val itemColor = { selected: Boolean -> if (selected) Color.White else Color.White.copy(alpha = 0.6f) }
+                            
                             DropdownMenuItem(
-                                text = { Text("Date (Newest First)") },
-                                onClick = { sortType = AnalyticsSortType.DATE_DESC; showSortMenu = false },
-                                leadingIcon = { if (sortType == AnalyticsSortType.DATE_DESC) Icon(Icons.Default.Check, null) }
+                                text = { Text("Date (Newest First)", color = itemColor(sortType == AnalyticsSortType.DATE_DESC)) },
+                                onClick = { sortType = AnalyticsSortType.DATE_DESC; showSortMenu = false }
                             )
                             DropdownMenuItem(
-                                text = { Text("Date (Oldest First)") },
-                                onClick = { sortType = AnalyticsSortType.DATE_ASC; showSortMenu = false },
-                                leadingIcon = { if (sortType == AnalyticsSortType.DATE_ASC) Icon(Icons.Default.Check, null) }
+                                text = { Text("Date (Oldest First)", color = itemColor(sortType == AnalyticsSortType.DATE_ASC)) },
+                                onClick = { sortType = AnalyticsSortType.DATE_ASC; showSortMenu = false }
                             )
                             DropdownMenuItem(
-                                text = { Text("Size (Largest First)") },
-                                onClick = { sortType = AnalyticsSortType.SIZE_DESC; showSortMenu = false },
-                                leadingIcon = { if (sortType == AnalyticsSortType.SIZE_DESC) Icon(Icons.Default.Check, null) }
+                                text = { Text("Size (Largest First)", color = itemColor(sortType == AnalyticsSortType.SIZE_DESC)) },
+                                onClick = { sortType = AnalyticsSortType.SIZE_DESC; showSortMenu = false }
                             )
                             DropdownMenuItem(
-                                text = { Text("Size (Smallest First)") },
-                                onClick = { sortType = AnalyticsSortType.SIZE_ASC; showSortMenu = false },
-                                leadingIcon = { if (sortType == AnalyticsSortType.SIZE_ASC) Icon(Icons.Default.Check, null) }
+                                text = { Text("Size (Smallest First)", color = itemColor(sortType == AnalyticsSortType.SIZE_ASC)) },
+                                onClick = { sortType = AnalyticsSortType.SIZE_ASC; showSortMenu = false }
                             )
                             DropdownMenuItem(
-                                text = { Text("Name (A to Z)") },
-                                onClick = { sortType = AnalyticsSortType.NAME_ASC; showSortMenu = false },
-                                leadingIcon = { if (sortType == AnalyticsSortType.NAME_ASC) Icon(Icons.Default.Check, null) }
+                                text = { Text("Name (A to Z)", color = itemColor(sortType == AnalyticsSortType.NAME_ASC)) },
+                                onClick = { sortType = AnalyticsSortType.NAME_ASC; showSortMenu = false }
                             )
                         }
                     }

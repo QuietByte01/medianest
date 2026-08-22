@@ -96,6 +96,7 @@ fun AudioPlayerScreen(
     var showAddAlbumToPlaylistDialog by remember { mutableStateOf(false) }
     var isVisualizerFullscreen by remember { mutableStateOf(false) }
     var showArtistInfoPanel by remember { mutableStateOf(false) }
+    var showSidePanelLandscape by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
     val db = MediaNestApp.instance.database
@@ -199,12 +200,16 @@ fun AudioPlayerScreen(
 
     BackHandler(enabled = true) {
         when {
+            showArtistInfoPanel -> showArtistInfoPanel = false
             showDetailsSheet -> showDetailsSheet = false
             showMetadataModal -> showMetadataModal = false
             showAddAlbumToPlaylistDialog -> showAddAlbumToPlaylistDialog = false
             showAlbumSongsSheet -> showAlbumSongsSheet = false
             showDspSheet -> showDspSheet = false
             showLyricsView -> showLyricsView = false
+            showQueueInPortraitBox -> showQueueInPortraitBox = false
+            showAlbumSongsInPanel -> showAlbumSongsInPanel = false
+            showSidePanelLandscape -> showSidePanelLandscape = false
             else -> onClose()
         }
     }
@@ -291,6 +296,8 @@ fun AudioPlayerScreen(
                 onEditLyrics = { manualLyricsInput = rawLyricsText ?: ""; showManualLyricsDialog = true },
                 onToggleVisualizer = { scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) } },
                 onFullscreenVisualizerClick = { isVisualizerFullscreen = true },
+                onToggleArtistInfo = { showArtistInfoPanel = !showArtistInfoPanel },
+                showArtistInfo = showArtistInfoPanel,
                 onOpenAlbum = { albumName ->
                     onClose()
                     onOpenAlbum(albumName)
@@ -299,6 +306,8 @@ fun AudioPlayerScreen(
                 showHidden = showHidden,
                 hiddenFolders = hiddenFolders,
                 artistInfo = artistInfo,
+                showSidePanel = showSidePanelLandscape,
+                onToggleSidePanel = { showSidePanelLandscape = it },
                 modifier = Modifier.fillMaxSize()
             )
         } else {
@@ -319,7 +328,10 @@ fun AudioPlayerScreen(
                                 DropdownMenuItem(text = { Text("Edit Tag & Metadata", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.EditNote, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; showMetadataModal = true })
                                 if (currentItem != null) {
                                     DropdownMenuItem(text = { Text("Show Album", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Album, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; onClose(); onOpenAlbum(currentItem.album ?: "Unknown Album") })
-                                    DropdownMenuItem(text = { Text("Show Artist", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Person, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; onClose(); onOpenArtist(currentItem.artist ?: "Unknown Artist") })
+                                    val currentArtist = artistInfo
+                                    if (currentArtist != null && !currentArtist.isPlaceholder) {
+                                        DropdownMenuItem(text = { Text("Show Artist", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Person, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; onClose(); onOpenArtist(currentItem.artist ?: "Unknown Artist") })
+                                    }
                                     DropdownMenuItem(text = { Text("Show In Folder", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Folder, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; onClose(); onOpenFolder(currentItem.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (currentItem.bucketName ?: "Music")) })
                                 }
                                 DropdownMenuItem(text = { Text("Native Audio DSP", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Equalizer, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; showDspSheet = true })

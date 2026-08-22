@@ -13,6 +13,7 @@ enum class MediaAspectRatio(val label: String, val ratio: Float? = null) {
     P_16_10("16:10", 16f / 10f),
     P_9_16("9:16", 9f / 16f),
     P_4_3("4:3", 4f / 3f),
+    P_3_4("3:4", 3f / 4f),
     P_1_1("1:1", 1f / 1f),
     P_4_5("4:5", 4f / 5f),
     P_21_9("21:9", 21f / 9f),

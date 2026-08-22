@@ -183,22 +183,19 @@ fun GlossySidePanel(
 @Composable
 fun ArtistInfoPanel(
     artistInfo: ArtistInfo,
-    onAlbumClick: (String) -> Unit
+    onAlbumClick: (String) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     GlassSurface(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(8.dp),
-        shape = RoundedCornerShape(24.dp),
-        backgroundColor = Color.Black.copy(alpha = 0.45f),
-        borderColor = Color.White.copy(alpha = 0.15f),
-        enableBlur = true,
-        blurRadius = 32.dp
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        backgroundColor = Color(0x1F24293A),
+        borderColor = Color(0x2EFFFFFF)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 20.dp)
+                .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {

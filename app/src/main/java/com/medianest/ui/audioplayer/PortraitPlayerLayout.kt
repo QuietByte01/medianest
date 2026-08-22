@@ -88,7 +88,8 @@ fun PortraitPlayerLayout(
             if (showArtistInfo && artistInfo != null) {
                 ArtistInfoPanel(
                     artistInfo = artistInfo,
-                    onAlbumClick = onOpenAlbum
+                    onAlbumClick = onOpenAlbum,
+                    modifier = Modifier.fillMaxSize()
                 )
             } else if (showLyricsView) {
                 LyricsView(
@@ -333,40 +334,54 @@ fun PortraitPlayerLayout(
                             }
 
                             // Artist Image Small Icon (Top Right)
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(12.dp)
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .border(
-                                        width = if (artistInfo?.imageUrl != null) 1.5.dp else 0.dp,
-                                        color = if (artistInfo?.imageUrl != null) Color.White.copy(0.6f) else Color.Transparent,
-                                        shape = CircleShape
-                                    )
-                                    .clickable { onToggleArtistInfo() }
-                                    .background(Color.Black.copy(0.4f))
-                            ) {
-                                SubcomposeAsyncImage(
-                                    model = ImageRequest.Builder(LocalContext.current)
-                                        .data(artistInfo?.imageUrl)
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = "Artist Info",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                ) {
-                                    val state = painter.state
-                                    if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
-                                        val fallback = com.medianest.util.ArtistImageUtils.getFallbackArtistImageUrl(currentItem?.artist)
-                                        AsyncImage(
-                                            model = fallback,
-                                            contentDescription = null,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize().alpha(0.1f)
+                            val currentArtist = artistInfo
+                            if (currentArtist != null && !currentArtist.isPlaceholder) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(12.dp)
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .border(
+                                            width = 1.2.dp,
+                                            color = Color.White.copy(0.35f),
+                                            shape = CircleShape
                                         )
-                                    } else {
-                                        SubcomposeAsyncImageContent()
+                                        .clickable { onToggleArtistInfo() }
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(Color.White.copy(0.25f), Color.White.copy(0.05f))
+                                            )
+                                        )
+                                ) {
+                                    SubcomposeAsyncImage(
+                                        model = ImageRequest.Builder(LocalContext.current)
+                                            .data(currentArtist.imageUrl)
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = "Artist Info",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        val state = painter.state
+                                        if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
+                                            // Transparent Glossy Fallback
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .background(Color.White.copy(alpha = 0.1f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Person,
+                                                    contentDescription = null,
+                                                    tint = Color.White.copy(alpha = 0.5f),
+                                                    modifier = Modifier.size(22.dp)
+                                                )
+                                            }
+                                        } else {
+                                            SubcomposeAsyncImageContent()
+                                        }
                                     }
                                 }
                             }

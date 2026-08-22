@@ -114,6 +114,7 @@ fun VideosTab(
     cornerRadiusDp: Int = 8,
     roundedCornersEnabled: Boolean = true,
     isLoading: Boolean = false,
+    isScanningHidden: Boolean = false,
     onCategorySelect: (MediaCategory?) -> Unit,
     onCreateCategoryClick: () -> Unit,
     onVideoClick: (MediaItem) -> Unit,
@@ -382,14 +383,17 @@ fun VideosTab(
             if (isAscending) displayList.sortedWith(comp) else displayList.sortedWith(comp).reversed()
         }
 
-        if (isLoading && (videosList.isEmpty() || (displayList.isEmpty() && activeFilterTab != "CATEGORIES"))) {
+        if ((isLoading && (videosList.isEmpty() || (displayList.isEmpty() && activeFilterTab != "CATEGORIES" && activeFilterTab != "SERIES"))) ||
+            (isScanningHidden && activeFilterTab == "HIDDEN" && displayList.isEmpty())) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 MediaLoadingAnimation(
                     mediaType = MediaType.VIDEO,
-                    iconSize = 52.dp
+                    iconSize = 52.dp,
+                    showLabel = isScanningHidden && activeFilterTab == "HIDDEN",
+                    customMessage = if (isScanningHidden && activeFilterTab == "HIDDEN") "Scanning hidden videos..." else null
                 )
             }
         } else if (videosList.isEmpty()) {
@@ -465,6 +469,8 @@ fun VideosTab(
                 onFolderDelete = { folderToDelete = it },
                 onFolderInfo = { folderForInfo = it },
                 onCreateCategoryClick = onCreateCategoryClick,
+                isLoading = isLoading,
+                isScanningHidden = isScanningHidden,
                 gridState = folderGridState
             )
         } else if (activeFilterTab == "SERIES") {

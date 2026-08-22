@@ -23,6 +23,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import com.medianest.ui.components.GlassDropdownMenu
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -135,16 +136,13 @@ fun UserPlaylistCard(
                         modifier = Modifier.size(20.dp)
                     )
                 }
-                DropdownMenu(
+                GlassDropdownMenu(
                     expanded = showMenu,
-                    onDismissRequest = { showMenu = false },
-                    containerColor = if (com.medianest.ui.theme.LocalDarkTheme.current) Color(0xBF0F1015) else Color(0xA6FFFFFF),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.border(1.dp, if (com.medianest.ui.theme.LocalDarkTheme.current) Color(0x28FFFFFF) else Color(0x33000000), RoundedCornerShape(16.dp))
+                    onDismissRequest = { showMenu = false }
                 ) {
                     DropdownMenuItem(
                         text = { Text("Open Playlist") },
-                        leadingIcon = { Icon(Icons.Default.FolderOpen, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color.White) },
                         onClick = {
                             showMenu = false
                             onClick()
@@ -152,7 +150,7 @@ fun UserPlaylistCard(
                     )
                     DropdownMenuItem(
                         text = { Text("Export Playlist (.m3u)") },
-                        leadingIcon = { Icon(Icons.Default.Download, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.Default.Download, contentDescription = null, tint = Color.White) },
                         onClick = {
                             showMenu = false
                             exportPlaylistToM3u(context, pl, audioList)

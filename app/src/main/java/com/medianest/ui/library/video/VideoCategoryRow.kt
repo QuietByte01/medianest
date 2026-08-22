@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.medianest.data.db.MediaCategory
 import com.medianest.data.db.CategoryMediaCrossRef
 import com.medianest.data.model.MediaItem
+import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.theme.LocalDarkTheme
 import com.medianest.util.CategoryIconUtils
@@ -144,11 +145,9 @@ fun VideoCategoryRow(
                     }
                 }
 
-                DropdownMenu(
+                GlassDropdownMenu(
                     expanded = showCatMenu,
-                    onDismissRequest = { showCatMenu = false },
-                    containerColor = if (LocalDarkTheme.current) Color(0xEE08090E) else Color(0xBFFFFFFF),
-                    shape = RoundedCornerShape(16.dp)
+                    onDismissRequest = { showCatMenu = false }
                 ) {
                     DropdownMenuItem(
                         text = { Text("Category Info") },

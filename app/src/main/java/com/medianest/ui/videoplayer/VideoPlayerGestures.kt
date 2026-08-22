@@ -93,7 +93,9 @@ fun Modifier.videoPlayerGestures(
                         }
                     }
 
-                    if (dragType == 2) onDragEnded()
+                    if (dragType != 0) {
+                        onDragEnded()
+                    }
                     if (dragType == 3) onEdgeSwipeProgress(SwipeEdge.NONE, 0f)
 
                     if (changes.all { !it.pressed }) {

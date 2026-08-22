@@ -152,10 +152,23 @@ fun AppSlider(
                 )
             }
 
-            // 1.5 Draw Ticks (Steps)
+            // 1.5 Draw Ticks (Steps) - Including Start and End Dots
+            val tickColor = if (style == AppSliderStyle.Glossy) Color.White.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.65f)
+            
+            // Start dot
+            drawCircle(
+                color = tickColor,
+                radius = 1.5.dp.toPx(),
+                center = Offset(trackStart, centerY)
+            )
+            // End dot
+            drawCircle(
+                color = tickColor,
+                radius = 1.5.dp.toPx(),
+                center = Offset(trackEnd, centerY)
+            )
+
             if (steps > 0) {
-                val tickColor = if (style == AppSliderStyle.Glossy) Color.White.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.65f)
-                
                 for (i in 1..steps) {
                     val tickFrac = i.toFloat() / (steps + 1)
                     val tickX = trackStart + (tickFrac * usableWidth)

@@ -34,6 +34,7 @@ import com.medianest.data.db.FormatStat
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.MediaConverterStudioDialog
+import com.medianest.ui.components.PaletteTagChip
 import com.medianest.ui.components.StudioTab
 
 @Composable
@@ -271,124 +272,69 @@ fun MediaProcessorStudioCard(
         verticalArrangement = Arrangement.spacedBy(14.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Media Studio",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-//            Row(
-//                verticalAlignment = Alignment.CenterVertically,
-//                horizontalArrangement = Arrangement.spacedBy(4.dp)
-//            ) {
-//                Icon(Icons.Default.Bolt, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(16.dp))
-//                Text(
-//                    text = "FFmpeg Engine",
-//                    fontSize = 12.sp,
-//                    fontWeight = FontWeight.Bold,
-//                    color = Color(0xFF38BDF8)
-//                )
-//            }
-        }
+        Text(
+            text = "Media Studio",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
 
         GlassSurface(
             shape = RoundedCornerShape(22.dp),
             backgroundColor = Color(0x3D181A24),
             borderColor = Color(0x2EFFFFFF),
             enableBlur = true,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onOpenStudioTab(StudioTab.CONVERT) }
         ) {
-            Column(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                    .padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Header Banner inside card
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                listOf(Color(0xFF6366F1), Color(0xFF4338CA))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(Color(0x33FFFFFF)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.MovieFilter, contentDescription = null, tint = Color(0xFFF8F9FA), modifier = Modifier.size(24.dp))
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Lossless Converter & Tools",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Text(
-                            text = "0-Loss Remux · Smart Compress · Crop · Audio Extractor · Repair",
-                            fontSize = 11.5.sp,
-                            color = Color(0xFF94A3B8)
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.AutoFixHigh,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
                 }
 
-                // Action Grid
-                val studioActions = listOf(
-                    StudioTab.CONVERT to ("Lossless Convert" to "0-loss copy, MP4/MKV/FLAC"),
-                    StudioTab.COMPRESS to ("Smart Compress" to "Discord/WhatsApp size limits"),
-                    StudioTab.CROP to ("Crop & Reframe" to "9:16 Reels/Shorts, 1:1, 16:9"),
-                    StudioTab.EXTRACT to ("Track Extractor" to "Extract audio/MP3, GIF, .srt"),
-                    StudioTab.REPAIR to ("Corrupt File Repair" to "Rebuild container headers/index")
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Open Media Studio",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Professional tools for lossless conversion, smart compression, cropping, and media repair.",
+                        fontSize = 12.sp,
+                        color = Color(0xFF94A3B8),
+                        lineHeight = 16.sp
+                    )
+                }
+
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = Color(0xFF64748B),
+                    modifier = Modifier.size(24.dp)
                 )
-
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    studioActions.forEach { (tab, details) ->
-                        val (title, subtitle) = details
-                        Surface(
-                            onClick = { onOpenStudioTab(tab) },
-                            shape = RoundedCornerShape(14.dp),
-                            color = Color(0x3D181A24),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x1FFFFFFF)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(Color(0x1AFFFFFF)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(tab.icon, contentDescription = null, tint = Color(0xFFF8F9FA), modifier = Modifier.size(17.dp))
-                                    }
-                                    Column {
-                                        Text(title, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                        Text(subtitle, fontSize = 11.sp, color = Color(0xFF8E9CB2), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    }
-                                }
-                                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(18.dp))
-                            }
-                        }
-                    }
-                }
             }
         }
     }
@@ -684,19 +630,10 @@ fun FormatCardItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Pill badge for extension
-                Surface(
-                    color = themeColor.copy(alpha = 0.25f),
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, themeColor.copy(alpha = 0.5f))
-                ) {
-                    Text(
-                        text = stat.extension.uppercase(),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = themeColor,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
-                    )
-                }
+                PaletteTagChip(
+                    label = stat.extension,
+                    paletteColor = themeColor
+                )
 
                 Text(
                     text = "${AnalyticsColors.formatNumber(stat.fileCount)} files",

@@ -93,26 +93,6 @@ class AnalyticsRepository(
     }
 
     private fun extractExtension(item: MediaItem, defaultCategory: String): String {
-        val mime = item.mimeType.lowercase()
-        val mimeExt = when {
-            mime.contains("flac") -> "FLAC"
-            mime.contains("jpeg") || mime.contains("jpg") -> "JPG"
-            mime.contains("png") -> "PNG"
-            mime.contains("webp") -> "WEBP"
-            mime.contains("gif") -> "GIF"
-            mime.contains("mp4") -> "MP4"
-            mime.contains("webm") -> "WEBM"
-            mime.contains("matroska") || mime.contains("mkv") -> "MKV"
-            mime.contains("avi") -> "AVI"
-            mime.contains("mpeg") || mime.contains("mp3") -> "MP3"
-            mime.contains("wav") -> "WAV"
-            mime.contains("aac") -> "AAC"
-            mime.contains("ogg") || mime.contains("opus") -> "OGG"
-            mime.contains("m4a") -> "M4A"
-            else -> null
-        }
-        if (mimeExt != null) return mimeExt
-
         val validExtensions = setOf(
             "JPG", "JPEG", "PNG", "WEBP", "GIF", "BMP", "HEIC", "HEIF", "SVG",
             "MP4", "MKV", "WEBM", "AVI", "MOV", "3GP", "FLV", "WMV", "M4V",
@@ -121,19 +101,41 @@ class AnalyticsRepository(
 
         val name = item.title
         if (name.contains(".")) {
-            val ext = name.substringAfterLast('.').trim().uppercase()
+            val ext = name.substringAfterLast('.').substringBefore('?').substringBefore('#').trim().uppercase()
             if (ext in validExtensions) {
                 return ext
             }
         }
 
-        val uriPath = item.uri.lastPathSegment ?: ""
+        val uriPath = item.relativePath ?: item.uri.lastPathSegment ?: ""
         if (uriPath.contains(".")) {
-            val ext = uriPath.substringAfterLast('.').trim().uppercase()
+            val ext = uriPath.substringAfterLast('.').substringBefore('?').substringBefore('#').trim().uppercase()
             if (ext in validExtensions) {
                 return ext
             }
         }
+
+        val mime = item.mimeType.lowercase()
+        val mimeExt = when {
+            mime.contains("flac") -> "FLAC"
+            mime.contains("jpeg") || mime.contains("jpg") -> "JPG"
+            mime.contains("png") -> "PNG"
+            mime.contains("webp") -> "WEBP"
+            mime.contains("gif") -> "GIF"
+            mime.contains("m4a") -> "M4A"
+            mime.contains("mp4") -> if (defaultCategory == "AUDIO" || item.type == com.medianest.data.db.MediaType.AUDIO) "M4A" else "MP4"
+            mime.contains("webm") -> "WEBM"
+            mime.contains("matroska") || mime.contains("mkv") -> "MKV"
+            mime.contains("avi") -> "AVI"
+            mime.contains("mpeg") || mime.contains("mp3") -> "MP3"
+            mime.contains("wav") || mime.contains("wave") || mime.contains("x-wav") -> "WAV"
+            mime.contains("aac") -> "AAC"
+            mime.contains("ogg") || mime.contains("opus") -> "OGG"
+            mime.contains("quicktime") || mime.contains("mov") -> "MOV"
+            mime.contains("heic") || mime.contains("heif") -> "HEIC"
+            else -> null
+        }
+        if (mimeExt != null) return mimeExt
 
         return when (defaultCategory) {
             "IMAGE" -> "JPG"
