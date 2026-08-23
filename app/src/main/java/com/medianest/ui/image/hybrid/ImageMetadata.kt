@@ -35,6 +35,17 @@ data class ImageMetadata(
                         isSvg = true
                         mimeType = "image/svg+xml"
                     }
+                    if (!isSvg) {
+                        context.contentResolver.query(source.uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                            if (cursor.moveToFirst()) {
+                                val name = cursor.getString(0)?.lowercase() ?: ""
+                                if (name.endsWith(".svg") || name.contains("svg")) {
+                                    isSvg = true
+                                    mimeType = "image/svg+xml"
+                                }
+                            }
+                        }
+                    }
                 } catch (_: Exception) {}
             }
 
@@ -48,31 +59,50 @@ data class ImageMetadata(
             try {
                 stream = source.openInputStream(context)
                 if (stream != null) {
-                    if (!isSvg) {
-                        // Inspect first 512 bytes for SVG tags (<?xml or <svg)
-                        val buffer = ByteArray(512)
-                        stream.mark(512)
-                        val bytesRead = stream.read(buffer, 0, buffer.size)
-                        if (bytesRead > 0) {
-                            val header = String(buffer, 0, bytesRead, Charsets.UTF_8).trimStart()
-                            if (header.contains("<svg", ignoreCase = true) || 
-                                (header.startsWith("<?xml", ignoreCase = true) && header.contains("<svg", ignoreCase = true))) {
-                                isSvg = true
-                                mimeType = "image/svg+xml"
-                            }
+                    // Read up to 4KB to check for SVG tag even if preceded by XML declaration, DOCTYPE, or long comments
+                    val buffer = ByteArray(4096)
+                    val bytesRead = stream.read(buffer, 0, buffer.size)
+                    if (bytesRead > 0) {
+                        val header = String(buffer, 0, bytesRead, Charsets.UTF_8).trimStart()
+                        if (header.contains("<svg", ignoreCase = true)) {
+                            isSvg = true
+                            mimeType = "image/svg+xml"
+
+                            // Try to extract viewBox or width/height from svg header for better initial aspect ratio
+                            try {
+                                val svgTag = header.substringAfter("<svg", "").substringBefore(">")
+                                val viewBoxMatch = Regex("""viewBox\s*=\s*["']\s*[\d.-]+\s+[\d.-]+\s+([\d.-]+)\s+([\d.-]+)\s*["']""", RegexOption.IGNORE_CASE).find(svgTag)
+                                if (viewBoxMatch != null) {
+                                    width = viewBoxMatch.groupValues[1].toFloatOrNull()?.toInt() ?: 0
+                                    height = viewBoxMatch.groupValues[2].toFloatOrNull()?.toInt() ?: 0
+                                }
+                                if (width <= 0 || height <= 0) {
+                                    val wMatch = Regex("""width\s*=\s*["']\s*([\d.]+)(?:px)?\s*["']""", RegexOption.IGNORE_CASE).find(svgTag)
+                                    val hMatch = Regex("""height\s*=\s*["']\s*([\d.]+)(?:px)?\s*["']""", RegexOption.IGNORE_CASE).find(svgTag)
+                                    if (wMatch != null && hMatch != null) {
+                                        width = wMatch.groupValues[1].toFloatOrNull()?.toInt() ?: 0
+                                        height = hMatch.groupValues[1].toFloatOrNull()?.toInt() ?: 0
+                                    }
+                                }
+                            } catch (_: Exception) {}
                         }
                     }
 
                     if (!isSvg) {
-                        val options = BitmapFactory.Options().apply {
-                            inJustDecodeBounds = true
-                        }
-                        BitmapFactory.decodeStream(stream, null, options)
-                        width = options.outWidth
-                        height = options.outHeight
-                        mimeType = options.outMimeType ?: ""
-                        if (mimeType.lowercase().contains("svg")) {
-                            isSvg = true
+                        // Re-open stream since we read the first 4KB
+                        try { stream.close() } catch (_: Exception) {}
+                        stream = source.openInputStream(context)
+                        if (stream != null) {
+                            val options = BitmapFactory.Options().apply {
+                                inJustDecodeBounds = true
+                            }
+                            BitmapFactory.decodeStream(stream, null, options)
+                            width = options.outWidth
+                            height = options.outHeight
+                            mimeType = options.outMimeType ?: ""
+                            if (mimeType.lowercase().contains("svg")) {
+                                isSvg = true
+                            }
                         }
                     }
                 }

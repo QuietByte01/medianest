@@ -116,10 +116,10 @@ fun MiniPlayerBar(
             .clickable(onClick = onClickExpand),
         shape = shape,
         backgroundColor = Color(0x381F2332),
-        borderColor = Color(0x40FFFFFF),
-        backgroundImage = currentItem.albumArtUri ?: currentItem.uri,
-        enableBlur = true,
-        blurRadius = 24.dp
+        borderColor = Color(0x40FFFFFF)
+//        backgroundImage = currentItem.albumArtUri ?: currentItem.uri,
+//        enableBlur = true,
+//        blurRadius = 24.dp
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(

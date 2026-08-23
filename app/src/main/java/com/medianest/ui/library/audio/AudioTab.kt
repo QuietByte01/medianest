@@ -49,7 +49,6 @@ fun AudioTab(
     initialFolder: String? = null,
     initialTargetSongUri: String? = null,
     onBackToDashboard: () -> Unit = {},
-    pagedAudio: LazyPagingItems<MediaItem>? = null,
     viewModel: com.medianest.ui.MediaViewModel = viewModel()
 ) {
     var subTabState by remember(initialSubTab) { mutableIntStateOf(initialSubTab) }
@@ -290,8 +289,7 @@ fun AudioTab(
                     if (artist != null) targetArtist = artist
                     if (folder != null) targetFolder = folder
                     if (targetUri != null) targetSongUri = targetUri
-                },
-                pagedSongs = pagedAudio
+                }
             )
             1 -> SongsList(
                 songs = recentSongs,

@@ -1,9 +1,12 @@
 package com.medianest.ui.library
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
@@ -11,15 +14,22 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.medianest.player.ExoPlayerManager
 import com.medianest.player.PlayerState
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.MiniPlayerBar
+import com.medianest.ui.theme.LocalDarkTheme
 
 @Composable
 fun LibraryBottomBar(
@@ -31,11 +41,20 @@ fun LibraryBottomBar(
     exoPlayerManager: ExoPlayerManager,
     onOpenAudioPlayer: (Int) -> Unit
 ) {
-    Column {
-        // Persistent Mini Player above bottom bar only in Audio tab
+    val isDark = LocalDarkTheme.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Persistent Mini Player above bottom dock only in Audio tab
         if (isAudioTab && playerState.currentItem?.type == com.medianest.data.db.MediaType.AUDIO) {
             Box(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
                 MiniPlayerBar(
@@ -44,59 +63,168 @@ fun LibraryBottomBar(
                     onNext = { exoPlayerManager.next() },
                     onClickExpand = { onOpenAudioPlayer(currentTab) },
                     shape = RoundedCornerShape(20.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }
 
-        val navItemColors = NavigationBarItemDefaults.colors(
-            indicatorColor = Color.Transparent,
-            selectedIconColor = Color(0xFFF1F5F9),
-            selectedTextColor = Color(0xFFF1F5F9),
-            unselectedIconColor = Color(0xFF9EA3B0),
-            unselectedTextColor = Color(0xFF9EA3B0)
-        )
-
-        GlassSurface(
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-            backgroundColor = Color(0x6612151F),
-            borderColor = Color(0x28FFFFFF),
-            modifier = Modifier.fillMaxWidth()
+        // iPad-style transparent glossy floating dock
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp, top = 4.dp),
+            contentAlignment = Alignment.Center
         ) {
-            NavigationBar(
-                containerColor = Color.Transparent
+            Box(
+                modifier = Modifier
+                    .shadow(
+                        elevation = 16.dp,
+                        shape = CircleShape,
+                        spotColor = Color.Black.copy(alpha = if (isDark) 0.45f else 0.15f),
+                        ambientColor = Color.Black.copy(alpha = if (isDark) 0.35f else 0.10f)
+                    )
+                    .clip(CircleShape)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = if (isDark) {
+                                listOf(
+                                    Color(0x3DFFFFFF), // Glossy specular top sheen
+                                    Color(0x22FFFFFF),
+                                    Color(0x14FFFFFF)  // Translucent body
+                                )
+                            } else {
+                                listOf(
+                                    Color(0x99FFFFFF), // Bright glass top highlight
+                                    Color(0x80FFFFFF),
+                                    Color(0x66FFFFFF)  // Frosted light glass
+                                )
+                            }
+                        )
+                    )
+                    .border(
+                        width = 1.dp,
+                        brush = Brush.verticalGradient(
+                            colors = if (isDark) {
+                                listOf(
+                                    Color(0x5EFFFFFF), // Crisp top rim highlight
+                                    Color(0x1AFFFFFF)  // Soft bottom rim
+                                )
+                            } else {
+                                listOf(
+                                    Color(0x80FFFFFF),
+                                    Color(0x33000000)
+                                )
+                            }
+                        ),
+                        shape = CircleShape
+                    )
             ) {
-                if (enableAnalyticsTab) {
-                    NavigationBarItem(
-                        selected = currentTab == 0,
-                        onClick = { onTabSelected(0) },
-                        icon = { Icon(Icons.Default.BarChart, contentDescription = "Dashboard") },
-                        label = { Text("Dashboard") },
-                        colors = navItemColors
+                Row(
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (enableAnalyticsTab) {
+                        FloatingDockTabItem(
+                            selected = currentTab == 0,
+                            icon = Icons.Default.BarChart,
+                            label = "Dashboard",
+                            onClick = { onTabSelected(0) }
+                        )
+                    }
+
+                    FloatingDockTabItem(
+                        selected = if (enableAnalyticsTab) currentTab == 1 else currentTab == 0,
+                        icon = Icons.Default.Image,
+                        label = "Images",
+                        onClick = { onTabSelected(if (enableAnalyticsTab) 1 else 0) }
+                    )
+
+                    FloatingDockTabItem(
+                        selected = if (enableAnalyticsTab) currentTab == 2 else currentTab == 1,
+                        icon = Icons.Default.Movie,
+                        label = "Videos",
+                        onClick = { onTabSelected(if (enableAnalyticsTab) 2 else 1) }
+                    )
+
+                    FloatingDockTabItem(
+                        selected = if (enableAnalyticsTab) currentTab == 3 else currentTab == 2,
+                        icon = Icons.Default.Audiotrack,
+                        label = "Audio",
+                        onClick = { onTabSelected(if (enableAnalyticsTab) 3 else 2) }
                     )
                 }
-                NavigationBarItem(
-                    selected = if (enableAnalyticsTab) currentTab == 1 else currentTab == 0,
-                    onClick = { onTabSelected(if (enableAnalyticsTab) 1 else 0) },
-                    icon = { Icon(Icons.Default.Image, contentDescription = "Images") },
-                    label = { Text("Images") },
-                    colors = navItemColors
-                )
-                NavigationBarItem(
-                    selected = if (enableAnalyticsTab) currentTab == 2 else currentTab == 1,
-                    onClick = { onTabSelected(if (enableAnalyticsTab) 2 else 1) },
-                    icon = { Icon(Icons.Default.Movie, contentDescription = "Videos") },
-                    label = { Text("Videos") },
-                    colors = navItemColors
-                )
-                NavigationBarItem(
-                    selected = if (enableAnalyticsTab) currentTab == 3 else currentTab == 2,
-                    onClick = { onTabSelected(if (enableAnalyticsTab) 3 else 2) },
-                    icon = { Icon(Icons.Default.Audiotrack, contentDescription = "Audio") },
-                    label = { Text("Audio") },
-                    colors = navItemColors
+            }
+        }
+    }
+}
+
+@Composable
+private fun FloatingDockTabItem(
+    selected: Boolean,
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    val isDark = LocalDarkTheme.current
+    val contentColor by animateColorAsState(
+        targetValue = when {
+            selected -> if (isDark) Color.White else Color(0xFF0F172A)
+            else -> if (isDark) Color(0xB3FFFFFF) else Color(0x990F172A)
+        },
+        animationSpec = tween(200),
+        label = "dockContentColor"
+    )
+
+    val itemBgColor by animateColorAsState(
+        targetValue = when {
+            selected -> if (isDark) Color(0x3DFFFFFF) else Color(0x40FFFFFF)
+            else -> Color.Transparent
+        },
+        animationSpec = tween(200),
+        label = "dockBgColor"
+    )
+
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(itemBgColor)
+            .then(
+                if (selected) {
+                    Modifier.border(
+                        width = 0.5.dp,
+                        brush = Brush.verticalGradient(
+                            colors = if (isDark) {
+                                listOf(Color(0x4DFFFFFF), Color(0x1AFFFFFF))
+                            } else {
+                                listOf(Color(0x80FFFFFF), Color(0x20000000))
+                            }
+                        ),
+                        shape = CircleShape
+                    )
+                } else Modifier
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = contentColor,
+                modifier = Modifier.size(19.dp)
+            )
+            if (selected) {
+                Text(
+                    text = label,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = contentColor
                 )
             }
         }

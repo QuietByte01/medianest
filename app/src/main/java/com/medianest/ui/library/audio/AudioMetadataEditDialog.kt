@@ -9,6 +9,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -22,21 +23,30 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import com.medianest.MediaNestApp
 import com.medianest.data.db.AudioMetadataCache
+import com.medianest.data.model.AudioTagInfo
 import com.medianest.data.model.MediaItem
 import com.medianest.data.repository.NetworkRepository
 import com.medianest.player.ExoPlayerManager
 import com.medianest.ui.components.AdaptiveBottomSheet
-import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.SolidGlossySurface
+import com.medianest.util.AudioTagWriter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+
+enum class FetchOption {
+    ALL,
+    INFO_ONLY,
+    ART_ONLY
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,6 +75,9 @@ fun AudioMetadataEditDialog(
 
     var isFetching by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
+    var showFetchOptionsSheet by remember { mutableStateOf(false) }
+    var fetchedPreviewInfo by remember { mutableStateOf<AudioTagInfo?>(null) }
+    var pendingFetchOption by remember { mutableStateOf<FetchOption?>(null) }
 
     // Load any existing cached values on opening
     LaunchedEffect(item.uri) {
@@ -83,6 +96,48 @@ fun AudioMetadataEditDialog(
             if (!cached.trackNumber.isNullOrBlank()) editTrackNumber = cached.trackNumber
             if (!cached.lyricsPlain.isNullOrBlank()) editLyricsPlain = cached.lyricsPlain
         }
+    }
+
+    // Function to execute online metadata fetch
+    fun executeFetch(option: FetchOption) {
+        scope.launch {
+            isFetching = true
+            val info = networkRepository.fetchAudioMetadata(
+                editTitle.ifBlank { item.title },
+                offlineMode
+            )
+            isFetching = false
+            if (info != null) {
+                pendingFetchOption = option
+                fetchedPreviewInfo = info
+            } else {
+                Toast.makeText(context, "No online tags found for this query", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // Function to apply fetched metadata
+    fun applyFetchedMetadata(info: AudioTagInfo, applyInfo: Boolean, applyArt: Boolean) {
+        if (applyInfo) {
+            editTitle = info.title
+            editArtist = info.artist
+            editAlbum = info.album
+            if (!info.genre.isNullOrBlank()) editGenre = info.genre
+            if (!info.year.isNullOrBlank()) editYear = info.year
+            if (!info.composer.isNullOrBlank()) editComposer = info.composer
+            if (!info.albumArtist.isNullOrBlank()) editAlbumArtist = info.albumArtist
+            if (!info.trackNumber.isNullOrBlank()) editTrackNumber = info.trackNumber
+        }
+        if (applyArt && !info.coverArtUrl.isNullOrBlank()) {
+            editAlbumArtUri = info.coverArtUrl
+        }
+        val message = when {
+            applyInfo && applyArt -> "Applied online tags & album art!"
+            applyInfo -> "Applied online tags (artwork untouched)!"
+            applyArt -> "Applied online album art (tags untouched)!"
+            else -> "No changes applied"
+        }
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
     // Image Picker Launcher to choose album art from Gallery
@@ -134,12 +189,19 @@ fun AudioMetadataEditDialog(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Edit Tag & Metadata",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                Column {
+                    Text(
+                        text = "Edit Tag & Metadata",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Lossless Tag & Artwork Editor",
+                        fontSize = 11.5.sp,
+                        color = Color(0xFF94A3B8)
+                    )
+                }
 
                 IconButton(onClick = onDismiss) {
                     Icon(
@@ -194,7 +256,7 @@ fun AudioMetadataEditDialog(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.5f)),
+                            .background(Color.Black.copy(alpha = 0.6f)),
                         contentAlignment = Alignment.Center
                     ) {
                         com.medianest.ui.components.MediaLoadingAnimation(
@@ -207,7 +269,7 @@ fun AudioMetadataEditDialog(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Album Art Action Buttons Row
+            // Album Art & Fetch Action Buttons Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
@@ -243,45 +305,12 @@ fun AudioMetadataEditDialog(
                     }
                 }
 
-                // Online Fetch Button
+                // Online Fetch Button with Choice Options
                 SolidGlossySurface(
                     modifier = Modifier
                         .clip(RoundedCornerShape(14.dp))
                         .clickable(enabled = !isFetching) {
-                            scope.launch {
-                                isFetching = true
-                                val info = networkRepository.fetchAudioMetadata(
-                                    editTitle.ifBlank { item.title },
-                                    offlineMode
-                                )
-                                if (info != null) {
-                                    editTitle = info.title
-                                    editArtist = info.artist
-                                    editAlbum = info.album
-                                    if (!info.coverArtUrl.isNullOrBlank()) {
-                                        editAlbumArtUri = info.coverArtUrl
-                                    }
-                                    if (!info.genre.isNullOrBlank()) {
-                                        editGenre = info.genre
-                                    }
-                                    if (!info.year.isNullOrBlank()) {
-                                        editYear = info.year
-                                    }
-                                    if (!info.composer.isNullOrBlank()) {
-                                        editComposer = info.composer
-                                    }
-                                    if (!info.albumArtist.isNullOrBlank()) {
-                                        editAlbumArtist = info.albumArtist
-                                    }
-                                    if (!info.trackNumber.isNullOrBlank()) {
-                                        editTrackNumber = info.trackNumber
-                                    }
-                                    Toast.makeText(context, "Tags fetched successfully!", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(context, "No online tags found for this query", Toast.LENGTH_SHORT).show()
-                                }
-                                isFetching = false
-                            }
+                            showFetchOptionsSheet = true
                         },
                     shape = RoundedCornerShape(14.dp),
                     backgroundColor = Color(0x221C1F2B),
@@ -296,11 +325,11 @@ fun AudioMetadataEditDialog(
                         Icon(
                             imageVector = Icons.Default.CloudDownload,
                             contentDescription = null,
-                            tint = Color.White,
+                            tint = Color.White.copy(alpha = 0.7f),
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
-                            text = "Fetch Tags",
+                            text = "Fetch Tags...",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color.White
@@ -463,7 +492,7 @@ fun AudioMetadataEditDialog(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Save / Update Action Button
+            // Save / Update Action Button (Physically writes tags & updates library)
             SolidGlossySurface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -482,6 +511,25 @@ fun AudioMetadataEditDialog(
                             val finalTrackNumber = editTrackNumber.takeIf { it.isNotBlank() }
                             val finalLyrics = editLyricsPlain.takeIf { it.isNotBlank() }
 
+                            // 1. Lossless physical tag writing to file on disk using FFmpeg
+                            val tagData = AudioTagWriter.TagData(
+                                title = finalTitle,
+                                artist = finalArtist,
+                                album = finalAlbum,
+                                albumArtist = finalAlbumArtist,
+                                genre = finalGenre,
+                                year = finalYear,
+                                composer = finalComposer,
+                                trackNumber = finalTrackNumber,
+                                lyrics = finalLyrics,
+                                albumArtUri = finalAlbumArt
+                            )
+
+                            val physicalWriteSuccess = withContext(Dispatchers.IO) {
+                                AudioTagWriter.writeAudioTags(context, item.uri, tagData)
+                            }
+
+                            // 2. Save to Room database cache
                             val cacheEntity = AudioMetadataCache(
                                 audioUri = item.uri.toString(),
                                 title = finalTitle,
@@ -519,7 +567,12 @@ fun AudioMetadataEditDialog(
                             // Call external callback if provided
                             onUpdated?.invoke(updatedItem)
 
-                            Toast.makeText(context, "Metadata updated successfully!", Toast.LENGTH_SHORT).show()
+                            if (physicalWriteSuccess) {
+                                Toast.makeText(context, "Tags written to song file & library updated!", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Tags saved to library!", Toast.LENGTH_SHORT).show()
+                            }
+
                             isSaving = false
                             onDismiss()
                         }
@@ -540,18 +593,23 @@ fun AudioMetadataEditDialog(
                             color = Color.White,
                             strokeWidth = 2.dp
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Saving...", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Writing tags to audio file...",
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
                     } else {
-//                        Icon(
-//                            imageVector = Icons.Default.Check,
-//                            contentDescription = null,
-//                            modifier = Modifier.size(18.dp),
-//                            tint = Color.White
-//                        )
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = Color.White
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Update Metadata",
+                            text = "Save & Apply Tags",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -559,6 +617,358 @@ fun AudioMetadataEditDialog(
                     }
                 }
             }
+        }
+    }
+
+    // Fetch Options Selector Dialog
+    if (showFetchOptionsSheet) {
+        Dialog(onDismissRequest = { showFetchOptionsSheet = false }) {
+            com.medianest.ui.components.AmbientGlassSurface(
+                modifier = Modifier
+                    .fillMaxWidth(0.92f),
+                shape = RoundedCornerShape(24.dp),
+                backgroundImage = editAlbumArtUri ?: item.albumArtUri ?: item.uri,
+                borderWidth = 1.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Fetch Online Metadata",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Search iTunes & MusicBrainz for tags and artwork",
+                        fontSize = 12.sp,
+                        color = Color(0xFF94A3B8)
+                    )
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // Option 1: Both Info & Art
+                    FetchChoiceItem(
+                        icon = Icons.Default.Public,
+                        title = "Fetch Info & Artwork (All)",
+                        subtitle = "Retrieve track details, album info, and high-res cover art",
+                        accentColor = Color(0xFF38BDF8),
+                        onClick = {
+                            showFetchOptionsSheet = false
+                            executeFetch(FetchOption.ALL)
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Option 2: Info Only
+                    FetchChoiceItem(
+                        icon = Icons.Default.Description,
+                        title = "Fetch Info Only",
+                        subtitle = "Update title, artist, album, genre, year (keep existing art)",
+                        accentColor = Color(0xFF34D399),
+                        onClick = {
+                            showFetchOptionsSheet = false
+                            executeFetch(FetchOption.INFO_ONLY)
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Option 3: Art Only
+                    FetchChoiceItem(
+                        icon = Icons.Default.Image,
+                        title = "Fetch Album Art Only",
+                        subtitle = "Find high-resolution cover art (keep existing text tags)",
+                        accentColor = Color(0xFFF472B6),
+                        onClick = {
+                            showFetchOptionsSheet = false
+                            executeFetch(FetchOption.ART_ONLY)
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    TextButton(
+                        onClick = { showFetchOptionsSheet = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Cancel", color = Color(0xFF94A3B8), fontSize = 14.sp)
+                    }
+                }
+            }
+        }
+    }
+
+    // Fetched Preview & Granular Selection Modal
+    if (fetchedPreviewInfo != null) {
+        val info = fetchedPreviewInfo!!
+        var applyInfoChecked by remember { mutableStateOf(pendingFetchOption != FetchOption.ART_ONLY) }
+        var applyArtChecked by remember { mutableStateOf(pendingFetchOption != FetchOption.INFO_ONLY && !info.coverArtUrl.isNullOrBlank()) }
+
+        Dialog(onDismissRequest = { fetchedPreviewInfo = null }) {
+            com.medianest.ui.components.AmbientGlassSurface(
+                modifier = Modifier
+                    .fillMaxWidth(0.92f),
+                shape = RoundedCornerShape(24.dp),
+                backgroundImage = editAlbumArtUri ?: item.albumArtUri ?: item.uri,
+                borderWidth = 1.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Online Tags Found",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Preview Card
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0x22FFFFFF))
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        if (!info.coverArtUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = info.coverArtUrl,
+                                contentDescription = "Cover Art",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(12.dp))
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0x22FFFFFF)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MusicNote,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = info.title,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = info.artist,
+                                fontSize = 13.sp,
+                                color = Color(0xFF38BDF8),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = info.album,
+                                fontSize = 12.sp,
+                                color = Color(0xFF94A3B8),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (!info.year.isNullOrBlank() || !info.genre.isNullOrBlank()) {
+                                Text(
+                                    text = listOfNotNull(info.genre, info.year).joinToString(" • "),
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF64748B)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Selection Checkbox 1: Apply Text Information
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { applyInfoChecked = !applyInfoChecked }
+                            .padding(vertical = 6.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Checkbox(
+                            checked = applyInfoChecked,
+                            onCheckedChange = { applyInfoChecked = it },
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = Color(0xFF38BDF8),
+                                checkmarkColor = Color.Black
+                            )
+                        )
+                        Column {
+                            Text(
+                                text = "Apply Text Metadata",
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "Title, Artist, Album, Genre, Year, Composer, Track #",
+                                fontSize = 11.sp,
+                                color = Color(0xFF94A3B8)
+                            )
+                        }
+                    }
+
+                    // Selection Checkbox 2: Apply Album Artwork
+                    if (!info.coverArtUrl.isNullOrBlank()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { applyArtChecked = !applyArtChecked }
+                                .padding(vertical = 6.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Checkbox(
+                                checked = applyArtChecked,
+                                onCheckedChange = { applyArtChecked = it },
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = Color(0xFF38BDF8),
+                                    checkmarkColor = Color.Black
+                                )
+                            )
+                            Column {
+                                Text(
+                                    text = "Apply Album Artwork",
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "High-resolution front album cover",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF94A3B8)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // Buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { fetchedPreviewInfo = null },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFFFFF))
+                        ) {
+                            Text("Cancel", color = Color(0xFF94A3B8), fontSize = 13.sp)
+                        }
+
+                        Button(
+                            onClick = {
+                                applyFetchedMetadata(info, applyInfoChecked, applyArtChecked)
+                                fetchedPreviewInfo = null
+                            },
+                            modifier = Modifier.weight(1.5f),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF38BDF8),
+                                contentColor = Color.Black
+                            ),
+                            enabled = applyInfoChecked || applyArtChecked
+                        ) {
+                            Text("Apply", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FetchChoiceItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    accentColor: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0x18FFFFFF),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x22FFFFFF)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(accentColor.copy(alpha = 0.2f))
+                    .border(1.dp, accentColor.copy(alpha = 0.4f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    fontSize = 11.5.sp,
+                    color = Color(0xFF94A3B8)
+                )
+            }
+
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = Color(0xFF64748B),
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }
@@ -597,4 +1007,3 @@ private fun TagInputField(
         )
     )
 }
-

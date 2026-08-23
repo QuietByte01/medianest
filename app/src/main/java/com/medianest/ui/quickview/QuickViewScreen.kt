@@ -39,6 +39,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.medianest.ui.components.AdaptiveBottomSheet
+import com.medianest.ui.components.BubblingHeartButton
 import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.MediaInfoBottomSheet
 import androidx.compose.ui.draw.blur
@@ -552,39 +553,38 @@ fun QuickViewScreen(
 
                         val actionIconTint = Color.White
 
-                        // 1. Favorite / Heart
-                        IconButton(onClick = {
-                            resetControlsTimer()
-                            isFavorite = !isFavorite
-                            val item = currentItem ?: return@IconButton
-                            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                val db = com.medianest.MediaNestApp.instance.database
-                                val dao = db.categoryDao()
-                                val categories = dao.getCategoriesByType("IMAGE").first()
-                                var fav = categories.find { it.name.equals("Favorites", ignoreCase = true) }
-                                val favId = if (fav != null) fav.id else {
-                                    dao.insertCategory(com.medianest.data.db.MediaCategory(name = "Favorites", type = "IMAGE"))
+                        // 1. Favorite
+                        BubblingHeartButton(
+                            isFavorite = isFavorite,
+                            onClick = {
+                                resetControlsTimer()
+                                isFavorite = !isFavorite
+                                val item = currentItem ?: return@BubblingHeartButton
+                                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                    val db = com.medianest.MediaNestApp.instance.database
+                                    val dao = db.categoryDao()
+                                    val categories = dao.getCategoriesByType("IMAGE").first()
+                                    val fav = categories.find { it.name.equals("Favorites", ignoreCase = true) }
+                                    val favId = if (fav != null) fav.id else {
+                                        dao.insertCategory(com.medianest.data.db.MediaCategory(name = "Favorites", type = "IMAGE"))
+                                    }
+                                    if (isFavorite) {
+                                        dao.insertCategoryCrossRef(com.medianest.data.db.CategoryMediaCrossRef(categoryId = favId, mediaUri = item.uri.toString()))
+                                    } else {
+                                        dao.removeMediaFromCategory(favId, item.uri.toString())
+                                    }
+                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            if (isFavorite) "Added to Favorites" else "Removed from Favorites",
+                                            android.widget.Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
                                 }
-                                if (isFavorite) {
-                                    dao.insertCategoryCrossRef(com.medianest.data.db.CategoryMediaCrossRef(categoryId = favId, mediaUri = item.uri.toString()))
-                                } else {
-                                    dao.removeMediaFromCategory(favId, item.uri.toString())
-                                }
-                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                    android.widget.Toast.makeText(
-                                        context,
-                                        if (isFavorite) "Added to Favorites" else "Removed from Favorites",
-                                        android.widget.Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            }
-                        }) {
-                            Icon(
-                                imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                contentDescription = "Favorite",
-                                tint = if (isFavorite) Color(0xFFE53935) else actionIconTint
-                            )
-                        }
+                            },
+                            activeColor = Color(0xFFFF2D55),
+                            inactiveColor = actionIconTint
+                        )
 
                         // 2. Edit / Pencil
                         var showEditDialog by remember { mutableStateOf(false) }

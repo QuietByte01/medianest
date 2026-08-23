@@ -54,17 +54,29 @@ fun LibraryAmbientBackground(
         }
     }
 
-    val ambientTopColor = remember(activeHue, isDashboardTab) {
+    val targetTopColor = remember(activeHue, isDashboardTab) {
         if (isDashboardTab) Color(0xFF1E222A)
         else if (activeHue != null) Color.hsv(activeHue!!, 0.65f, 0.40f, 0.35f)
         else Color(0x354A3B2C)
     }
 
-    val ambientBottomColor = remember(activeHue, isDashboardTab) {
+    val targetBottomColor = remember(activeHue, isDashboardTab) {
         if (isDashboardTab) Color(0xFF121419)
         else if (activeHue != null) Color.hsv((activeHue!! + 25f) % 360f, 0.55f, 0.28f, 0.30f)
         else Color(0x301E2838)
     }
+
+    val ambientTopColor by androidx.compose.animation.animateColorAsState(
+        targetValue = targetTopColor,
+        animationSpec = androidx.compose.animation.core.tween(400),
+        label = "ambientTop"
+    )
+
+    val ambientBottomColor by androidx.compose.animation.animateColorAsState(
+        targetValue = targetBottomColor,
+        animationSpec = androidx.compose.animation.core.tween(400),
+        label = "ambientBottom"
+    )
 
     val ambientImageUri = remember(isDashboardTab, activeMediaTarget) {
         if (isDashboardTab) null

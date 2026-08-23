@@ -51,22 +51,31 @@ class SvgRenderer(
         }
 
         val request = remember(source, quantizedScale, viewport.containerSize) {
-            val baseWidth = viewport.containerSize.width.toInt().coerceAtLeast(1)
-            val baseHeight = viewport.containerSize.height.toInt().coerceAtLeast(1)
+            val baseWidth = viewport.containerSize.width.toInt()
+            val baseHeight = viewport.containerSize.height.toInt()
             
-            // Request a size that accounts for the debounced zoom level
-            val targetSize = if (quantizedScale > 1.0f) {
-                Size((baseWidth * quantizedScale).toInt(), (baseHeight * quantizedScale).toInt())
-            } else {
-                Size(baseWidth, baseHeight)
+            val modelData = when (source) {
+                is ImageSource.FromUri -> source.uri
+                is ImageSource.FromFile -> source.file
+                is ImageSource.FromByteArray -> source.bytes
             }
 
-            ImageRequest.Builder(context)
-                .data(if (source is ImageSource.FromUri) source.uri else source.key)
+            val builder = ImageRequest.Builder(context)
+                .data(modelData)
                 .decoderFactory(SvgDecoder.Factory())
-                .size(targetSize)
                 .crossfade(true)
-                .build()
+
+            // Only override decode size if container size has been properly measured (> 10px)
+            if (baseWidth > 10 && baseHeight > 10) {
+                val targetSize = if (quantizedScale > 1.0f) {
+                    Size((baseWidth * quantizedScale).toInt(), (baseHeight * quantizedScale).toInt())
+                } else {
+                    Size(baseWidth, baseHeight)
+                }
+                builder.size(targetSize)
+            }
+
+            builder.build()
         }
 
         SubcomposeAsyncImage(

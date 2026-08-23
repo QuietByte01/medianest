@@ -37,6 +37,8 @@ import coil.request.ImageRequest
 import com.medianest.data.model.*
 import com.medianest.player.ExoPlayerManager
 import com.medianest.player.PlayerState
+import com.medianest.ui.components.BubblingHeartButton
+import com.medianest.ui.components.BubblingHeartBurstEffect
 import com.medianest.ui.components.GlossySidePanel
 import com.medianest.ui.components.ArtistInfoPanel
 import com.medianest.ui.components.WavySeekBar
@@ -499,7 +501,11 @@ private fun ImmersiveLandscapeLayout(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    TrackInfoSection(currentItem)
+                    TrackInfoSection(
+                        currentItem = currentItem,
+                        isFavorite = isFavorite,
+                        onToggleFavorite = onToggleFavorite
+                    )
                 }
             } else {
                 // When visualizer is on, show indicators in center
@@ -528,7 +534,11 @@ private fun ImmersiveLandscapeLayout(
                     .padding(bottom = 32.dp),
                 contentAlignment = Alignment.BottomCenter
             ) {
-                TrackInfoSection(currentItem)
+                TrackInfoSection(
+                    currentItem = currentItem,
+                    isFavorite = isFavorite,
+                    onToggleFavorite = onToggleFavorite
+                )
             }
         }
 
@@ -645,24 +655,70 @@ private fun ImmersiveLandscapeLayout(
 }
 
 @Composable
-private fun TrackInfoSection(currentItem: MediaItem?) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = currentItem?.title ?: "No Track",
-            color = Color.White,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.ExtraBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.basicMarquee()
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = currentItem?.artist ?: "Unknown Artist",
-            color = Color.White.copy(alpha = 0.85f),
-            fontSize = 16.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+private fun TrackInfoSection(
+    currentItem: MediaItem?,
+    isFavorite: Boolean = false,
+    onToggleFavorite: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    var doubleTapBurstKey by remember { mutableIntStateOf(0) }
+
+    Box(
+        modifier = modifier
+            .pointerInput(currentItem?.uri, isFavorite) {
+                detectTapGestures(
+                    onDoubleTap = {
+                        onToggleFavorite()
+                        if (!isFavorite) {
+                            doubleTapBurstKey += 1
+                        }
+                    }
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = currentItem?.title ?: "No Track",
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .basicMarquee()
+                )
+
+                BubblingHeartButton(
+                    isFavorite = isFavorite,
+                    onClick = onToggleFavorite,
+                    size = 20.dp,
+                    activeColor = Color(0xFFFF2D55),
+                    inactiveColor = Color.White.copy(alpha = 0.75f)
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = currentItem?.artist ?: "Unknown Artist",
+                color = Color.White.copy(alpha = 0.85f),
+                fontSize = 16.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        // Bubbling Hearts Burst on double tap
+        BubblingHeartBurstEffect(
+            triggerKey = doubleTapBurstKey,
+            particleCount = 14,
+            minDistance = 40f,
+            maxDistance = 85f,
+            modifier = Modifier.fillMaxSize()
         )
     }
 }
@@ -693,8 +749,17 @@ private fun BoxScope.IndicatorOverlay(
                 IndicatorType.Pause -> RoundedPauseIcon(Modifier.size(30.dp), tint = Color.White)
                 IndicatorType.Previous -> RoundedDoubleSkipPreviousIcon(Modifier.size(30.dp), tint = Color.White)
                 IndicatorType.Next -> RoundedDoubleSkipNextIcon(Modifier.size(30.dp), tint = Color.White)
-                IndicatorType.FavoriteOn -> Icon(Icons.Default.Favorite, null, tint = Color.Red.copy(0.3f), modifier = Modifier.size(60.dp))
-                IndicatorType.FavoriteOff -> Icon(Icons.Default.HeartBroken, null, tint = Color.White.copy(0.3f), modifier = Modifier.size(60.dp))
+                IndicatorType.FavoriteOn -> {
+                    Box(contentAlignment = Alignment.Center) {
+                        BubblingHeartBurstEffect(
+                            triggerKey = 1,
+                            particleCount = 12,
+                            modifier = Modifier.size(80.dp)
+                        )
+                        Icon(Icons.Default.Favorite, null, tint = Color(0xFFFF2D55).copy(alpha = 0.85f), modifier = Modifier.size(60.dp))
+                    }
+                }
+                IndicatorType.FavoriteOff -> Icon(Icons.Default.HeartBroken, null, tint = Color.White.copy(0.4f), modifier = Modifier.size(60.dp))
             }
         }
     }

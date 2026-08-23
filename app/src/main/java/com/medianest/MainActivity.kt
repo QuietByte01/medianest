@@ -180,9 +180,9 @@ class MainActivity : ComponentActivity() {
                         }.collectLatest { (imageHiddenPaths, videoHiddenPaths, audioHiddenPaths) ->
                             // 1. Fast immediate fetch from MediaStore (<50ms)
                             isScanLoading = true
-                            imagesList = mediaStoreRepository.getImages(imageHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false)
-                            videosList = mediaStoreRepository.getVideos(videoHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false)
-                            audioList = mediaStoreRepository.getAudio(audioHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false)
+                            imagesList = mediaStoreRepository.getImages(imageHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { it.id }
+                            videosList = mediaStoreRepository.getVideos(videoHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { it.id }
+                            audioList = mediaStoreRepository.getAudio(audioHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { it.id }
                             isScanLoading = false
 
                             // 2. Delayed background filesystem scan for hidden folders so UI never blocks
@@ -196,19 +196,13 @@ class MainActivity : ComponentActivity() {
 
                                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                                         if (hiddenImages.isNotEmpty()) {
-                                            val existingUris = imagesList.map { it.uri.toString() }.toSet()
-                                            val toAdd = hiddenImages.filter { !existingUris.contains(it.uri.toString()) }
-                                            if (toAdd.isNotEmpty()) imagesList = imagesList + toAdd
+                                            imagesList = (imagesList + hiddenImages).distinctBy { it.id }
                                         }
                                         if (hiddenVideos.isNotEmpty()) {
-                                            val existingUris = videosList.map { it.uri.toString() }.toSet()
-                                            val toAdd = hiddenVideos.filter { !existingUris.contains(it.uri.toString()) }
-                                            if (toAdd.isNotEmpty()) videosList = videosList + toAdd
+                                            videosList = (videosList + hiddenVideos).distinctBy { it.id }
                                         }
                                         if (hiddenAudio.isNotEmpty()) {
-                                            val existingUris = audioList.map { it.uri.toString() }.toSet()
-                                            val toAdd = hiddenAudio.filter { !existingUris.contains(it.uri.toString()) }
-                                            if (toAdd.isNotEmpty()) audioList = audioList + toAdd
+                                            audioList = (audioList + hiddenAudio).distinctBy { it.id }
                                         }
                                         isScanningHidden = false
                                     }

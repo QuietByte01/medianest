@@ -378,10 +378,12 @@ fun MediaConverterStudioDialog(
                             StudioTab.CONVERT -> if (isLosslessCopy) "Start Lossless Remux" else "Start Video/Audio Conversion"
                             StudioTab.COMPRESS -> if (isBatchMode) "Compress ${selectedBatchItems.size} Files (Batch)" else "Start Smart Compression"
                             StudioTab.CROP -> "Start Video Crop & Reframe"
-                            StudioTab.EXTRACT -> if (extractAudioFormat == "original") "Extract Original Lossless Audio" else "Extract ${
-                                extractType.lowercase().replaceFirstChar { it.uppercase() }
-                            }"
-
+                            StudioTab.EXTRACT -> when(extractType) {
+                                "GIF" -> "Generate Animated Cinema GIF"
+                                "FRAME" -> "Extract Current Frame as Image"
+                                "SUBTITLE" -> "Rip Embedded Subtitle Tracks"
+                                else -> if (extractAudioFormat == "original") "Extract Original Lossless Audio" else "Extract & Transcode Audio"
+                            }
                             StudioTab.REPAIR -> "Run Diagnostic Bitstream Repair"
                         },
                         icon = Icons.Default.PlayArrow,
@@ -755,18 +757,19 @@ private fun GlossyActionButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit
 ) {
-    Button(
-        onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = Color.White,
-            contentColor = Color.Black
-        ),
+    SolidGlossySurface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .height(54.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        backgroundColor = Color.White,
+        borderColor = Color.White,
+        showTopSheen = true
     ) {
         Row(
+            modifier = Modifier.fillMaxSize(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
@@ -780,7 +783,8 @@ private fun GlossyActionButton(
             Text(
                 text = text,
                 fontSize = 15.sp,
-                fontWeight = FontWeight.ExtraBold
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.Black
             )
         }
     }
@@ -1032,50 +1036,35 @@ private fun OutputFileSafetyCard(
     isCreateNewFile: Boolean,
     onToggle: (Boolean) -> Unit
 ) {
-    GlassSurface(
-        shape = RoundedCornerShape(14.dp),
-        backgroundColor = Color(0x1AFFFFFF),
-        borderColor = Color(0x26FFFFFF),
-        modifier = Modifier.fillMaxWidth()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Column {
-                    Text(
-                        text = "Output: Create New File",
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Text(
-                        text = "Original file is untouched.",
-                        fontSize = 10.5.sp,
-                        color = Color(0xFF94A3B8)
-                    )
-                }
-            }
-
-            Switch(
-                checked = isCreateNewFile,
-                onCheckedChange = onToggle,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
-                    checkedTrackColor = Color(0xFF6366F1),
-                    uncheckedThumbColor = Color(0xFF94A3B8),
-                    uncheckedTrackColor = Color(0x33FFFFFF)
-                )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Output: Create New File",
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                text = "Keep original file untouched and save as a copy",
+                fontSize = 11.sp,
+                color = Color(0xFF94A3B8)
             )
         }
+
+        Switch(
+            checked = isCreateNewFile,
+            onCheckedChange = onToggle,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = Color(0x4DFFFFFF)
+            )
+        )
     }
 }
 

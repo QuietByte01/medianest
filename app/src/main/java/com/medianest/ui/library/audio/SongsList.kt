@@ -61,7 +61,6 @@ fun SongsList(
     onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?, targetSongUri: String?) -> Unit = { _, _, _, _, _ -> },
     onAddToPlaylist: (MediaItem) -> Unit = {},
     showInGallery: Boolean = false,
-    pagedSongs: LazyPagingItems<MediaItem>? = null,
     targetSongUri: String? = null
 ) {
     val context = LocalContext.current
@@ -125,57 +124,27 @@ fun SongsList(
                     end = if (isAlphabetical) 20.dp else 4.dp
                 )
             ) {
-                if (pagedSongs != null) {
-                    items(
-                        count = pagedSongs.itemCount,
-                        key = pagedSongs.itemKey { it.id }
-                    ) { index ->
-                        val item = pagedSongs[index] ?: return@items
-                        SongRow(
-                            item = item,
-                            currentlyPlayingUri = currentlyPlayingUri,
-                            isAlphabetical = isAlphabetical,
-                            isSelected = selectedUris.contains(item.uri.toString()),
-                            isHighlighted = item.uri.toString() == highlightedSongUri,
-                            onSongClick = { 
-                                val list = pagedSongs.itemSnapshotList.items.filterNotNull()
-                                val idx = list.indexOf(it)
-                                if (idx != -1) onSongClick(list, idx)
-                            },
-                            onAddToPlaylist = onAddToPlaylist,
-                            onRemoveFromPlaylist = onRemoveFromPlaylist,
-                            onInfoClick = { infoItem = it },
-                            onEditMetadataClick = { editMetadataItem = it },
-                            onDeleteClick = { songToDelete = it },
-                            onNavigateSubTab = onNavigateSubTab,
-                            showDeleteOption = showDeleteOption,
-                            showInGallery = showInGallery,
-                            context = context
-                        )
-                    }
-                } else {
-                    items(songs, key = { it.id }) { item ->
-                        SongRow(
-                            item = item,
-                            currentlyPlayingUri = currentlyPlayingUri,
-                            isAlphabetical = isAlphabetical,
-                            isSelected = selectedUris.contains(item.uri.toString()),
-                            isHighlighted = item.uri.toString() == highlightedSongUri,
-                            onSongClick = {
-                                val idx = songs.indexOf(it)
-                                if (idx != -1) onSongClick(songs, idx)
-                            },
-                            onAddToPlaylist = onAddToPlaylist,
-                            onRemoveFromPlaylist = onRemoveFromPlaylist,
-                            onInfoClick = { infoItem = it },
-                            onEditMetadataClick = { editMetadataItem = it },
-                            onDeleteClick = { songToDelete = it },
-                            onNavigateSubTab = onNavigateSubTab,
-                            showDeleteOption = showDeleteOption,
-                            showInGallery = showInGallery,
-                            context = context
-                        )
-                    }
+                items(songs, key = { it.id }) { item ->
+                    SongRow(
+                        item = item,
+                        currentlyPlayingUri = currentlyPlayingUri,
+                        isAlphabetical = isAlphabetical,
+                        isSelected = selectedUris.contains(item.uri.toString()),
+                        isHighlighted = item.uri.toString() == highlightedSongUri,
+                        onSongClick = {
+                            val idx = songs.indexOf(it)
+                            if (idx != -1) onSongClick(songs, idx)
+                        },
+                        onAddToPlaylist = onAddToPlaylist,
+                        onRemoveFromPlaylist = onRemoveFromPlaylist,
+                        onInfoClick = { infoItem = it },
+                        onEditMetadataClick = { editMetadataItem = it },
+                        onDeleteClick = { songToDelete = it },
+                        onNavigateSubTab = onNavigateSubTab,
+                        showDeleteOption = showDeleteOption,
+                        showInGallery = showInGallery,
+                        context = context
+                    )
                 }
             }
             if (isAlphabetical) {

@@ -254,7 +254,7 @@ fun FloatingMiniPlayerBar(
         borderColor = Color.White.copy(alpha = 0.35f),
         backgroundImage = currentItem.albumArtUri ?: currentItem.uri,
         enableBlur = true,
-        blurRadius = 24.dp
+        blurRadius = 36.dp
     ) {
         var isDraggingSeek by remember { mutableStateOf(false) }
         var dragProgress by remember { mutableFloatStateOf(0f) }

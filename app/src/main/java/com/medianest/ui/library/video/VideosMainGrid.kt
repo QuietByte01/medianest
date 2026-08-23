@@ -53,8 +53,7 @@ fun VideosMainGrid(
     targetVideoUri: String? = null,
     isFolderViewActive: Boolean = false,
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
-    staggeredGridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState(),
-    pagedVideos: LazyPagingItems<MediaItem>? = null
+    staggeredGridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState()
 ) {
     var highlightedVideoUri by remember { mutableStateOf<String?>(null) }
     // Only use Wide style for specific curated tabs
@@ -88,42 +87,20 @@ fun VideosMainGrid(
                 horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
                 verticalItemSpacing = Dp(gridGapDp.toFloat())
             ) {
-                if (pagedVideos != null) {
-                    items(
-                        count = pagedVideos.itemCount,
-                        key = pagedVideos.itemKey { it.id }
-                    ) { index ->
-                        val item = pagedVideos[index] ?: return@items
-                        WideVideoCard(
-                            item = item,
-                            isSelected = selectedUris.contains(item.uri.toString()),
-                            isSelectionMode = isSelectionMode,
-                            onClick = { onVideoClick(item) },
-                            onLongClick = { onVideoLongClick(item) },
-                            placeName = null,
-                            onDelete = { onVideoDelete(item) },
-                            onRemoveFromCategory = if (selectedCategory != null) { { onRemoveFromCategory(item) } } else null,
-                            onRename = { onRename(item) },
-                            onShowInfo = { onInfoItem(item) },
-                            useRealRatio = true
-                        )
-                    }
-                } else {
-                    items(sortedDisplayList, key = { it.id }) { item ->
-                        WideVideoCard(
-                            item = item,
-                            isSelected = selectedUris.contains(item.uri.toString()),
-                            isSelectionMode = isSelectionMode,
-                            onClick = { onVideoClick(item) },
-                            onLongClick = { onVideoLongClick(item) },
-                            placeName = null,
-                            onDelete = { onVideoDelete(item) },
-                            onRemoveFromCategory = if (selectedCategory != null) { { onRemoveFromCategory(item) } } else null,
-                            onRename = { onRename(item) },
-                            onShowInfo = { onInfoItem(item) },
-                            useRealRatio = true
-                        )
-                    }
+                items(sortedDisplayList, key = { it.id }) { item ->
+                    WideVideoCard(
+                        item = item,
+                        isSelected = selectedUris.contains(item.uri.toString()),
+                        isSelectionMode = isSelectionMode,
+                        onClick = { onVideoClick(item) },
+                        onLongClick = { onVideoLongClick(item) },
+                        placeName = null,
+                        onDelete = { onVideoDelete(item) },
+                        onRemoveFromCategory = if (selectedCategory != null) { { onRemoveFromCategory(item) } } else null,
+                        onRename = { onRename(item) },
+                        onShowInfo = { onInfoItem(item) },
+                        useRealRatio = true
+                    )
                 }
             }
         } else {
@@ -137,40 +114,19 @@ fun VideosMainGrid(
                 horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
                 verticalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat()))
             ) {
-                if (pagedVideos != null) {
-                    items(
-                        count = pagedVideos.itemCount,
-                        key = pagedVideos.itemKey { it.id }
-                    ) { index ->
-                        val item = pagedVideos[index] ?: return@items
-                        WideVideoCard(
-                            item = item,
-                            isSelected = selectedUris.contains(item.uri.toString()),
-                            isSelectionMode = isSelectionMode,
-                            onClick = { onVideoClick(item) },
-                            onLongClick = { onVideoLongClick(item) },
-                            placeName = null,
-                            onDelete = { onVideoDelete(item) },
-                            onRemoveFromCategory = if (selectedCategory != null) { { onRemoveFromCategory(item) } } else null,
-                            onRename = { onRename(item) },
-                            onShowInfo = { onInfoItem(item) }
-                        )
-                    }
-                } else {
-                    items(sortedDisplayList, key = { it.id }) { item ->
-                        WideVideoCard(
-                            item = item,
-                            isSelected = selectedUris.contains(item.uri.toString()),
-                            isSelectionMode = isSelectionMode,
-                            onClick = { onVideoClick(item) },
-                            onLongClick = { onVideoLongClick(item) },
-                            placeName = null,
-                            onDelete = { onVideoDelete(item) },
-                            onRemoveFromCategory = if (selectedCategory != null) { { onRemoveFromCategory(item) } } else null,
-                            onRename = { onRename(item) },
-                            onShowInfo = { onInfoItem(item) }
-                        )
-                    }
+                items(sortedDisplayList, key = { it.id }) { item ->
+                    WideVideoCard(
+                        item = item,
+                        isSelected = selectedUris.contains(item.uri.toString()),
+                        isSelectionMode = isSelectionMode,
+                        onClick = { onVideoClick(item) },
+                        onLongClick = { onVideoLongClick(item) },
+                        placeName = null,
+                        onDelete = { onVideoDelete(item) },
+                        onRemoveFromCategory = if (selectedCategory != null) { { onRemoveFromCategory(item) } } else null,
+                        onRename = { onRename(item) },
+                        onShowInfo = { onInfoItem(item) }
+                    )
                 }
             }
         }
@@ -191,66 +147,32 @@ fun VideosMainGrid(
             horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
             verticalItemSpacing = Dp(gridGapDp.toFloat())
         ) {
-            if (pagedVideos != null) {
-                items(
-                    count = pagedVideos.itemCount,
-                    key = pagedVideos.itemKey { it.id }
-                ) { index ->
-                    val item = pagedVideos[index] ?: return@items
-                    MediaGridItem(
-                        item = item,
-                        isSelected = selectedUris.contains(item.uri.toString()),
-                        isSelectionMode = isSelectionMode,
-                        cornerRadiusDp = cornerRadiusDp,
-                        roundedCornersEnabled = roundedCornersEnabled,
-                        isHighlighted = (item.uri.toString() == highlightedVideoUri),
-                        onClick = { onVideoClick(item) },
-                        onLongClick = { onVideoLongClick(item) },
-                        onInfo = { onInfoItem(item) },
-                        onDelete = { onVideoDelete(item) },
-                        showRemoveOption = selectedCategory != null,
-                        onRemoveFromCategory = { onRemoveFromCategory(item) },
-                        onOpenFolder = { targetFolder, targetUri ->
-                            val matchedKey = videoFolderGroups.keys.firstOrNull { key ->
-                                key.equals(targetFolder, ignoreCase = true) ||
-                                        key.lowercase().endsWith(targetFolder.lowercase()) ||
-                                        targetFolder.lowercase().endsWith(key.lowercase()) ||
-                                        key.substringAfterLast('/').equals(targetFolder.substringAfterLast('/'), ignoreCase = true)
-                            } ?: targetFolder
-                            onOpenFolder(matchedKey, targetUri)
-                        },
-                        onRename = { onRename(item) },
-                        showInGallery = (isFolderViewActive && selectedFolder != null)
-                    )
-                }
-            } else {
-                items(sortedDisplayList, key = { it.id }) { item ->
-                    MediaGridItem(
-                        item = item,
-                        isSelected = selectedUris.contains(item.uri.toString()),
-                        isSelectionMode = isSelectionMode,
-                        cornerRadiusDp = cornerRadiusDp,
-                        roundedCornersEnabled = roundedCornersEnabled,
-                        isHighlighted = (item.uri.toString() == highlightedVideoUri),
-                        onClick = { onVideoClick(item) },
-                        onLongClick = { onVideoLongClick(item) },
-                        onInfo = { onInfoItem(item) },
-                        onDelete = { onVideoDelete(item) },
-                        showRemoveOption = selectedCategory != null,
-                        onRemoveFromCategory = { onRemoveFromCategory(item) },
-                        onOpenFolder = { targetFolder, targetUri ->
-                            val matchedKey = videoFolderGroups.keys.firstOrNull { key ->
-                                key.equals(targetFolder, ignoreCase = true) ||
-                                        key.lowercase().endsWith(targetFolder.lowercase()) ||
-                                        targetFolder.lowercase().endsWith(key.lowercase()) ||
-                                        key.substringAfterLast('/').equals(targetFolder.substringAfterLast('/'), ignoreCase = true)
-                            } ?: targetFolder
-                            onOpenFolder(matchedKey, targetUri)
-                        },
-                        onRename = { onRename(item) },
-                        showInGallery = (isFolderViewActive && selectedFolder != null)
-                    )
-                }
+            items(sortedDisplayList, key = { it.id }) { item ->
+                MediaGridItem(
+                    item = item,
+                    isSelected = selectedUris.contains(item.uri.toString()),
+                    isSelectionMode = isSelectionMode,
+                    cornerRadiusDp = cornerRadiusDp,
+                    roundedCornersEnabled = roundedCornersEnabled,
+                    isHighlighted = (item.uri.toString() == highlightedVideoUri),
+                    onClick = { onVideoClick(item) },
+                    onLongClick = { onVideoLongClick(item) },
+                    onInfo = { onInfoItem(item) },
+                    onDelete = { onVideoDelete(item) },
+                    showRemoveOption = selectedCategory != null,
+                    onRemoveFromCategory = { onRemoveFromCategory(item) },
+                    onOpenFolder = { targetFolder, targetUri ->
+                        val matchedKey = videoFolderGroups.keys.firstOrNull { key ->
+                            key.equals(targetFolder, ignoreCase = true) ||
+                                    key.lowercase().endsWith(targetFolder.lowercase()) ||
+                                    targetFolder.lowercase().endsWith(key.lowercase()) ||
+                                    key.substringAfterLast('/').equals(targetFolder.substringAfterLast('/'), ignoreCase = true)
+                        } ?: targetFolder
+                        onOpenFolder(matchedKey, targetUri)
+                    },
+                    onRename = { onRename(item) },
+                    showInGallery = (isFolderViewActive && selectedFolder != null)
+                )
             }
         }
     }

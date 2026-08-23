@@ -21,6 +21,7 @@ import com.medianest.ui.components.dismissKeyboardOnOutsideTap
 import com.medianest.ui.library.audio.AudioTab
 import com.medianest.ui.library.image.ImagesTab
 import com.medianest.ui.library.video.VideosTab
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,227 +73,335 @@ fun LibraryScreen(
     val showHiddenFiles by settingsManager.showHiddenFiles.collectAsState(initial = false)
     val hiddenFolders by settingsManager.hiddenFolders.collectAsState(initial = emptySet())
 
-    val pagedImages = viewModel.pagedImagesFlow.collectAsLazyPagingItems()
-    val pagedVideos = viewModel.pagedVideosFlow.collectAsLazyPagingItems()
-    val pagedAudio = viewModel.pagedAudioFlow.collectAsLazyPagingItems()
+        val totalTabs = if (enableAnalyticsTab) 4 else 3
+        val pagerState = androidx.compose.foundation.pager.rememberPagerState(initialPage = initialTab.coerceIn(0, totalTabs - 1)) { totalTabs }
 
-    var currentTab by remember(initialTab) { mutableIntStateOf(initialTab) } // 0: Dashboard (if enabled), 1: Images, 2: Videos, 3: Audio
-
-    LaunchedEffect(initialTab) {
-        currentTab = initialTab
-    }
-
-    val searchQuery by viewModel.searchQuery.collectAsState()
-    var isSearchActive by remember { mutableStateOf(false) }
-
-    var selectedCategory by remember { mutableStateOf<MediaCategory?>(null) }
-    var selectedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
-    val isSelectionMode = selectedUris.isNotEmpty()
-
-    var showCreateCategoryModal by remember { mutableStateOf(false) }
-    var showAddVideosToCategoryModal by remember { mutableStateOf(false) }
-    var showDeleteSelectedModal by remember { mutableStateOf(false) }
-    var showBatchInfoModal by remember { mutableStateOf(false) }
-    var showMoveModal by remember { mutableStateOf(false) }
-    var showCopyModal by remember { mutableStateOf(false) }
-
-    val coroutineScope = rememberCoroutineScope()
-    val playerState by exoPlayerManager.playerState.collectAsState()
-
-    // Map tab indices depending on whether Dashboard is enabled
-    val isDashboardTab = enableAnalyticsTab && currentTab == 0
-    val isImagesTab = if (enableAnalyticsTab) currentTab == 1 else currentTab == 0
-    val isVideosTab = if (enableAnalyticsTab) currentTab == 2 else currentTab == 1
-    val isAudioTab = if (enableAnalyticsTab) currentTab == 3 else currentTab == 2
-
-    // Filter list based on search query (offloaded to ViewModel)
-    val filteredImages by viewModel.filteredImagesList.collectAsState()
-    val filteredVideos by viewModel.filteredVideosList.collectAsState()
-    val filteredAudio by viewModel.filteredAudioList.collectAsState()
-
-    val currentTabItems = when {
-        isImagesTab -> filteredImages
-        isVideosTab -> filteredVideos
-        isAudioTab -> filteredAudio
-        else -> emptyList()
-    }
-
-    // Handle back button presses inside Library screen
-    BackHandler(enabled = showDeleteSelectedModal || showCreateCategoryModal || isSelectionMode || isSearchActive || selectedCategory != null || currentTab != 0) {
-        when {
-            showDeleteSelectedModal -> showDeleteSelectedModal = false
-            showCreateCategoryModal -> showCreateCategoryModal = false
-            isSelectionMode -> selectedUris = emptySet()
-            isSearchActive -> {
-                isSearchActive = false
-                viewModel.updateSearchQuery("")
+        LaunchedEffect(initialTab) {
+            if (initialTab in 0 until totalTabs && pagerState.currentPage != initialTab) {
+                pagerState.scrollToPage(initialTab)
             }
-            selectedCategory != null -> selectedCategory = null
-            currentTab != 0 -> currentTab = 0
         }
-    }
 
-    val currentPlayingTrack = playerState.currentItem
+        val currentTab = pagerState.currentPage
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .dismissKeyboardOnOutsideTap()
-    ) {
-        LibraryAmbientBackground(
-            isDashboardTab = isDashboardTab,
-            isImagesTab = isImagesTab,
-            isVideosTab = isVideosTab,
-            isAudioTab = isAudioTab,
-            currentPlayingTrack = currentPlayingTrack,
-            imagesList = imagesList,
-            videosList = videosList,
-            audioList = audioList
-        )
+        val searchQuery by viewModel.searchQuery.collectAsState()
+        var isSearchActive by remember { mutableStateOf(false) }
 
+        var selectedCategory by remember { mutableStateOf<MediaCategory?>(null) }
+        var selectedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
+        val isSelectionMode = selectedUris.isNotEmpty()
 
-        Scaffold(
-            containerColor = androidx.compose.ui.graphics.Color.Transparent,
-            contentWindowInsets = WindowInsets(0, 0, 0, 0), // Eliminate automatic padding
-            topBar = {
-                LibraryTopBar(
-                    searchQuery = searchQuery,
-                    onSearchQueryChange = { viewModel.updateSearchQuery(it) },
-                    isSearchActive = isSearchActive,
-                    onSearchActiveChange = { isSearchActive = it },
-                    isDashboardTab = isDashboardTab,
-                    isImagesTab = isImagesTab,
-                    isVideosTab = isVideosTab,
-                    isAudioTab = isAudioTab,
-                    onOpenSettings = onOpenSettings
-                )
-            },
-            bottomBar = {
-                LibraryBottomBar(
-                    currentTab = currentTab,
-                    onTabSelected = { currentTab = it },
-                    enableAnalyticsTab = enableAnalyticsTab,
-                    isAudioTab = isAudioTab,
-                    playerState = playerState,
-                    exoPlayerManager = exoPlayerManager,
-                    onOpenAudioPlayer = onOpenAudioPlayer
-                )
+        var showCreateCategoryModal by remember { mutableStateOf(false) }
+        var showAddVideosToCategoryModal by remember { mutableStateOf(false) }
+        var showDeleteSelectedModal by remember { mutableStateOf(false) }
+        var showBatchInfoModal by remember { mutableStateOf(false) }
+        var showMoveModal by remember { mutableStateOf(false) }
+        var showCopyModal by remember { mutableStateOf(false) }
+
+        val coroutineScope = rememberCoroutineScope()
+        val playerState by exoPlayerManager.playerState.collectAsState()
+
+        // Map tab indices depending on whether Dashboard is enabled
+        val isDashboardTab = enableAnalyticsTab && currentTab == 0
+        val isImagesTab = if (enableAnalyticsTab) currentTab == 1 else currentTab == 0
+        val isVideosTab = if (enableAnalyticsTab) currentTab == 2 else currentTab == 1
+        val isAudioTab = if (enableAnalyticsTab) currentTab == 3 else currentTab == 2
+
+        // Filter list based on search query (offloaded to ViewModel)
+        val filteredImages by viewModel.filteredImagesList.collectAsState()
+        val filteredVideos by viewModel.filteredVideosList.collectAsState()
+        val filteredAudio by viewModel.filteredAudioList.collectAsState()
+
+        val currentTabItems = when {
+            isImagesTab -> filteredImages
+            isVideosTab -> filteredVideos
+            isAudioTab -> filteredAudio
+            else -> emptyList()
+        }
+
+        // Handle back button presses inside Library screen
+        BackHandler(enabled = showDeleteSelectedModal || showCreateCategoryModal || isSelectionMode || isSearchActive || selectedCategory != null || currentTab != 0) {
+            when {
+                showDeleteSelectedModal -> showDeleteSelectedModal = false
+                showCreateCategoryModal -> showCreateCategoryModal = false
+                isSelectionMode -> selectedUris = emptySet()
+                isSearchActive -> {
+                    isSearchActive = false
+                    viewModel.updateSearchQuery("")
+                }
+                selectedCategory != null -> selectedCategory = null
+                currentTab != 0 -> coroutineScope.launch { pagerState.animateScrollToPage(0) }
             }
-        ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                when {
-                    isDashboardTab -> AnalyticsScreen(
-                        snapshot = analyticsSnapshot,
-                        formatStats = analyticsFormatStats,
-                        isRefreshing = isAnalyticsRefreshing,
-                        onRefresh = onRefreshAnalytics,
-                        onSelectCategoryFilter = { _ -> },
-                        onSelectFormatFilter = { _ -> },
-                        imagesList = imagesList,
-                        videosList = videosList,
-                        audioList = audioList,
-                        onOpenQuickView = onOpenQuickView,
-                        onOpenVideoPlayer = onOpenVideoPlayer,
-                        onOpenAudioPlayer = { item ->
-                            val idx = audioList.indexOf(item)
-                            if (idx != -1) exoPlayerManager.playMediaList(audioList, idx)
-                            onOpenAudioPlayer(currentTab)
-                        },
-                        onOpenSettings = onOpenSettings,
-                        searchQuery = searchQuery
+        }
+
+        val currentPlayingTrack = playerState.currentItem
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .dismissKeyboardOnOutsideTap()
+        ) {
+            LibraryAmbientBackground(
+                isDashboardTab = isDashboardTab,
+                isImagesTab = isImagesTab,
+                isVideosTab = isVideosTab,
+                isAudioTab = isAudioTab,
+                currentPlayingTrack = currentPlayingTrack,
+                imagesList = imagesList,
+                videosList = videosList,
+                audioList = audioList
+            )
+
+            Scaffold(
+                containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                contentWindowInsets = WindowInsets(0, 0, 0, 0), // Eliminate automatic padding
+                topBar = {
+                    LibraryTopBar(
+                        searchQuery = searchQuery,
+                        onSearchQueryChange = { viewModel.updateSearchQuery(it) },
+                        isSearchActive = isSearchActive,
+                        onSearchActiveChange = { isSearchActive = it },
+                        isDashboardTab = isDashboardTab,
+                        isImagesTab = isImagesTab,
+                        isVideosTab = isVideosTab,
+                        isAudioTab = isAudioTab,
+                        onOpenSettings = onOpenSettings
                     )
-
-                        isImagesTab -> ImagesTab(
-                            imagesList = imagesList,
-                            pagedImages = pagedImages,
-                            selectedUris = selectedUris,
-                            isSelectionMode = isSelectionMode,
-                            gridGapDp = gridGapDp,
-                            gridSizeLevel = gridSizeLevel,
-                            cornerRadiusDp = cornerRadiusDp,
-                            roundedCornersEnabled = roundedCornersEnabled,
-                            isLoading = isLoading,
-                            isScanningHidden = isScanningHidden,
-                            initialFolder = initialImageFolder,
-                            initialTargetImageUri = targetMediaUri,
-                            onImageClick = { item, currentList ->
-                                if (isSelectionMode) {
-                                    val uriStr = item.uri.toString()
-                                    selectedUris = if (selectedUris.contains(uriStr)) selectedUris - uriStr else selectedUris + uriStr
-                                } else {
-                                    onOpenQuickView(item, currentList)
-                                }
-                            },
-                            onImageLongClick = { item ->
-                                selectedUris = selectedUris + item.uri.toString()
-                            },
-                            onBackToDashboard = { currentTab = 0 },
-                            viewModel = viewModel
-                        )
-
-                    isVideosTab -> VideosTab(
-                        videosList = videosList,
-                        categories = videoCategories,
-                        selectedCategory = selectedCategory,
-                        selectedUris = selectedUris,
-                        isSelectionMode = isSelectionMode,
-                        gridGapDp = gridGapDp,
-                        gridSizeLevel = gridSizeLevel,
-                        cornerRadiusDp = cornerRadiusDp,
-                        roundedCornersEnabled = roundedCornersEnabled,
-                        isLoading = isLoading,
-                        isScanningHidden = isScanningHidden,
-                        onCategorySelect = { selectedCategory = it },
-                        onCreateCategoryClick = { showCreateCategoryModal = true },
-                        onVideoClick = { item ->
-                            if (isSelectionMode) {
-                                val uriStr = item.uri.toString()
-                                selectedUris = if (selectedUris.contains(uriStr)) selectedUris - uriStr else selectedUris + uriStr
-                            } else {
-                                onOpenVideoPlayer(item)
+                },
+                bottomBar = {
+                    LibraryBottomBar(
+                        currentTab = currentTab,
+                        onTabSelected = { targetTab ->
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(targetTab)
                             }
                         },
-                        onVideoLongClick = { item ->
-                            selectedUris = selectedUris + item.uri.toString()
-                        },
-                        showAddVideosDialog = showAddVideosToCategoryModal,
-                        onDismissAddVideosDialog = { showAddVideosToCategoryModal = false },
-                        onClearSelection = { selectedUris = emptySet() },
-                        initialFolder = initialVideoFolder,
-                        initialTargetVideoUri = targetMediaUri,
-                        onBackToDashboard = { currentTab = 0 },
-                        viewModel = viewModel
-                    )
-
-                    isAudioTab -> AudioTab(
-                        audioList = audioList,
-                        pagedAudio = pagedAudio,
-                        playlists = audioPlaylists,
-                        selectedUris = selectedUris,
-                        isSelectionMode = isSelectionMode,
-                        gridSizeLevel = gridSizeLevel,
-                        isLoading = isLoading,
-                        isScanningHidden = isScanningHidden,
-                        onSongClick = { list, idx ->
-                            exoPlayerManager.playMediaList(list, idx)
-                        },
-                        onSongLongClick = { item ->
-                            selectedUris = selectedUris + item.uri.toString()
-                        },
-                        onCreatePlaylistClick = { showCreateCategoryModal = true },
-                        initialSubTab = audioSubTab,
-                        initialAlbum = audioAlbum,
-                        initialArtist = audioArtist,
-                        initialFolder = audioFolder,
-                        initialTargetSongUri = targetMediaUri,
-                        onBackToDashboard = { currentTab = 0 },
-                        viewModel = viewModel
+                        enableAnalyticsTab = enableAnalyticsTab,
+                        isAudioTab = isAudioTab,
+                        playerState = playerState,
+                        exoPlayerManager = exoPlayerManager,
+                        onOpenAudioPlayer = onOpenAudioPlayer
                     )
                 }
+            ) { innerPadding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                ) {
+                    androidx.compose.foundation.pager.HorizontalPager(
+                        state = pagerState,
+                        userScrollEnabled = false,
+                        beyondViewportPageCount = 3,
+                        modifier = Modifier.fillMaxSize()
+                    ) { page ->
+                        when (page) {
+                            0 -> {
+                                if (enableAnalyticsTab) {
+                                    AnalyticsScreen(
+                                        snapshot = analyticsSnapshot,
+                                        formatStats = analyticsFormatStats,
+                                        isRefreshing = isAnalyticsRefreshing,
+                                        onRefresh = onRefreshAnalytics,
+                                        onSelectCategoryFilter = { _ -> },
+                                        onSelectFormatFilter = { _ -> },
+                                        imagesList = imagesList,
+                                        videosList = videosList,
+                                        audioList = audioList,
+                                        onOpenQuickView = onOpenQuickView,
+                                        onOpenVideoPlayer = onOpenVideoPlayer,
+                                        onOpenAudioPlayer = { item ->
+                                            val idx = audioList.indexOf(item)
+                                            if (idx != -1) exoPlayerManager.playMediaList(audioList, idx)
+                                            onOpenAudioPlayer(currentTab)
+                                        },
+                                        onOpenSettings = onOpenSettings,
+                                        searchQuery = searchQuery
+                                    )
+                                } else {
+                                    ImagesTab(
+                                        imagesList = imagesList,
+                                        selectedUris = selectedUris,
+                                        isSelectionMode = isSelectionMode,
+                                        gridGapDp = gridGapDp,
+                                        gridSizeLevel = gridSizeLevel,
+                                        cornerRadiusDp = cornerRadiusDp,
+                                        roundedCornersEnabled = roundedCornersEnabled,
+                                        isLoading = isLoading,
+                                        isScanningHidden = isScanningHidden,
+                                        initialFolder = initialImageFolder,
+                                        initialTargetImageUri = targetMediaUri,
+                                        onImageClick = { item, currentList ->
+                                            if (isSelectionMode) {
+                                                val uriStr = item.uri.toString()
+                                                selectedUris = if (selectedUris.contains(uriStr)) selectedUris - uriStr else selectedUris + uriStr
+                                            } else {
+                                                onOpenQuickView(item, currentList)
+                                            }
+                                        },
+                                        onImageLongClick = { item ->
+                                            selectedUris = selectedUris + item.uri.toString()
+                                        },
+                                        onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
+                                        viewModel = viewModel
+                                    )
+                                }
+                            }
+
+                            1 -> {
+                                if (enableAnalyticsTab) {
+                                    ImagesTab(
+                                        imagesList = imagesList,
+                                        selectedUris = selectedUris,
+                                        isSelectionMode = isSelectionMode,
+                                        gridGapDp = gridGapDp,
+                                        gridSizeLevel = gridSizeLevel,
+                                        cornerRadiusDp = cornerRadiusDp,
+                                        roundedCornersEnabled = roundedCornersEnabled,
+                                        isLoading = isLoading,
+                                        isScanningHidden = isScanningHidden,
+                                        initialFolder = initialImageFolder,
+                                        initialTargetImageUri = targetMediaUri,
+                                        onImageClick = { item, currentList ->
+                                            if (isSelectionMode) {
+                                                val uriStr = item.uri.toString()
+                                                selectedUris = if (selectedUris.contains(uriStr)) selectedUris - uriStr else selectedUris + uriStr
+                                            } else {
+                                                onOpenQuickView(item, currentList)
+                                            }
+                                        },
+                                        onImageLongClick = { item ->
+                                            selectedUris = selectedUris + item.uri.toString()
+                                        },
+                                        onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
+                                        viewModel = viewModel
+                                    )
+                                } else {
+                                    VideosTab(
+                                        videosList = videosList,
+                                        categories = videoCategories,
+                                        selectedCategory = selectedCategory,
+                                        selectedUris = selectedUris,
+                                        isSelectionMode = isSelectionMode,
+                                        gridGapDp = gridGapDp,
+                                        gridSizeLevel = gridSizeLevel,
+                                        cornerRadiusDp = cornerRadiusDp,
+                                        roundedCornersEnabled = roundedCornersEnabled,
+                                        isLoading = isLoading,
+                                        isScanningHidden = isScanningHidden,
+                                        onCategorySelect = { selectedCategory = it },
+                                        onCreateCategoryClick = { showCreateCategoryModal = true },
+                                        onVideoClick = { item ->
+                                            if (isSelectionMode) {
+                                                val uriStr = item.uri.toString()
+                                                selectedUris = if (selectedUris.contains(uriStr)) selectedUris - uriStr else selectedUris + uriStr
+                                            } else {
+                                                onOpenVideoPlayer(item)
+                                            }
+                                        },
+                                        onVideoLongClick = { item ->
+                                            selectedUris = selectedUris + item.uri.toString()
+                                        },
+                                        showAddVideosDialog = showAddVideosToCategoryModal,
+                                        onDismissAddVideosDialog = { showAddVideosToCategoryModal = false },
+                                        onClearSelection = { selectedUris = emptySet() },
+                                        initialFolder = initialVideoFolder,
+                                        initialTargetVideoUri = targetMediaUri,
+                                        onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
+                                        viewModel = viewModel
+                                    )
+                                }
+                            }
+
+                            2 -> {
+                                if (enableAnalyticsTab) {
+                                    VideosTab(
+                                        videosList = videosList,
+                                        categories = videoCategories,
+                                        selectedCategory = selectedCategory,
+                                        selectedUris = selectedUris,
+                                        isSelectionMode = isSelectionMode,
+                                        gridGapDp = gridGapDp,
+                                        gridSizeLevel = gridSizeLevel,
+                                        cornerRadiusDp = cornerRadiusDp,
+                                        roundedCornersEnabled = roundedCornersEnabled,
+                                        isLoading = isLoading,
+                                        isScanningHidden = isScanningHidden,
+                                        onCategorySelect = { selectedCategory = it },
+                                        onCreateCategoryClick = { showCreateCategoryModal = true },
+                                        onVideoClick = { item ->
+                                            if (isSelectionMode) {
+                                                val uriStr = item.uri.toString()
+                                                selectedUris = if (selectedUris.contains(uriStr)) selectedUris - uriStr else selectedUris + uriStr
+                                            } else {
+                                                onOpenVideoPlayer(item)
+                                            }
+                                        },
+                                        onVideoLongClick = { item ->
+                                            selectedUris = selectedUris + item.uri.toString()
+                                        },
+                                        showAddVideosDialog = showAddVideosToCategoryModal,
+                                        onDismissAddVideosDialog = { showAddVideosToCategoryModal = false },
+                                        onClearSelection = { selectedUris = emptySet() },
+                                        initialFolder = initialVideoFolder,
+                                        initialTargetVideoUri = targetMediaUri,
+                                        onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
+                                        viewModel = viewModel
+                                    )
+                                } else {
+                                    AudioTab(
+                                        audioList = audioList,
+                                        playlists = audioPlaylists,
+                                        selectedUris = selectedUris,
+                                        isSelectionMode = isSelectionMode,
+                                        gridSizeLevel = gridSizeLevel,
+                                        isLoading = isLoading,
+                                        isScanningHidden = isScanningHidden,
+                                        onSongClick = { list, idx ->
+                                            exoPlayerManager.playMediaList(list, idx)
+                                        },
+                                        onSongLongClick = { item ->
+                                            selectedUris = selectedUris + item.uri.toString()
+                                        },
+                                        onCreatePlaylistClick = { showCreateCategoryModal = true },
+                                        initialSubTab = audioSubTab,
+                                        initialAlbum = audioAlbum,
+                                        initialArtist = audioArtist,
+                                        initialFolder = audioFolder,
+                                        initialTargetSongUri = targetMediaUri,
+                                        onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
+                                        viewModel = viewModel
+                                    )
+                                }
+                            }
+
+                            3 -> {
+                                AudioTab(
+                                    audioList = audioList,
+                                    playlists = audioPlaylists,
+                                    selectedUris = selectedUris,
+                                    isSelectionMode = isSelectionMode,
+                                    gridSizeLevel = gridSizeLevel,
+                                    isLoading = isLoading,
+                                    isScanningHidden = isScanningHidden,
+                                    onSongClick = { list, idx ->
+                                        exoPlayerManager.playMediaList(list, idx)
+                                    },
+                                    onSongLongClick = { item ->
+                                        selectedUris = selectedUris + item.uri.toString()
+                                    },
+                                    onCreatePlaylistClick = { showCreateCategoryModal = true },
+                                    initialSubTab = audioSubTab,
+                                    initialAlbum = audioAlbum,
+                                    initialArtist = audioArtist,
+                                    initialFolder = audioFolder,
+                                    initialTargetSongUri = targetMediaUri,
+                                    onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
+                                    viewModel = viewModel
+                                )
+                            }
+                        }
+                    }
 
                 LibraryBatchActionBar(
                     isSelectionMode = isSelectionMode,

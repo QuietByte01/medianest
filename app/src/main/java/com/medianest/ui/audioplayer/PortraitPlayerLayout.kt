@@ -463,17 +463,13 @@ fun PortraitPlayerLayout(
                 )
             }
 
-            IconButton(
+            BubblingHeartButton(
+                isFavorite = isFavorite,
                 onClick = onToggleFavorite,
-                modifier = Modifier.size(40.dp)
-            ) {
-                Icon(
-                    imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = "Favorite",
-                    tint = if (isFavorite) Color(0xFFFF4081) else Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
+                size = 24.dp,
+                activeColor = Color(0xFFFF2D55),
+                inactiveColor = Color.White.copy(alpha = 0.85f)
+            )
 
             IconButton(
                 onClick = onOpenAddPlaylist,

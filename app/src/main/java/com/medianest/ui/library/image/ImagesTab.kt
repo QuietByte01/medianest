@@ -59,7 +59,6 @@ fun ImagesTab(
     initialFolder: String? = null,
     initialTargetImageUri: String? = null,
     onBackToDashboard: () -> Unit = {},
-    pagedImages: LazyPagingItems<MediaItem>? = null,
     viewModel: com.medianest.ui.MediaViewModel = viewModel()
 ) {
     val currentContext = LocalContext.current
@@ -434,8 +433,7 @@ fun ImagesTab(
                             activeFilterTab = activeFilterTab,
                             targetImageUri = targetImageUri,
                             onTargetImageChange = { targetImageUri = it },
-                            gridState = mainGridState,
-                            pagedImages = if (viewMode == 0 && activeFilterTab == "ALL" && selectedFolder == null) pagedImages else null
+                            gridState = mainGridState
                         )
                     }
                 }

@@ -210,7 +210,7 @@ fun MediaGridItem(
             if (item.type == MediaType.VIDEO) {
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = Color.Black.copy(alpha = 0.75f),
+                    color = Color.Black.copy(alpha = 0.30f),
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(6.dp)

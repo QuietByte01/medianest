@@ -131,8 +131,6 @@ fun VideosTab(
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager(currentContext) }
 
-    val pagedVideos = viewModel.pagedVideosFlow.collectAsLazyPagingItems()
-
     val persistedSortField by settingsManager.videoSortField.collectAsState(initial = "Date")
     val persistedSortAscending by settingsManager.videoSortAscending.collectAsState(initial = false)
     
@@ -536,8 +534,7 @@ fun VideosTab(
                 targetVideoUri = targetVideoUri,
                 isFolderViewActive = isFolderViewActive,
                 gridState = wideGridState,
-                staggeredGridState = mainGridState,
-                pagedVideos = if (activeFilterTab == "ALL" && !isFolderViewActive && selectedFolder == null && selectedCategory == null) pagedVideos else null
+                staggeredGridState = mainGridState
             )
         }
 

@@ -36,8 +36,14 @@ class StandardBitmapRenderer(
         modifier: Modifier
     ) {
         val context = LocalContext.current
+        val modelData = when (source) {
+            is ImageSource.FromUri -> source.uri
+            is ImageSource.FromFile -> source.file
+            is ImageSource.FromByteArray -> source.bytes
+        }
+
         val request = ImageRequest.Builder(context)
-            .data(if (source is ImageSource.FromUri) source.uri else source.key)
+            .data(modelData)
             .crossfade(true)
             .build()
 

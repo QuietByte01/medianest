@@ -3,16 +3,8 @@ package com.medianest.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.paging.Pager
-import androidx.paging.PagingConfig
-import androidx.paging.PagingData
-import androidx.paging.cachedIn
 import com.medianest.MediaNestApp
-import androidx.paging.PagingSource
-import androidx.paging.PagingState
-import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
-import com.medianest.data.repository.MediaPagingSource
 import com.medianest.data.repository.MediaStoreRepository
 import com.medianest.ui.library.video.computeSharedTitleWords
 import com.medianest.ui.library.video.isClipsAndRecordings
@@ -24,15 +16,12 @@ import com.medianest.ui.library.video.isShorts
 import com.medianest.ui.library.video.isSocialMediaVideo
 import com.medianest.ui.library.video.isTVSeries
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 
 data class MediaCounts(
@@ -93,9 +82,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setMediaLists(images: List<MediaItem>, videos: List<MediaItem>, audio: List<MediaItem>) {
-        _imagesList.value = images
-        _videosList.value = videos
-        _audioList.value = audio
+        _imagesList.value = images.distinctBy { it.id }
+        _videosList.value = videos.distinctBy { it.id }
+        _audioList.value = audio.distinctBy { it.id }
     }
 
     private val _videoFilterTab = MutableStateFlow("ALL")
@@ -125,7 +114,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     private val _audioSortAscending = MutableStateFlow(true)
     val audioSortAscending: StateFlow<Boolean> = _audioSortAscending
 
-    val filteredImagesList = combine(
+    val filteredImagesList: StateFlow<List<MediaItem>> = combine(
         combine(_imagesList, _searchQuery, _imageFilterTab) { list, query, tab -> Triple(list, query, tab) },
         combine(_imageSortField, _imageSortAscending, settingsManager.showHiddenFiles) { sort, asc, showHidden -> Triple(sort, asc, showHidden) }
     ) { (list, query, tab), (sort, asc, showHidden) ->
@@ -155,7 +144,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    val filteredAudioList = combine(
+    val filteredAudioList: StateFlow<List<MediaItem>> = combine(
         combine(_audioList, _searchQuery, _audioFilterTab) { list, query, tab -> Triple(list, query, tab) },
         combine(_audioSortField, _audioSortAscending, settingsManager.showHiddenFiles) { sort, asc, showHidden -> Triple(sort, asc, showHidden) }
     ) { (list, query, tab), (sort, asc, showHidden) ->
@@ -182,7 +171,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    val filteredVideosList = combine(
+    val filteredVideosList: StateFlow<List<MediaItem>> = combine(
         combine(_videosList, _searchQuery, _videoFilterTab) { list, query, tab -> Triple(list, query, tab) },
         combine(_videoSortField, _videoSortAscending, settingsManager.showHiddenFiles) { sort, asc, showHidden -> Triple(sort, asc, showHidden) }
     ) { (list, query, tab), (sort, asc, showHidden) ->
@@ -218,49 +207,5 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun updateAudioSort(field: String, ascending: Boolean) {
         _audioSortField.value = field
         _audioSortAscending.value = ascending
-    }
-
-    private var imagesPagingSource: ListPagingSource? = null
-    val pagedImagesFlow = Pager(
-        config = PagingConfig(pageSize = 50, enablePlaceholders = false),
-        pagingSourceFactory = { ListPagingSource(filteredImagesList.value).also { imagesPagingSource = it } }
-    ).flow.cachedIn(viewModelScope)
-
-    private var videosPagingSource: ListPagingSource? = null
-    val pagedVideosFlow = Pager(
-        config = PagingConfig(pageSize = 50, enablePlaceholders = false),
-        pagingSourceFactory = { ListPagingSource(filteredVideosList.value).also { videosPagingSource = it } }
-    ).flow.cachedIn(viewModelScope)
-
-    private var audioPagingSource: ListPagingSource? = null
-    val pagedAudioFlow = Pager(
-        config = PagingConfig(pageSize = 50, enablePlaceholders = false),
-        pagingSourceFactory = { ListPagingSource(filteredAudioList.value).also { audioPagingSource = it } }
-    ).flow.cachedIn(viewModelScope)
-
-    init {
-        viewModelScope.launch {
-            filteredImagesList.collect { imagesPagingSource?.invalidate() }
-        }
-        viewModelScope.launch {
-            filteredVideosList.collect { videosPagingSource?.invalidate() }
-        }
-        viewModelScope.launch {
-            filteredAudioList.collect { audioPagingSource?.invalidate() }
-        }
-    }
-
-    private class ListPagingSource(private val list: List<MediaItem>) : PagingSource<Int, MediaItem>() {
-        override suspend fun load(params: LoadParams<Int>): LoadResult<Int, MediaItem> {
-            val start = params.key ?: 0
-            val end = (start + params.loadSize).coerceAtMost(list.size)
-            if (start >= list.size) return LoadResult.Page(emptyList(), null, null)
-            return LoadResult.Page(
-                data = list.subList(start, end),
-                prevKey = if (start == 0) null else start - params.loadSize,
-                nextKey = if (end >= list.size) null else end
-            )
-        }
-        override fun getRefreshKey(state: PagingState<Int, MediaItem>): Int? = null
     }
 }
