@@ -99,6 +99,7 @@ object MediaProcessorEngine {
         context: Context,
         inputPath: String,
         inputUri: Uri?,
+        originalName: String? = null,
         outputFormat: String,
         isLosslessCopy: Boolean,
         videoCodec: String = "libx264",
@@ -112,8 +113,8 @@ object MediaProcessorEngine {
         val inputFile = File(inputPath)
         val origSize = if (inputFile.exists()) inputFile.length() else 0L
 
-        val outputDir = getOutputDirForFormat(outputFormat)
-        val baseName = getBaseName(inputPath)
+        val outputDir = getOutputDirForFormat(outputFormat, "Converted")
+        val baseName = getBaseName(inputPath, originalName)
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val suffix = if (isCreateNewFile) "${customSuffix}_$timeStamp" else "_$timeStamp"
         val outputFile = File(outputDir, "${baseName}${suffix}.${outputFormat.lowercase()}")
@@ -164,8 +165,10 @@ object MediaProcessorEngine {
                 cmd.append("-vframes 1 ")
             } else {
                 when (videoCodec.lowercase()) {
-                    "libsvtav1", "libaom-av1", "av1" -> cmd.append("-c:v libsvtav1 -crf $qualityCrf -preset 6 -pix_fmt yuv420p10le ")
+                    "libx265", "libaom-av1", "av1" -> cmd.append("-c:v libx265 -crf $qualityCrf -preset 6 -pix_fmt yuv420p10le ")
                     "libx265", "hevc", "h265" -> cmd.append("-c:v libx265 -crf $qualityCrf -preset medium -tag:v hvc1 ")
+                    "hevc_mediacodec" -> cmd.append("-c:v hevc_mediacodec -b:v 0 -crf $qualityCrf ")
+                    "h264_mediacodec" -> cmd.append("-c:v h264_mediacodec -b:v 0 -crf $qualityCrf ")
                     "libvpx-vp9", "vp9" -> cmd.append("-c:v libvpx-vp9 -crf $qualityCrf -b:v 0 ")
                     "copy" -> cmd.append("-c:v copy ")
                     else -> cmd.append("-c:v libx264 -crf $qualityCrf -preset fast -pix_fmt yuv420p ")
@@ -194,6 +197,7 @@ object MediaProcessorEngine {
         context: Context,
         inputPath: String,
         inputUri: Uri?,
+        originalName: String? = null,
         targetMode: String,
         targetPercentage: Int = 50,
         targetLimitMb: Int = 25,
@@ -207,8 +211,8 @@ object MediaProcessorEngine {
         val inputFile = File(inputPath)
         val origSize = if (inputFile.exists()) inputFile.length() else 0L
 
-        val outputDir = getOutputDirForFormat("mp4")
-        val baseName = getBaseName(inputPath)
+        val outputDir = getOutputDirForFormat("mp4", "Compressed")
+        val baseName = getBaseName(inputPath, originalName)
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val suffix = if (isCreateNewFile) "${customSuffix}_$timeStamp" else "_$timeStamp"
         val outputFile = File(outputDir, "${baseName}${suffix}.mp4")
@@ -260,14 +264,14 @@ object MediaProcessorEngine {
         when (targetMode.uppercase()) {
             "AUTO" -> {
                 if (isAv1) {
-                    cmd.append("-c:v libsvtav1 -crf 26 -preset 6 -pix_fmt yuv420p10le ")
+                    cmd.append("-c:v libx265 -crf 26 -preset 6 -pix_fmt yuv420p10le ")
                 } else {
                     cmd.append("-c:v libx265 -crf 26 -preset medium -tag:v hvc1 ")
                 }
                 cmd.append("-c:a aac -b:a 128k ")
             }
             "AV1" -> {
-                cmd.append("-c:v libsvtav1 -crf $crf -preset 6 -pix_fmt yuv420p10le ")
+                cmd.append("-c:v libx265 -crf $crf -preset 6 -pix_fmt yuv420p10le ")
                 cmd.append("-c:a aac -b:a 128k ")
             }
             "LIMIT_SIZE" -> {
@@ -277,7 +281,7 @@ object MediaProcessorEngine {
                 val videoBitrateKbps = (totalBitrateKbps - audioBitrateKbps).toInt().coerceAtLeast(150)
 
                 if (isAv1) {
-                    cmd.append("-c:v libsvtav1 -b:v ${videoBitrateKbps}k -maxrate ${(videoBitrateKbps * 1.3).toInt()}k -bufsize ${videoBitrateKbps * 2}k -preset 6 -pix_fmt yuv420p10le ")
+                    cmd.append("-c:v libx265 -b:v ${videoBitrateKbps}k -maxrate ${(videoBitrateKbps * 1.3).toInt()}k -bufsize ${videoBitrateKbps * 2}k -preset 6 -pix_fmt yuv420p10le ")
                 } else {
                     cmd.append("-c:v libx265 -b:v ${videoBitrateKbps}k -maxrate ${(videoBitrateKbps * 1.3).toInt()}k -bufsize ${videoBitrateKbps * 2}k -preset medium -tag:v hvc1 ")
                 }
@@ -290,7 +294,7 @@ object MediaProcessorEngine {
                     else -> 23
                 }
                 if (isAv1) {
-                    cmd.append("-c:v libsvtav1 -crf $effectiveCrf -preset 6 -pix_fmt yuv420p10le ")
+                    cmd.append("-c:v libx265 -crf $effectiveCrf -preset 6 -pix_fmt yuv420p10le ")
                 } else {
                     cmd.append("-c:v libx265 -crf $effectiveCrf -preset medium -tag:v hvc1 ")
                 }
@@ -298,7 +302,7 @@ object MediaProcessorEngine {
             }
             else -> {
                 if (isAv1) {
-                    cmd.append("-c:v libsvtav1 -crf $crf -preset 6 -pix_fmt yuv420p10le ")
+                    cmd.append("-c:v libx265 -crf $crf -preset 6 -pix_fmt yuv420p10le ")
                 } else {
                     cmd.append("-c:v libx265 -crf $crf -preset medium -tag:v hvc1 ")
                 }
@@ -324,7 +328,7 @@ object MediaProcessorEngine {
         isCancellationRequested = false
 
         val startTimeMs = System.currentTimeMillis()
-        val outputDir = getOutputDirForFormat(imageFormat)
+        val outputDir = getOutputDirForFormat(imageFormat, "Extracted")
         val successfulOutputs = mutableListOf<File>()
         var totalOrigSize = 0L
         var totalNewSize = 0L
@@ -404,6 +408,7 @@ object MediaProcessorEngine {
         context: Context,
         inputPath: String,
         inputUri: Uri?,
+        originalName: String? = null,
         cropPreset: String,
         customCropW: Int = 0,
         customCropH: Int = 0,
@@ -416,8 +421,8 @@ object MediaProcessorEngine {
         val inputFile = File(inputPath)
         val origSize = if (inputFile.exists()) inputFile.length() else 0L
 
-        val outputDir = getOutputDirForFormat("mp4")
-        val baseName = getBaseName(inputPath)
+        val outputDir = getOutputDirForFormat("mp4", "Cropped")
+        val baseName = getBaseName(inputPath, originalName)
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val suffix = if (isCreateNewFile) "${customSuffix}_$timeStamp" else "_$timeStamp"
         val outputFile = File(outputDir, "${baseName}${suffix}.mp4")
@@ -466,6 +471,7 @@ object MediaProcessorEngine {
         context: Context,
         inputPath: String,
         inputUri: Uri?,
+        originalName: String? = null,
         extractType: String,
         audioOutputFormat: String = "original", // "original", "flac", "wav", "mp3", "aac"
         subtitleTrackIdx: Int = 0,
@@ -477,7 +483,7 @@ object MediaProcessorEngine {
         val resolvedInput = resolveInputPath(context, inputPath, inputUri) ?: return@withContext false
         val inputFile = File(inputPath)
         val origSize = if (inputFile.exists()) inputFile.length() else 0L
-        val baseName = getBaseName(inputPath)
+        val baseName = getBaseName(inputPath, originalName)
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val suffix = if (isCreateNewFile) "${customSuffix}_$timeStamp" else "_$timeStamp"
 
@@ -487,7 +493,7 @@ object MediaProcessorEngine {
             "AUDIO" -> {
                 val isOriginal = audioOutputFormat.equals("original", ignoreCase = true) || audioOutputFormat.equals("copy", ignoreCase = true)
                 val outExt = if (isOriginal) "aac" else audioOutputFormat.lowercase()
-                val outputDir = getOutputDirForFormat(outExt)
+                val outputDir = getOutputDirForFormat(outExt, "Extracted")
                 val outputFile = File(outputDir, "${baseName}${suffix}.$outExt")
 
                 val cmd = if (isOriginal) {
@@ -502,13 +508,13 @@ object MediaProcessorEngine {
                 executeFFmpegCommand(context, cmd, outputFile, origSize, totalDurationMs, if (isOriginal) "Extracting original lossless audio track..." else "Extracting audio track...")
             }
             "SUBTITLE" -> {
-                val outputDir = getOutputDirForFormat("srt")
+                val outputDir = getOutputDirForFormat("srt", "Extracted")
                 val outputFile = File(outputDir, "${baseName}${suffix}.srt")
                 val cmd = "-y -i \"$resolvedInput\" -map 0:s:$subtitleTrackIdx \"${outputFile.absolutePath}\""
                 executeFFmpegCommand(context, cmd, outputFile, origSize, totalDurationMs, "Extracting subtitle text...")
             }
             "GIF" -> {
-                val outputDir = getOutputDirForFormat("gif")
+                val outputDir = getOutputDirForFormat("gif", "Extracted")
                 val outputFile = File(outputDir, "${baseName}${suffix}.gif")
                 val filter = "fps=$gifFps,scale=$gifWidth:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer"
                 val cmd = "-y -i \"$resolvedInput\" -vf \"$filter\" \"${outputFile.absolutePath}\""
@@ -517,7 +523,7 @@ object MediaProcessorEngine {
             "FRAME", "COVER" -> {
                 val isPng = audioOutputFormat.equals("png", ignoreCase = true)
                 val ext = if (isPng) "png" else "jpg"
-                val outputDir = getOutputDirForFormat(ext)
+                val outputDir = getOutputDirForFormat(ext, "Customized")
                 val outputFile = File(outputDir, "${baseName}${suffix}.$ext")
 
                 val cmd = if (extractType == "COVER") {
@@ -540,6 +546,7 @@ object MediaProcessorEngine {
         context: Context,
         inputPath: String,
         inputUri: Uri?,
+        originalName: String? = null,
         isLosslessRepackage: Boolean = true,
         isCreateNewFile: Boolean = true,
         customSuffix: String = "_repaired"
@@ -547,11 +554,11 @@ object MediaProcessorEngine {
         val resolvedInput = resolveInputPath(context, inputPath, inputUri) ?: return@withContext false
         val inputFile = File(inputPath)
         val origSize = if (inputFile.exists()) inputFile.length() else 0L
-        val baseName = getBaseName(inputPath)
+        val baseName = getBaseName(inputPath, originalName)
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val suffix = if (isCreateNewFile) "${customSuffix}_$timeStamp" else "_$timeStamp"
 
-        val outputDir = getOutputDirForFormat("mp4")
+        val outputDir = getOutputDirForFormat("mp4", "Repaired")
         val outputFile = File(outputDir, "${baseName}${suffix}.mp4")
         val totalDurationMs = estimateDurationMs(resolvedInput)
 
@@ -571,6 +578,7 @@ object MediaProcessorEngine {
         context: Context,
         inputPath: String,
         inputUri: Uri?,
+        originalName: String? = null,
         startMs: Long = 0L,
         endMs: Long = 0L,
         videoSpeed: Float = 1.0f,
@@ -599,14 +607,14 @@ object MediaProcessorEngine {
         val resolvedInput = resolveInputPath(context, inputPath, inputUri) ?: return@withContext false
         val inputFile = File(inputPath)
         val origSize = if (inputFile.exists()) inputFile.length() else 0L
-        val baseName = getBaseName(inputPath)
+        val baseName = getBaseName(inputPath, originalName)
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val ext = when (exportFormat.uppercase()) {
             "GIF" -> "gif"
             "WEBP" -> "webp"
             else -> "mp4"
         }
-        val outputDir = getOutputDirForFormat(ext)
+        val outputDir = getOutputDirForFormat(ext, "Customized")
         val outputFile = File(outputDir, "${baseName}_edit_${timeStamp}.$ext")
 
         val totalDurationMs = estimateDurationMs(resolvedInput)
@@ -879,7 +887,7 @@ object MediaProcessorEngine {
         }
     }
 
-    private fun getOutputDirForFormat(format: String): File {
+    private fun getOutputDirForFormat(format: String, operationType: String? = null): File {
         val f = format.lowercase()
         val dir = when {
             isAudioFormat(f) -> Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
@@ -887,7 +895,7 @@ object MediaProcessorEngine {
             f == "srt" || f == "vtt" || f == "ass" -> Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
             else -> Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
         }
-        val target = File(dir, "MediaNest Studio")
+        val target = if (operationType != null) File(dir, "MediaNest Studio/$operationType") else File(dir, "MediaNest Studio")
         if (!target.exists()) target.mkdirs()
         return target
     }
@@ -898,7 +906,11 @@ object MediaProcessorEngine {
     private fun isImageFormat(ext: String): Boolean =
         listOf("png", "jpg", "jpeg", "webp", "avif", "bmp").contains(ext.lowercase())
 
-    private fun getBaseName(path: String): String {
+    private fun getBaseName(path: String, originalName: String? = null): String {
+        if (!originalName.isNullOrBlank()) {
+            val lastDot = originalName.lastIndexOf(".")
+            return if (lastDot > 0) originalName.substring(0, lastDot) else originalName
+        }
         return try {
             val file = File(path)
             file.nameWithoutExtension.ifBlank { "media_export" }

@@ -220,29 +220,35 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         _audioSortAscending.value = ascending
     }
 
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    val pagedImagesFlow = filteredImagesList.flatMapLatest { list ->
-        Pager(
-            config = PagingConfig(pageSize = 50, enablePlaceholders = false),
-            pagingSourceFactory = { ListPagingSource(list) }
-        ).flow
-    }.cachedIn(viewModelScope)
+    private var imagesPagingSource: ListPagingSource? = null
+    val pagedImagesFlow = Pager(
+        config = PagingConfig(pageSize = 50, enablePlaceholders = false),
+        pagingSourceFactory = { ListPagingSource(filteredImagesList.value).also { imagesPagingSource = it } }
+    ).flow.cachedIn(viewModelScope)
 
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    val pagedVideosFlow = filteredVideosList.flatMapLatest { list ->
-        Pager(
-            config = PagingConfig(pageSize = 50, enablePlaceholders = false),
-            pagingSourceFactory = { ListPagingSource(list) }
-        ).flow
-    }.cachedIn(viewModelScope)
+    private var videosPagingSource: ListPagingSource? = null
+    val pagedVideosFlow = Pager(
+        config = PagingConfig(pageSize = 50, enablePlaceholders = false),
+        pagingSourceFactory = { ListPagingSource(filteredVideosList.value).also { videosPagingSource = it } }
+    ).flow.cachedIn(viewModelScope)
 
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    val pagedAudioFlow = filteredAudioList.flatMapLatest { list ->
-        Pager(
-            config = PagingConfig(pageSize = 50, enablePlaceholders = false),
-            pagingSourceFactory = { ListPagingSource(list) }
-        ).flow
-    }.cachedIn(viewModelScope)
+    private var audioPagingSource: ListPagingSource? = null
+    val pagedAudioFlow = Pager(
+        config = PagingConfig(pageSize = 50, enablePlaceholders = false),
+        pagingSourceFactory = { ListPagingSource(filteredAudioList.value).also { audioPagingSource = it } }
+    ).flow.cachedIn(viewModelScope)
+
+    init {
+        viewModelScope.launch {
+            filteredImagesList.collect { imagesPagingSource?.invalidate() }
+        }
+        viewModelScope.launch {
+            filteredVideosList.collect { videosPagingSource?.invalidate() }
+        }
+        viewModelScope.launch {
+            filteredAudioList.collect { audioPagingSource?.invalidate() }
+        }
+    }
 
     private class ListPagingSource(private val list: List<MediaItem>) : PagingSource<Int, MediaItem>() {
         override suspend fun load(params: LoadParams<Int>): LoadResult<Int, MediaItem> {

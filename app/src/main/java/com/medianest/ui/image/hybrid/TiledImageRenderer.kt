@@ -18,11 +18,6 @@ import kotlin.math.pow
 /**
  * Tiled renderer for large images and deep zoom.
  * Uses TiledImageDecoder to fetch and display visible tiles.
- * 
- * BUG: Tiling logic is currently flawed:
- * 1. Sometimes crops images or shows only half the content.
- * 2. Visible borders between tiles (seams) in certain zoom levels.
- * 3. Panning stops working correctly after deep zooming into a tile.
  */
 class TiledImageRenderer : ImageRenderer {
     private var decoder: TiledImageDecoder? = null
@@ -71,67 +66,76 @@ class TiledImageRenderer : ImageRenderer {
 
             val fitScale = viewport.fitScale
             val totalScale = viewport.scale * fitScale
-            
+
             val rawSampleSize = 1f / totalScale
             val sampleSize = floor(2.0.pow(floor(kotlin.math.log2(rawSampleSize.toDouble().coerceAtLeast(1.0))))).toInt().coerceAtLeast(1)
 
             val tileSize = config.tileSizePx * sampleSize
-            
-            val viewWidth = size.width / (viewport.scale * fitScale)
-            val viewHeight = size.height / (viewport.scale * fitScale)
-            
-            val viewCenterX = contentSize.width / 2f - viewport.offsetX / (viewport.scale * fitScale)
-            val viewCenterY = contentSize.height / 2f - viewport.offsetY / (viewport.scale * fitScale)
-            
-            val viewLeft = (viewCenterX - viewWidth / 2f).coerceIn(0f, contentSize.width)
-            val viewTop = (viewCenterY - viewHeight / 2f).coerceIn(0f, contentSize.height)
-            val viewRight = (viewCenterX + viewWidth / 2f).coerceIn(0f, contentSize.width)
-            val viewBottom = (viewCenterY + viewHeight / 2f).coerceIn(0f, contentSize.height)
 
-            val startCol = floor(viewLeft / tileSize).toInt()
-            val endCol = ceil(viewRight / tileSize).toInt()
-            val startRow = floor(viewTop / tileSize).toInt()
-            val endRow = ceil(viewBottom / tileSize).toInt()
+            // Size of the visible area in content-pixel coordinates.
+            val viewWidth = size.width / totalScale
+            val viewHeight = size.height / totalScale
+
+            // The viewport offset is a screen-space translation applied AFTER fit-scale.
+            // To get the content-space pan we only divide by fitScale (scale is handled by viewWidth/Height).
+            val panX = viewport.offsetX / fitScale
+            val panY = viewport.offsetY / fitScale
+
+            // Center of the visible region in content coordinates.
+            val viewCenterX = contentSize.width / 2f - panX / viewport.scale
+            val viewCenterY = contentSize.height / 2f - panY / viewport.scale
+
+            val viewLeft  = (viewCenterX - viewWidth  / 2f).coerceIn(0f, contentSize.width)
+            val viewTop   = (viewCenterY - viewHeight / 2f).coerceIn(0f, contentSize.height)
+            val viewRight = (viewCenterX + viewWidth  / 2f).coerceIn(0f, contentSize.width)
+            val viewBottom= (viewCenterY + viewHeight / 2f).coerceIn(0f, contentSize.height)
+
+            val startCol = floor(viewLeft  / tileSize).toInt()
+            val endCol   = ceil (viewRight / tileSize).toInt()
+            val startRow = floor(viewTop   / tileSize).toInt()
+            val endRow   = ceil (viewBottom/ tileSize).toInt()
 
             val visibleKeys = mutableSetOf<String>()
 
             drawIntoCanvas { canvas ->
                 for (row in startRow until endRow) {
                     for (col in startCol until endCol) {
-                        val left = col * tileSize
-                        val top = row * tileSize
-                        val right = minOf(left + tileSize, contentSize.width.toInt())
-                        val bottom = minOf(top + tileSize, contentSize.height.toInt())
-                        
-                        val region = Rect(left, top, right, bottom)
+                        val left   = col * tileSize
+                        val top    = row * tileSize
+                        val right  = minOf(left + tileSize, contentSize.width.toInt())
+                        val bottom = minOf(top  + tileSize, contentSize.height.toInt())
+
+                        val region  = Rect(left, top, right, bottom)
                         val tileKey = "${left}_${top}_${right}_${bottom}_$sampleSize"
                         visibleKeys.add(tileKey)
-                        
+
                         val bitmap = tiles[tileKey]
                         if (bitmap == null) {
                             decoderInstance.decodeTile(region, sampleSize) { decoded ->
                                 if (decoded != null) tiles[tileKey] = decoded
                             }
                         } else if (!bitmap.isRecycled) {
-                            val screenLeft = (left - viewCenterX + viewWidth / 2f) * (viewport.scale * fitScale)
-                            val screenTop = (top - viewCenterY + viewHeight / 2f) * (viewport.scale * fitScale)
-                            val screenWidth = (right - left) * (viewport.scale * fitScale)
-                            val screenHeight = (bottom - top) * (viewport.scale * fitScale)
-                            
+                            // Map tile content-coords back to screen-coords using the same
+                            // viewCenter / totalScale that produced viewLeft/Top.
+                            val screenLeft   = (left   - viewCenterX + viewWidth  / 2f) * totalScale
+                            val screenTop    = (top    - viewCenterY + viewHeight / 2f) * totalScale
+                            val screenRight  = (right  - viewCenterX + viewWidth  / 2f) * totalScale
+                            val screenBottom = (bottom - viewCenterY + viewHeight / 2f) * totalScale
+
                             canvas.nativeCanvas.drawBitmap(
                                 bitmap,
                                 null,
-                                android.graphics.RectF(screenLeft, screenTop, screenLeft + screenWidth, screenTop + screenHeight),
+                                android.graphics.RectF(screenLeft, screenTop, screenRight, screenBottom),
                                 android.graphics.Paint().apply {
-                                    this.isAntiAlias = true
-                                    this.isFilterBitmap = true
+                                    isAntiAlias   = true
+                                    isFilterBitmap = true
                                 }
                             )
                         }
                     }
                 }
             }
-            
+
             // Cancel obsolete tile requests that are no longer in the visible set
             decoderInstance.cancelObsoleteTiles(visibleKeys)
         }

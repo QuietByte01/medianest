@@ -5,11 +5,11 @@ import android.graphics.drawable.BitmapDrawable
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -51,6 +52,7 @@ import com.medianest.data.model.LatestRelease
 import com.medianest.data.model.PersonalArtistStats
 import com.medianest.data.model.ArtistSocialLinks
 import com.medianest.player.PlayerState
+import com.medianest.player.ExoPlayerManager
 import com.medianest.util.rememberArtistImageUrl
 import com.medianest.ui.videoplayer.getBreadcrumbParts
 import com.medianest.ui.videoplayer.safeFormatDuration
@@ -183,7 +185,14 @@ fun GlossySidePanel(
 @Composable
 fun ArtistInfoPanel(
     artistInfo: ArtistInfo,
-    onAlbumClick: (String) -> Unit,
+    onPopularAlbumClick: (String) -> Unit,
+    onLocalAlbumClick: (String) -> Unit,
+    onArtistClick: (String) -> Unit,
+    browsingAlbumName: String? = null,
+    allAudioItems: List<MediaItem> = emptyList(),
+    onBackToArtist: () -> Unit = {},
+    playerManager: ExoPlayerManager? = null,
+    isLoading: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     GlassSurface(
@@ -192,335 +201,626 @@ fun ArtistInfoPanel(
         backgroundColor = Color(0x1F24293A),
         borderColor = Color(0x2EFFFFFF)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Artist Image
-            val rememberedArtistImage = com.medianest.util.rememberArtistImageUrl(artistInfo.name)
-            
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.05f))
-                    .border(2.5.dp, Color.White.copy(alpha = 0.2f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                SubcomposeAsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(rememberedArtistImage ?: artistInfo.imageUrl)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = artistInfo.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    val state = painter.state
-                    if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
-                        val fallback = com.medianest.util.ArtistImageUtils.getFallbackArtistImageUrl(artistInfo.name)
-                        AsyncImage(
-                            model = fallback,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .alpha(0.1f)
-                        )
-                    } else {
-                        SubcomposeAsyncImageContent()
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = artistInfo.name,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Black,
-                color = Color.White,
-                textAlign = TextAlign.Center,
-                lineHeight = 32.sp
-            )
-
-            // Genres
-            if (artistInfo.genres.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    artistInfo.genres.forEach { genre ->
-                        Surface(
-                            color = Color(0xFF6366F1).copy(alpha = 0.15f),
-                            shape = CircleShape,
-                            border = BorderStroke(0.5.dp, Color(0xFF6366F1).copy(alpha = 0.3f))
-                        ) {
-                            Text(
-                                text = genre,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFFA5B4FC),
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(6.dp))
-                    }
-                }
-            }
-
-            // Facts (Origin, Years Active)
-            if (!artistInfo.origin.isNullOrBlank() || !artistInfo.yearsActive.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (!artistInfo.origin.isNullOrBlank()) {
-                        FactItem(icon = Icons.Default.LocationOn, text = artistInfo.origin!!)
-                    }
-                    if (!artistInfo.origin.isNullOrBlank() && !artistInfo.yearsActive.isNullOrBlank()) {
-                        Text("  •  ", color = Color.White.copy(0.3f))
-                    }
-                    if (!artistInfo.yearsActive.isNullOrBlank()) {
-                        FactItem(icon = Icons.Default.CalendarToday, text = artistInfo.yearsActive!!)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Action Buttons (Share, Favorite)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { /* Share Logic */ },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                    border = BorderStroke(1.dp, Color.White.copy(0.2f))
-                ) {
-                    Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Share", fontSize = 12.sp)
-                }
-                Button(
-                    onClick = { /* Favorite Logic */ },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE91E63).copy(alpha = 0.3f))
-                ) {
-                    Icon(Icons.Default.Favorite, null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Follow", fontSize = 12.sp)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // About / Biography
-            val bio = artistInfo.about
-            val hasBio = !bio.isNullOrBlank() && 
-                         !bio.contains("No detailed biography found", ignoreCase = true)
-            
-            if (hasBio) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.Info, null, tint = Color(0xFF69F0AE), modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("About Artist", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF69F0AE))
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = bio!!,
-                    fontSize = 12.sp,
-                    color = Color.White.copy(alpha = 0.7f),
-                    lineHeight = 18.sp,
-                    modifier = Modifier.fillMaxWidth()
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (browsingAlbumName != null) {
+                AlbumTracklistView(
+                    albumName = browsingAlbumName,
+                    allAudioItems = allAudioItems,
+                    onBack = onBackToArtist,
+                    playerManager = playerManager,
+                    artistName = artistInfo.name
                 )
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-            
-            // Awards
-            val filteredAwards = artistInfo.awards.filter { !it.equals("Certified Artist", ignoreCase = true) }
-            if (filteredAwards.isNotEmpty()) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.EmojiEvents, null, tint = Color(0xFFFFD54F), modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Awards & Honors", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFFD54F))
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(filteredAwards) { award ->
-                        Surface(
-                            color = Color.White.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = award,
-                                fontSize = 11.sp,
-                                color = Color.White.copy(0.8f),
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-
-            // Popular Albums
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Default.Star, null, tint = Color(0xFF64B5F6), modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Most Popular Albums", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64B5F6))
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            LazyRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(artistInfo.popularAlbums) { album ->
-                    PopularAlbumItem(album)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // Top Song Info (Repositioned above local albums)
-            artistInfo.topSongTitle?.let { title ->
+            } else {
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White.copy(alpha = 0.05f))
-                        .padding(12.dp)
+                        .fillMaxSize()
+                        .padding(16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("TOP GLOBAL SONG", fontSize = 10.sp, color = Color.White.copy(0.5f), fontWeight = FontWeight.Bold)
+                    // Artist Image
+                    val rememberedArtistImage = com.medianest.util.rememberArtistImageUrl(artistInfo.name)
+                    
+                    Box(
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.05f))
+                            .border(2.5.dp, Color.White.copy(alpha = 0.2f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        SubcomposeAsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(rememberedArtistImage ?: artistInfo.imageUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = artistInfo.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            val state = painter.state
+                            if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
+                                val fallback = com.medianest.util.ArtistImageUtils.getFallbackArtistImageUrl(artistInfo.name)
+                                AsyncImage(
+                                    model = fallback,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .alpha(0.1f)
+                                )
+                            } else {
+                                SubcomposeAsyncImageContent()
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     Text(
-                        text = title,
-                        fontSize = 15.sp,
+                        text = artistInfo.name,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Black,
                         color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.basicMarquee()
+                        textAlign = TextAlign.Center,
+                        lineHeight = 32.sp
                     )
+
+                    // Genres
+                    if (artistInfo.genres.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            artistInfo.genres.forEach { genre ->
+                                Surface(
+                                    color = Color(0xFF6366F1).copy(alpha = 0.15f),
+                                    shape = CircleShape,
+                                    border = BorderStroke(0.5.dp, Color(0xFF6366F1).copy(alpha = 0.3f))
+                                ) {
+                                    Text(
+                                        text = genre,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFFA5B4FC),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
+                        }
+                    }
+
+                    // Facts (Origin, Years Active)
+                    if (!artistInfo.origin.isNullOrBlank() || !artistInfo.yearsActive.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (!artistInfo.origin.isNullOrBlank()) {
+                                FactItem(icon = Icons.Default.LocationOn, text = artistInfo.origin!!)
+                            }
+                            if (!artistInfo.origin.isNullOrBlank() && !artistInfo.yearsActive.isNullOrBlank()) {
+                                Text("  •  ", color = Color.White.copy(0.3f))
+                            }
+                            if (!artistInfo.yearsActive.isNullOrBlank()) {
+                                FactItem(icon = Icons.Default.CalendarToday, text = artistInfo.yearsActive!!)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // Action Buttons (Share, Favorite)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { /* Share Logic */ },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                            border = BorderStroke(1.dp, Color.White.copy(0.2f))
+                        ) {
+                            Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Share", fontSize = 12.sp)
+                        }
+                        Button(
+                            onClick = { /* Favorite Logic */ },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE91E63).copy(alpha = 0.3f))
+                        ) {
+                            Icon(Icons.Default.Favorite, null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Follow", fontSize = 12.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    // About / Biography
+                    val bio = artistInfo.about
+                    val hasBio = !bio.isNullOrBlank() && 
+                                !bio.contains("No detailed biography found", ignoreCase = true)
+                    
+                    if (hasBio) {
+                        var isBioExpanded by remember(artistInfo.name) { mutableStateOf(false) }
+                        var canExpandBio by remember(artistInfo.name) { mutableStateOf(false) }
+
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.Info, null, tint = Color(0xFF69F0AE), modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("About Artist", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF69F0AE))
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = bio!!,
+                            fontSize = 12.sp,
+                            color = Color.White.copy(alpha = 0.7f),
+                            lineHeight = 18.sp,
+                            maxLines = if (isBioExpanded) Int.MAX_VALUE else 5,
+                            overflow = TextOverflow.Ellipsis,
+                            onTextLayout = { textLayoutResult ->
+                                if (!isBioExpanded && (textLayoutResult.hasVisualOverflow || textLayoutResult.lineCount >= 5)) {
+                                    canExpandBio = true
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .animateContentSize()
+                        )
+                        if (canExpandBio) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (isBioExpanded) "Show less" else "Show more",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF69F0AE),
+                                modifier = Modifier
+                                    .align(Alignment.Start)
+                                    .clickable { isBioExpanded = !isBioExpanded }
+                                    .padding(vertical = 4.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+                    
+                    // Awards
+                    val filteredAwards = artistInfo.awards.filter { !it.equals("Certified Artist", ignoreCase = true) }
+                    if (filteredAwards.isNotEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.EmojiEvents, null, tint = Color(0xFFFFD54F), modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Awards & Honors", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFFD54F))
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(filteredAwards) { award ->
+                                Surface(
+                                    color = Color.White.copy(alpha = 0.1f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text(
+                                        text = award,
+                                        fontSize = 11.sp,
+                                        color = Color.White.copy(0.8f),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+
+                    // Popular Albums
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Star, null, tint = Color(0xFF64B5F6), modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Most Popular Albums", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64B5F6))
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(artistInfo.popularAlbums) { album ->
+                            PopularAlbumItem(album, onPopularAlbumClick)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    // Top Song Info (Repositioned above local albums)
+                    artistInfo.topSongTitle?.let { title ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = 0.05f))
+                                .padding(12.dp)
+                        ) {
+                            Text("TOP GLOBAL SONG", fontSize = 10.sp, color = Color.White.copy(0.5f), fontWeight = FontWeight.Bold)
+                            Text(
+                                text = title,
+                                fontSize = 15.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+
+                    // Local Albums
+                    if (artistInfo.localAlbums.isNotEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.LibraryMusic, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("In Your Library", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(artistInfo.localAlbums) { album ->
+                                LocalAlbumItem(album, onLocalAlbumClick)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+
+                    // Global Top Tracks
+                    if (artistInfo.topGlobalTracks.isNotEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.AutoMirrored.Filled.TrendingUp, null, tint = Color(0xFFFFB74D), modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Popular Worldwide", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFFB74D))
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(artistInfo.topGlobalTracks) { track ->
+                                GlobalTrackItem(track)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+
+                    // Latest Release
+                    artistInfo.latestRelease?.let { release ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.NewReleases, null, tint = Color(0xFF81C784), modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Latest Release", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF81C784))
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        LatestReleaseItem(release)
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+
+                    // Personal Stats
+                    if (artistInfo.personalStats.totalPlays > 0) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.AutoGraph, null, tint = Color(0xFFCE93D8), modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Your History", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFCE93D8))
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        PersonalStatsGrid(artistInfo.personalStats)
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+
+                    // Social & Streaming Links
+                    val links = artistInfo.socialLinks
+                    if (links.spotify != null || links.youtube != null || links.instagram != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.Link, null, tint = Color(0xFF80CBC4), modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Connect", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF80CBC4))
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            if (links.spotify != null) SocialIcon(Icons.Default.MusicNote, Color(0xFF1DB954)) { /* Open Spotify */ }
+                            if (links.youtube != null) SocialIcon(Icons.AutoMirrored.Filled.PlaylistPlay, Color(0xFFFF0000)) { /* Open YouTube */ }
+                            if (links.instagram != null) SocialIcon(Icons.Default.CameraAlt, Color(0xFFE4405F)) { /* Open Instagram */ }
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+
+                    if (artistInfo.similarArtists.isNotEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.Groups, null, tint = Color(0xFFCE93D8), modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Similar Artists", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFCE93D8))
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(artistInfo.similarArtists) { artist ->
+                                SimilarArtistItem(artist, onArtistClick)
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(32.dp))
                 }
-                Spacer(modifier = Modifier.height(24.dp))
             }
 
-            // Local Albums
-            if (artistInfo.localAlbums.isNotEmpty()) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.LibraryMusic, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("In Your Library", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+            if (isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.25f))
+                        .pointerInput(Unit) { detectTapGestures { } },
+                    contentAlignment = Alignment.Center
                 ) {
-                    items(artistInfo.localAlbums) { album ->
-                        LocalAlbumItem(album, onAlbumClick)
+                    SolidGlossySurface(
+                        modifier = Modifier.size(64.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        backgroundColor = Color(0xCC1A1C24),
+                        borderColor = Color(0x33FFFFFF),
+                        showTopSheen = true
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .align(Alignment.Center),
+                            color = Color(0xFF64B5F6),
+                            strokeWidth = 3.dp
+                        )
                     }
                 }
-                Spacer(modifier = Modifier.height(24.dp))
             }
-
-            // Global Top Tracks
-            if (artistInfo.topGlobalTracks.isNotEmpty()) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.AutoMirrored.Filled.TrendingUp, null, tint = Color(0xFFFFB74D), modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Popular Worldwide", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFFB74D))
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(artistInfo.topGlobalTracks) { track ->
-                        GlobalTrackItem(track)
-                    }
-                }
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-
-            // Latest Release
-            artistInfo.latestRelease?.let { release ->
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.NewReleases, null, tint = Color(0xFF81C784), modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Latest Release", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF81C784))
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-                LatestReleaseItem(release)
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-
-            // Personal Stats
-            if (artistInfo.personalStats.totalPlays > 0) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.AutoGraph, null, tint = Color(0xFFCE93D8), modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Your History", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFCE93D8))
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                PersonalStatsGrid(artistInfo.personalStats)
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-
-            // Social & Streaming Links
-            val links = artistInfo.socialLinks
-            if (links.spotify != null || links.youtube != null || links.instagram != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.Link, null, tint = Color(0xFF80CBC4), modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Connect", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF80CBC4))
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    if (links.spotify != null) SocialIcon(Icons.Default.MusicNote, Color(0xFF1DB954)) { /* Open Spotify */ }
-                    if (links.youtube != null) SocialIcon(Icons.AutoMirrored.Filled.PlaylistPlay, Color(0xFFFF0000)) { /* Open YouTube */ }
-                    if (links.instagram != null) SocialIcon(Icons.Default.CameraAlt, Color(0xFFE4405F)) { /* Open Instagram */ }
-                }
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-
-            if (artistInfo.similarArtists.isNotEmpty()) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.Groups, null, tint = Color(0xFFCE93D8), modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Similar Artists", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFCE93D8))
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(artistInfo.similarArtists) { artist ->
-                        SimilarArtistItem(artist)
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(32.dp))
         }
     }
+}
+
+@Composable
+private fun AlbumTracklistView(
+    albumName: String,
+    allAudioItems: List<MediaItem>,
+    onBack: () -> Unit,
+    playerManager: ExoPlayerManager? = null,
+    artistName: String? = null
+) {
+    val artistMetadataRepo = remember { com.medianest.MediaNestApp.instance.artistMetadataRepository }
+    var isLoadingOnlineTracks by remember(albumName, artistName) { mutableStateOf(true) }
+    var onlineTracks by remember(albumName, artistName) { mutableStateOf<List<com.medianest.data.model.AlbumTrack>>(emptyList()) }
+
+    LaunchedEffect(albumName, artistName) {
+        isLoadingOnlineTracks = true
+        val tracks = artistMetadataRepo.getAlbumTracks(artistName ?: "", albumName)
+        onlineTracks = tracks
+        isLoadingOnlineTracks = false
+    }
+
+    val localAlbumSongs = remember(albumName, allAudioItems, artistName) {
+        val cleanTarget = normalizeName(albumName)
+        val cleanArtist = artistName?.let { normalizeName(it) }
+        
+        allAudioItems.filter { 
+            val itemAlbum = normalizeName(it.album ?: "")
+            val itemArtist = normalizeName(it.artist ?: "")
+            
+            val albumMatch = itemAlbum.isNotEmpty() && (itemAlbum == cleanTarget || itemAlbum.contains(cleanTarget) || cleanTarget.contains(itemAlbum))
+            
+            val artistMatch = cleanArtist == null || itemArtist == cleanArtist ||
+                (itemArtist.isNotEmpty() && (itemArtist.contains(cleanArtist) || cleanArtist.contains(itemArtist)))
+            
+            albumMatch && artistMatch
+        }
+    }
+
+    val playerState = playerManager?.playerState?.collectAsState()?.value
+    val currentItem = playerState?.currentItem
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().alpha(0.9f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = albumName,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (!artistName.isNullOrBlank()) {
+                    Text(
+                        text = artistName,
+                        fontSize = 12.sp,
+                        color = Color(0xFFA5B4FC),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (isLoadingOnlineTracks) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    color = Color(0xFF64B5F6),
+                    modifier = Modifier.size(32.dp),
+                    strokeWidth = 3.dp
+                )
+            }
+        } else if (onlineTracks.isNotEmpty()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                itemsIndexed(onlineTracks) { idx, track ->
+                    val cleanTrackTitle = normalizeName(track.title)
+                    val matchedLocal = remember(allAudioItems, cleanTrackTitle) {
+                        allAudioItems.firstOrNull { localItem ->
+                            val localTitle = normalizeName(localItem.title)
+                            localTitle == cleanTrackTitle ||
+                                (cleanTrackTitle.length >= 4 && (localTitle.contains(cleanTrackTitle) || cleanTrackTitle.contains(localTitle)))
+                        }
+                    }
+
+                    val isPlayingThis = currentItem != null && matchedLocal != null && currentItem.uri == matchedLocal.uri
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (isPlayingThis) Color.White.copy(alpha = 0.16f)
+                                else if (matchedLocal != null) Color.White.copy(alpha = 0.05f)
+                                else Color.Transparent
+                            )
+                            .clickable(enabled = matchedLocal != null) {
+                                if (matchedLocal != null) {
+                                    playerManager?.playMediaList(listOf(matchedLocal), 0)
+                                }
+                            }
+                            .padding(vertical = 10.dp, horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${track.trackNumber}",
+                            fontSize = 14.sp,
+                            color = if (isPlayingThis) Color(0xFF64B5F6) else Color.White.copy(alpha = 0.60f),
+                            modifier = Modifier.width(28.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = track.title,
+                                fontWeight = if (isPlayingThis) FontWeight.Bold else FontWeight.Medium,
+                                color = if (matchedLocal != null) Color.White else Color.White.copy(alpha = 0.85f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (track.durationMs > 0) {
+                                Text(
+                                    text = formatDuration(track.durationMs),
+                                    fontSize = 11.sp,
+                                    color = Color.White.copy(alpha = 0.45f)
+                                )
+                            }
+                        }
+                        if (isPlayingThis) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = "Playing",
+                                tint = Color(0xFF64B5F6),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        } else if (matchedLocal != null) {
+                            Icon(
+                                imageVector = Icons.Default.PlayCircleFilled,
+                                contentDescription = "In Library",
+                                tint = Color(0xFF81C784),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        } else if (localAlbumSongs.isNotEmpty()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                itemsIndexed(localAlbumSongs) { idx, track ->
+                    val isPlayingThis = currentItem != null && track.uri == currentItem.uri
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isPlayingThis) Color.White.copy(alpha = 0.16f) else Color.Transparent)
+                            .clickable {
+                                playerManager?.playMediaList(localAlbumSongs, idx)
+                            }
+                            .padding(vertical = 10.dp, horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${idx + 1}",
+                            fontSize = 14.sp,
+                            color = if (isPlayingThis) Color.White else Color.White.copy(alpha = 0.60f),
+                            modifier = Modifier.width(28.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = track.title,
+                                fontWeight = if (isPlayingThis) FontWeight.Bold else FontWeight.Medium,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (track.durationMs > 0) {
+                                Text(
+                                    text = formatDuration(track.durationMs),
+                                    fontSize = 11.sp,
+                                    color = Color.White.copy(alpha = 0.45f)
+                                )
+                            }
+                        }
+                        if (isPlayingThis) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = "Playing",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    "No tracks found for this album.",
+                    color = Color.White.copy(alpha = 0.5f),
+                    textAlign = TextAlign.Center,
+                    fontSize = 14.sp
+                )
+            }
+        }
+    }
+}
+
+private fun normalizeName(name: String): String {
+    return name.trim().lowercase()
+        .replace(Regex("[\\[(].*?[\\])]"), "") // Remove anything in brackets or parentheses
+        .replace(Regex("[^a-z0-9\\s]"), "")     // Remove special characters
+        .replace(Regex("\\s+"), " ")           // Normalize whitespace
+        .trim()
 }
 
 @Composable
@@ -581,7 +881,7 @@ private fun GlobalTrackItem(track: GlobalTrack) {
             fontSize = 11.sp,
             color = Color.White,
             maxLines = 1,
-            modifier = Modifier.basicMarquee()
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -609,7 +909,7 @@ private fun LatestReleaseItem(release: LatestRelease) {
         )
         Spacer(modifier = Modifier.width(14.dp))
         Column {
-            Text(release.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.basicMarquee())
+            Text(release.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(modifier = Modifier.height(4.dp))
             Text("Released: ${release.releaseDate}", color = Color.White.copy(0.6f), fontSize = 12.sp)
         }
@@ -634,14 +934,16 @@ private fun PersonalStatsGrid(stats: PersonalArtistStats) {
 private fun StatRow(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, fontSize = 12.sp, color = Color.White.copy(0.5f))
-        Text(value, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.widthIn(max = 140.dp).basicMarquee())
+        Text(value, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.widthIn(max = 140.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable
-private fun SimilarArtistItem(artist: SimilarArtist) {
+private fun SimilarArtistItem(artist: SimilarArtist, onClick: (String) -> Unit) {
     Column(
-        modifier = Modifier.width(80.dp),
+        modifier = Modifier
+            .width(80.dp)
+            .clickable { onClick(artist.name) },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         AsyncImage(
@@ -671,8 +973,12 @@ private fun SimilarArtistItem(artist: SimilarArtist) {
 }
 
 @Composable
-private fun PopularAlbumItem(album: PopularAlbum) {
-    Column(modifier = Modifier.width(100.dp)) {
+private fun PopularAlbumItem(album: PopularAlbum, onClick: (String) -> Unit) {
+    Column(
+        modifier = Modifier
+            .width(100.dp)
+            .clickable { onClick(album.title) }
+    ) {
         Box(
             modifier = Modifier
                 .size(100.dp)
@@ -703,7 +1009,7 @@ private fun PopularAlbumItem(album: PopularAlbum) {
             fontSize = 11.sp,
             color = Color.White,
             maxLines = 1,
-            modifier = Modifier.basicMarquee()
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -746,7 +1052,7 @@ private fun LocalAlbumItem(album: LocalAlbumInfo, onAlbumClick: (String) -> Unit
             color = Color.White,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
-            modifier = Modifier.basicMarquee()
+            overflow = TextOverflow.Ellipsis
         )
         Text(
             text = "${album.songCount} Songs",

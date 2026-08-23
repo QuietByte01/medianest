@@ -93,7 +93,7 @@ private fun DspSheetContent(
             accentColor = Color(0xFF0EA5E9),
             modifier = Modifier.weight(1f),
             forceTransparentBg = true,
-            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)
         )
 
         AppPillButton(
@@ -104,7 +104,7 @@ private fun DspSheetContent(
             accentColor = Color(0xFF06B6D4),
             modifier = Modifier.weight(1f),
             forceTransparentBg = true,
-            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)
         )
     }
 
@@ -282,7 +282,8 @@ private fun DspSliderItem(
             headStyle = headStyle,
             thickness = thickness,
             accentColor = accentColor,
-            enabled = enabled
+            enabled = enabled,
+            modifier = Modifier.padding(horizontal = 12.dp)
         )
     }
 }
@@ -325,19 +326,9 @@ private fun EngineStatusBadge(engine: String) {
     val isFFmpeg = engine == "FFmpeg"
     val accentColor = if (isFFmpeg) Color(0xFFF59E0B) else Color(0xFF10B981)
     
-    val bgBrush = Brush.verticalGradient(
-        colors = listOf(
-            accentColor.copy(alpha = 0.25f),
-            accentColor.copy(alpha = 0.10f)
-        )
-    )
-    
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(bgBrush)
-            .border(0.5.dp, accentColor.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
             .padding(horizontal = 12.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {

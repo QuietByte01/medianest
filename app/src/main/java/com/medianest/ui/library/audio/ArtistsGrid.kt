@@ -49,7 +49,7 @@ fun ArtistsGrid(
     gridSizeLevel: Int = 1,
     initialSelectedArtist: String? = null,
     onAddToPlaylist: (MediaItem) -> Unit = {},
-    onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?) -> Unit = { _, _, _, _ -> },
+    onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?, targetSongUri: String?) -> Unit = { _, _, _, _, _ -> },
     sortField: String = "Name",
     isAscending: Boolean = true,
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
@@ -293,7 +293,7 @@ fun ArtistsGrid(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        onNavigateSubTab(3, albumName, null, null)
+                                        onNavigateSubTab(3, albumName, null, null, null)
                                     },
                                 shape = RoundedCornerShape(22.dp),
                                 backgroundColor = Color(0x221C1F2B),

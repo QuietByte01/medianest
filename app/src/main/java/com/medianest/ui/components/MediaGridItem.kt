@@ -44,6 +44,9 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun MediaGridItem(
@@ -55,16 +58,18 @@ fun MediaGridItem(
     modifier: Modifier = Modifier,
     cornerRadiusDp: Int = 8,
     roundedCornersEnabled: Boolean = true,
+    isHighlighted: Boolean = false,
     onMoreClick: (() -> Unit)? = null,
     onInfo: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     onRemoveFromCategory: (() -> Unit)? = null,
     showRemoveOption: Boolean = false,
-    onOpenFolder: ((String) -> Unit)? = null,
+    onOpenFolder: ((String, String?) -> Unit)? = null,
     onRename: (() -> Unit)? = null,
     showInGallery: Boolean = false
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
 
@@ -73,6 +78,17 @@ fun MediaGridItem(
         mutableFloatStateOf(item.aspectRatio.coerceIn(0.45f, 2.2f))
     }
     val itemShape = if (roundedCornersEnabled) RoundedCornerShape(cornerRadiusDp.dp) else RoundedCornerShape(0.dp)
+
+    val highlightPulse = rememberInfiniteTransition(label = "MediaHighlightPulse")
+    val pulseAlpha by highlightPulse.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "PulseAlpha"
+    )
 
     val settingsManager = com.medianest.MediaNestApp.instance.settingsManager
     val pictureModeEnabled by settingsManager.pictureModeEnabled.collectAsState(initial = true)
@@ -99,6 +115,10 @@ fun MediaGridItem(
     Card(
         modifier = modifier
             .fillMaxWidth()
+            .then(
+                if (isHighlighted) Modifier.border(BorderStroke(2.5.dp, Color(0xFF38BDF8).copy(alpha = pulseAlpha)), itemShape)
+                else Modifier
+            )
             .clip(itemShape)
             .combinedClickable(
                 onClick = onClick,
@@ -106,84 +126,85 @@ fun MediaGridItem(
             ),
         shape = itemShape,
         colors = CardDefaults.cardColors(
-            containerColor = if (com.medianest.ui.theme.LocalDarkTheme.current) 
+            containerColor = if (isHighlighted) Color(0x3338BDF8)
+            else if (com.medianest.ui.theme.LocalDarkTheme.current) 
                 Color.White.copy(alpha = 0.10f) 
             else 
                 Color.Black.copy(alpha = 0.10f)
         )
     ) {
-        // Seek positions to try in order to avoid black frames (some videos have black intros)
-        val videoSeekMicros = remember(item.durationMs) {
-            when {
-                item.durationMs > 10_000 -> 2_500_000L  // 2.5s for longer videos
-                item.durationMs > 5_000  -> 1_500_000L  // 1.5s
-                item.durationMs > 2_000  -> 800_000L    // 0.8s
-                item.durationMs > 1_000  -> 400_000L    // 0.4s
-                else -> 0L
-            }
+    val rebuildOffsets = remember { listOf(0.15f, 0.35f, 0.55f, 0.75f, 0.25f, 0.05f) }
+    val selectedFactor = rebuildOffsets[rebuildToken % rebuildOffsets.size]
+
+    val videoSeekMicros = remember(item.durationMs, rebuildToken) {
+        if (item.durationMs > 1_000) {
+            (item.durationMs * 1000L * selectedFactor).toLong()
+        } else {
+            0L
+        }
+    }
+
+    val imageRequest = remember(item.uri, item.type, item.durationMs, context, item.size, item.dateAdded, isTablet, rebuildToken) {
+        val builder = ImageRequest.Builder(context)
+            .data(item.uri)
+            // Include rebuildToken so invalidation works on demand
+            .diskCacheKey("${item.uri}_${item.size}_${item.dateAdded}_$rebuildToken")
+            .memoryCacheKey("${item.uri}_${item.size}_${item.dateAdded}_$rebuildToken")
+            .crossfade(true)
+            .precision(Precision.INEXACT)
+
+        if (isTablet) {
+            builder.size(600)
+        } else {
+            builder.size(400)
         }
 
-        val imageRequest = remember(item.uri, item.type, item.durationMs, context, item.size, item.dateAdded, isTablet, rebuildToken) {
-            val builder = ImageRequest.Builder(context)
-                .data(item.uri)
-                // Include rebuildToken so invalidation works on demand
-                .diskCacheKey("${item.uri}_${item.size}_${item.dateAdded}_$rebuildToken")
-                .memoryCacheKey("${item.uri}_${item.size}_${item.dateAdded}_$rebuildToken")
-                .crossfade(true)
-                .precision(Precision.INEXACT)
-
-            if (isTablet) {
-                builder.size(600)
-            } else {
-                builder.size(400)
-            }
-
-            if (item.type == MediaType.VIDEO) {
-                builder.decoderFactory(VideoFrameDecoder.Factory())
-                builder.videoFrameMicros(videoSeekMicros)
-            }
-            builder.build()
+        if (item.type == MediaType.VIDEO) {
+            builder.decoderFactory(VideoFrameDecoder.Factory())
+            builder.videoFrameMicros(videoSeekMicros)
         }
+        builder.build()
+    }
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(dynamicRatio)
-        ) {
-            if (fallbackBitmap != null) {
-                androidx.compose.foundation.Image(
-                    bitmap = fallbackBitmap!!.asImageBitmap(),
-                    contentDescription = item.title,
-                    contentScale = ContentScale.Crop,
-                    colorFilter = colorFilter,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                coil.compose.AsyncImage(
-                    model = imageRequest,
-                    contentDescription = item.title,
-                    contentScale = ContentScale.Crop,
-                    colorFilter = colorFilter,
-                    modifier = Modifier.fillMaxSize(),
-                    onSuccess = { success ->
-                        val intrinsicSize = success.painter.intrinsicSize
-                        if (intrinsicSize.width > 0 && intrinsicSize.height > 0) {
-                            val loadedRatio = (intrinsicSize.width / intrinsicSize.height).coerceIn(0.45f, 2.2f)
-                            if (kotlin.math.abs(loadedRatio - dynamicRatio) > 0.04f) {
-                                dynamicRatio = loadedRatio
-                            }
-                        }
-                    },
-                    onError = {
-                        // Coil VideoFrameDecoder failed — fall back to MediaMetadataRetriever
-                        if (item.type == MediaType.VIDEO && fallbackBitmap == null) {
-                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                                fallbackBitmap = extractVideoThumbnail(context, item)
-                            }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(dynamicRatio)
+    ) {
+        if (fallbackBitmap != null) {
+            androidx.compose.foundation.Image(
+                bitmap = fallbackBitmap!!.asImageBitmap(),
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                colorFilter = colorFilter,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            coil.compose.AsyncImage(
+                model = imageRequest,
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                colorFilter = colorFilter,
+                modifier = Modifier.fillMaxSize(),
+                onSuccess = { success ->
+                    val intrinsicSize = success.painter.intrinsicSize
+                    if (intrinsicSize.width > 0 && intrinsicSize.height > 0) {
+                        val loadedRatio = (intrinsicSize.width / intrinsicSize.height).coerceIn(0.45f, 2.2f)
+                        if (kotlin.math.abs(loadedRatio - dynamicRatio) > 0.04f) {
+                            dynamicRatio = loadedRatio
                         }
                     }
-                )
-            }
+                },
+                onError = {
+                    // Coil VideoFrameDecoder failed — fall back to MediaMetadataRetriever
+                    if (item.type == MediaType.VIDEO && fallbackBitmap == null) {
+                        coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            fallbackBitmap = extractVideoThumbnail(context, item, rebuildToken)
+                        }
+                    }
+                }
+            )
+        }
 
             // Video duration overlay badge
             if (item.type == MediaType.VIDEO) {
@@ -270,7 +291,8 @@ fun MediaGridItem(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false },
                         shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.width(180.dp)
+                        modifier = Modifier.width(180.dp),
+                        backgroundImage = item.albumArtUri ?: item.uri
                     ) {
                         DropdownMenuItem(
                             text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
@@ -296,7 +318,7 @@ fun MediaGridItem(
                                         com.medianest.util.IntentUtils.openInGallery(context, item)
                                     } else {
                                         val folderKey = item.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (item.bucketName ?: "Folder")
-                                        onOpenFolder(folderKey)
+                                        onOpenFolder(folderKey, item.uri.toString())
                                     }
                                 }
                             )
@@ -308,10 +330,16 @@ fun MediaGridItem(
                                 leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
                                 onClick = {
                                     showMenu = false
-                                    // Clear any cached fallback, then bump rebuildToken so the
-                                    // image request picks up a new cache key on next recomposition.
                                     fallbackBitmap = null
-                                    rebuildToken++
+                                    val nextToken = rebuildToken + 1
+                                    rebuildToken = nextToken
+                                    // Proactively extract non-black progressive frame on background thread
+                                    coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                        val newFrame = extractVideoThumbnail(context, item, nextToken)
+                                        if (newFrame != null) {
+                                            fallbackBitmap = newFrame
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -371,13 +399,10 @@ fun MediaGridItem(
     }
 }
 
-/**
- * Extracts a video thumbnail using [android.media.MediaMetadataRetriever] with progressive
- * seek fallbacks to avoid black / blank frames.
- */
 private fun extractVideoThumbnail(
     context: android.content.Context,
-    item: MediaItem
+    item: MediaItem,
+    attemptOffset: Int = 0
 ): android.graphics.Bitmap? {
     return try {
         val retriever = android.media.MediaMetadataRetriever()
@@ -387,13 +412,17 @@ private fun extractVideoThumbnail(
         val durationMs = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
             ?.toLongOrNull() ?: item.durationMs
 
-        // Progressive seek positions: try from 10% of duration up to 3 different positions
-        val candidates = listOfNotNull(
-            if (durationMs > 2_000) (durationMs * 1000L / 10L) else null,  // 10%
-            if (durationMs > 5_000) 2_000_000L else null,                  // 2s
-            if (durationMs > 10_000) 5_000_000L else null,                 // 5s
-            0L                                                               // fallback: frame 0
-        )
+        val baseOffsets = listOf(0.15f, 0.35f, 0.55f, 0.75f, 0.25f, 0.05f)
+        val shiftedOffsets = if (attemptOffset > 0) {
+            val shift = attemptOffset % baseOffsets.size
+            baseOffsets.drop(shift) + baseOffsets.take(shift)
+        } else {
+            baseOffsets
+        }
+
+        val candidates = shiftedOffsets.map { factor ->
+            if (durationMs > 1_000) (durationMs * 1000L * factor).toLong() else 0L
+        }.distinct()
 
         var result: android.graphics.Bitmap? = null
         for (seekMicros in candidates) {
@@ -413,29 +442,39 @@ private fun extractVideoThumbnail(
 
 /**
  * Returns true when a bitmap is essentially all-black (e.g. the frame decoder decoded a blank frame).
- * Samples only a small subset of pixels to stay efficient on the main thread.
+ * Safely handles Hardware Bitmaps and samples luminance across a grid.
  */
 private fun isFrameBlack(bitmap: android.graphics.Bitmap): Boolean {
-    if (bitmap.width < 4 || bitmap.height < 4) return true
-    val step = (bitmap.width / 4).coerceAtLeast(1)
-    val stepY = (bitmap.height / 4).coerceAtLeast(1)
-    var darkCount = 0
-    var total = 0
-    var x = 0
-    while (x < bitmap.width) {
-        var y = 0
-        while (y < bitmap.height) {
-            val pixel = bitmap.getPixel(x, y)
-            val luma = (0.299 * android.graphics.Color.red(pixel) +
-                        0.587 * android.graphics.Color.green(pixel) +
-                        0.114 * android.graphics.Color.blue(pixel))
-            if (luma < 12.0) darkCount++
-            total++
-            y += stepY
+    return try {
+        val readableBitmap = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
+            bitmap.config == android.graphics.Bitmap.Config.HARDWARE) {
+            bitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false) ?: return false
+        } else {
+            bitmap
         }
-        x += step
+        if (readableBitmap.width < 4 || readableBitmap.height < 4) return true
+        val step = (readableBitmap.width / 5).coerceAtLeast(1)
+        val stepY = (readableBitmap.height / 5).coerceAtLeast(1)
+        var darkCount = 0
+        var total = 0
+        var x = 0
+        while (x < readableBitmap.width) {
+            var y = 0
+            while (y < readableBitmap.height) {
+                val pixel = readableBitmap.getPixel(x, y)
+                val luma = (0.299 * android.graphics.Color.red(pixel) +
+                            0.587 * android.graphics.Color.green(pixel) +
+                            0.114 * android.graphics.Color.blue(pixel))
+                if (luma < 15.0) darkCount++
+                total++
+                y += stepY
+            }
+            x += step
+        }
+        total > 0 && (darkCount.toFloat() / total) > 0.88f
+    } catch (_: Exception) {
+        false
     }
-    return total > 0 && darkCount.toFloat() / total > 0.92f
 }
 
 fun formatDuration(ms: Long): String {

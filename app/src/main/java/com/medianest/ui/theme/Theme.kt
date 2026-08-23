@@ -55,6 +55,12 @@ fun MediaNestTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
+    // Locked to Premium Glossy Dark as requested
+    val isGlossy = true
+    val isDark = true
+    val colorScheme = PremiumDarkColorScheme
+
+    /* Original dynamic theme logic preserved for future:
     val isGlossy = when (themeMode.uppercase()) {
         "DARK", "LIGHT" -> true
         "STANDARD_DARK", "STANDARD_LIGHT" -> false
@@ -77,6 +83,7 @@ fun MediaNestTheme(
         "SYSTEM" -> if (darkTheme) PremiumDarkColorScheme else SmokeWhiteLightColorScheme
         else -> if (isDark) PremiumDarkColorScheme else SmokeWhiteLightColorScheme
     }
+    */
 
     CompositionLocalProvider(
         LocalDarkTheme provides isDark,

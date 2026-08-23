@@ -55,6 +55,8 @@ data class AudioMetadataCache(
     val year: String? = null,
     val genre: String? = null,
     val composer: String? = null,
+    val albumArtist: String? = null,
+    val trackNumber: String? = null,
     val fetchedAt: Long = System.currentTimeMillis()
 )
 

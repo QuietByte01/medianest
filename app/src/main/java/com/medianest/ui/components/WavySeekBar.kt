@@ -17,15 +17,18 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import kotlin.math.PI
 import kotlin.math.sin
 
 /**
  * Samsung One UI Media Notification style Dual-Wavy Seekbar.
- * Features fast liquid movement and graceful tapering on both ends.
+ * Features fast liquid movement, adaptive wave dimensions across phones & tablets,
+ * and graceful tapering on both ends.
  */
 @Composable
 fun WavySeekBar(
@@ -38,17 +41,25 @@ fun WavySeekBar(
     activeColor: Color = Color(0xFFA8C7FA),
     inactiveColor: Color = Color.White.copy(alpha = 0.10f),
     thumbColor: Color = Color.White,
-    // TWEAKED: Lower amplitude, faster, and tighter
-    waveAmplitudeDp: Dp = 6.5.dp,  // Lowered from 10dp so it doesn't get too high
-    waveLengthDp: Dp = 56.dp,      // Slightly tighter hills
+    // Tablet-aware adaptive defaults: Larger waves and amplitude for tablets and wide screens
+    waveAmplitudeDp: Dp = Dp.Unspecified,
+    waveLengthDp: Dp = Dp.Unspecified,
     activeTrackHeightDp: Dp = 6.dp,
     inactiveTrackHeightDp: Dp = 4.dp,
     heightDp: Dp = 48.dp,
     showThumb: Boolean = true,
     fullTrackBackground: Boolean = false
 ) {
+    val configuration = LocalConfiguration.current
+    val isTablet = configuration.smallestScreenWidthDp >= 600 || configuration.screenWidthDp >= 600
+
+    // Adaptive wave sizing: On tablets / wide screens, use longer wavelengths and slightly taller waves
+    // to prevent dense, repetitive tiny waves and present larger, smoother fluid waves.
+    val actualWaveAmplitudeDp = if (waveAmplitudeDp.isSpecified) waveAmplitudeDp else if (isTablet) 8.5.dp else 6.5.dp
+    val actualWaveLengthDp = if (waveLengthDp.isSpecified) waveLengthDp else if (isTablet) 96.dp else 56.dp
+
     val density = LocalDensity.current
-    val waveAmplitudePx = with(density) { waveAmplitudeDp.toPx() }
+    val waveAmplitudePx = with(density) { actualWaveAmplitudeDp.toPx() }
     val activeBaseRadiusPx = with(density) { activeTrackHeightDp.toPx() } / 2f
     val inactiveHeightPx = with(density) { inactiveTrackHeightDp.toPx() }
 
@@ -83,7 +94,7 @@ fun WavySeekBar(
     val currentFrac = ((internalValue - valueRange.start) / rangeSpan).coerceIn(0f, 1f)
 
     val thumbRadius by animateDpAsState(
-        targetValue = if (isDragging) 10.dp else 7.dp,
+        targetValue = if (isDragging) (if (isTablet) 11.dp else 10.dp) else (if (isTablet) 8.dp else 7.dp),
         label = "ThumbRadius"
     )
 
@@ -172,10 +183,9 @@ fun WavySeekBar(
                 val step = 2.dp.toPx()
                 var x = trackPadding
 
-                // TWEAKED: Massive left taper zone (48dp). The wave now ramps up
-                // very gradually from the far left so it doesn't start instantly high.
-                val rightTaperZone = 40.dp.toPx()
-                val leftTaperZone = 48.dp.toPx()
+                // Scaled taper zones for phone vs tablet
+                val rightTaperZone = if (isTablet) 56.dp.toPx() else 40.dp.toPx()
+                val leftTaperZone = if (isTablet) 64.dp.toPx() else 48.dp.toPx()
 
                 while (x <= activeX) {
                     val rightDist = activeX - x
@@ -207,7 +217,7 @@ fun WavySeekBar(
             if (activeX > trackPadding) {
                 // 3. DRAW BACK WAVE (Translucent, faster)
                 drawLiquidWave(
-                    wavelengthDp = waveLengthDp * 0.85f,
+                    wavelengthDp = actualWaveLengthDp * 0.85f,
                     amplitudeMultiplier = 0.85f,
                     phaseShift = basePhase * 1.4f,
                     waveColor = activeColor.copy(alpha = 0.30f)
@@ -215,7 +225,7 @@ fun WavySeekBar(
 
                 // 4. DRAW FRONT WAVE (Solid @ 50% opacity)
                 drawLiquidWave(
-                    wavelengthDp = waveLengthDp,
+                    wavelengthDp = actualWaveLengthDp,
                     amplitudeMultiplier = 1.0f,
                     phaseShift = basePhase,
                     waveColor = activeColor.copy(alpha = 0.50f)

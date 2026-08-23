@@ -85,6 +85,9 @@ interface AudioMetadataCacheDao {
     @Query("SELECT * FROM audio_metadata_cache WHERE audioUri = :audioUri")
     suspend fun getCache(audioUri: String): AudioMetadataCache?
 
+    @Query("SELECT * FROM audio_metadata_cache WHERE audioUri = :audioUri")
+    fun getCacheSync(audioUri: String): AudioMetadataCache?
+
     @Query("SELECT * FROM audio_metadata_cache")
     suspend fun getAllCache(): List<AudioMetadataCache>
 

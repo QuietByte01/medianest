@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import coil.request.videoFrameMicros
 import com.medianest.data.model.MediaItem
 
 import com.medianest.ui.components.GlassDropdownMenu
@@ -325,11 +326,21 @@ fun DrillDownScreen(
                                 )
                         ) {
                             Box(modifier = Modifier.fillMaxSize()) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(context)
+                                val isVideo = item.type == com.medianest.data.db.MediaType.VIDEO || allVideos.contains(item)
+                                val imageRequest = remember(item.uri, item.albumArtUri, item.durationMs, isVideo) {
+                                    val builder = ImageRequest.Builder(context)
                                         .data(item.albumArtUri ?: item.uri)
                                         .crossfade(true)
-                                        .build(),
+                                    if (isVideo) {
+                                        builder.decoderFactory(coil.decode.VideoFrameDecoder.Factory())
+                                        if (item.durationMs > 1_000) {
+                                            builder.videoFrameMicros((item.durationMs * 150L).coerceAtLeast(1_500_000L))
+                                        }
+                                    }
+                                    builder.build()
+                                }
+                                AsyncImage(
+                                    model = imageRequest,
                                     contentDescription = item.title,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize()
@@ -428,8 +439,21 @@ fun DrillDownScreen(
                                         .background(MaterialTheme.colorScheme.surfaceVariant),
                                     contentAlignment = Alignment.Center
                                 ) {
+                                    val isVideo = item.type == com.medianest.data.db.MediaType.VIDEO || allVideos.contains(item)
+                                    val listImageRequest = remember(item.uri, item.albumArtUri, item.durationMs, isVideo) {
+                                        val builder = ImageRequest.Builder(context)
+                                            .data(item.albumArtUri ?: item.uri)
+                                            .crossfade(true)
+                                        if (isVideo) {
+                                            builder.decoderFactory(coil.decode.VideoFrameDecoder.Factory())
+                                            if (item.durationMs > 1_000) {
+                                                builder.videoFrameMicros((item.durationMs * 150L).coerceAtLeast(1_500_000L))
+                                            }
+                                        }
+                                        builder.build()
+                                    }
                                     AsyncImage(
-                                        model = ImageRequest.Builder(context).data(item.albumArtUri ?: item.uri).crossfade(true).build(),
+                                        model = listImageRequest,
                                         contentDescription = item.title,
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier.fillMaxSize()

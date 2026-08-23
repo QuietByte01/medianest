@@ -561,7 +561,13 @@ class MediaStoreRepository(private val context: Context) {
                         deduplicatedAudioList[i] = item.copy(
                             title = cleanTitle,
                             artist = cached.artist?.takeIf { it.isNotBlank() } ?: item.artist,
-                            album = cached.album?.takeIf { it.isNotBlank() } ?: item.album
+                            album = cached.album?.takeIf { it.isNotBlank() } ?: item.album,
+                            albumArtUri = cached.albumArtUri?.let { Uri.parse(it) } ?: item.albumArtUri,
+                            genre = cached.genre ?: item.genre,
+                            year = cached.year ?: item.year,
+                            composer = cached.composer ?: item.composer,
+                            albumArtist = cached.albumArtist ?: item.albumArtist,
+                            trackNumber = cached.trackNumber ?: item.trackNumber
                         )
                     }
                 }

@@ -34,11 +34,12 @@ import com.medianest.ui.components.VisualizerStyle
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AlbumSongsSheet(
-    currentItem: MediaItem,
+    albumName: String,
     albumSongs: List<MediaItem>,
     playerState: PlayerState,
     playerManager: ExoPlayerManager,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    currentItem: MediaItem? = null
 ) {
     AdaptiveBottomSheet(
         onDismissRequest = onDismiss,
@@ -51,7 +52,7 @@ internal fun AlbumSongsSheet(
                 .padding(24.dp)
         ) {
             Text(
-                text = "Album: ${currentItem.album ?: "Unknown Album"}",
+                text = "Album: $albumName",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
@@ -59,7 +60,7 @@ internal fun AlbumSongsSheet(
             )
             LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
                 itemsIndexed(albumSongs) { idx, track ->
-                    val isPlayingThis = track.uri == currentItem.uri
+                    val isPlayingThis = currentItem != null && track.uri == currentItem.uri
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -112,6 +113,14 @@ internal fun AlbumSongsSheet(
                         }
                     }
                 }
+            }
+            if (albumSongs.isEmpty()) {
+                Text(
+                    "No songs from this album found in your library.",
+                    fontSize = 14.sp,
+                    color = Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier.padding(vertical = 16.dp)
+                )
             }
             Spacer(modifier = Modifier.height(16.dp))
         }

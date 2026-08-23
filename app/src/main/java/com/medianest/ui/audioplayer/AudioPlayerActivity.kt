@@ -48,7 +48,7 @@ class AudioPlayerActivity : ComponentActivity() {
                     onClose = { finish() },
                     onOpenAlbum = { finish() },
                     onOpenArtist = { finish() },
-                    onOpenFolder = { finish() }
+                    onOpenFolder = { _, _ -> finish() }
                 )
             }
         }

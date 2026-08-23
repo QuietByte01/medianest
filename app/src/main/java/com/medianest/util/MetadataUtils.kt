@@ -127,7 +127,9 @@ object MetadataUtils {
                     coverArtUrl = cached.albumArtUri,
                     genre = cached.genre,
                     year = cached.year,
-                    composer = cached.composer
+                    composer = cached.composer,
+                    albumArtist = cached.albumArtist,
+                    trackNumber = cached.trackNumber
                 )
             }
         } catch (e: Exception) {
@@ -152,6 +154,8 @@ object MetadataUtils {
                     genre = fetchedInfo.genre,
                     year = fetchedInfo.year,
                     composer = fetchedInfo.composer,
+                    albumArtist = fetchedInfo.albumArtist,
+                    trackNumber = fetchedInfo.trackNumber,
                     fetchedAt = System.currentTimeMillis()
                 )
                 try {
@@ -167,7 +171,9 @@ object MetadataUtils {
                     coverArtUrl = fetchedInfo.coverArtUrl,
                     genre = fetchedInfo.genre,
                     year = fetchedInfo.year,
-                    composer = fetchedInfo.composer
+                    composer = fetchedInfo.composer,
+                    albumArtist = fetchedInfo.albumArtist,
+                    trackNumber = fetchedInfo.trackNumber
                 )
             }
         }

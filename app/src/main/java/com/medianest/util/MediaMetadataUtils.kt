@@ -22,7 +22,10 @@ object MediaMetadataUtils {
         val album: String? = null,
         val dateModified: Long = 0L,
         val dateCreated: Long = 0L,
-        val embeddedPicture: ByteArray? = null
+        val embeddedPicture: ByteArray? = null,
+        val genre: String? = null,
+        val year: String? = null,
+        val composer: String? = null
     )
 
     fun extractBasicMetadata(context: Context, uri: Uri, includePicture: Boolean = false): MetadataResult {
@@ -46,6 +49,9 @@ object MediaMetadataUtils {
         var height = 0
         var artist: String? = null
         var album: String? = null
+        var genre: String? = null
+        var year: String? = null
+        var composer: String? = null
         var dateModified = 0L
         var dateCreated = 0L
         var embeddedPicture: ByteArray? = null
@@ -65,6 +71,11 @@ object MediaMetadataUtils {
                 height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
                 artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
                 album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
+                genre = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)
+                year = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR) 
+                    ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DATE)?.take(4)
+                composer = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COMPOSER)
+                    ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_WRITER)
                 if (includePicture) {
                     embeddedPicture = retriever.embeddedPicture
                 }
@@ -124,6 +135,9 @@ object MediaMetadataUtils {
             height = height,
             artist = artist?.takeIf { it.isNotBlank() && it != "<unknown>" },
             album = album?.takeIf { it.isNotBlank() && it != "<unknown>" },
+            genre = genre?.takeIf { it.isNotBlank() && it != "<unknown>" },
+            year = year?.takeIf { it.isNotBlank() },
+            composer = composer?.takeIf { it.isNotBlank() && it != "<unknown>" },
             dateModified = dateModified,
             dateCreated = dateCreated,
             embeddedPicture = embeddedPicture

@@ -386,6 +386,11 @@ class NetworkRepository(
                             val rawArtUrl = item.optString("artworkUrl100", "")
                             val genre = item.optString("primaryGenreName", "")
                             val releaseDate = item.optString("releaseDate", "").take(4)
+                            val composer = item.optString("composerName", "").takeIf { it.isNotBlank() }
+                            val albumArtist = item.optString("collectionArtistName", "").takeIf { it.isNotBlank() }
+                            val trackNum = item.optInt("trackNumber", 0).takeIf { it > 0 }
+                            val trackCount = item.optInt("trackCount", 0).takeIf { it > 0 }
+                            val trackNumberStr = if (trackNum != null && trackCount != null) "$trackNum/$trackCount" else trackNum?.toString()
 
                             val highResArtUrl = if (rawArtUrl.isNotBlank()) {
                                 rawArtUrl.replace("100x100bb.jpg", "600x600bb.jpg")
@@ -398,7 +403,10 @@ class NetworkRepository(
                                 album = com.medianest.util.MetadataUtils.sanitizeAlbum(album),
                                 coverArtUrl = highResArtUrl,
                                 genre = genre,
-                                year = releaseDate
+                                year = releaseDate,
+                                composer = composer,
+                                albumArtist = albumArtist,
+                                trackNumber = trackNumberStr
                             )
                         }
                     }
@@ -435,10 +443,15 @@ class NetworkRepository(
                         releases.getJSONObject(0).optString("title", "Unknown Album")
                     } else "Unknown Album"
 
+                    val releaseDate = if (releases != null && releases.length() > 0) {
+                        releases.getJSONObject(0).optString("date", "").take(4)
+                    } else null
+
                     return@withContext AudioTagInfo(
                         title = com.medianest.util.MetadataUtils.sanitizeTitle(title),
                         artist = com.medianest.util.MetadataUtils.sanitizeArtist(artist),
-                        album = com.medianest.util.MetadataUtils.sanitizeAlbum(album)
+                        album = com.medianest.util.MetadataUtils.sanitizeAlbum(album),
+                        year = releaseDate
                     )
                 }
             }

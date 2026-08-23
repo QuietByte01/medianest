@@ -28,6 +28,7 @@ import com.medianest.data.db.CategoryMediaCrossRef
 import com.medianest.data.db.MediaCategory
 import com.medianest.data.model.MediaItem
 import com.medianest.player.ExoPlayerManager
+import com.medianest.ui.components.AmbientGlassSurface
 import com.medianest.ui.components.GlassSurface
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
@@ -45,16 +46,16 @@ fun AddAlbumToPlaylistDialog(
 ) {
     var isCreatingPlaylist by remember { mutableStateOf(false) }
     var newPlaylistNameInput by remember { mutableStateOf("") }
+    val albumArtUri = remember(albumSongs) { albumSongs.firstOrNull()?.let { it.albumArtUri ?: it.uri } }
 
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        GlassSurface(
+        AmbientGlassSurface(
             shape = RoundedCornerShape(24.dp),
-            backgroundColor = Color(0xDC0E111A),
-            borderColor = Color.White.copy(alpha = 0.22f),
-            enableBlur = true,
+            backgroundImage = albumArtUri,
+            borderWidth = 0.5.dp,
             modifier = Modifier
                 .widthIn(max = 420.dp)
                 .fillMaxWidth(0.88f)

@@ -56,6 +56,8 @@ fun ImagesTab(
     isScanningHidden: Boolean = false,
     onImageClick: (MediaItem, List<MediaItem>) -> Unit,
     onImageLongClick: (MediaItem) -> Unit,
+    initialFolder: String? = null,
+    initialTargetImageUri: String? = null,
     onBackToDashboard: () -> Unit = {},
     pagedImages: LazyPagingItems<MediaItem>? = null,
     viewModel: com.medianest.ui.MediaViewModel = viewModel()
@@ -64,8 +66,22 @@ fun ImagesTab(
     val scope = rememberCoroutineScope()
 
     var activeFilterTab by remember { mutableStateOf("ALL") }
-    var viewMode by remember { mutableIntStateOf(0) }
-    var selectedFolder by remember { mutableStateOf<String?>(null) }
+    var viewMode by remember(initialFolder) { mutableIntStateOf(if (initialFolder != null) 1 else 0) }
+    var selectedFolder by remember(initialFolder) { mutableStateOf(initialFolder) }
+    var targetImageUri by remember(initialTargetImageUri) { mutableStateOf(initialTargetImageUri) }
+
+    LaunchedEffect(initialTargetImageUri) {
+        if (!initialTargetImageUri.isNullOrBlank()) {
+            targetImageUri = initialTargetImageUri
+        }
+    }
+
+    LaunchedEffect(initialFolder) {
+        if (!initialFolder.isNullOrBlank()) {
+            viewMode = 1
+            selectedFolder = initialFolder
+        }
+    }
 
     val settingsManager = MediaNestApp.instance.settingsManager
     val persistedSortField by settingsManager.imageSortField.collectAsState(initial = "Date")
@@ -336,7 +352,7 @@ fun ImagesTab(
 
                 when {
                     (isLoading && (imagesList.isEmpty() || (sortedDisplayList.isEmpty() && viewMode == 0 && activeFilterTab != "FOLDERS"))) ||
-                    (isScanningHidden && activeFilterTab == "HIDDEN" && sortedDisplayList.isEmpty()) -> {
+                    (isScanningHidden && (activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED") && sortedDisplayList.isEmpty()) -> {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
@@ -344,8 +360,12 @@ fun ImagesTab(
                             com.medianest.ui.components.MediaLoadingAnimation(
                                 mediaType = com.medianest.data.db.MediaType.IMAGE,
                                 iconSize = 52.dp,
-                                showLabel = isScanningHidden && activeFilterTab == "HIDDEN",
-                                customMessage = if (isScanningHidden && activeFilterTab == "HIDDEN") "Scanning hidden photos..." else null
+                                showLabel = isScanningHidden && (activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED"),
+                                customMessage = when {
+                                    isScanningHidden && activeFilterTab == "HIDDEN" -> "Scanning hidden photos..."
+                                    isScanningHidden && activeFilterTab == "EXCLUDED" -> "Scanning excluded photos..."
+                                    else -> null
+                                }
                             )
                         }
                     }
@@ -412,6 +432,8 @@ fun ImagesTab(
                             selectedCategory = null,
                             isLoading = isLoading,
                             activeFilterTab = activeFilterTab,
+                            targetImageUri = targetImageUri,
+                            onTargetImageChange = { targetImageUri = it },
                             gridState = mainGridState,
                             pagedImages = if (viewMode == 0 && activeFilterTab == "ALL" && selectedFolder == null) pagedImages else null
                         )
@@ -572,6 +594,7 @@ fun ImagesTab(
                     infoItem = null
                     activeFilterTab = "FOLDERS"
                     viewMode = 1
+                    targetImageUri = item.uri.toString()
                     val relPath = item.relativePath?.trim('/')
                     val folderKey = if (!relPath.isNullOrBlank()) relPath else (item.bucketName ?: "Pictures")
                     selectedFolder = folderGroups.keys.firstOrNull { key ->

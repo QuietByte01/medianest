@@ -93,32 +93,39 @@ class ZoomController(
 
     suspend fun handleDoubleTap(centroid: Offset) = coroutineScope {
         if (animScale.value > 1.1f) {
+            // Release tiled renderer BEFORE animating back to 1× so tiles
+            // are not decoded at 1× scale during the animation.
+            checkHandoff(1f)
             launch { animScale.animateTo(1f, tween(350)) }
             launch { animOffset.animateTo(Offset.Zero, tween(350)) }
-            checkHandoff(1f)
         } else {
             val targetScale = 3f
             val centerX = containerSize.width / 2f
             val centerY = containerSize.height / 2f
-            
+
             val targetX = (centerX - centroid.x) * (targetScale - 1f)
             val targetY = (centerY - centroid.y) * (targetScale - 1f)
-            
+
             val clamped = viewport.copy(scale = targetScale).clampOffset(targetX, targetY)
-            
+
+            // Animate first; the tiled renderer will activate naturally via handleZoom
+            // once the pinch gesture crosses zoomHandoffScale, or via the final
+            // checkHandoff with the real animated scale value below.
             launch { animScale.animateTo(targetScale, tween(400)) }
             launch { animOffset.animateTo(clamped, tween(400)) }
-            checkHandoff(targetScale)
+            checkHandoff(animScale.value)
         }
     }
 
     suspend fun setScale(targetScale: Float) = coroutineScope {
         val newScale = targetScale.coerceIn(config.minZoomScale, config.maxZoomScale)
         val clamped = viewport.copy(scale = newScale).clampOffset(animOffset.value.x, animOffset.value.y)
-        
+
+        // Evaluate handoff against the target so zooming out releases the tiled renderer
+        // before the animation starts (avoids tiles flickering at mid-animation scale).
+        checkHandoff(newScale)
         launch { animScale.animateTo(newScale, tween(300)) }
         launch { animOffset.animateTo(clamped, tween(300)) }
-        checkHandoff(newScale)
     }
 
     private fun checkHandoff(scale: Float) {

@@ -246,7 +246,7 @@ fun MediaInfoBottomSheet(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            GlassSurface(
+                            SolidGlossySurface(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable {
@@ -259,7 +259,8 @@ fun MediaInfoBottomSheet(
                                         onDismiss()
                                     },
                                 shape = RoundedCornerShape(16.dp),
-                                backgroundColor = Color(0x26272C3D)
+                                backgroundColor = Color(0x3B272C3D),
+                                showTopSheen = true
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -274,7 +275,7 @@ fun MediaInfoBottomSheet(
                                 }
                             }
 
-                            GlassSurface(
+                            SolidGlossySurface(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable {
@@ -285,7 +286,8 @@ fun MediaInfoBottomSheet(
                                         }
                                     },
                                 shape = RoundedCornerShape(16.dp),
-                                backgroundColor = Color(0x20FFFFFF)
+                                backgroundColor = Color(0x2EFFFFFF),
+                                showTopSheen = true
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -301,7 +303,7 @@ fun MediaInfoBottomSheet(
                             }
                         }
 
-                        GlassSurface(
+                        SolidGlossySurface(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
@@ -314,8 +316,9 @@ fun MediaInfoBottomSheet(
                                     }
                                 },
                             shape = RoundedCornerShape(16.dp),
-                            backgroundColor = Color(0x24FFFFFF),
-                            borderColor = Color(0x33FFFFFF)
+                            backgroundColor = Color(0x2EFFFFFF),
+                            borderColor = Color(0x33FFFFFF),
+                            showTopSheen = true
                         ) {
                             Row(
                                 modifier = Modifier
@@ -349,14 +352,15 @@ fun MediaInfoBottomSheet(
                             )
                         }
 
-                        GlassSurface(
+                        SolidGlossySurface(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
                                     Toast.makeText(context, "Sharing track details for '${item.title}'", Toast.LENGTH_SHORT).show()
                                 },
                             shape = RoundedCornerShape(16.dp),
-                            backgroundColor = Color(0x33FFFFFF)
+                            backgroundColor = Color(0x3BFFFFFF),
+                            showTopSheen = true
                         ) {
                             Row(
                                 modifier = Modifier
@@ -823,7 +827,7 @@ fun MediaInfoBottomSheet(
             }
 
             // Media Stream Diagnostics Button (Phone Portrait)
-            GlassSurface(
+            SolidGlossySurface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable {
@@ -836,8 +840,9 @@ fun MediaInfoBottomSheet(
                         }
                     },
                 shape = RoundedCornerShape(16.dp),
-                backgroundColor = Color(0x24FFFFFF),
-                borderColor = Color(0x33FFFFFF)
+                backgroundColor = Color(0x2EFFFFFF),
+                borderColor = Color(0x33FFFFFF),
+                showTopSheen = true
             ) {
                 Row(
                     modifier = Modifier
@@ -863,9 +868,10 @@ fun MediaInfoBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                GlassSurface(
+                SolidGlossySurface(
                     modifier = Modifier
                         .weight(1f)
+                        .height(48.dp)
                         .clickable {
                             if (onShowFileLocation != null) {
                                 onShowFileLocation(item)
@@ -876,12 +882,13 @@ fun MediaInfoBottomSheet(
                             onDismiss()
                         },
                     shape = RoundedCornerShape(20.dp),
-                    backgroundColor = Color(0x2B272C3D)
+                    backgroundColor = Color(0x3B272C3D),
+                    showTopSheen = true
                 ) {
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 12.dp, horizontal = 14.dp),
+                            .fillMaxSize()
+                            .padding(horizontal = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
@@ -891,9 +898,10 @@ fun MediaInfoBottomSheet(
                     }
                 }
 
-                GlassSurface(
+                SolidGlossySurface(
                     modifier = Modifier
                         .weight(1f)
+                        .height(48.dp)
                         .clickable {
                             if (onFetchInfo != null) {
                                 onFetchInfo(item)
@@ -902,12 +910,13 @@ fun MediaInfoBottomSheet(
                             }
                         },
                     shape = RoundedCornerShape(20.dp),
-                    backgroundColor = Color(0x20FFFFFF)
+                    backgroundColor = Color(0x2EFFFFFF),
+                    showTopSheen = true
                 ) {
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 12.dp, horizontal = 14.dp),
+                            .fillMaxSize()
+                            .padding(horizontal = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {

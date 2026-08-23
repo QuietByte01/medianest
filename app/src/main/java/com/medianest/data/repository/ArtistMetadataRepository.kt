@@ -21,6 +21,121 @@ class ArtistMetadataRepository(
     private val dao = db.artistMetadataDao()
     private val settings = MediaNestApp.instance.settingsManager
     private val userAgent = "MediaNestApp/1.0 (https://github.com/medianest; admin@medianest.com)"
+    private val albumTracksCache = java.util.concurrent.ConcurrentHashMap<String, List<AlbumTrack>>()
+
+    suspend fun getAlbumTracks(artistName: String, albumName: String): List<AlbumTrack> = withContext(Dispatchers.IO) {
+        val cleanArtist = cleanArtistName(artistName)
+        val cleanAlbum = albumName.trim()
+        val cacheKey = "${cleanArtist.lowercase()}:::${cleanAlbum.lowercase()}"
+        albumTracksCache[cacheKey]?.let { return@withContext it }
+
+        val offlineMode = settings.offlineMode.first()
+        if (offlineMode) return@withContext emptyList()
+
+        // 1. Try iTunes Search & Lookup
+        try {
+            val encodedQuery = URLEncoder.encode("$cleanArtist $cleanAlbum", "UTF-8")
+            val iTunesSearchUrl = "https://itunes.apple.com/search?term=$encodedQuery&entity=album&limit=5"
+            client.newCall(Request.Builder().url(iTunesSearchUrl).header("User-Agent", userAgent).build()).execute().use { response ->
+                if (response.isSuccessful) {
+                    val json = JSONObject(response.body?.string() ?: "")
+                    val results = json.optJSONArray("results")
+                    if (results != null && results.length() > 0) {
+                        var collectionId: Long? = null
+                        for (i in 0 until results.length()) {
+                            val item = results.getJSONObject(i)
+                            val id = item.optLong("collectionId")
+                            if (id > 0) {
+                                collectionId = id
+                                break
+                            }
+                        }
+
+                        if (collectionId != null) {
+                            val lookupUrl = "https://itunes.apple.com/lookup?id=$collectionId&entity=song&limit=100"
+                            client.newCall(Request.Builder().url(lookupUrl).header("User-Agent", userAgent).build()).execute().use { lookupResp ->
+                                if (lookupResp.isSuccessful) {
+                                    val lookupJson = JSONObject(lookupResp.body?.string() ?: "")
+                                    val lookupResults = lookupJson.optJSONArray("results")
+                                    if (lookupResults != null) {
+                                        val tracks = mutableListOf<AlbumTrack>()
+                                        for (i in 0 until lookupResults.length()) {
+                                            val item = lookupResults.getJSONObject(i)
+                                            if (item.optString("wrapperType") == "track") {
+                                                val trackName = item.optString("trackName")
+                                                val trackNumber = item.optInt("trackNumber", tracks.size + 1)
+                                                val durationMs = item.optLong("trackTimeMillis", 0L)
+                                                val previewUrl = item.optString("previewUrl").takeIf { it.isNotBlank() }
+                                                val itemArtist = item.optString("artistName")
+                                                if (trackName.isNotBlank()) {
+                                                    tracks.add(AlbumTrack(trackNumber, trackName, durationMs, previewUrl, itemArtist))
+                                                }
+                                            }
+                                        }
+                                        if (tracks.isNotEmpty()) {
+                                            val sorted = tracks.sortedBy { it.trackNumber }
+                                            albumTracksCache[cacheKey] = sorted
+                                            return@withContext sorted
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // 2. Fallback: Try Deezer Search
+        try {
+            val encodedQuery = URLEncoder.encode("$cleanArtist $cleanAlbum", "UTF-8")
+            val deezerSearchUrl = "https://api.deezer.com/search/album?q=$encodedQuery&limit=3"
+            client.newCall(Request.Builder().url(deezerSearchUrl).header("User-Agent", userAgent).build()).execute().use { response ->
+                if (response.isSuccessful) {
+                    val json = JSONObject(response.body?.string() ?: "")
+                    val data = json.optJSONArray("data")
+                    if (data != null && data.length() > 0) {
+                        val albumObj = data.getJSONObject(0)
+                        val albumId = albumObj.optString("id")
+                        if (albumId.isNotBlank()) {
+                            val tracksUrl = "https://api.deezer.com/album/$albumId/tracks?limit=100"
+                            client.newCall(Request.Builder().url(tracksUrl).header("User-Agent", userAgent).build()).execute().use { tracksResp ->
+                                if (tracksResp.isSuccessful) {
+                                    val tracksJson = JSONObject(tracksResp.body?.string() ?: "")
+                                    val tracksData = tracksJson.optJSONArray("data")
+                                    if (tracksData != null) {
+                                        val tracks = mutableListOf<AlbumTrack>()
+                                        for (i in 0 until tracksData.length()) {
+                                            val item = tracksData.getJSONObject(i)
+                                            val title = item.optString("title")
+                                            val trackPos = item.optInt("track_position", tracks.size + 1)
+                                            val durationSec = item.optLong("duration", 0L)
+                                            val preview = item.optString("preview").takeIf { it.isNotBlank() }
+                                            val itemArtist = item.optJSONObject("artist")?.optString("name") ?: cleanArtist
+                                            if (title.isNotBlank()) {
+                                                tracks.add(AlbumTrack(trackPos, title, durationSec * 1000L, preview, itemArtist))
+                                            }
+                                        }
+                                        if (tracks.isNotEmpty()) {
+                                            val sorted = tracks.sortedBy { it.trackNumber }
+                                            albumTracksCache[cacheKey] = sorted
+                                            return@withContext sorted
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        return@withContext emptyList()
+    }
 
     suspend fun getArtistInfo(artistName: String): ArtistInfo = withContext(Dispatchers.IO) {
         val cleanName = cleanArtistName(artistName)

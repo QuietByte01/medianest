@@ -23,7 +23,12 @@ data class MediaItem(
     val isExcluded: Boolean = false,
     val artist: String? = null,
     val album: String? = null,
-    val albumArtUri: Uri? = null
+    val albumArtUri: Uri? = null,
+    val genre: String? = null,
+    val year: String? = null,
+    val composer: String? = null,
+    val albumArtist: String? = null,
+    val trackNumber: String? = null
 ) {
     val aspectRatio: Float
         get() = if (width > 0 && height > 0) width.toFloat() / height.toFloat() else 1.0f
@@ -50,5 +55,7 @@ data class AudioTagInfo(
     val coverArtUrl: String? = null,
     val year: String? = null,
     val genre: String? = null,
-    val composer: String? = null
+    val composer: String? = null,
+    val albumArtist: String? = null,
+    val trackNumber: String? = null
 )

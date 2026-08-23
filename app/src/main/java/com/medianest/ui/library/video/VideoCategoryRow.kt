@@ -56,6 +56,11 @@ fun VideoCategoryRow(
                 }
             }
 
+            val firstVideoUri = remember(allCrossRefs, cat, videosList) {
+                val crossRefUris = allCrossRefs.filter { it.categoryId == cat.id }.map { it.mediaUri }.toSet()
+                videosList.firstOrNull { isItemInCategory(it, cat, crossRefUris) }?.let { it.albumArtUri ?: it.uri }
+            }
+
             Box {
                 GlassSurface(
                     shape = RoundedCornerShape(20.dp),
@@ -147,7 +152,8 @@ fun VideoCategoryRow(
 
                 GlassDropdownMenu(
                     expanded = showCatMenu,
-                    onDismissRequest = { showCatMenu = false }
+                    onDismissRequest = { showCatMenu = false },
+                    backgroundImage = firstVideoUri
                 ) {
                     DropdownMenuItem(
                         text = { Text("Category Info") },

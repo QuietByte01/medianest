@@ -19,7 +19,7 @@ import androidx.room.RoomDatabase
         SubtitleCache::class,
         ArtistMetadata::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

@@ -38,14 +38,16 @@ fun FoldersGrid(
     onSongClick: (List<MediaItem>, Int) -> Unit,
     onSongLongClick: (MediaItem) -> Unit,
     initialSelectedFolder: String? = null,
+    targetSongUri: String? = null,
     onAddToPlaylist: (MediaItem) -> Unit = {},
-    onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?) -> Unit = { _, _, _, _ -> },
+    onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?, targetSongUri: String?) -> Unit = { _, _, _, _, _ -> },
     isLoading: Boolean = false,
     isScanningHidden: Boolean = false,
     sortField: String = "Name",
     isAscending: Boolean = true
 ) {
     var showAllFoldersMode by remember { mutableStateOf(false) }
+    val subfoldersListState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     // Folder Actions State
     var folderToMove by remember { mutableStateOf<String?>(null) }
@@ -138,7 +140,34 @@ fun FoldersGrid(
     }
 
     var selectedFolder by remember(initialSelectedFolder, visibleFolderNames) {
-        mutableStateOf<String?>(initialSelectedFolder ?: visibleFolderNames.firstOrNull())
+        mutableStateOf<String?>(
+            initialSelectedFolder?.let { target ->
+                visibleFolderNames.firstOrNull { 
+                    it.equals(target, ignoreCase = true) ||
+                    it.lowercase().endsWith(target.lowercase()) ||
+                    target.lowercase().endsWith(it.lowercase())
+                } ?: target
+            } ?: visibleFolderNames.firstOrNull()
+        )
+    }
+
+    LaunchedEffect(initialSelectedFolder) {
+        if (!initialSelectedFolder.isNullOrBlank()) {
+            selectedFolder = visibleFolderNames.firstOrNull { 
+                it.equals(initialSelectedFolder, ignoreCase = true) ||
+                it.lowercase().endsWith(initialSelectedFolder.lowercase()) ||
+                initialSelectedFolder.lowercase().endsWith(it.lowercase())
+            } ?: initialSelectedFolder
+        }
+    }
+
+    LaunchedEffect(selectedFolder, visibleFolderNames) {
+        if (selectedFolder != null) {
+            val idx = visibleFolderNames.indexOf(selectedFolder)
+            if (idx != -1) {
+                subfoldersListState.animateScrollToItem(idx)
+            }
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -306,7 +335,8 @@ fun FoldersGrid(
 
                                 GlassDropdownMenu(
                                     expanded = showFolderMenu,
-                                    onDismissRequest = { showFolderMenu = false }
+                                    onDismissRequest = { showFolderMenu = false },
+                                    backgroundImage = folderSongs.firstOrNull()?.let { it.albumArtUri ?: it.uri }
                                 ) {
                                     DropdownMenuItem(
                                         text = { Text("Move Folder", color = Color.White) },
@@ -447,6 +477,7 @@ fun FoldersGrid(
                 }
 
                 LazyRow(
+                    state = subfoldersListState,
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -542,7 +573,8 @@ fun FoldersGrid(
                     onSongLongClick = onSongLongClick,
                     onNavigateSubTab = onNavigateSubTab,
                     onAddToPlaylist = onAddToPlaylist,
-                    showInGallery = true
+                    showInGallery = true,
+                    targetSongUri = targetSongUri
                 )
             }
         }

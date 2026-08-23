@@ -17,9 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 
 /**
- * Premium Ambient Glass Dropdown Menu component matching the exact background of the Info Sheet.
- * Features an obsidian background, warm top-left and cool bottom-right ambient radial glow orbs,
- * a vertical glass sheen, and a sleek gradient border with zero JPG image dependency.
+ * Premium Ambient Glass Dropdown Menu component matching the exact ambient background system of the Info Sheet & Library.
+ * Wraps content with [AmbientGlassSurface].
  */
 @Composable
 fun GlassDropdownMenu(
@@ -33,6 +32,8 @@ fun GlassDropdownMenu(
     containerColor: Color = Color.Transparent,
     shadowElevation: Dp = 12.dp,
     useImageBackground: Boolean = false,
+    backgroundImage: Any? = null,
+    hue: Float? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     DropdownMenu(
@@ -49,7 +50,10 @@ fun GlassDropdownMenu(
     ) {
         AmbientGlassSurface(
             shape = shape,
-            borderWidth = 0.5.dp
+            backgroundImage = backgroundImage,
+            hue = hue,
+            borderWidth = 0.5.dp,
+            containerColor = containerColor
         ) {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                 content()

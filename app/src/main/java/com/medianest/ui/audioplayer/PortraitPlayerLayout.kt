@@ -68,9 +68,15 @@ fun PortraitPlayerLayout(
     modifier: Modifier = Modifier,
     onFullscreenVisualizerClick: () -> Unit = {},
     onToggleArtistInfo: () -> Unit = {},
+    onOpenArtist: (String) -> Unit = {},
     showArtistInfo: Boolean = false,
     artistInfo: ArtistInfo? = null,
-    onOpenAlbum: (String) -> Unit = {}
+    onPopularAlbumClick: (String) -> Unit = {},
+    onLocalAlbumClick: (String) -> Unit = {},
+    browsingAlbumName: String? = null,
+    allAudioItems: List<MediaItem> = emptyList(),
+    onBackToArtist: () -> Unit = {},
+    isScanningLibrary: Boolean = false
 ) {
     Column(
         modifier = modifier,
@@ -88,7 +94,14 @@ fun PortraitPlayerLayout(
             if (showArtistInfo && artistInfo != null) {
                 ArtistInfoPanel(
                     artistInfo = artistInfo,
-                    onAlbumClick = onOpenAlbum,
+                    onPopularAlbumClick = onPopularAlbumClick,
+                    onLocalAlbumClick = onLocalAlbumClick,
+                    onArtistClick = onOpenArtist,
+                    browsingAlbumName = browsingAlbumName,
+                    allAudioItems = allAudioItems,
+                    onBackToArtist = onBackToArtist,
+                    playerManager = playerManager,
+                    isLoading = isScanningLibrary,
                     modifier = Modifier.fillMaxSize()
                 )
             } else if (showLyricsView) {

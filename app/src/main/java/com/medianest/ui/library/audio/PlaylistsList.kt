@@ -47,7 +47,7 @@ fun PlaylistsList(
     isLoading: Boolean = false,
     initialSelectedPlaylist: MediaCategory? = null,
     onSelectPlaylist: (MediaCategory?) -> Unit = {},
-    onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?) -> Unit = { _, _, _, _ -> },
+    onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?, targetSongUri: String?) -> Unit = { _, _, _, _, _ -> },
     onAddToPlaylist: (MediaItem) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -189,7 +189,7 @@ fun PlaylistsList(
                                             selectedPlaylist = favPlaylist
                                             onSelectPlaylist(favPlaylist)
                                         } else {
-                                            onNavigateSubTab(2, null, null, null)
+                                            onNavigateSubTab(2, null, null, null, null)
                                         }
                                     }
                                 )
@@ -201,7 +201,7 @@ fun PlaylistsList(
                                     icon = Icons.Default.LocalFireDepartment,
                                     artUri = mostPlayedArtUri,
                                     gradientColors = listOf(Color(0xFF0284C7), Color(0xFF38BDF8)),
-                                    onClick = { onNavigateSubTab(2, null, null, null) }
+                                    onClick = { onNavigateSubTab(2, null, null, null, null) }
                                 )
                             }
                             item {
@@ -211,7 +211,7 @@ fun PlaylistsList(
                                     icon = Icons.Default.History,
                                     artUri = recentlyPlayedArtUri,
                                     gradientColors = listOf(Color(0xFFE91E63), Color(0xFFFF4081)),
-                                    onClick = { onNavigateSubTab(1, null, null, null) }
+                                    onClick = { onNavigateSubTab(1, null, null, null, null) }
                                 )
                             }
                             item {
@@ -221,7 +221,7 @@ fun PlaylistsList(
                                     icon = Icons.Default.Schedule,
                                     artUri = recentlyAddedArtUri,
                                     gradientColors = listOf(Color(0xFF00B0FF), Color(0xFF00E5FF)),
-                                    onClick = { onNavigateSubTab(0, null, null, null) }
+                                    onClick = { onNavigateSubTab(0, null, null, null, null) }
                                 )
                             }
                         }

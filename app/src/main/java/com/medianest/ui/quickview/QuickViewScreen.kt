@@ -415,7 +415,9 @@ fun QuickViewScreen(
 
                         GlassDropdownMenu(
                             expanded = showOverflowMenu,
-                            onDismissRequest = { showOverflowMenu = false }
+                            onDismissRequest = { showOverflowMenu = false },
+                            backgroundImage = currentItem?.albumArtUri ?: currentItem?.uri,
+                            hue = imageHue
                         ) {
                             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                                 if (pictureModeEnabled) {
@@ -777,7 +779,24 @@ fun QuickViewScreen(
         if (showInfoBottomSheet && currentItem != null) {
             MediaInfoBottomSheet(
                 item = currentItem,
-                onDismiss = { showInfoBottomSheet = false }
+                onDismiss = { showInfoBottomSheet = false },
+                onShowFileLocation = { item ->
+                    showInfoBottomSheet = false
+                    val folderKey = item.relativePath?.trim('/') ?: item.bucketName ?: "Pictures"
+                    val targetScreen = when (item.type) {
+                        MediaType.AUDIO -> "AUDIO_FOLDER"
+                        MediaType.VIDEO -> "VIDEOS_FOLDER"
+                        MediaType.IMAGE -> "IMAGES_FOLDER"
+                    }
+                    val mainIntent = android.content.Intent(context, com.medianest.MainActivity::class.java).apply {
+                        putExtra("open_screen", targetScreen)
+                        putExtra("folder_name", folderKey)
+                        putExtra("target_media_uri", item.uri.toString())
+                        addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    }
+                    context.startActivity(mainIntent)
+                    onClose()
+                }
             )
         }
     }
@@ -823,7 +842,7 @@ fun ImageEditModal(
 
     AdaptiveBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface
+        backgroundImage = currentItem.uri
     ) {
         Column(
             modifier = Modifier

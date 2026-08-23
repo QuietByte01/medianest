@@ -1,13 +1,20 @@
 package com.medianest.ui.image.hybrid
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BrokenImage
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import coil.compose.AsyncImage
+import androidx.compose.ui.unit.dp
+import coil.compose.SubcomposeAsyncImage
 import coil.decode.SvgDecoder
 import coil.request.ImageRequest
 import coil.size.Size
@@ -62,16 +69,32 @@ class SvgRenderer(
                 .build()
         }
 
-        AsyncImage(
+        SubcomposeAsyncImage(
             model = request,
             contentDescription = null,
             contentScale = ContentScale.Fit,
             colorFilter = colorFilter,
-            onState = { state ->
-                state.painter?.intrinsicSize?.let {
-                    if (it != androidx.compose.ui.geometry.Size.Unspecified && it != androidx.compose.ui.geometry.Size.Zero) {
-                        onContentSizeChanged(it)
-                    }
+            onSuccess = { state ->
+                val size = state.painter.intrinsicSize
+                if (size != androidx.compose.ui.geometry.Size.Unspecified && size != androidx.compose.ui.geometry.Size.Zero) {
+                    onContentSizeChanged(size)
+                }
+            },
+            loading = {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    com.medianest.ui.components.MediaLoadingAnimation(
+                        mediaType = com.medianest.data.db.MediaType.IMAGE,
+                        iconSize = 38.dp
+                    )
+                }
+            },
+            error = {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.Icon(
+                        androidx.compose.material.icons.Icons.Default.BrokenImage,
+                        contentDescription = "Error loading SVG",
+                        tint = Color.Red.copy(alpha = 0.7f)
+                    )
                 }
             },
             modifier = modifier

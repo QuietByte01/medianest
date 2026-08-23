@@ -97,13 +97,13 @@ fun VideoSeriesView(
                 items(seriesFolderGroups.keys.toList(), key = { "series_$it" }) { sName ->
                     val sItems = seriesFolderGroups[sName] ?: emptyList()
                     val seasonsCount = remember(sItems) { sItems.map { extractSeasonName(it) }.toSet().size }
-                    val coverUri = sItems.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: sItems.firstOrNull()?.uri
+                    val coverItem = sItems.firstOrNull { it.albumArtUri != null } ?: sItems.firstOrNull()
 
                     SeriesCard(
                         name = sName,
                         seasonsCount = seasonsCount,
                         episodesCount = sItems.size,
-                        coverUri = coverUri,
+                        coverItem = coverItem,
                         isSelected = false,
                         onClick = { onSeriesClick(sName) }
                     )
@@ -147,14 +147,14 @@ fun VideoSeriesView(
                     items(seriesFolderGroups.keys.toList(), key = { "master_$it" }) { sName ->
                         val sItems = seriesFolderGroups[sName] ?: emptyList()
                         val seasonsCount = remember(sItems) { sItems.map { extractSeasonName(it) }.toSet().size }
-                        val coverUri = sItems.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: sItems.firstOrNull()?.uri
+                        val coverItem = sItems.firstOrNull { it.albumArtUri != null } ?: sItems.firstOrNull()
                         val isSelected = selectedSeriesName == sName
 
                         SeriesCard(
                             name = sName,
                             seasonsCount = seasonsCount,
                             episodesCount = sItems.size,
-                            coverUri = coverUri,
+                            coverItem = coverItem,
                             isSelected = isSelected,
                             compact = true,
                             onClick = { onSeriesClick(sName) }
@@ -192,13 +192,13 @@ fun VideoSeriesView(
                 ) {
                     items(seasonFolderGroups.keys.sorted(), key = { "season_$it" }) { seasonName ->
                         val seasonItems = seasonFolderGroups[seasonName] ?: emptyList()
-                        val coverUri = seasonItems.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: seasonItems.firstOrNull()?.uri
+                        val coverItem = seasonItems.firstOrNull { it.albumArtUri != null } ?: seasonItems.firstOrNull()
                         val isSelected = selectedSeasonName == seasonName
 
                         SeasonCard(
                             name = seasonName,
                             episodesCount = seasonItems.size,
-                            coverUri = coverUri,
+                            coverItem = coverItem,
                             isSelected = isSelected,
                             onClick = { onSeasonClick(seasonName) }
                         )
@@ -260,7 +260,7 @@ private fun SeriesCard(
     name: String,
     seasonsCount: Int,
     episodesCount: Int,
-    coverUri: Any?,
+    coverItem: MediaItem?,
     isSelected: Boolean,
     compact: Boolean = false,
     onClick: () -> Unit
@@ -286,16 +286,13 @@ private fun SeriesCard(
                     .background(Color(0x33FFFFFF)),
                 contentAlignment = Alignment.Center
             ) {
-                if (coverUri != null) {
-                    AsyncImage(
-                        model = coverUri,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Icon(Icons.Default.Tv, contentDescription = null, tint = Color.White, modifier = Modifier.size(if (compact) 20.dp else 26.dp))
-                }
+                com.medianest.ui.components.VideoThumbnailView(
+                    item = coverItem,
+                    contentDescription = name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    fallbackIcon = Icons.Default.Tv
+                )
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(name, fontWeight = FontWeight.Bold, fontSize = if (compact) 14.sp else 15.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -309,7 +306,7 @@ private fun SeriesCard(
 private fun SeasonCard(
     name: String,
     episodesCount: Int,
-    coverUri: Any?,
+    coverItem: MediaItem?,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
@@ -334,16 +331,13 @@ private fun SeasonCard(
                     .background(Color(0x33FFFFFF)),
                 contentAlignment = Alignment.Center
             ) {
-                if (coverUri != null) {
-                    AsyncImage(
-                        model = coverUri,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Icon(Icons.Default.Folder, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
-                }
+                com.medianest.ui.components.VideoThumbnailView(
+                    item = coverItem,
+                    contentDescription = name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    fallbackIcon = Icons.Default.Folder
+                )
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(name, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)

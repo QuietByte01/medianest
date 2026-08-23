@@ -29,6 +29,7 @@ import coil.request.ImageRequest
 import coil.request.videoFrameMicros
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.components.SolidGlossySurface
 import com.medianest.ui.components.PaletteTagChip
 import com.medianest.ui.components.PlaybackSpeedChip
 import com.medianest.ui.components.formatDuration
@@ -624,7 +625,7 @@ internal fun VideoFilePropertiesContent(
         var diagReport by remember { mutableStateOf<com.medianest.util.MediaDiagnosticsReport?>(null) }
         var isAnalyzing by remember { mutableStateOf(false) }
 
-        GlassSurface(
+        SolidGlossySurface(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable {
@@ -637,8 +638,9 @@ internal fun VideoFilePropertiesContent(
                     }
                 },
             shape = RoundedCornerShape(16.dp),
-            backgroundColor = Color(0x24FFFFFF),
-            borderColor = Color(0x33FFFFFF)
+            backgroundColor = Color(0x2EFFFFFF),
+            borderColor = Color(0x33FFFFFF),
+            showTopSheen = true
         ) {
             Row(
                 modifier = Modifier

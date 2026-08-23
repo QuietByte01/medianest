@@ -2,8 +2,9 @@ package com.medianest.ui.library.audio
 
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -57,10 +58,11 @@ fun SongsList(
     showDeleteOption: Boolean = false,
     onRemoveFromPlaylist: ((MediaItem) -> Unit)? = null,
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
-    onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?) -> Unit = { _, _, _, _ -> },
+    onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?, targetSongUri: String?) -> Unit = { _, _, _, _, _ -> },
     onAddToPlaylist: (MediaItem) -> Unit = {},
     showInGallery: Boolean = false,
-    pagedSongs: LazyPagingItems<MediaItem>? = null
+    pagedSongs: LazyPagingItems<MediaItem>? = null,
+    targetSongUri: String? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -71,6 +73,19 @@ fun SongsList(
     var infoItem by remember { mutableStateOf<MediaItem?>(null) }
     var editMetadataItem by remember { mutableStateOf<MediaItem?>(null) }
     var songToDelete by remember { mutableStateOf<MediaItem?>(null) }
+    var highlightedSongUri by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(targetSongUri, songs) {
+        if (!targetSongUri.isNullOrBlank() && songs.isNotEmpty()) {
+            val index = songs.indexOfFirst { it.uri.toString() == targetSongUri }
+            if (index != -1) {
+                highlightedSongUri = targetSongUri
+                listState.animateScrollToItem(index)
+                kotlinx.coroutines.delay(2500)
+                highlightedSongUri = null
+            }
+        }
+    }
 
     if (isLoading && songs.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -121,6 +136,7 @@ fun SongsList(
                             currentlyPlayingUri = currentlyPlayingUri,
                             isAlphabetical = isAlphabetical,
                             isSelected = selectedUris.contains(item.uri.toString()),
+                            isHighlighted = item.uri.toString() == highlightedSongUri,
                             onSongClick = { 
                                 val list = pagedSongs.itemSnapshotList.items.filterNotNull()
                                 val idx = list.indexOf(it)
@@ -144,6 +160,7 @@ fun SongsList(
                             currentlyPlayingUri = currentlyPlayingUri,
                             isAlphabetical = isAlphabetical,
                             isSelected = selectedUris.contains(item.uri.toString()),
+                            isHighlighted = item.uri.toString() == highlightedSongUri,
                             onSongClick = {
                                 val idx = songs.indexOf(it)
                                 if (idx != -1) onSongClick(songs, idx)
@@ -179,8 +196,8 @@ fun SongsList(
             item = infoItem!!,
             onDismiss = { infoItem = null },
             onShowFileLocation = { item ->
-                val folder = item.bucketName ?: "Music"
-                onNavigateSubTab(5, null, null, folder)
+                val folder = item.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (item.bucketName ?: "Music")
+                onNavigateSubTab(5, null, null, folder, item.uri.toString())
             },
             onFetchInfo = { item ->
                 Toast.makeText(context, "Fetching tags & info for '${item.title}'...", Toast.LENGTH_SHORT).show()
@@ -233,13 +250,14 @@ private fun SongRow(
     currentlyPlayingUri: String?,
     isAlphabetical: Boolean,
     isSelected: Boolean,
+    isHighlighted: Boolean = false,
     onSongClick: (MediaItem) -> Unit,
     onAddToPlaylist: (MediaItem) -> Unit,
     onRemoveFromPlaylist: ((MediaItem) -> Unit)?,
     onInfoClick: (MediaItem) -> Unit,
     onEditMetadataClick: (MediaItem) -> Unit,
     onDeleteClick: (MediaItem) -> Unit,
-    onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?) -> Unit,
+    onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?, targetSongUri: String?) -> Unit,
     showDeleteOption: Boolean,
     showInGallery: Boolean,
     context: android.content.Context
@@ -247,6 +265,17 @@ private fun SongRow(
     var showMenu by remember { mutableStateOf(false) }
     val albumArtModel = item.albumArtUri ?: item.uri
     val isCurrentlyPlaying = item.uri.toString() == currentlyPlayingUri
+
+    val highlightPulse = rememberInfiniteTransition(label = "SongHighlightPulse")
+    val pulseAlpha by highlightPulse.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "PulseAlpha"
+    )
 
     GlassSurface(
         modifier = Modifier
@@ -260,8 +289,17 @@ private fun SongRow(
             .clip(RoundedCornerShape(20.dp))
             .clickable { onSongClick(item) },
         shape = RoundedCornerShape(20.dp),
-        backgroundColor = if (isCurrentlyPlaying) Color(0x33FFFFFF) else Color(0x221C1F2B),
-        borderColor = if (isCurrentlyPlaying) Color(0x66FFFFFF) else Color(0x2EFFFFFF)
+        backgroundColor = when {
+            isHighlighted -> Color(0x3D38BDF8)
+            isCurrentlyPlaying -> Color(0x33FFFFFF)
+            else -> Color(0x221C1F2B)
+        },
+        borderColor = when {
+            isHighlighted -> Color(0xFF38BDF8).copy(alpha = pulseAlpha)
+            isCurrentlyPlaying -> Color(0x66FFFFFF)
+            else -> Color(0x2EFFFFFF)
+        },
+        borderWidth = if (isHighlighted) 2.dp else 0.5.dp
     ) {
         Row(
             modifier = Modifier
@@ -370,7 +408,8 @@ private fun SongRow(
                 GlassDropdownMenu(
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false },
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    backgroundImage = item.albumArtUri ?: item.uri
                 ) {
                     DropdownMenuItem(
                         text = { Text("Add to Playlist") },
@@ -411,7 +450,7 @@ private fun SongRow(
                         leadingIcon = { Icon(Icons.Default.Album, contentDescription = null, tint = Color.White) },
                         onClick = {
                             showMenu = false
-                            onNavigateSubTab(3, item.album ?: "Unknown Album", null, null)
+                            onNavigateSubTab(3, item.album ?: "Unknown Album", null, null, null)
                         }
                     )
                     DropdownMenuItem(
@@ -419,7 +458,7 @@ private fun SongRow(
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = Color.White) },
                         onClick = {
                             showMenu = false
-                            onNavigateSubTab(4, null, item.artist ?: "Unknown Artist", null)
+                            onNavigateSubTab(4, null, item.artist ?: "Unknown Artist", null, null)
                         }
                     )
                     DropdownMenuItem(
@@ -437,7 +476,7 @@ private fun SongRow(
                                 com.medianest.util.IntentUtils.openInGallery(context, item)
                             } else {
                                 val targetFolderKey = item.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (item.bucketName ?: "Music")
-                                onNavigateSubTab(5, null, null, targetFolderKey)
+                                onNavigateSubTab(5, null, null, targetFolderKey, item.uri.toString())
                             }
                         }
                     )

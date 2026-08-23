@@ -50,9 +50,24 @@ fun ImagesMainGrid(
     selectedCategory: MediaCategory?,
     isLoading: Boolean,
     activeFilterTab: String,
+    targetImageUri: String? = null,
+    onTargetImageChange: ((String?) -> Unit)? = null,
     gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState(),
     pagedImages: LazyPagingItems<MediaItem>? = null
 ) {
+    var highlightedImageUri by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(targetImageUri, images) {
+        if (!targetImageUri.isNullOrBlank()) {
+            val idx = images.indexOfFirst { it.uri.toString() == targetImageUri }
+            if (idx >= 0) {
+                highlightedImageUri = targetImageUri
+                gridState.animateScrollToItem(idx)
+                kotlinx.coroutines.delay(2500)
+                highlightedImageUri = null
+            }
+        }
+    }
     Column(modifier = Modifier.fillMaxSize()) {
 
         if (isLoading && images.isEmpty()) {
@@ -137,15 +152,17 @@ fun ImagesMainGrid(
                             isSelectionMode = isSelectionMode,
                             cornerRadiusDp = cornerRadiusDp,
                             roundedCornersEnabled = roundedCornersEnabled,
-                            onClick = { onImageClick(item, images) },
+                            isHighlighted = (item.uri.toString() == highlightedImageUri),
+                            onClick = { onImageClick(item, pagedImages.itemSnapshotList.items.filterNotNull()) },
                             onLongClick = { onImageLongClick(item) },
                             onInfo = { onInfoItemChange(item) },
                             onDelete = { onImageToDeleteChange(item) },
                             showRemoveOption = selectedCategory != null,
                             onRemoveFromCategory = { onRemoveFromCategory(item) },
-                            onOpenFolder = { folderName ->
+                            onOpenFolder = { folderName, targetUri ->
                                 onViewModeChange(1)
                                 onSelectedFolderChange(folderName)
+                                if (targetUri != null) onTargetImageChange?.invoke(targetUri)
                             },
                             onMoreClick = { onContextSheetItemChange(item) },
                             showInGallery = (viewMode == 1 && selectedFolder != null)
@@ -159,15 +176,17 @@ fun ImagesMainGrid(
                             isSelectionMode = isSelectionMode,
                             cornerRadiusDp = cornerRadiusDp,
                             roundedCornersEnabled = roundedCornersEnabled,
+                            isHighlighted = (item.uri.toString() == highlightedImageUri),
                             onClick = { onImageClick(item, images) },
                             onLongClick = { onImageLongClick(item) },
                             onInfo = { onInfoItemChange(item) },
                             onDelete = { onImageToDeleteChange(item) },
                             showRemoveOption = selectedCategory != null,
                             onRemoveFromCategory = { onRemoveFromCategory(item) },
-                            onOpenFolder = { folderName ->
+                            onOpenFolder = { folderName, targetUri ->
                                 onViewModeChange(1)
                                 onSelectedFolderChange(folderName)
+                                if (targetUri != null) onTargetImageChange?.invoke(targetUri)
                             },
                             onMoreClick = { onContextSheetItemChange(item) },
                             showInGallery = (viewMode == 1 && selectedFolder != null)

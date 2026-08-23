@@ -5,6 +5,8 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Log
+import com.medianest.MediaNestApp
+import com.medianest.data.db.AudioMetadataCache
 import com.medianest.data.model.MediaItem
 import java.io.File
 
@@ -66,19 +68,42 @@ object AudioMetadataUtils {
             }
         }
 
+        // Check Room database cache first to respect user-edited tags and custom album art
+        val cached: AudioMetadataCache? = runCatching {
+            MediaNestApp.instance.database.metadataCacheDao().getCacheSync(uri.toString())
+        }.getOrNull()
+
+        val finalTitle = cached?.title?.takeIf { it.isNotBlank() } ?: cleanedTitle
+        val finalArtist = cached?.artist?.takeIf { it.isNotBlank() } ?: meta.artist
+        val finalAlbum = cached?.album?.takeIf { it.isNotBlank() } ?: meta.album
+        val finalAlbumArtUri = cached?.albumArtUri?.let { Uri.parse(it) } ?: albumArtUri
+
+        val fileSize = runCatching {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (cursor.moveToFirst() && sizeIndex != -1) cursor.getLong(sizeIndex) else 0L
+            } ?: 0L
+        }.getOrDefault(0L)
+
         return MediaItem(
             id = uri.hashCode().toLong(),
             uri = uri,
-            title = cleanedTitle,
+            title = finalTitle,
             mimeType = effectiveMime,
             type = determinedType,
+            size = fileSize,
             durationMs = meta.durationMs,
             dateAdded = meta.dateCreated,
             dateModified = meta.dateModified,
             dateCreated = meta.dateCreated,
-            artist = meta.artist,
-            album = meta.album,
-            albumArtUri = albumArtUri
+            artist = finalArtist,
+            album = finalAlbum,
+            albumArtUri = finalAlbumArtUri,
+            genre = cached?.genre ?: meta.genre,
+            year = cached?.year ?: meta.year,
+            composer = cached?.composer ?: meta.composer,
+            albumArtist = cached?.albumArtist,
+            trackNumber = cached?.trackNumber
         )
     }
 

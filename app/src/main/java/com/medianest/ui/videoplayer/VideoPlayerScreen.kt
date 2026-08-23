@@ -395,17 +395,6 @@ fun VideoPlayerScreen(
                 val containerH = maxHeight.value.coerceAtLeast(0.01f)
                 val containerRatio = containerW / containerH
 
-                // Natural rendered dimensions of the video under FIT mode on this screen:
-                val videoFitW: Float
-                val videoFitH: Float
-                if (videoAspectRatio > containerRatio) {
-                    videoFitW = containerW
-                    videoFitH = containerW / videoAspectRatio
-                } else {
-                    videoFitH = containerH
-                    videoFitW = containerH * videoAspectRatio
-                }
-
                 val surfaceModifier = when (cropMode) {
                     MediaAspectRatio.FIT -> {
                         Modifier.aspectRatio(videoAspectRatio, matchHeightConstraintsFirst = videoAspectRatio <= containerRatio)
@@ -424,38 +413,10 @@ fun VideoPlayerScreen(
                     }
                     else -> {
                         // Fixed Aspect Ratio Presets (16:9, 16:10, 4:3, 1:1, 9:16, 4:5, 21:9):
-                        // Scale the crop window anchored to the video's full width or full height,
-                        // expanding/cropping the other dimension and bounded only by the physical screen container.
+                        // Fit the container window to the selected target aspect ratio within the screen,
+                        // and RESIZE_MODE_ZOOM crops the video to completely fill this target ratio window.
                         val targetRatio = cropMode.ratio ?: videoAspectRatio
-                        val targetW: Float
-                        val targetH: Float
-
-                        if (targetRatio <= videoAspectRatio) {
-                            // Target ratio is narrower than video (e.g. 16:10, 4:3, 1:1, 9:16 on a 16:9 video):
-                            // To crop vertically (increasing video height) up to the screen edge:
-                            val expandedH = videoFitW / targetRatio
-                            if (expandedH <= containerH) {
-                                // Full width is preserved, height expands (crops top/bottom from the video view):
-                                targetW = videoFitW
-                                targetH = expandedH
-                            } else {
-                                // Screen height limit reached: use full container height and crop sides:
-                                targetH = containerH
-                                targetW = containerH * targetRatio
-                            }
-                        } else {
-                            // Target ratio is wider than video (e.g. 21:9 on a 16:9 video, or 16:9 on a 9:16 video):
-                            // Height is preserved at full videoFitH, width expands up to screen width:
-                            val expandedW = videoFitH * targetRatio
-                            if (expandedW <= containerW) {
-                                targetH = videoFitH
-                                targetW = expandedW
-                            } else {
-                                targetW = containerW
-                                targetH = containerW / targetRatio
-                            }
-                        }
-                        Modifier.size(targetW.dp, targetH.dp)
+                        Modifier.aspectRatio(targetRatio, matchHeightConstraintsFirst = targetRatio <= containerRatio)
                     }
                 }
 
@@ -857,6 +818,7 @@ fun VideoPlayerScreen(
         if (showOverflowMenu) {
             VideoPlayerOverflowMenu(
                 onDismiss = { showOverflowMenu = false },
+                backgroundImage = currentItem?.uri,
                 onOpenWith = {
                     currentItem?.let { item ->
                         val sharingUri = com.medianest.util.ContentUriUtils.getSharingUri(context, item.uri)
@@ -875,6 +837,7 @@ fun VideoPlayerScreen(
                         val mainIntent = android.content.Intent(context, com.medianest.MainActivity::class.java).apply {
                             putExtra("open_screen", "VIDEOS_FOLDER")
                             putExtra("folder_name", folderKey)
+                            putExtra("target_media_uri", item.uri.toString())
                             addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
                         }
                         context.startActivity(mainIntent)

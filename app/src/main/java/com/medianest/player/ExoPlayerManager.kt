@@ -761,6 +761,31 @@ class ExoPlayerManager private constructor(private val context: Context) {
         applyExoAudioEffects()
     }
 
+    fun updateItemMetadata(updatedItem: MediaItem) {
+        scope.launch(Dispatchers.Main) {
+            val state = _playerState.value
+            val isCurrent = state.currentItem?.uri?.toString() == updatedItem.uri.toString()
+            val newCurrent = if (isCurrent) updatedItem else state.currentItem
+            val newQueue = state.queue.map { if (it.uri.toString() == updatedItem.uri.toString()) updatedItem else it }
+            
+            _playerState.value = state.copy(
+                currentItem = newCurrent,
+                queue = newQueue
+            )
+
+            if (isCurrent) {
+                FloatingPlayerService.startOrUpdateService(
+                    context = context,
+                    title = updatedItem.title,
+                    artist = updatedItem.artist ?: updatedItem.album ?: "MediaNest",
+                    isPlaying = state.isPlaying,
+                    artworkUri = updatedItem.albumArtUri?.toString() ?: updatedItem.uri.toString(),
+                    isVideo = updatedItem.type == com.medianest.data.db.MediaType.VIDEO
+                )
+            }
+        }
+    }
+
     fun setVideoBackgroundPlayEnabled(enabled: Boolean) { _playerState.value = _playerState.value.copy(isVideoBackgroundPlayEnabled = enabled) }
     fun clearAllCache(onComplete: () -> Unit = {}) { onComplete() }
     fun addToQueue(items: List<MediaItem>) {}

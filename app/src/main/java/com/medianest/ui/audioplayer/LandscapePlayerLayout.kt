@@ -74,14 +74,19 @@ fun LandscapePlayerLayout(
     onToggleVisualizer: () -> Unit = {},
     onFullscreenVisualizerClick: () -> Unit = {},
     onToggleArtistInfo: () -> Unit = {},
+    onOpenArtist: (String) -> Unit = {},
     showArtistInfo: Boolean = false,
     showSidePanel: Boolean = false,
     onToggleSidePanel: (Boolean) -> Unit = {},
-    onOpenAlbum: (String) -> Unit = {},
+    onPopularAlbumClick: (String) -> Unit = {},
+    onLocalAlbumClick: (String) -> Unit = {},
     allAudioItems: List<MediaItem> = emptyList(),
     showHidden: Boolean = false,
     hiddenFolders: Set<String> = emptySet(),
-    artistInfo: ArtistInfo? = null
+    artistInfo: ArtistInfo? = null,
+    browsingAlbumName: String? = null,
+    onBackToArtist: () -> Unit = {},
+    isScanningLibrary: Boolean = false
 ) {
     ImmersiveLandscapeLayout(
         playerState = playerState,
@@ -93,8 +98,11 @@ fun LandscapePlayerLayout(
         onSeekFinished = onSeekFinished,
         onToggleVisualizer = onToggleVisualizer,
         onToggleFavorite = onToggleFavorite,
-        onOpenAlbum = onOpenAlbum,
+        onPopularAlbumClick = onPopularAlbumClick,
+        onLocalAlbumClick = onLocalAlbumClick,
+        onOpenArtist = onOpenArtist,
         isFavorite = isFavorite,
+        isTablet = isTablet,
         allAudioItems = allAudioItems,
         showHidden = showHidden,
         hiddenFolders = hiddenFolders,
@@ -103,6 +111,9 @@ fun LandscapePlayerLayout(
         onToggleArtistInfo = onToggleArtistInfo,
         showSidePanel = showSidePanel,
         onToggleSidePanel = onToggleSidePanel,
+        browsingAlbumName = browsingAlbumName,
+        onBackToArtist = onBackToArtist,
+        isScanningLibrary = isScanningLibrary,
         modifier = modifier
     )
 }
@@ -118,8 +129,11 @@ private fun ImmersiveLandscapeLayout(
     onSeekFinished: () -> Unit,
     onToggleVisualizer: () -> Unit,
     onToggleFavorite: () -> Unit,
-    onOpenAlbum: (String) -> Unit,
+    onPopularAlbumClick: (String) -> Unit,
+    onLocalAlbumClick: (String) -> Unit,
+    onOpenArtist: (String) -> Unit,
     isFavorite: Boolean,
+    isTablet: Boolean = false,
     allAudioItems: List<MediaItem>,
     showHidden: Boolean,
     hiddenFolders: Set<String>,
@@ -127,6 +141,9 @@ private fun ImmersiveLandscapeLayout(
     onToggleArtistInfo: () -> Unit,
     showSidePanel: Boolean,
     onToggleSidePanel: (Boolean) -> Unit,
+    browsingAlbumName: String? = null,
+    onBackToArtist: () -> Unit = {},
+    isScanningLibrary: Boolean = false,
     passedArtistInfo: ArtistInfo? = null,
     modifier: Modifier = Modifier
 ) {
@@ -446,16 +463,16 @@ private fun ImmersiveLandscapeLayout(
                             activeColor = seekbarColor,
                             inactiveColor = seekbarColor.copy(alpha = 0.10f),
                             thumbColor = seekbarColor,
-                            waveAmplitudeDp = 6.dp,
-                            waveLengthDp = 36.dp,
+                            waveAmplitudeDp = if (isTablet) 7.5.dp else 6.dp,
+                            waveLengthDp = if (isTablet) 76.dp else 48.dp,
                             activeTrackHeightDp = 4.dp,
-                            heightDp = 14.dp, // Reduced height to pull it to the bottom
+                            heightDp = if (isTablet) 18.dp else 14.dp,
                             showThumb = false,
                             fullTrackBackground = true,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .align(Alignment.BottomCenter)
-                                .padding(horizontal = 16.dp) // Removed vertical padding
+                                .padding(horizontal = 16.dp)
                         )
 
                         // Center Indicators
@@ -555,6 +572,25 @@ private fun ImmersiveLandscapeLayout(
             }
         }
 
+        // Dismiss Overlay for Side Panels
+        if (showSidePanel || showArtistInfo || sidePanelSwipeOffset > 0.01f || animatedArtistSlide < 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = {
+                            if (showSidePanel || sidePanelSwipeOffset > 0.01f) {
+                                onToggleSidePanel(false)
+                                sidePanelSwipeOffset = 0f
+                            }
+                            if (showArtistInfo || animatedArtistSlide < 0f) {
+                                onToggleArtistInfo()
+                            }
+                        })
+                    }
+            )
+        }
+
         // 4. Side Panel (Queue)
         if (animatedSidePanelOffset > 0.01f) {
             Box(
@@ -593,7 +629,14 @@ private fun ImmersiveLandscapeLayout(
                 artistInfo?.let {
                     ArtistInfoPanel(
                         artistInfo = it,
-                        onAlbumClick = onOpenAlbum
+                        onPopularAlbumClick = onPopularAlbumClick,
+                        onLocalAlbumClick = onLocalAlbumClick,
+                        onArtistClick = onOpenArtist,
+                        browsingAlbumName = browsingAlbumName,
+                        allAudioItems = allAudioItems,
+                        onBackToArtist = onBackToArtist,
+                        playerManager = playerManager,
+                        isLoading = isScanningLibrary
                     )
                 }
             }
@@ -650,8 +693,8 @@ private fun BoxScope.IndicatorOverlay(
                 IndicatorType.Pause -> RoundedPauseIcon(Modifier.size(30.dp), tint = Color.White)
                 IndicatorType.Previous -> RoundedDoubleSkipPreviousIcon(Modifier.size(30.dp), tint = Color.White)
                 IndicatorType.Next -> RoundedDoubleSkipNextIcon(Modifier.size(30.dp), tint = Color.White)
-                IndicatorType.FavoriteOn -> Icon(Icons.Default.Favorite, null, tint = Color.White.copy(0.3f), modifier = Modifier.size(60.dp))
-                IndicatorType.FavoriteOff -> Icon(Icons.Default.FavoriteBorder, null, tint = Color.White.copy(0.3f), modifier = Modifier.size(60.dp))
+                IndicatorType.FavoriteOn -> Icon(Icons.Default.Favorite, null, tint = Color.Red.copy(0.3f), modifier = Modifier.size(60.dp))
+                IndicatorType.FavoriteOff -> Icon(Icons.Default.HeartBroken, null, tint = Color.White.copy(0.3f), modifier = Modifier.size(60.dp))
             }
         }
     }

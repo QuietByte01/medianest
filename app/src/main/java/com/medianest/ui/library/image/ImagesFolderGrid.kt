@@ -95,7 +95,7 @@ fun ImagesFolderGrid(
             }
         }
 
-        if ((isLoading && visibleFolders.isEmpty()) || (isScanningHidden && activeFilterTab == "HIDDEN" && visibleFolders.isEmpty())) {
+        if ((isLoading && visibleFolders.isEmpty()) || (isScanningHidden && (activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED") && visibleFolders.isEmpty())) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -103,8 +103,12 @@ fun ImagesFolderGrid(
                 MediaLoadingAnimation(
                     mediaType = MediaType.IMAGE,
                     iconSize = 52.dp,
-                    showLabel = isScanningHidden && activeFilterTab == "HIDDEN",
-                    customMessage = if (isScanningHidden && activeFilterTab == "HIDDEN") "Scanning hidden folders..." else null
+                    showLabel = isScanningHidden && (activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED"),
+                    customMessage = when {
+                        isScanningHidden && activeFilterTab == "HIDDEN" -> "Scanning hidden folders..."
+                        isScanningHidden && activeFilterTab == "EXCLUDED" -> "Scanning excluded folders..."
+                        else -> null
+                    }
                 )
             }
         } else if (visibleFolders.isEmpty()) {
@@ -357,7 +361,8 @@ fun ImagesFolderGrid(
                                     }
                                     GlassDropdownMenu(
                                         expanded = showFolderMenu,
-                                        onDismissRequest = { showFolderMenu = false }
+                                        onDismissRequest = { showFolderMenu = false },
+                                        backgroundImage = folderItems.firstOrNull()?.uri
                                     ) {
                                         DropdownMenuItem(
                                             text = { Text("Folder Info", color = Color.White) },

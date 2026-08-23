@@ -7,6 +7,14 @@ data class PopularAlbum(
     val artworkUrl: String?
 )
 
+data class AlbumTrack(
+    val trackNumber: Int,
+    val title: String,
+    val durationMs: Long = 0L,
+    val previewUrl: String? = null,
+    val artistName: String? = null
+)
+
 data class LocalAlbumInfo(
     val title: String,
     val artworkUri: Uri?,

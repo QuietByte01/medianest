@@ -62,13 +62,15 @@ fun WideVideoCard(
     var fallbackBitmap by remember(item.uri) { mutableStateOf<android.graphics.Bitmap?>(null) }
     var rebuildToken by remember(item.uri) { mutableStateOf(0) }
 
-    val videoSeekMicros = remember(item.durationMs) {
-        when {
-            item.durationMs > 10_000 -> 2_500_000L
-            item.durationMs > 5_000  -> 1_500_000L
-            item.durationMs > 2_000  -> 800_000L
-            item.durationMs > 1_000  -> 400_000L
-            else -> 0L
+    val coroutineScope = rememberCoroutineScope()
+    val rebuildOffsets = remember { listOf(0.15f, 0.35f, 0.55f, 0.75f, 0.25f, 0.05f) }
+    val selectedFactor = rebuildOffsets[rebuildToken % rebuildOffsets.size]
+
+    val videoSeekMicros = remember(item.durationMs, rebuildToken) {
+        if (item.durationMs > 1_000) {
+            (item.durationMs * 1000L * selectedFactor).toLong()
+        } else {
+            0L
         }
     }
 
@@ -223,7 +225,8 @@ fun WideVideoCard(
                 GlassDropdownMenu(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false },
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    backgroundImage = item.albumArtUri ?: item.uri
                 ) {
                     DropdownMenuItem(
                         text = { Text("File Info") },
@@ -239,7 +242,14 @@ fun WideVideoCard(
                         onClick = {
                             menuExpanded = false
                             fallbackBitmap = null
-                            rebuildToken++
+                            val nextToken = rebuildToken + 1
+                            rebuildToken = nextToken
+                            coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                val newFrame = extractVideoThumbnailWide(context, item, nextToken)
+                                if (newFrame != null) {
+                                    fallbackBitmap = newFrame
+                                }
+                            }
                         }
                     )
                     if (onRemoveFromCategory != null) {
@@ -290,42 +300,60 @@ fun WideVideoCard(
 
 private fun extractVideoThumbnailWide(
     context: android.content.Context,
-    item: com.medianest.data.model.MediaItem
+    item: com.medianest.data.model.MediaItem,
+    attemptOffset: Int = 0
 ): android.graphics.Bitmap? {
     return try {
         val retriever = android.media.MediaMetadataRetriever()
         retriever.setDataSource(context, item.uri)
         val durationMs = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
             ?.toLongOrNull() ?: item.durationMs
-        val candidates = listOfNotNull(
-            if (durationMs > 2_000) (durationMs * 1000L / 10L) else null,
-            if (durationMs > 5_000) 2_000_000L else null,
-            if (durationMs > 10_000) 5_000_000L else null,
-            0L
-        )
+
+        val baseOffsets = listOf(0.15f, 0.35f, 0.55f, 0.75f, 0.25f, 0.05f)
+        val shiftedOffsets = if (attemptOffset > 0) {
+            val shift = attemptOffset % baseOffsets.size
+            baseOffsets.drop(shift) + baseOffsets.take(shift)
+        } else {
+            baseOffsets
+        }
+
+        val candidates = shiftedOffsets.map { factor ->
+            if (durationMs > 1_000) (durationMs * 1000L * factor).toLong() else 0L
+        }.distinct()
+
         var result: android.graphics.Bitmap? = null
         for (seekMicros in candidates) {
             val frame = retriever.getFrameAtTime(seekMicros, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
             if (frame != null) {
-                val luma = frame.let {
-                    var sum = 0.0
-                    val step = (it.width / 4).coerceAtLeast(1)
-                    val stepY = (it.height / 4).coerceAtLeast(1)
-                    var count = 0
-                    var xi = 0
-                    while (xi < it.width) {
-                        var yi = 0
-                        while (yi < it.height) {
-                            val px = it.getPixel(xi, yi)
-                            sum += 0.299 * android.graphics.Color.red(px) + 0.587 * android.graphics.Color.green(px) + 0.114 * android.graphics.Color.blue(px)
-                            count++
-                            yi += stepY
-                        }
-                        xi += step
-                    }
-                    if (count > 0) sum / count else 0.0
+                val readableBitmap = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
+                    frame.config == android.graphics.Bitmap.Config.HARDWARE) {
+                    frame.copy(android.graphics.Bitmap.Config.ARGB_8888, false) ?: frame
+                } else {
+                    frame
                 }
-                if (luma > 10.0) { result = frame; break }
+
+                var darkCount = 0
+                var total = 0
+                val step = (readableBitmap.width / 5).coerceAtLeast(1)
+                val stepY = (readableBitmap.height / 5).coerceAtLeast(1)
+                var xi = 0
+                while (xi < readableBitmap.width) {
+                    var yi = 0
+                    while (yi < readableBitmap.height) {
+                        val px = readableBitmap.getPixel(xi, yi)
+                        val luma = 0.299 * android.graphics.Color.red(px) + 0.587 * android.graphics.Color.green(px) + 0.114 * android.graphics.Color.blue(px)
+                        if (luma < 15.0) darkCount++
+                        total++
+                        yi += stepY
+                    }
+                    xi += step
+                }
+
+                val isBlack = total > 0 && (darkCount.toFloat() / total) > 0.88f
+                if (!isBlack) {
+                    result = frame
+                    break
+                }
                 if (result == null) result = frame
             }
         }

@@ -123,6 +123,7 @@ fun VideosTab(
     onDismissAddVideosDialog: () -> Unit = {},
     onClearSelection: () -> Unit = {},
     initialFolder: String? = null,
+    initialTargetVideoUri: String? = null,
     onBackToDashboard: () -> Unit = {},
     viewModel: com.medianest.ui.MediaViewModel = viewModel()
 ) {
@@ -152,8 +153,15 @@ fun VideosTab(
 
     var isFolderViewActive by remember(initialFolder) { mutableStateOf(initialFolder != null) }
     var selectedFolder by remember(initialFolder) { mutableStateOf(initialFolder) }
+    var targetVideoUri by remember(initialTargetVideoUri) { mutableStateOf(initialTargetVideoUri) }
     var infoItem by remember { mutableStateOf<MediaItem?>(null) }
     var videoToDelete by remember { mutableStateOf<MediaItem?>(null) }
+
+    LaunchedEffect(initialTargetVideoUri) {
+        if (!initialTargetVideoUri.isNullOrBlank()) {
+            targetVideoUri = initialTargetVideoUri
+        }
+    }
 
     var selectedSeriesName by remember { mutableStateOf<String?>(null) }
     var selectedSeasonName by remember { mutableStateOf<String?>(null) }
@@ -384,7 +392,7 @@ fun VideosTab(
         }
 
         if ((isLoading && (videosList.isEmpty() || (displayList.isEmpty() && activeFilterTab != "CATEGORIES" && activeFilterTab != "SERIES"))) ||
-            (isScanningHidden && activeFilterTab == "HIDDEN" && displayList.isEmpty())) {
+            (isScanningHidden && (activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED") && displayList.isEmpty())) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -392,8 +400,12 @@ fun VideosTab(
                 MediaLoadingAnimation(
                     mediaType = MediaType.VIDEO,
                     iconSize = 52.dp,
-                    showLabel = isScanningHidden && activeFilterTab == "HIDDEN",
-                    customMessage = if (isScanningHidden && activeFilterTab == "HIDDEN") "Scanning hidden videos..." else null
+                    showLabel = isScanningHidden && (activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED"),
+                    customMessage = when {
+                        isScanningHidden && activeFilterTab == "HIDDEN" -> "Scanning hidden videos..."
+                        isScanningHidden && activeFilterTab == "EXCLUDED" -> "Scanning excluded videos..."
+                        else -> null
+                    }
                 )
             }
         } else if (videosList.isEmpty()) {
@@ -514,12 +526,14 @@ fun VideosTab(
                         db.categoryDao().removeMediaFromCategory(selectedCategory!!.id, item.uri.toString())
                     }
                 },
-                onOpenFolder = { matchedKey ->
+                onOpenFolder = { matchedKey, targetUri ->
                     isFolderViewActive = true
                     selectedFolder = matchedKey
+                    if (targetUri != null) targetVideoUri = targetUri
                 },
                 onRename = { itemToRename = it },
                 selectedFolder = selectedFolder,
+                targetVideoUri = targetVideoUri,
                 isFolderViewActive = isFolderViewActive,
                 gridState = wideGridState,
                 staggeredGridState = mainGridState,
@@ -576,6 +590,7 @@ fun VideosTab(
                     isFolderViewActive = true
                     activeFilterTab = "FOLDERS"
                     onCategorySelect(null)
+                    targetVideoUri = item.uri.toString()
                     val relPath = item.relativePath?.trim('/')
                     val folderKey = if (!relPath.isNullOrBlank()) relPath else (item.bucketName ?: "Movies")
                     selectedFolder = videoFolderGroups.keys.firstOrNull { key ->

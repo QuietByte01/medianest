@@ -45,6 +45,7 @@ fun AlbumsGrid(
     gridSizeLevel: Int = 1,
     initialSelectedAlbum: String? = null,
     onAddToPlaylist: (MediaItem) -> Unit = {},
+    onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?, targetSongUri: String?) -> Unit = { _, _, _, _, _ -> },
     sortField: String = "Name",
     isAscending: Boolean = true,
     cacheMap: Map<String, com.medianest.data.db.AudioMetadataCache> = emptyMap(),
@@ -233,7 +234,8 @@ fun AlbumsGrid(
                 isSelectionMode = isSelectionMode,
                 onSongClick = onSongClick,
                 onSongLongClick = onSongLongClick,
-                onAddToPlaylist = onAddToPlaylist
+                onAddToPlaylist = onAddToPlaylist,
+                onNavigateSubTab = onNavigateSubTab
             )
         }
     } else {

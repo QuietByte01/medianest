@@ -67,6 +67,7 @@ class MainActivity : ComponentActivity() {
     private val targetAudioFolder = MutableStateFlow<String?>(null)
     private val targetVideoFolder = MutableStateFlow<String?>(null)
     private val targetImageFolder = MutableStateFlow<String?>(null)
+    private val targetMediaItemUri = MutableStateFlow<String?>(null)
     private val resumeTrigger = MutableStateFlow(0)
 
     override fun onResume() {
@@ -142,6 +143,7 @@ class MainActivity : ComponentActivity() {
                     val audioFld by targetAudioFolder.collectAsState()
                     val videoFld by targetVideoFolder.collectAsState()
                     val imageFld by targetImageFolder.collectAsState()
+                    val mediaTargetUri by targetMediaItemUri.collectAsState()
 
                     // Prevent back press from exiting app when in sub-screens
                     BackHandler(enabled = currentScreen != "LIBRARY") {
@@ -158,14 +160,15 @@ class MainActivity : ComponentActivity() {
                         onDispose {}
                     }
 
-                    // Observe hidden folders and scan MediaStore (Fast immediate load + asynchronous hidden scan)
+                    // Observe hidden folders, MediaStore changes, and Room metadata cache (Fast immediate load + reactive updates)
                     val resumeCount by resumeTrigger.collectAsState()
                     LaunchedEffect(showHiddenFiles, resumeCount) {
                         combine(
                             db.selectiveHiddenFolderDao().getAllHiddenFolders(),
                             settingsManager.hiddenFolders,
-                            mediaStoreRepository.observeMediaStoreChanges()
-                        ) { selectiveHidden, appHiddenFolders, _ ->
+                            mediaStoreRepository.observeMediaStoreChanges(),
+                            db.metadataCacheDao().getAllCacheFlow()
+                        ) { selectiveHidden, appHiddenFolders, _, _ ->
                             val selectiveImage = selectiveHidden.filter { it.mediaType == "IMAGE" && it.isHidden }
                                 .flatMap { listOf(it.folderPath, it.folderName) }.filter { it.isNotBlank() }.toSet()
                             val selectiveVideo = selectiveHidden.filter { it.mediaType == "VIDEO" && it.isHidden }
@@ -318,10 +321,11 @@ class MainActivity : ComponentActivity() {
                                             targetAudioArtist.value = artist
                                             currentScreen = "LIBRARY"
                                         },
-                                        onOpenFolder = { folder ->
+                                        onOpenFolder = { folder, targetUri ->
                                             targetMainTab.value = if (enableAnalyticsTab) 3 else 2
                                             targetAudioSubTab.value = 5
                                             targetAudioFolder.value = folder
+                                            targetMediaItemUri.value = targetUri
                                             currentScreen = "LIBRARY"
                                         },
                                         onOpenSettings = { currentScreen = "SETTINGS" },
@@ -365,6 +369,7 @@ class MainActivity : ComponentActivity() {
                                         audioFolder = audioFld,
                                         initialVideoFolder = videoFld,
                                         initialImageFolder = imageFld,
+                                        targetMediaUri = mediaTargetUri,
                                         onOpenQuickView = { item, currentList ->
                                             val index = currentList.indexOfFirst { it.uri == item.uri }
                                             com.medianest.ui.quickview.QuickViewActivity.activeList = currentList
@@ -506,13 +511,25 @@ class MainActivity : ComponentActivity() {
             pendingScreenState.value = "SETTINGS"
         } else if (intent?.getStringExtra("open_screen") == "VIDEOS_FOLDER") {
             val folder = intent.getStringExtra("folder_name")
+            val mediaUri = intent.getStringExtra("target_media_uri")
             targetVideoFolder.value = folder
+            targetMediaItemUri.value = mediaUri
             targetMainTab.value = 2 // Videos tab
             pendingScreenState.value = "LIBRARY"
         } else if (intent?.getStringExtra("open_screen") == "IMAGES_FOLDER") {
             val folder = intent.getStringExtra("folder_name")
+            val mediaUri = intent.getStringExtra("target_media_uri")
             targetImageFolder.value = folder
+            targetMediaItemUri.value = mediaUri
             targetMainTab.value = 1 // Images tab
+            pendingScreenState.value = "LIBRARY"
+        } else if (intent?.getStringExtra("open_screen") == "AUDIO_FOLDER") {
+            val folder = intent.getStringExtra("folder_name")
+            val mediaUri = intent.getStringExtra("target_media_uri")
+            targetAudioFolder.value = folder
+            targetMediaItemUri.value = mediaUri
+            targetAudioSubTab.value = 5
+            targetMainTab.value = 3 // Audio tab
             pendingScreenState.value = "LIBRARY"
         }
     }

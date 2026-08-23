@@ -149,7 +149,7 @@ fun VideoFoldersGrid(
             )
         }
 
-        if ((isLoading && visibleFolders.isEmpty()) || (isScanningHidden && activeFilterTab == "HIDDEN" && visibleFolders.isEmpty())) {
+        if ((isLoading && visibleFolders.isEmpty()) || (isScanningHidden && (activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED") && visibleFolders.isEmpty())) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -157,8 +157,12 @@ fun VideoFoldersGrid(
                 com.medianest.ui.components.MediaLoadingAnimation(
                     mediaType = com.medianest.data.db.MediaType.VIDEO,
                     iconSize = 52.dp,
-                    showLabel = isScanningHidden && activeFilterTab == "HIDDEN",
-                    customMessage = if (isScanningHidden && activeFilterTab == "HIDDEN") "Scanning hidden folders..." else null
+                    showLabel = isScanningHidden && (activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED"),
+                    customMessage = when {
+                        isScanningHidden && activeFilterTab == "HIDDEN" -> "Scanning hidden folders..."
+                        isScanningHidden && activeFilterTab == "EXCLUDED" -> "Scanning excluded folders..."
+                        else -> null
+                    }
                 )
             }
         } else if (visibleFolders.isEmpty()) {
@@ -272,7 +276,8 @@ fun VideoFoldersGrid(
                                     }
                                     GlassDropdownMenu(
                                         expanded = showFolderMenu,
-                                        onDismissRequest = { showFolderMenu = false }
+                                        onDismissRequest = { showFolderMenu = false },
+                                        backgroundImage = folderItems.firstOrNull()?.uri
                                     ) {
                                         DropdownMenuItem(
                                             text = { Text("Folder Info", color = Color.White) },
@@ -370,8 +375,8 @@ fun VideoFoldersGrid(
                                                 .clip(RoundedCornerShape(10.dp))
                                                 .background(if (LocalDarkTheme.current) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.10f))
                                         ) {
-                                            AsyncImage(
-                                                model = item.uri,
+                                            com.medianest.ui.components.VideoThumbnailView(
+                                                item = item,
                                                 contentDescription = item.title,
                                                 contentScale = ContentScale.Crop,
                                                 modifier = Modifier.fillMaxSize()

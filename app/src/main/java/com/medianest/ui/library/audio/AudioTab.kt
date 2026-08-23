@@ -47,6 +47,7 @@ fun AudioTab(
     initialAlbum: String? = null,
     initialArtist: String? = null,
     initialFolder: String? = null,
+    initialTargetSongUri: String? = null,
     onBackToDashboard: () -> Unit = {},
     pagedAudio: LazyPagingItems<MediaItem>? = null,
     viewModel: com.medianest.ui.MediaViewModel = viewModel()
@@ -56,8 +57,15 @@ fun AudioTab(
     var targetAlbum by remember(initialAlbum) { mutableStateOf(initialAlbum) }
     var targetArtist by remember(initialArtist) { mutableStateOf(initialArtist) }
     var targetFolder by remember(initialFolder) { mutableStateOf(initialFolder) }
+    var targetSongUri by remember(initialTargetSongUri) { mutableStateOf(initialTargetSongUri) }
     var targetPlaylist by remember { mutableStateOf<MediaCategory?>(null) }
     var itemToAddToPlaylist by remember { mutableStateOf<MediaItem?>(null) }
+
+    LaunchedEffect(initialTargetSongUri) {
+        if (!initialTargetSongUri.isNullOrBlank()) {
+            targetSongUri = initialTargetSongUri
+        }
+    }
 
     val settingsManager = MediaNestApp.instance.settingsManager
     val showHiddenSetting by settingsManager.showHiddenFiles.collectAsState(initial = false)
@@ -140,7 +148,12 @@ fun AudioTab(
                     title = cached.title ?: item.title,
                     artist = cached.artist.takeIf { !it.isNullOrBlank() } ?: item.artist,
                     album = cached.album.takeIf { !it.isNullOrBlank() } ?: item.album,
-                    albumArtUri = cached.albumArtUri?.let { android.net.Uri.parse(it) } ?: item.albumArtUri
+                    albumArtUri = cached.albumArtUri?.let { android.net.Uri.parse(it) } ?: item.albumArtUri,
+                    genre = cached.genre ?: item.genre,
+                    year = cached.year ?: item.year,
+                    composer = cached.composer ?: item.composer,
+                    albumArtist = cached.albumArtist ?: item.albumArtist,
+                    trackNumber = cached.trackNumber ?: item.trackNumber
                 )
             } else {
                 item
@@ -244,7 +257,7 @@ fun AudioTab(
 
     val contentBlock: @Composable () -> Unit = {
         if ((isLoading && (audioList.isEmpty() || (effectiveAudioList.isEmpty() && subTabState !in listOf(1, 2, 6)))) ||
-            (isScanningHidden && subTabState == 8 && effectiveAudioList.isEmpty())) {
+            (isScanningHidden && (subTabState == 8 || subTabState == 7) && effectiveAudioList.isEmpty())) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -252,8 +265,12 @@ fun AudioTab(
                 com.medianest.ui.components.MediaLoadingAnimation(
                     mediaType = com.medianest.data.db.MediaType.AUDIO,
                     iconSize = 52.dp,
-                    showLabel = isScanningHidden && subTabState == 8,
-                    customMessage = if (isScanningHidden && subTabState == 8) "Scanning hidden audio..." else null
+                    showLabel = isScanningHidden && (subTabState == 8 || subTabState == 7),
+                    customMessage = when {
+                        isScanningHidden && subTabState == 8 -> "Scanning hidden audio..."
+                        isScanningHidden && subTabState == 7 -> "Scanning excluded audio..."
+                        else -> null
+                    }
                 )
             }
         } else {
@@ -267,11 +284,12 @@ fun AudioTab(
                 onSongClick = onSongClick,
                 onSongLongClick = onSongLongClick,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
-                onNavigateSubTab = { tab, album, artist, folder ->
+                onNavigateSubTab = { tab, album, artist, folder, targetUri ->
                     subTabState = tab
                     if (album != null) targetAlbum = album
                     if (artist != null) targetArtist = artist
                     if (folder != null) targetFolder = folder
+                    if (targetUri != null) targetSongUri = targetUri
                 },
                 pagedSongs = pagedAudio
             )
@@ -284,11 +302,12 @@ fun AudioTab(
                 onSongClick = onSongClick,
                 onSongLongClick = onSongLongClick,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
-                onNavigateSubTab = { tab, album, artist, folder ->
+                onNavigateSubTab = { tab, album, artist, folder, targetUri ->
                     subTabState = tab
                     if (album != null) targetAlbum = album
                     if (artist != null) targetArtist = artist
                     if (folder != null) targetFolder = folder
+                    if (targetUri != null) targetSongUri = targetUri
                 }
             )
             2 -> SongsList(
@@ -300,11 +319,12 @@ fun AudioTab(
                 onSongClick = onSongClick,
                 onSongLongClick = onSongLongClick,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
-                onNavigateSubTab = { tab, album, artist, folder ->
+                onNavigateSubTab = { tab, album, artist, folder, targetUri ->
                     subTabState = tab
                     if (album != null) targetAlbum = album
                     if (artist != null) targetArtist = artist
                     if (folder != null) targetFolder = folder
+                    if (targetUri != null) targetSongUri = targetUri
                 }
             )
             7 -> FoldersGrid(
@@ -314,12 +334,14 @@ fun AudioTab(
                 onSongClick = onSongClick,
                 onSongLongClick = onSongLongClick,
                 initialSelectedFolder = targetFolder,
+                targetSongUri = targetSongUri,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
-                onNavigateSubTab = { tab, album, artist, folder ->
+                onNavigateSubTab = { tab, album, artist, folder, targetUri ->
                     subTabState = tab
                     if (album != null) targetAlbum = album
                     if (artist != null) targetArtist = artist
                     if (folder != null) targetFolder = folder
+                    if (targetUri != null) targetSongUri = targetUri
                 },
                 isLoading = isLoading,
                 isScanningHidden = isScanningHidden,
@@ -333,12 +355,14 @@ fun AudioTab(
                 onSongClick = onSongClick,
                 onSongLongClick = onSongLongClick,
                 initialSelectedFolder = targetFolder,
+                targetSongUri = targetSongUri,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
-                onNavigateSubTab = { tab, album, artist, folder ->
+                onNavigateSubTab = { tab, album, artist, folder, targetUri ->
                     subTabState = tab
                     if (album != null) targetAlbum = album
                     if (artist != null) targetArtist = artist
                     if (folder != null) targetFolder = folder
+                    if (targetUri != null) targetSongUri = targetUri
                 },
                 isLoading = isLoading,
                 isScanningHidden = isScanningHidden,
@@ -353,6 +377,13 @@ fun AudioTab(
                 onSongLongClick = onSongLongClick,
                 initialSelectedAlbum = targetAlbum,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
+                onNavigateSubTab = { tab, album, artist, folder, targetUri ->
+                    subTabState = tab
+                    if (album != null) targetAlbum = album
+                    if (artist != null) targetArtist = artist
+                    if (folder != null) targetFolder = folder
+                    if (targetUri != null) targetSongUri = targetUri
+                },
                 sortField = sortField,
                 isAscending = isAscending,
                 cacheMap = cacheMap,
@@ -366,11 +397,12 @@ fun AudioTab(
                 onSongLongClick = onSongLongClick,
                 initialSelectedArtist = targetArtist,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
-                onNavigateSubTab = { tab, album, artist, folder ->
+                onNavigateSubTab = { tab, album, artist, folder, targetUri ->
                     subTabState = tab
                     if (album != null) targetAlbum = album
                     if (artist != null) targetArtist = artist
                     if (folder != null) targetFolder = folder
+                    if (targetUri != null) targetSongUri = targetUri
                 },
                 sortField = sortField,
                 isAscending = isAscending,
@@ -383,12 +415,14 @@ fun AudioTab(
                 onSongClick = onSongClick,
                 onSongLongClick = onSongLongClick,
                 initialSelectedFolder = targetFolder,
+                targetSongUri = targetSongUri,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
-                onNavigateSubTab = { tab, album, artist, folder ->
+                onNavigateSubTab = { tab, album, artist, folder, targetUri ->
                     subTabState = tab
                     if (album != null) targetAlbum = album
                     if (artist != null) targetArtist = artist
                     if (folder != null) targetFolder = folder
+                    if (targetUri != null) targetSongUri = targetUri
                 },
                 sortField = sortField,
                 isAscending = isAscending
@@ -404,12 +438,13 @@ fun AudioTab(
                 initialSelectedPlaylist = targetPlaylist,
                 onSelectPlaylist = { targetPlaylist = it },
                 onAddToPlaylist = { itemToAddToPlaylist = it },
-                onNavigateSubTab = { tab: Int, album: String?, artist: String?, folder: String? ->
+                onNavigateSubTab = { tab: Int, album: String?, artist: String?, folder: String?, targetUri: String? ->
                     previousSubTabState = subTabState
                     subTabState = tab
                     if (album != null) targetAlbum = album
                     if (artist != null) targetArtist = artist
                     if (folder != null) targetFolder = folder
+                    if (targetUri != null) targetSongUri = targetUri
                 }
             )
         }

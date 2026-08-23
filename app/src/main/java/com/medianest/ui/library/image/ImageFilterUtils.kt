@@ -109,9 +109,17 @@ fun filterImageList(
             val path = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "")).lowercase()
             val title = item.title.lowercase()
             
-            val cookingFolders = setOf("cooking", "veg", "non-veg", "nonveg", "recipe", "recipes", "food", "kitchen", "bakery")
+            // Exclude wallpapers directories and keywords
+            val excludedFolders = setOf("wallpaper", "wallpapers", "wallhaven", "zedge", "background", "backgrounds", "lockscreen")
             val pathSegments = path.split(Regex("[/_\\s\\.\\-]+")).filter { it.isNotBlank() }
-            
+            val isExcluded = pathSegments.any { it in excludedFolders } ||
+                    path.contains("wallpaper") || path.contains("wallpapers") ||
+                    path.contains("wallhaven") || path.contains("zedge") ||
+                    title.contains("wallpaper") || title.contains("wallpapers")
+
+            if (isExcluded) return@filter false
+
+            val cookingFolders = setOf("cooking", "veg", "non-veg", "nonveg", "recipe", "recipes", "food", "kitchen", "bakery")
             val folderMatch = pathSegments.any { it in cookingFolders }
             
             val cookingKeywords = listOf(
@@ -128,17 +136,21 @@ fun filterImageList(
             val path = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "")).lowercase()
             val title = item.title.lowercase()
 
-            // 1. Define folders you want to EXCLUDE
-            val excludedFolders = setOf("screenshot", "Quick Share", "WhatsApp", "telegram", "Documents", "Notes")
+            // 1. Exclude Documents, Notes, Screenshots, Quick Share, WhatsApp, Telegram directories
+            val excludedFolders = setOf(
+                "screenshot", "screenshots", "quick share", "quickshare", "quick", "share",
+                "whatsapp", "telegram", "documents", "document", "notes", "note", "doc", "docs"
+            )
             val pathSegments = path.split(Regex("[/_\\s\\.\\-]+")).filter { it.isNotBlank() }
 
-            // Check if the path contains any of the excluded folders
-            val isExcluded = pathSegments.any { it in excludedFolders }
+            val isExcluded = pathSegments.any { it in excludedFolders } ||
+                    path.contains("document") || path.contains("documents") ||
+                    path.contains("note") || path.contains("notes") ||
+                    path.contains("quick share") || path.contains("screenshot")
 
-            // If it's in an excluded folder, skip it immediately
             if (isExcluded) return@filter false
 
-            // 2. Your existing matching logic (using || or && depending on your preference)
+            // 2. Gardening matching logic
             val gardeningFolders = setOf("gardening", "garden", "flowers", "flower", "nature", "farm", "park", "botany", "botanical", "plants")
             val folderMatch = pathSegments.any { it in gardeningFolders }
 

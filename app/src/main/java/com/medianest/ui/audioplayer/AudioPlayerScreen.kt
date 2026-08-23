@@ -31,6 +31,7 @@ import com.medianest.data.db.CategoryMediaCrossRef
 import com.medianest.data.db.MediaCategory
 import com.medianest.data.model.*
 import com.medianest.data.repository.NetworkRepository
+import com.medianest.data.repository.MediaStoreRepository
 import com.medianest.player.ExoPlayerManager
 import com.medianest.ui.components.MediaInfoBottomSheet
 import com.medianest.ui.components.extractBaseHueFromArt
@@ -52,7 +53,7 @@ fun AudioPlayerScreen(
     onClose: () -> Unit,
     onOpenAlbum: (String) -> Unit = {},
     onOpenArtist: (String) -> Unit = {},
-    onOpenFolder: (String) -> Unit = {},
+    onOpenFolder: (String, String?) -> Unit = { _, _ -> },
     onOpenSettings: () -> Unit = {},
     allAudioItems: List<MediaItem> = emptyList(),
     showHidden: Boolean = false,
@@ -97,19 +98,52 @@ fun AudioPlayerScreen(
     var isVisualizerFullscreen by remember { mutableStateOf(false) }
     var showArtistInfoPanel by remember { mutableStateOf(false) }
     var showSidePanelLandscape by remember { mutableStateOf(false) }
+
+    var displayedArtistName by remember { mutableStateOf<String?>(null) }
+    var artistNavigationStack by remember { mutableStateOf<List<String>>(emptyList()) }
+    var browsingAlbumName by remember { mutableStateOf<String?>(null) }
     
     val context = LocalContext.current
     val db = MediaNestApp.instance.database
     
     val artistMetadataRepo = remember { MediaNestApp.instance.artistMetadataRepository }
     var artistInfo by remember { mutableStateOf<ArtistInfo?>(null) }
+    
+    var libraryAudioList by remember { mutableStateOf(allAudioItems) }
+    var isScanningLibrary by remember { mutableStateOf(false) }
 
-    LaunchedEffect(currentItem?.artist, allAudioItems) {
-        val artistName = currentItem?.artist ?: "Unknown Artist"
+    LaunchedEffect(allAudioItems) {
+        if (allAudioItems.isNotEmpty()) {
+            libraryAudioList = allAudioItems
+        } else {
+            isScanningLibrary = true
+            val mediaRepo = MediaStoreRepository(context)
+            libraryAudioList = mediaRepo.getAudio()
+            isScanningLibrary = false
+        }
+    }
+
+    LaunchedEffect(currentItem?.artist) {
+        if (!showArtistInfoPanel) {
+            displayedArtistName = currentItem?.artist ?: "Unknown Artist"
+            artistNavigationStack = emptyList()
+        }
+    }
+
+    LaunchedEffect(showArtistInfoPanel) {
+        if (!showArtistInfoPanel) {
+            displayedArtistName = currentItem?.artist ?: "Unknown Artist"
+            artistNavigationStack = emptyList()
+            browsingAlbumName = null
+        }
+    }
+
+    LaunchedEffect(displayedArtistName, libraryAudioList) {
+        val artistName = displayedArtistName ?: currentItem?.artist ?: "Unknown Artist"
         val info = artistMetadataRepo.getArtistInfo(artistName)
         
         // 1. Find real albums in library
-        val artistSongs = allAudioItems.filter { it.artist.equals(artistName, ignoreCase = true) }
+        val artistSongs = libraryAudioList.filter { it.artist.equals(artistName, ignoreCase = true) }
         val realLocalAlbums = if (artistSongs.isNotEmpty()) {
             artistSongs.groupBy { it.album ?: "Unknown Album" }
                 .map { (title, songs) ->
@@ -200,6 +234,11 @@ fun AudioPlayerScreen(
 
     BackHandler(enabled = true) {
         when {
+            browsingAlbumName != null -> browsingAlbumName = null
+            artistNavigationStack.isNotEmpty() -> {
+                displayedArtistName = artistNavigationStack.last()
+                artistNavigationStack = artistNavigationStack.dropLast(1)
+            }
             showArtistInfoPanel -> showArtistInfoPanel = false
             showDetailsSheet -> showDetailsSheet = false
             showMetadataModal -> showMetadataModal = false
@@ -297,15 +336,31 @@ fun AudioPlayerScreen(
                 onToggleVisualizer = { scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) } },
                 onFullscreenVisualizerClick = { isVisualizerFullscreen = true },
                 onToggleArtistInfo = { showArtistInfoPanel = !showArtistInfoPanel },
+                onOpenArtist = { artistName ->
+                    displayedArtistName?.let { current ->
+                        if (current != artistName) {
+                            artistNavigationStack = artistNavigationStack + current
+                            displayedArtistName = artistName
+                        }
+                    } ?: run {
+                        displayedArtistName = artistName
+                    }
+                },
                 showArtistInfo = showArtistInfoPanel,
-                onOpenAlbum = { albumName ->
+                onPopularAlbumClick = { albumName ->
+                    browsingAlbumName = albumName
+                },
+                onLocalAlbumClick = { albumName ->
                     onClose()
                     onOpenAlbum(albumName)
                 },
-                allAudioItems = allAudioItems,
+                allAudioItems = libraryAudioList,
                 showHidden = showHidden,
                 hiddenFolders = hiddenFolders,
                 artistInfo = artistInfo,
+                browsingAlbumName = browsingAlbumName,
+                onBackToArtist = { browsingAlbumName = null },
+                isScanningLibrary = isScanningLibrary,
                 showSidePanel = showSidePanelLandscape,
                 onToggleSidePanel = { showSidePanelLandscape = it },
                 modifier = Modifier.fillMaxSize()
@@ -321,7 +376,13 @@ fun AudioPlayerScreen(
                         IconButton(onClick = { showOverflowMenu = true }, modifier = Modifier.size(42.dp)) {
                             Icon(Icons.Default.MoreVert, "More", tint = Color.White)
                         }
-                        com.medianest.ui.components.GlassDropdownMenu(expanded = showOverflowMenu, onDismissRequest = { showOverflowMenu = false }, shape = RoundedCornerShape(16.dp)) {
+                        com.medianest.ui.components.GlassDropdownMenu(
+                            expanded = showOverflowMenu,
+                            onDismissRequest = { showOverflowMenu = false },
+                            shape = RoundedCornerShape(16.dp),
+                            backgroundImage = currentItem?.albumArtUri ?: currentItem?.uri,
+                            hue = albumArtHue
+                        ) {
                             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                                 DropdownMenuItem(text = { Text("File Info", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Info, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; showDetailsSheet = true })
                                 DropdownMenuItem(text = { Text("Add to Playlist", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.PlaylistAdd, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; showAddAlbumToPlaylistDialog = true })
@@ -332,7 +393,7 @@ fun AudioPlayerScreen(
                                     if (currentArtist != null && !currentArtist.isPlaceholder) {
                                         DropdownMenuItem(text = { Text("Show Artist", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Person, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; onClose(); onOpenArtist(currentItem.artist ?: "Unknown Artist") })
                                     }
-                                    DropdownMenuItem(text = { Text("Show In Folder", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Folder, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; onClose(); onOpenFolder(currentItem.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (currentItem.bucketName ?: "Music")) })
+                                    DropdownMenuItem(text = { Text("Show In Folder", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Folder, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; onClose(); onOpenFolder(currentItem.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (currentItem.bucketName ?: "Music"), currentItem.uri.toString()) })
                                 }
                                 DropdownMenuItem(text = { Text("Native Audio DSP", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Equalizer, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; showDspSheet = true })
                                 DropdownMenuItem(text = { Text(if (showAudioVisualizer) "Hide Audio Visualizer" else "Show Audio Visualizer", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.GraphicEq, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) } })
@@ -358,19 +419,37 @@ fun AudioPlayerScreen(
                     onEditLyrics = { manualLyricsInput = rawLyricsText ?: ""; showManualLyricsDialog = true },
                     onFullscreenVisualizerClick = { isVisualizerFullscreen = true },
                     onToggleArtistInfo = { showArtistInfoPanel = !showArtistInfoPanel },
+                    onOpenArtist = { artistName ->
+                        displayedArtistName?.let { current ->
+                            if (current != artistName) {
+                                artistNavigationStack = artistNavigationStack + current
+                                displayedArtistName = artistName
+                            }
+                        } ?: run {
+                            displayedArtistName = artistName
+                        }
+                    },
                     showArtistInfo = showArtistInfoPanel,
                     artistInfo = artistInfo,
-                    onOpenAlbum = { albumName ->
+                    onPopularAlbumClick = { albumName ->
+                        browsingAlbumName = albumName
+                    },
+                    onLocalAlbumClick = { albumName ->
                         onClose()
                         onOpenAlbum(albumName)
                     },
+                    browsingAlbumName = browsingAlbumName,
+                    allAudioItems = libraryAudioList,
+                    onBackToArtist = { browsingAlbumName = null },
+                    isScanningLibrary = isScanningLibrary,
                     modifier = Modifier.fillMaxSize().weight(1f)
                 )
             }
         }
 
         if (showMetadataModal && currentItem != null) AudioMetadataEditDialog(item = currentItem, onDismiss = { showMetadataModal = false })
-        if (showAlbumSongsSheet && currentItem != null) AlbumSongsSheet(currentItem = currentItem, albumSongs = albumSongs, playerState = playerState, playerManager = playerManager, onDismiss = { showAlbumSongsSheet = false })
+        if (showAlbumSongsSheet && currentItem != null) AlbumSongsSheet(albumName = currentItem.album ?: "Unknown Album", albumSongs = albumSongs, playerState = playerState, playerManager = playerManager, onDismiss = { showAlbumSongsSheet = false }, currentItem = currentItem)
+        
         if (showAddAlbumToPlaylistDialog && currentItem != null) AddAlbumToPlaylistDialog(albumSongs = albumSongs, audioPlaylists = audioPlaylists, db = db, playerManager = playerManager, context = context, scope = scope, onDismiss = { showAddAlbumToPlaylistDialog = false })
         if (showDetailsSheet && currentItem != null) MediaInfoBottomSheet(item = currentItem, onDismiss = { showDetailsSheet = false })
         if (showManualLyricsDialog) ManualLyricsDialog(currentItem = currentItem, rawLyricsText = rawLyricsText, initialInput = manualLyricsInput, networkRepository = networkRepository, context = context, onLyricsUpdated = { raw, lines -> rawLyricsText = raw; lyricsLines = lines; if (raw != null) showLyricsView = true }, onDismiss = { showManualLyricsDialog = false })

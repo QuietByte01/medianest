@@ -15,9 +15,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -25,12 +28,22 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.medianest.R
 import com.medianest.data.model.MediaItem
 import com.medianest.player.PlayerState
 import com.medianest.ui.components.AmbientGlassSurface
 import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.components.extractBaseHueFromArt
 import com.medianest.ui.components.media.*
+import com.medianest.ui.components.media.MediaEffect
+import com.medianest.ui.components.media.FilterCarouselStyle
+import com.medianest.ui.components.media.MediaFilterCarousel
+import com.medianest.ui.components.media.MediaTrimTimeline
+import com.medianest.ui.components.media.MediaAspectRatio
+import com.medianest.ui.components.media.MediaAspectRatioSelector
+import com.medianest.ui.components.media.AspectRatioSelectorStyle
 import com.medianest.ui.theme.LocalDarkTheme
 import com.medianest.ui.videoplayer.getBreadcrumbParts
 import com.medianest.ui.videoplayer.safeFormatDuration
@@ -54,11 +67,9 @@ internal fun VideoPlayerOverflowMenu(
     onCast: () -> Unit,
     onSettings: () -> Unit,
     onShowInfo: () -> Unit = {},
+    backgroundImage: Any? = null,
     modifier: Modifier = Modifier
 ) {
-    val isDark = LocalDarkTheme.current
-    val bgRes = R.drawable.bg_596
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -75,6 +86,7 @@ internal fun VideoPlayerOverflowMenu(
                 .width(220.dp)
                 .clickable(enabled = false) {},
             shape = RoundedCornerShape(16.dp),
+            backgroundImage = backgroundImage,
             borderWidth = 0.5.dp
         ) {
             Column(
@@ -169,7 +181,7 @@ internal fun AspectRatioModal(
             .clickable { onDismiss() },
         contentAlignment = Alignment.BottomCenter
     ) {
-        AmbientGlassSurface(
+        GlassSurface(
             modifier = Modifier
                 .fillMaxWidth(0.85f)
                 .padding(bottom = 24.dp)
@@ -217,7 +229,7 @@ internal fun PlaybackSpeedModal(
             .clickable { onDismiss() },
         contentAlignment = Alignment.BottomCenter
     ) {
-        AmbientGlassSurface(
+        GlassSurface(
             modifier = Modifier
                 .fillMaxWidth(0.85f)
                 .padding(bottom = 24.dp)
@@ -273,7 +285,7 @@ internal fun VideoPostProcessingPanel(
             .clickable { onDismiss() },
         contentAlignment = Alignment.BottomCenter
     ) {
-        AmbientGlassSurface(
+        GlassSurface(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .padding(bottom = 24.dp)

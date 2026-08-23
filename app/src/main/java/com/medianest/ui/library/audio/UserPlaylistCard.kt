@@ -138,7 +138,8 @@ fun UserPlaylistCard(
                 }
                 GlassDropdownMenu(
                     expanded = showMenu,
-                    onDismissRequest = { showMenu = false }
+                    onDismissRequest = { showMenu = false },
+                    backgroundImage = artUri
                 ) {
                     DropdownMenuItem(
                         text = { Text("Open Playlist") },

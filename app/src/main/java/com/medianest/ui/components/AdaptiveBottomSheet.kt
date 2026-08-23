@@ -279,8 +279,7 @@ fun AdaptiveBottomSheet(
 
 /**
  * Rich ambient background container for bottom sheets matching the Library ambient background system.
- * Features a 64dp blurred thumbnail layer with darker tint (alpha = 0.22f) so bright thumbnails never overpower the UI,
- * dynamic hue-based top-left and bottom-right radial glow orbs, and a dark obsidian glass overlay.
+ * Delegated to the centralized [AmbientGlassSurface] component.
  */
 @Composable
 private fun SheetAmbientSurface(
@@ -292,111 +291,14 @@ private fun SheetAmbientSurface(
     containerColor: Color,
     content: @Composable BoxScope.() -> Unit
 ) {
-    val context = LocalContext.current
-    var activeHue by remember { mutableStateOf(hue) }
-
-    LaunchedEffect(backgroundImage, hue) {
-        if (hue != null) {
-            activeHue = hue
-        } else if (backgroundImage is Uri) {
-            activeHue = extractBaseHueFromArt(context, backgroundImage)
-        } else {
-            activeHue = null
-        }
-    }
-
-    val ambientTopColor = remember(activeHue, isDark) {
-        if (activeHue != null) Color.hsv(activeHue!!, 0.65f, 0.40f, 0.35f)
-        else if (isDark) Color(0x354A3B2C)
-        else Color(0x35E2E8F0)
-    }
-
-    val ambientBottomColor = remember(activeHue, isDark) {
-        if (activeHue != null) Color.hsv((activeHue!! + 25f) % 360f, 0.55f, 0.28f, 0.30f)
-        else if (isDark) Color(0x301E2838)
-        else Color(0x30CBD5E1)
-    }
-
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f)
-
-    Box(
-        modifier = modifier
-            .clip(shape)
-            .border(
-                width = 0.5.dp,
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        borderColor,
-                        borderColor.copy(alpha = 0.05f)
-                    )
-                ),
-                shape = shape
-            )
-            .background(if (isDark) Color(0xFF0C0E14) else Color(0xFFF8FAFC))
-    ) {
-        // 1. Dynamic Blurred Background Thumbnail/Art (matching LibraryAmbientBackground)
-        if (backgroundImage != null) {
-            AsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(backgroundImage)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .matchParentSize()
-                    .blur(64.dp)
-                    .graphicsLayer { alpha = 0.32f }
-            )
-        }
-
-        // 2. Ambient Radial Glow Orbs (Top-Left & Bottom-Right)
-        Box(
-            modifier = Modifier
-                .size(450.dp)
-                .offset(x = (-120).dp, y = (-100).dp)
-                .background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            ambientTopColor,
-                            Color.Transparent
-                        )
-                    ),
-                    shape = CircleShape
-                )
-        )
-        Box(
-            modifier = Modifier
-                .size(480.dp)
-                .align(Alignment.BottomEnd)
-                .offset(x = 120.dp, y = 120.dp)
-                .background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            ambientBottomColor,
-                            Color.Transparent
-                        )
-                    ),
-                    shape = CircleShape
-                )
-        )
-
-        // 3. Subtle glass sheen (ensures glowing ambient colors remain vibrant like the library)
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = if (isDark) {
-                            listOf(Color(0x18FFFFFF), Color(0x35000000))
-                        } else {
-                            listOf(Color(0x30FFFFFF), Color(0x10000000))
-                        }
-                    ),
-                    shape = shape
-                )
-        )
-
-        content()
-    }
+    AmbientGlassSurface(
+        modifier = modifier,
+        shape = shape,
+        backgroundImage = backgroundImage,
+        hue = hue,
+        borderWidth = 0.5.dp,
+        containerColor = containerColor,
+        content = content
+    )
 }
+

@@ -24,6 +24,12 @@ import com.medianest.ui.components.WideVideoCard
 import com.medianest.ui.components.translucentScrollBarGrid
 import com.medianest.ui.components.translucentScrollBarStaggeredGrid
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+
 @Composable
 fun VideosMainGrid(
     sortedDisplayList: List<MediaItem>,
@@ -41,16 +47,34 @@ fun VideosMainGrid(
     onInfoItem: (MediaItem) -> Unit,
     onVideoDelete: (MediaItem) -> Unit,
     onRemoveFromCategory: (MediaItem) -> Unit,
-    onOpenFolder: (String) -> Unit,
+    onOpenFolder: (String, String?) -> Unit,
     onRename: (MediaItem) -> Unit,
     selectedFolder: String? = null,
+    targetVideoUri: String? = null,
     isFolderViewActive: Boolean = false,
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
     staggeredGridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState(),
     pagedVideos: LazyPagingItems<MediaItem>? = null
 ) {
+    var highlightedVideoUri by remember { mutableStateOf<String?>(null) }
     // Only use Wide style for specific curated tabs
     val isWideStyle = activeFilterTab in listOf("MUSIC", "MOVIES", "SERIES", "EDITED")
+
+    LaunchedEffect(targetVideoUri, sortedDisplayList) {
+        if (!targetVideoUri.isNullOrBlank()) {
+            val idx = sortedDisplayList.indexOfFirst { it.uri.toString() == targetVideoUri }
+            if (idx >= 0) {
+                highlightedVideoUri = targetVideoUri
+                if (isWideStyle && activeFilterTab != "EDITED") {
+                    gridState.animateScrollToItem(idx)
+                } else {
+                    staggeredGridState.animateScrollToItem(idx)
+                }
+                kotlinx.coroutines.delay(2500)
+                highlightedVideoUri = null
+            }
+        }
+    }
 
     if (isWideStyle) {
         if (activeFilterTab == "EDITED") {
@@ -179,20 +203,21 @@ fun VideosMainGrid(
                         isSelectionMode = isSelectionMode,
                         cornerRadiusDp = cornerRadiusDp,
                         roundedCornersEnabled = roundedCornersEnabled,
+                        isHighlighted = (item.uri.toString() == highlightedVideoUri),
                         onClick = { onVideoClick(item) },
                         onLongClick = { onVideoLongClick(item) },
                         onInfo = { onInfoItem(item) },
                         onDelete = { onVideoDelete(item) },
                         showRemoveOption = selectedCategory != null,
                         onRemoveFromCategory = { onRemoveFromCategory(item) },
-                        onOpenFolder = { targetFolder ->
+                        onOpenFolder = { targetFolder, targetUri ->
                             val matchedKey = videoFolderGroups.keys.firstOrNull { key ->
                                 key.equals(targetFolder, ignoreCase = true) ||
                                         key.lowercase().endsWith(targetFolder.lowercase()) ||
                                         targetFolder.lowercase().endsWith(key.lowercase()) ||
                                         key.substringAfterLast('/').equals(targetFolder.substringAfterLast('/'), ignoreCase = true)
                             } ?: targetFolder
-                            onOpenFolder(matchedKey)
+                            onOpenFolder(matchedKey, targetUri)
                         },
                         onRename = { onRename(item) },
                         showInGallery = (isFolderViewActive && selectedFolder != null)
@@ -206,20 +231,21 @@ fun VideosMainGrid(
                         isSelectionMode = isSelectionMode,
                         cornerRadiusDp = cornerRadiusDp,
                         roundedCornersEnabled = roundedCornersEnabled,
+                        isHighlighted = (item.uri.toString() == highlightedVideoUri),
                         onClick = { onVideoClick(item) },
                         onLongClick = { onVideoLongClick(item) },
                         onInfo = { onInfoItem(item) },
                         onDelete = { onVideoDelete(item) },
                         showRemoveOption = selectedCategory != null,
                         onRemoveFromCategory = { onRemoveFromCategory(item) },
-                        onOpenFolder = { targetFolder ->
+                        onOpenFolder = { targetFolder, targetUri ->
                             val matchedKey = videoFolderGroups.keys.firstOrNull { key ->
                                 key.equals(targetFolder, ignoreCase = true) ||
                                         key.lowercase().endsWith(targetFolder.lowercase()) ||
                                         targetFolder.lowercase().endsWith(key.lowercase()) ||
                                         key.substringAfterLast('/').equals(targetFolder.substringAfterLast('/'), ignoreCase = true)
                             } ?: targetFolder
-                            onOpenFolder(matchedKey)
+                            onOpenFolder(matchedKey, targetUri)
                         },
                         onRename = { onRename(item) },
                         showInGallery = (isFolderViewActive && selectedFolder != null)

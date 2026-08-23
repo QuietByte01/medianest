@@ -39,14 +39,48 @@ fun filterVideoList(videos: List<MediaItem>, filterTab: String, showHidden: Bool
     }
 }
 
+/**
+ * Checks if [keyword] exists in [text] as an isolated whole word/token,
+ * preventing false substring matches on random/garbage strings (e.g. "insta" or "snap" in "RUIDecdb251fb26insta142snap").
+ */
+fun containsWord(text: String, keyword: String): Boolean {
+    if (text.isBlank() || keyword.isBlank()) return false
+    val escaped = Regex.escape(keyword.lowercase())
+    val pattern = Regex("(?i)(?:^|[^a-zA-Z0-9])$escaped(?:[^a-zA-Z0-9]|$)")
+    return pattern.containsMatchIn(text)
+}
+
+/**
+ * Checks if a filename title looks like a random hex/hash/cache string
+ * e.g., "RUIDecdb251fb26insta142snap", "7f8a9b0c1d2e3f4a5b6c7d8e9f", etc.
+ */
+fun isGarbageOrHashTitle(title: String): Boolean {
+    val name = title.substringBeforeLast('.').trim()
+    // If it is a single long continuous alphanumeric string with no spaces/dashes and mixed letters + digits
+    if (name.length >= 16 && !name.contains(' ') && !name.contains('-') && !name.contains('_')) {
+        val digits = name.count { it.isDigit() }
+        val letters = name.count { it.isLetter() }
+        if (digits >= 4 && letters >= 4) {
+            return true
+        }
+    }
+    // High hex/alphanumeric density or known random cache prefixes
+    if (name.startsWith("RUI", ignoreCase = true) || name.startsWith("UUID", ignoreCase = true) || name.startsWith("CACHE", ignoreCase = true)) {
+        if (name.length >= 14 && name.any { it.isDigit() }) return true
+    }
+    return false
+}
+
 fun isEditedVideo(item: MediaItem): Boolean {
+    if (isGarbageOrHashTitle(item.title)) return false
+
     val path = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title).lowercase()
-    val isWallpaper = path.contains("wallpaper") || path.contains("wallpapers") || path.contains("wallhaven") || path.contains("zedge") || path.contains("backdrops") || path.contains("live wallpaper")
+    val isWallpaper = listOf("wallpaper", "wallpapers", "wallhaven", "zedge", "backdrops", "live wallpaper").any { containsWord(path, it) }
     if (isWallpaper) return false
 
     if (isFromExcludedCategoryFolder(item)) return false
 
-    val videoEditorRegex = Regex("video\\s*editor")
+    val videoEditorRegex = Regex("(?i)\\bvideo\\s*editor\\b")
     val editKeywords = listOf(
         "editor",
         "studio",
@@ -59,7 +93,7 @@ fun isEditedVideo(item: MediaItem): Boolean {
         "edited"
     )
 
-    val matchesKeyword = editKeywords.any { path.contains(it) }
+    val matchesKeyword = editKeywords.any { containsWord(path, it) }
 
     return path.contains("/dcim/video editor/") ||
             videoEditorRegex.containsMatchIn(path) ||
@@ -74,19 +108,21 @@ fun isClipsAndRecordings(item: MediaItem): Boolean {
         return true
     }
 
+    if (isGarbageOrHashTitle(item.title)) return false
+
     val excludedKeywords = listOf(
-        "instagram", "snapchat", "tiktok", "facebook", "whatsapp", "telegram", "twitter", "x", "reddit",
+        "instagram", "snapchat", "tiktok", "facebook", "whatsapp", "telegram", "twitter", "reddit",
         "editor", "studio", "compress", "compressor", "gif", "capcut", "kinemaster", "vn", "inshot",
         "game", "gaming", "screenrecord", "recorder"
     )
 
-    if (excludedKeywords.any { path.contains(it) }) {
+    if (excludedKeywords.any { containsWord(path, it) }) {
         return false
     }
 
     val isInDcim = path.contains("dcim/")
-    val isRecording = path.contains("recording") || path.contains("screenrecord")
-    val isCameraVid = title.startsWith("vid_")
+    val isRecording = containsWord(path, "recording") || containsWord(path, "screenrecord")
+    val isCameraVid = title.startsWith("vid_") || title.startsWith("vid-")
 
     return isInDcim || isRecording || isCameraVid
 }
@@ -96,11 +132,9 @@ fun isShorts(item: MediaItem): Boolean {
     val isUnder90s = item.durationMs in 1L..90_000L || item.durationMs == 0L
 
     val title = item.title.lowercase()
-    val hasKeyword = title.contains("short") ||
-            title.contains("reel") ||
-            title.contains("tiktok") ||
-            title.contains("clip") ||
-            title.contains("video clip")
+    val hasKeyword = if (isGarbageOrHashTitle(item.title)) false else {
+        listOf("short", "shorts", "reel", "reels", "tiktok", "clip", "clips", "video clip").any { containsWord(title, it) }
+    }
 
     return (isVerticalOrSquare && isUnder90s) || hasKeyword
 }
@@ -206,15 +240,19 @@ fun isTVSeries(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean 
 
     // 2. Exclusion keywords for non-series content
     val exclusionKeywords = listOf("recording", "screen_recording", "live", "test", "interview", "webinar", "zoom", "meeting", "tutorial", "presentation", "exam")
-    if (exclusionKeywords.any { title.contains(it) || fullPath.contains(it) }) return false
+    if (exclusionKeywords.any { containsWord(title, it) || containsWord(fullPath, it) }) return false
+
+    if (isGarbageOrHashTitle(item.title) && !isSeriesFolder && !fullPath.contains("season")) return false
 
     // 3. Define regular expressions for standard TV show naming conventions
     val patternSeasonEpisode = Regex("(?i)s\\d{1,2}e\\d{1,2}")
     val patternNumberXNumber = Regex("(?i)\\d{1,2}x\\d{1,2}")
     
-    // Anime/Series episode patterns: "Episode 10", "Ep 10", "E10", or " - 10 " (common in anime)
-    val patternEpisodeExplicit = Regex("(?i)(?:episode|ep|e)[\\s._-]*(\\d{1,3})\\b")
-    val patternAnimeEpisode = Regex("(?i)[_\\-\\s]+(\\d{1,3})(?:\\s*[(\\[]|\\s*$)")
+    // Anime/Series episode patterns: "Episode 10", "Ep 10", "E10"
+    val patternEpisodeExplicit = Regex("(?i)\\b(?:episode|ep|e)[\\s._-]*(\\d{1,3})\\b")
+    
+    // " - 10 ", "_366", " 01", or " 1071 " (prevents "Spiderman 1" while catching anime)
+    val patternAnimeEpisode = Regex("(?i)(?:[_\\-]+\\s*|\\s+0)(\\d{1,4})(?:\\s*[(\\[]|\\s*$)|(?:\\s+)(?!19\\d{2}|20\\d{2})(\\d{3,4})(?:\\s*[(\\[]|\\s*$)")
 
     // Check if path or title contains explicit episode/season formatting
     val hasPattern = patternSeasonEpisode.containsMatchIn(fullPath) || 
@@ -227,21 +265,25 @@ fun isTVSeries(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean 
 
     if (matchesExplicitCriteria) return true
 
-    // 4. Fallback: Check if this video shares significant repeated words with other videos in O(1)
+    // 4. Fallback: Check if this video shares significant repeated words with other videos in O(1) (Disabled: causes false positives with movies)
+    /*
     if (sharedWords.isNotEmpty()) {
         val cleanedTitleWords = extractSignificantWords(item.title)
         if (cleanedTitleWords.any { it in sharedWords }) {
             return true
         }
     }
+    */
 
     return false
 }
 
+/*
 // Backward compatibility overload
 fun isTVSeries(item: MediaItem, allItems: List<MediaItem>): Boolean {
     return isTVSeries(item, computeSharedTitleWords(allItems))
 }
+*/
 
 fun isMovie(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean {
     // 1. Fundamental duration requirement (User specified: 20 min is right)
@@ -259,7 +301,9 @@ fun isMovie(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean {
 
     // 2. Exclusion keywords for non-movie content
     val exclusionKeywords = listOf("recording", "screen_recording", "live", "test", "interview", "webinar", "zoom", "meeting", "tutorial", "presentation", "exam")
-    if (exclusionKeywords.any { title.contains(it) || fullPath.contains(it) }) return false
+    if (exclusionKeywords.any { containsWord(title, it) || containsWord(fullPath, it) }) return false
+
+    if (isGarbageOrHashTitle(item.title) && !inMovieFolder) return false
 
     // 3. Strong Movie Markers (Override series detection if these are present)
     val hasMovieQualityTag = fullPath.contains("1080p") || fullPath.contains("720p") ||
@@ -288,10 +332,12 @@ fun isMovie(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean {
     return hasStrongMarkers || (inGeneralFolder && isVeryLong) || isVeryLong
 }
 
+/*
 // Backward compatibility overload
 fun isMovie(item: MediaItem, allItems: List<MediaItem>): Boolean {
     return isMovie(item, computeSharedTitleWords(allItems))
 }
+*/
 
 /**
  * Helper function to tokenize a title and filter out allowed exceptions
@@ -327,6 +373,8 @@ fun isMovieOrShow(item: MediaItem): Boolean {
 }
 
 fun isMusicVideo(item: MediaItem): Boolean {
+    if (isGarbageOrHashTitle(item.title)) return false
+
     val title = item.title.lowercase()
     val path = ((item.relativePath ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
 
@@ -345,7 +393,7 @@ fun isMusicVideo(item: MediaItem): Boolean {
     val matchesMusicPath = musicPathKeywords.any { path.contains(it) }
 
     val musicTitleKeywords = listOf("official video", "audio", "lyrics", "ft.", "feat", "music video", "remix", "cover")
-    val matchesMusicTitle = musicTitleKeywords.any { title.contains(it) }
+    val matchesMusicTitle = musicTitleKeywords.any { containsWord(title, it) }
 
     return hasArtist || hasAlbumOrGenre || matchesMusicPath || matchesMusicTitle
 }
@@ -362,7 +410,7 @@ fun isSocialMediaVideo(item: MediaItem): Boolean {
     val socialNames = listOf(
         "whatsapp", "telegram", "instagram", "insta", "facebook", "fb", "tiktok", "snapchat", "snap", "pinterest", "twitter", "reddit"
     )
-    val matchesTitle = socialNames.any { title.contains(it) }
+    val matchesTitle = if (isGarbageOrHashTitle(item.title)) false else socialNames.any { containsWord(title, it) }
 
     val targetFolders = listOf(
         "whatsapp/media",
@@ -434,6 +482,7 @@ fun isItemInCategory(
     
     // 2. Exclude specific folders for automatic categorization
     if (isFromExcludedCategoryFolder(item)) return false
+    if (isGarbageOrHashTitle(item.title)) return false
 
     // 3. Implicitly matched via keywords
     val filterKeywords = when (catName) {
@@ -449,10 +498,10 @@ fun isItemInCategory(
     val relPath = (item.relativePath ?: "").lowercase()
     val bucket = (item.bucketName ?: "").lowercase()
     
-    val nameMatches = bucket.contains(catName) || relPath.contains(catName) || (catName.length >= 3 && title.contains(catName))
+    val nameMatches = bucket.contains(catName) || relPath.contains(catName) || (catName.length >= 3 && containsWord(title, catName))
     if (nameMatches) return true
     
     return filterKeywords.isNotEmpty() && filterKeywords.any { kw ->
-        title.contains(kw) || relPath.contains(kw) || bucket.contains(kw)
+        containsWord(title, kw) || containsWord(relPath, kw) || containsWord(bucket, kw)
     }
 }

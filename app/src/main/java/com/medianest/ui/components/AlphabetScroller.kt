@@ -60,7 +60,7 @@ fun AlphabetScroller(
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .padding(end = 2.dp, top = 8.dp, bottom = 8.dp),
+            .padding(end = 2.dp, top = 6.dp, bottom = 6.dp),
         contentAlignment = Alignment.CenterEnd
     ) {
         // Floating Letter Preview Pill

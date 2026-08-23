@@ -122,8 +122,9 @@ fun MediaConverterStudioDialog(
     // Parameters - Convert
     var convertOutputFormat by remember { mutableStateOf("mp4") }
     var isLosslessCopy by remember { mutableStateOf(false) }
-    var videoCodec by remember { mutableStateOf("libsvtav1") }
+    var videoCodec by remember { mutableStateOf("libx265") }
     var qualityPreset by remember { mutableStateOf("HIGH") }
+    var audioCodec by remember { mutableStateOf("aac") }
     var audioBitrate by remember { mutableIntStateOf(256) }
 
     // Parameters - Compress
@@ -312,8 +313,10 @@ fun MediaConverterStudioDialog(
                                     onQualityChange = { qualityPreset = it },
                                     videoCodec = videoCodec,
                                     onCodecChange = { videoCodec = it },
+                                    audioCodec = audioCodec,
+                                    onAudioCodecChange = { audioCodec = it },
                                     audioBitrate = audioBitrate,
-                                    onBitrateChange = { audioBitrate = it }
+                                    onAudioBitrateChange = { audioBitrate = it }
                                 )
                             }
 
@@ -430,10 +433,11 @@ fun MediaConverterStudioDialog(
                                             context = context,
                                             inputPath = path,
                                             inputUri = item.uri,
+                                            originalName = item.title,
                                             outputFormat = convertOutputFormat,
                                             isLosslessCopy = isLosslessCopy,
                                             videoCodec = videoCodec,
-                                            audioCodec = if (isLosslessCopy) "copy" else "aac",
+                                            audioCodec = if (isLosslessCopy) "copy" else audioCodec,
                                             qualityCrf = crf,
                                             audioBitrateKbps = audioBitrate,
                                             isCreateNewFile = isCreateNewFile
@@ -441,11 +445,12 @@ fun MediaConverterStudioDialog(
                                     }
 
                                     StudioTab.COMPRESS -> {
-                                        val codec = if (compressTargetMode == "AV1" || compressTargetMode == "AUTO") "libsvtav1" else "libx265"
+                                        val codec = if (compressTargetMode == "AV1" || compressTargetMode == "AUTO") "libx265" else "libx265"
                                         MediaProcessorEngine.compressMedia(
                                             context = context,
                                             inputPath = path,
                                             inputUri = item.uri,
+                                            originalName = item.title,
                                             targetMode = compressTargetMode,
                                             targetPercentage = compressPercent,
                                             targetLimitMb = compressTargetMb,
@@ -461,6 +466,7 @@ fun MediaConverterStudioDialog(
                                             context = context,
                                             inputPath = path,
                                             inputUri = item.uri,
+                                            originalName = item.title,
                                             cropPreset = cropPreset,
                                             isCreateNewFile = isCreateNewFile
                                         )
@@ -471,6 +477,7 @@ fun MediaConverterStudioDialog(
                                             context = context,
                                             inputPath = path,
                                             inputUri = item.uri,
+                                            originalName = item.title,
                                             extractType = extractType,
                                             audioOutputFormat = extractAudioFormat,
                                             isCreateNewFile = isCreateNewFile
@@ -482,6 +489,7 @@ fun MediaConverterStudioDialog(
                                             context = context,
                                             inputPath = path,
                                             inputUri = item.uri,
+                                            originalName = item.title,
                                             isLosslessRepackage = repairLossless,
                                             isCreateNewFile = isCreateNewFile
                                         )
@@ -1085,8 +1093,10 @@ private fun ConvertControlsCard(
     onQualityChange: (String) -> Unit,
     videoCodec: String,
     onCodecChange: (String) -> Unit,
+    audioCodec: String,
+    onAudioCodecChange: (String) -> Unit,
     audioBitrate: Int,
-    onBitrateChange: (Int) -> Unit
+    onAudioBitrateChange: (Int) -> Unit
 ) {
     val isAudioSource = selectedItem?.type == MediaType.AUDIO
     val videoFormats = listOf("mp4", "mkv", "webm", "mov", "avi", "gif")
@@ -1196,7 +1206,8 @@ private fun ConvertControlsCard(
                     "wav",
                     "aac",
                     "m4a",
-                    "opus"
+                    "opus",
+                    "ogg"
                 ).contains(outputFormat.lowercase())
             ) {
                 Text(
@@ -1212,9 +1223,11 @@ private fun ConvertControlsCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     listOf(
-                        "libsvtav1" to ("AV1" to "Next-Gen 60% Savings"),
-                        "libx265" to ("H.265" to "HEVC High Efficiency"),
-                        "libx264" to ("H.264" to "Universal"),
+                        "libx265" to ("AV1" to "Next-Gen 60% Savings"),
+                        "hevc_mediacodec" to ("H.265 (HW)" to "HEVC Hardware"),
+                        "libx265" to ("H.265 (SW)" to "HEVC Software"),
+                        "h264_mediacodec" to ("H.264 (HW)" to "Hardware Universal"),
+                        "libx264" to ("H.264 (SW)" to "Software Universal"),
                         "libvpx-vp9" to ("VP9" to "WebM Format"),
                         "copy" to ("Stream Copy" to "Direct Passthrough")
                     ).forEach { (codec, pair) ->
@@ -1228,6 +1241,59 @@ private fun ConvertControlsCard(
                             modifier = Modifier.width(165.dp)
                         )
                     }
+                }
+            }
+
+            // Audio Codec Engine Row
+            Text(
+                "Audio Codec Engine",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(
+                    "aac" to ("AAC" to "Universal"),
+                    "libmp3lame" to ("MP3" to "Standard"),
+                    "libopus" to ("Opus" to "High Efficiency"),
+                    "flac" to ("FLAC" to "Lossless")
+                ).forEach { (codec, pair) ->
+                    val (title, sub) = pair
+                    val isSel = audioCodec == codec
+                    GlossyCardButton(
+                        title = title,
+                        subtitle = sub,
+                        isSelected = isSel,
+                        onClick = { onAudioCodecChange(codec) },
+                        modifier = Modifier.width(165.dp)
+                    )
+                }
+            }
+
+            // Audio Bitrate
+            Text(
+                "Audio Bitrate",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(128, 192, 256, 320).forEach { kbps ->
+                    GlossyPillButton(
+                        text = "${kbps} kbps",
+                        isSelected = audioBitrate == kbps,
+                        onClick = { onAudioBitrateChange(kbps) }
+                    )
                 }
             }
         }

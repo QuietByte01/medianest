@@ -51,6 +51,7 @@ fun LibraryScreen(
     audioFolder: String? = null,
     initialVideoFolder: String? = null,
     initialImageFolder: String? = null,
+    targetMediaUri: String? = null,
     onOpenQuickView: (MediaItem, List<MediaItem>) -> Unit,
     onOpenVideoPlayer: (MediaItem) -> Unit,
     onOpenAudioPlayer: (Int) -> Unit,
@@ -216,6 +217,8 @@ fun LibraryScreen(
                             roundedCornersEnabled = roundedCornersEnabled,
                             isLoading = isLoading,
                             isScanningHidden = isScanningHidden,
+                            initialFolder = initialImageFolder,
+                            initialTargetImageUri = targetMediaUri,
                             onImageClick = { item, currentList ->
                                 if (isSelectionMode) {
                                     val uriStr = item.uri.toString()
@@ -260,6 +263,7 @@ fun LibraryScreen(
                         onDismissAddVideosDialog = { showAddVideosToCategoryModal = false },
                         onClearSelection = { selectedUris = emptySet() },
                         initialFolder = initialVideoFolder,
+                        initialTargetVideoUri = targetMediaUri,
                         onBackToDashboard = { currentTab = 0 },
                         viewModel = viewModel
                     )
@@ -284,6 +288,7 @@ fun LibraryScreen(
                         initialAlbum = audioAlbum,
                         initialArtist = audioArtist,
                         initialFolder = audioFolder,
+                        initialTargetSongUri = targetMediaUri,
                         onBackToDashboard = { currentTab = 0 },
                         viewModel = viewModel
                     )

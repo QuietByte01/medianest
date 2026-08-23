@@ -46,7 +46,7 @@ fun AddToPlaylistBottomSheet(
 
     AdaptiveBottomSheet(
         onDismissRequest = onDismissRequest,
-        containerColor = if (LocalDarkTheme.current) Color(0xBF0F1015) else Color(0xA6FFFFFF)
+        backgroundImage = song.albumArtUri ?: song.uri
     ) {
         Column(
             modifier = Modifier
