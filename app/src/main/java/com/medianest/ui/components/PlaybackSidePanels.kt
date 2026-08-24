@@ -54,7 +54,6 @@ import com.medianest.data.model.ArtistSocialLinks
 import com.medianest.player.PlayerState
 import com.medianest.player.ExoPlayerManager
 import com.medianest.util.rememberArtistImageUrl
-import com.medianest.ui.videoplayer.getBreadcrumbParts
 import com.medianest.ui.videoplayer.safeFormatDuration
 
 /**
@@ -1146,7 +1145,7 @@ fun SidebarQueueDrawer(
                                 .padding(end = 4.dp)
                         ) {
                             Text(
-                                text = contextTitle,
+                                text = "Playing from $contextTitle",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
@@ -1167,14 +1166,26 @@ fun SidebarQueueDrawer(
                             item.bucketName ?: item.relativePath?.trim('/')?.substringAfterLast('/') ?: "Single Video"
                         } ?: "Single Video"
                         
-                        Text(
-                            text = folderName,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 4.dp)
+                        ) {
+                            Text(
+                                text = folderName,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "Queue Context",
+                                fontSize = 10.sp,
+                                color = Color.White.copy(alpha = 0.6f),
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
 
@@ -1233,23 +1244,23 @@ fun SidebarQueueDrawer(
 
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = Color.Black.copy(alpha = 0.30f),
+                                    color = Color.Black.copy(alpha = 0.40f),
                                     modifier = Modifier
                                         .align(Alignment.BottomEnd)
-                                        .padding(6.dp)
+                                        .padding(4.dp)
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(3.dp)
                                     ) {
                                         RoundedPlayIcon(
-                                            modifier = Modifier.size(10.dp),
+                                            modifier = Modifier.size(9.dp),
                                             tint = Color.White
                                         )
                                         Text(
                                             text = safeFormatDuration(context, video),
-                                            fontSize = 10.sp,
+                                            fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color.White
                                         )

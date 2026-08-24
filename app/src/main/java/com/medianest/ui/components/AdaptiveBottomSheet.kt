@@ -114,7 +114,7 @@ fun AdaptiveBottomSheet(
                                 indication = null,
                                 enabled = false
                             ) {}
-                            .fillMaxWidth(0.70f),
+                            .fillMaxWidth(0.74f),
                         shape = RoundedCornerShape(24.dp),
                         backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color.Unspecified,
                         borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.10f),
@@ -138,7 +138,7 @@ fun AdaptiveBottomSheet(
                                 indication = null,
                                 enabled = false
                             ) {}
-                            .fillMaxWidth(0.70f),
+                            .fillMaxWidth(0.74f),
                         shape = RoundedCornerShape(24.dp),
                         isDark = isDark,
                         backgroundImage = backgroundImage,
@@ -161,7 +161,7 @@ fun AdaptiveBottomSheet(
                                 indication = null,
                                 enabled = false
                             ) {}
-                            .fillMaxWidth(0.70f),
+                            .fillMaxWidth(0.74f),
                         shape = RoundedCornerShape(24.dp),
                         backgroundColor = resolvedColor,
                         borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
