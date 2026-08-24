@@ -79,6 +79,7 @@ data class PlayerState(
     val isVocalMuteEnabled: Boolean = false,
     val isLoudnessNormalizerEnabled: Boolean = false,
     val isSystemVolumeMaxed: Boolean = false,
+    val queueTitle: String? = null,
     val abRepeatState: AbRepeatState = AbRepeatState(),
     val abRepeatA: Long? = null,
     val abRepeatB: Long? = null,
@@ -481,7 +482,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) focusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
     }
 
-    fun playMediaList(items: List<MediaItem>, startIndex: Int = 0, startPosMs: Long = 0L) {
+    fun playMediaList(items: List<MediaItem>, startIndex: Int = 0, startPosMs: Long = 0L, queueTitle: String? = null) {
         if (items.isEmpty()) return
         
         // Filter out hidden/excluded items if necessary
@@ -600,12 +601,47 @@ class ExoPlayerManager private constructor(private val context: Context) {
         }
     }
 
-    fun setAbRepeatPointA(positionMs: Long? = null) = abRepeatController.setPointA(positionMs ?: activeEngine?.currentPositionMs ?: 0L)
-    fun setAbRepeatPointB(positionMs: Long? = null) = abRepeatController.setPointB(positionMs ?: activeEngine?.currentPositionMs ?: 0L)
-    fun adjustAbRepeatPointA(deltaMs: Long) = abRepeatController.adjustPointA(deltaMs, _playerState.value.durationMs)
-    fun adjustAbRepeatPointB(deltaMs: Long) = abRepeatController.adjustPointB(deltaMs, _playerState.value.durationMs)
-    fun toggleAbRepeat(active: Boolean? = null) = abRepeatController.toggle(activeEngine?.currentPositionMs)
-    fun clearAbRepeat() = abRepeatController.clear()
+    private fun syncAbRepeatState() {
+        val ab = abRepeatController.state.value
+        _playerState.value = _playerState.value.copy(
+            abRepeatState = ab,
+            abRepeatA = ab.pointA,
+            abRepeatB = ab.pointB,
+            isAbRepeatActive = ab.isActive
+        )
+    }
+
+    fun setAbRepeatPointA(positionMs: Long? = null) {
+        val pos = positionMs ?: activeEngine?.currentPositionMs ?: _playerState.value.currentPositionMs
+        abRepeatController.setPointA(pos)
+        syncAbRepeatState()
+    }
+
+    fun setAbRepeatPointB(positionMs: Long? = null) {
+        val pos = positionMs ?: activeEngine?.currentPositionMs ?: _playerState.value.currentPositionMs
+        abRepeatController.setPointB(pos, durationMs = _playerState.value.durationMs)
+        syncAbRepeatState()
+    }
+
+    fun adjustAbRepeatPointA(deltaMs: Long) {
+        abRepeatController.adjustPointA(deltaMs, _playerState.value.durationMs)
+        syncAbRepeatState()
+    }
+
+    fun adjustAbRepeatPointB(deltaMs: Long) {
+        abRepeatController.adjustPointB(deltaMs, _playerState.value.durationMs)
+        syncAbRepeatState()
+    }
+
+    fun toggleAbRepeat(active: Boolean? = null) {
+        abRepeatController.toggle(activeEngine?.currentPositionMs ?: _playerState.value.currentPositionMs)
+        syncAbRepeatState()
+    }
+
+    fun clearAbRepeat() {
+        abRepeatController.clear()
+        syncAbRepeatState()
+    }
 
     fun onEnginePlaybackEnded() {
         scope.launch(Dispatchers.Main) {
@@ -822,4 +858,19 @@ class ExoPlayerManager private constructor(private val context: Context) {
     fun clearAllCache(onComplete: () -> Unit = {}) { onComplete() }
     fun addToQueue(items: List<MediaItem>) {}
     fun stopPlayback() { activeEngine?.pause(); abandonAudioFocus(); FloatingPlayerService.stopService(context); _playerState.value = PlayerState() }
+
+    fun setVideoEffect(effect: com.medianest.ui.components.media.MediaEffect) {
+        try {
+            if (effect == com.medianest.ui.components.media.MediaEffect.OFF || 
+                effect == com.medianest.ui.components.media.MediaEffect.NORMAL ||
+                effect == com.medianest.ui.components.media.MediaEffect.ORIGINAL) {
+                exoPlayer.setVideoEffects(emptyList())
+            } else {
+                val glEffect = com.medianest.player.fx.ColorGradingGlEffect(effect)
+                exoPlayer.setVideoEffects(listOf(glEffect))
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ExoPlayerManager", "Failed to set video effect", e)
+        }
+    }
 }

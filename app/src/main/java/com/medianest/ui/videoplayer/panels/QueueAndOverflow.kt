@@ -343,10 +343,11 @@ internal fun VideoPostProcessingPanel(
 
                 MediaFilterCarousel(
                     filters = listOf(
-                        MediaEffect.NORMAL, MediaEffect.TRUE_COLOR, MediaEffect.BW,
-                        MediaEffect.SEPIA, MediaEffect.CINEMA, MediaEffect.VIVID,
-                        MediaEffect.BALANCED, MediaEffect.SHARPEN, MediaEffect.HIGH_CONTRAST,
-                        MediaEffect.NIGHT_VISION, MediaEffect.VINTAGE_CRT
+                        MediaEffect.OFF, MediaEffect.NATURAL, MediaEffect.TRUE_COLOR, MediaEffect.BALANCED,
+                        MediaEffect.CINEMA, MediaEffect.VIVID, MediaEffect.WARM,
+                        MediaEffect.COOL, MediaEffect.CYBERPUNK, MediaEffect.DREAMY,
+                        MediaEffect.BW, MediaEffect.SEPIA, MediaEffect.SHARPEN,
+                        MediaEffect.HIGH_CONTRAST, MediaEffect.NIGHT_VISION, MediaEffect.VINTAGE_CRT
                     ),
                     activeFilter = currentEffect,
                     onFilterChange = onEffectChange,

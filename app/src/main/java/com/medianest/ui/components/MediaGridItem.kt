@@ -98,14 +98,11 @@ fun MediaGridItem(
     val customCon by settingsManager.customContrast.collectAsState(initial = 1.06f)
     val customWarmth by settingsManager.customWarmth.collectAsState(initial = 0.03f)
 
-    val colorFilter = remember(pictureModeEnabled, applyToThumbnails, pictureMode, customSat, customCon, customWarmth) {
-        PictureModeUtils.getComposeColorFilter(
-            modeKey = pictureMode,
-            customSat = customSat,
-            customCon = customCon,
-            customWarmth = customWarmth,
-            enabled = pictureModeEnabled && applyToThumbnails
-        )
+    val colorFilter = remember(pictureModeEnabled, applyToThumbnails, pictureMode) {
+        if (applyToThumbnails && pictureModeEnabled) {
+            val effect = try { com.medianest.ui.components.media.MediaEffect.fromString(pictureMode) } catch(e:Exception) { com.medianest.ui.components.media.MediaEffect.OFF }
+            com.medianest.player.fx.MediaFxPipeline.getComposeColorFilter(effect)
+        } else null
     }
 
     var fallbackBitmap by remember(item.uri) { mutableStateOf<android.graphics.Bitmap?>(null) }

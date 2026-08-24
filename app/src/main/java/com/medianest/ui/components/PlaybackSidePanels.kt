@@ -1106,7 +1106,29 @@ fun SidebarQueueDrawer(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    val contextTitle = playerState.queueTitle
+                    val contextIcon = remember(contextTitle) {
+                        when {
+                            contextTitle == null -> Icons.Default.Folder
+                            contextTitle.contains("Series", ignoreCase = true) || contextTitle.contains("Season", ignoreCase = true) || contextTitle.contains("•") -> Icons.Default.Tv
+                            contextTitle.equals("All Videos", ignoreCase = true) -> Icons.Default.VideoLibrary
+                            contextTitle.contains("Music", ignoreCase = true) -> Icons.Default.MusicNote
+                            contextTitle.contains("Movie", ignoreCase = true) -> Icons.Default.Movie
+                            contextTitle.contains("Clip", ignoreCase = true) -> Icons.Default.ContentCut
+                            contextTitle.contains("Short", ignoreCase = true) -> Icons.Default.FlashOn
+                            contextTitle.contains("Social", ignoreCase = true) -> Icons.Default.Share
+                            contextTitle.contains("Edit", ignoreCase = true) -> Icons.Default.Edit
+                            contextTitle.contains("Download", ignoreCase = true) -> Icons.Default.Download
+                            contextTitle.contains("Hidden", ignoreCase = true) -> Icons.Default.VisibilityOff
+                            else -> Icons.Default.Folder
+                        }
+                    }
+
                     Box(
                         modifier = Modifier
                             .size(28.dp)
@@ -1114,34 +1136,60 @@ fun SidebarQueueDrawer(
                             .background(Color(0x33FFFFFF)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Folder, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Icon(contextIcon, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                     }
-                    val breadcrumbParts = remember(playerState.currentItem) {
-                        getBreadcrumbParts(context, playerState.currentItem)
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .horizontalScroll(rememberScrollState())
-                    ) {
-                        breadcrumbParts.forEachIndexed { index, part ->
+
+                    if (!contextTitle.isNullOrBlank()) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 4.dp)
+                        ) {
                             Text(
-                                text = part,
-                                fontSize = 12.sp,
+                                text = contextTitle,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFFCBD5E1),
+                                color = Color.White,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            if (index < breadcrumbParts.lastIndex) {
-                                Icon(
-                                    imageVector = Icons.Default.ChevronRight,
-                                    contentDescription = null,
-                                    tint = Color(0x99FFFFFF),
-                                    modifier = Modifier.size(14.dp)
+                            val currentIndex = filteredQueue.indexOfFirst { it.uri == playerState.currentItem?.uri }
+                            val positionText = if (currentIndex >= 0) "${currentIndex + 1} of ${filteredQueue.size} videos" else "${filteredQueue.size} videos"
+                            Text(
+                                text = positionText,
+                                fontSize = 10.sp,
+                                color = Color.White.copy(alpha = 0.6f),
+                                maxLines = 1
+                            )
+                        }
+                    } else {
+                        val breadcrumbParts = remember(playerState.currentItem) {
+                            getBreadcrumbParts(context, playerState.currentItem)
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .horizontalScroll(rememberScrollState())
+                        ) {
+                            breadcrumbParts.forEachIndexed { index, part ->
+                                Text(
+                                    text = part,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFCBD5E1),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
+                                if (index < breadcrumbParts.lastIndex) {
+                                    Icon(
+                                        imageVector = Icons.Default.ChevronRight,
+                                        contentDescription = null,
+                                        tint = Color(0x99FFFFFF),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
                             }
                         }
                     }

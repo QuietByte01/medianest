@@ -64,7 +64,7 @@ fun MediaConverterStudioDialog(
     videosList: List<MediaItem>,
     audioList: List<MediaItem>,
     onDismissRequest: () -> Unit,
-    onOpenVideoPlayer: (MediaItem) -> Unit,
+    onOpenVideoPlayer: (MediaItem, List<MediaItem>?, String?) -> Unit,
     onOpenAudioPlayer: (MediaItem) -> Unit
 ) {
     val context = LocalContext.current
@@ -555,7 +555,7 @@ fun MediaConverterStudioDialog(
                         if (mediaItem.type == MediaType.AUDIO) {
                             onOpenAudioPlayer(mediaItem)
                         } else {
-                            onOpenVideoPlayer(mediaItem)
+                            onOpenVideoPlayer(mediaItem, listOf(mediaItem), "Studio Output")
                         }
                     },
                     context = context

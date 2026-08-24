@@ -74,29 +74,27 @@ fun MediaFilterCarousel(
                     }
                 }
                 FilterCarouselStyle.PLAYER_CHIP -> {
-                    val glossyWhiteBrush = Brush.verticalGradient(
-                        colors = listOf(Color(0xFFFFFFFF), Color(0xFFE2E8F0))
-                    )
-                    Surface(
-                        onClick = { onFilterChange(filter) },
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color.Transparent,
-                        border = BorderStroke(
-                            width = 1.dp,
-                            brush = Brush.verticalGradient(
-                                colors = if (isSelected) listOf(Color.White, Color.White.copy(alpha = 0.5f))
-                                else listOf(Color.White.copy(alpha = 0.2f), Color.White.copy(alpha = 0.05f))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (isSelected) Color(0x3338BDF8)
+                                else Color.White.copy(alpha = 0.08f)
                             )
-                        ),
-                        modifier = Modifier.clip(RoundedCornerShape(14.dp))
-                            .then(if (isSelected) Modifier.background(glossyWhiteBrush) else Modifier.background(Color(0x1AFFFFFF)))
+                            .border(
+                                width = if (isSelected) 1.dp else 0.5.dp,
+                                color = if (isSelected) Color(0xFF38BDF8) else Color.White.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .clickable { onFilterChange(filter) }
+                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = filter.label,
-                            color = if (isSelected) Color(0xFF0F172A) else Color(0xCCFFFFFF),
+                            color = if (isSelected) Color(0xFF38BDF8) else Color.White.copy(alpha = 0.85f),
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            fontSize = 12.5.sp,
                             textAlign = TextAlign.Center
                         )
                     }

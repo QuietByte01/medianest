@@ -33,8 +33,10 @@ enum class MediaAspectRatio(val label: String, val ratio: Float? = null) {
  */
 enum class MediaEffect(val label: String, val previewColor: Color = Color(0xFF333333)) {
     // Basic / Reset
-    NORMAL("Normal"),
-    TRUE_COLOR("Natural Balance"),
+    OFF("Off"),
+    NORMAL("Off"),
+    TRUE_COLOR("Balanced"),
+    NATURAL("Natural"),
     
     // Artistic / Studio
     ORIGINAL("Original"),
@@ -48,17 +50,26 @@ enum class MediaEffect(val label: String, val previewColor: Color = Color(0xFF33
     DREAMY("Dreamy", Color(0xFFB388FF)),
     
     // Technical / Enhancement
-    BALANCED("Balanced"),
+    BALANCED("Bright"),
     SHARPEN("Sharpen"),
     HIGH_CONTRAST("High Contrast"),
     SEPIA("Sepia Film"),
-    BW("Black & White"),
+    BW("B&W"),
     NIGHT_VISION("Night Vision"),
     VINTAGE_CRT("Vintage CRT");
 
     companion object {
         fun fromString(value: String): MediaEffect {
-            return entries.find { it.name.equals(value, ignoreCase = true) || it.label.equals(value, ignoreCase = true) } ?: NORMAL
+            return entries.find { 
+                it.name.equals(value, ignoreCase = true) || 
+                it.label.equals(value, ignoreCase = true) ||
+                (it == OFF && (value.equals("NORMAL", ignoreCase = true) || value.equals("DEVICE_DEFAULT", ignoreCase = true) || value.equals("OFF", ignoreCase = true))) ||
+                (it == CINEMA && (value.equals("CINEMATIC", ignoreCase = true) || value.equals("CINEMA_35MM", ignoreCase = true))) ||
+                (it == BW && (value.equals("NOIR", ignoreCase = true) || value.equals("MONOCHROME", ignoreCase = true) || value.equals("B&W", ignoreCase = true) || value.equals("BLACK & WHITE", ignoreCase = true))) ||
+                (it == VINTAGE_CRT && (value.equals("VINTAGE", ignoreCase = true) || value.equals("RETRO", ignoreCase = true))) ||
+                (it == TRUE_COLOR && (value.equals("NATURAL_BALANCE", ignoreCase = true) || value.equals("REC709", ignoreCase = true) || value.equals("BALANCED", ignoreCase = true))) ||
+                (it == BALANCED && (value.equals("BRIGHT", ignoreCase = true) || value.equals("BRIGHTNESS", ignoreCase = true)))
+            } ?: OFF
         }
     }
 }

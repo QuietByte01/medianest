@@ -4,14 +4,17 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
@@ -23,14 +26,11 @@ import com.medianest.player.ExoPlayerManager
 import com.medianest.player.PlayerState
 import com.medianest.ui.components.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun VideoPlayerSettingsDialog(
+internal fun VideoPlayerSettingsOverlay(
     onDismiss: () -> Unit,
     playerState: PlayerState,
     playerManager: ExoPlayerManager,
-    pictureMode: String,
-    onPictureModeChange: (String) -> Unit,
     audioSyncOffsetMs: Long,
     onAudioSyncOffsetChange: (Long) -> Unit,
     isFilmGrainEnabled: Boolean,
@@ -40,87 +40,99 @@ internal fun VideoPlayerSettingsDialog(
     onShowDetails: () -> Unit
 ) {
     val configuration = LocalConfiguration.current
-    val isCompact = configuration.screenWidthDp < 600 && configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+    val isTablet = configuration.screenWidthDp >= 600
+    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
-    if (isCompact) {
-        androidx.compose.ui.window.Dialog(
-            onDismissRequest = onDismiss,
-            properties = androidx.compose.ui.window.DialogProperties(
-                usePlatformDefaultWidth = false,
-                decorFitsSystemWindows = false
-            )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.25f))
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null
+            ) { onDismiss() },
+        contentAlignment = Alignment.Center
+    ) {
+        GlassSurface(
+            modifier = Modifier
+                .fillMaxWidth(if (isTablet) 0.96f else 0.94f)
+                .fillMaxHeight(if (isLandscape) 0.92f else 0.86f)
+                .padding(if (isTablet) 20.dp else 10.dp)
+                .clickable(enabled = false) {},
+            shape = RoundedCornerShape(22.dp),
+            backgroundColor = Color(0x990E111A), // More transparent
+            borderColor = Color(0x33FFFFFF),
+            borderWidth = 0.5.dp,
+            enableBlur = true,
+            blurRadius = 16.dp
         ) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = Color(0xFF0F111A)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = if (isTablet) 28.dp else 18.dp, vertical = if (isTablet) 22.dp else 16.dp)
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .statusBarsPadding()
-                        .navigationBarsPadding()
+                // Header with Icon, Title and Top-Right Close Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            IconButton(onClick = onDismiss) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                            }
-                            Text(
-                                text = "Player Settings",
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(Color(0x334FC3F7)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = null,
+                                tint = Color(0xFF4FC3F7),
+                                modifier = Modifier.size(18.dp)
                             )
                         }
+                        Text(
+                            text = "Player Settings",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
                     }
 
-                    Column(
+                    // Close Icon Button
+                    Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 20.dp)
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(24.dp)
+                            .size(30.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(Color.White.copy(alpha = 0.12f))
+                            .clickable { onDismiss() },
+                        contentAlignment = Alignment.Center
                     ) {
-                        SettingsContent(
-                            playerState = playerState,
-                            playerManager = playerManager,
-                            pictureMode = pictureMode,
-                            onPictureModeChange = onPictureModeChange,
-                            audioSyncOffsetMs = audioSyncOffsetMs,
-                            onAudioSyncOffsetChange = onAudioSyncOffsetChange,
-                            isFilmGrainEnabled = isFilmGrainEnabled,
-                            onFilmGrainEnabledChange = onFilmGrainEnabledChange,
-                            filmGrainIntensity = filmGrainIntensity,
-                            onFilmGrainIntensityChange = onFilmGrainIntensityChange,
-                            onShowDetails = onShowDetails
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
-            }
-        }
-    } else {
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            containerColor = Color(0xF20E111A),
-            shape = RoundedCornerShape(24.dp),
-            title = { Text(text = "Video Player Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White) },
-            text = {
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Scrollable Settings Content
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
                     SettingsContent(
                         playerState = playerState,
                         playerManager = playerManager,
-                        pictureMode = pictureMode,
-                        onPictureModeChange = onPictureModeChange,
                         audioSyncOffsetMs = audioSyncOffsetMs,
                         onAudioSyncOffsetChange = onAudioSyncOffsetChange,
                         isFilmGrainEnabled = isFilmGrainEnabled,
@@ -130,13 +142,8 @@ internal fun VideoPlayerSettingsDialog(
                         onShowDetails = onShowDetails
                     )
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = onDismiss) {
-                    Text("Close", color = Color.White, fontWeight = FontWeight.Bold)
-                }
             }
-        )
+        }
     }
 }
 
@@ -145,8 +152,6 @@ internal fun VideoPlayerSettingsDialog(
 private fun SettingsContent(
     playerState: PlayerState,
     playerManager: ExoPlayerManager,
-    pictureMode: String,
-    onPictureModeChange: (String) -> Unit,
     audioSyncOffsetMs: Long,
     onAudioSyncOffsetChange: (Long) -> Unit,
     isFilmGrainEnabled: Boolean,
@@ -199,32 +204,6 @@ private fun SettingsContent(
                         selected = isSelected,
                         onClick = { playerManager.setRepeatMode(mode) },
                         label = { Text(label) },
-                        colors = glossyChipColors,
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = isSelected,
-                            borderColor = Color(0x33FFFFFF),
-                            selectedBorderColor = Color.White,
-                            borderWidth = 0.5.dp,
-                            selectedBorderWidth = 1.0.dp
-                        )
-                    )
-                }
-            }
-        }
-
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(text = "Picture Mode: ${PictureMode.fromKey(pictureMode).displayName}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
-            LazyRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(PictureMode.entries) { mode ->
-                    val isSelected = pictureMode.equals(mode.key, ignoreCase = true)
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { onPictureModeChange(mode.key) },
-                        label = { Text(mode.displayName) },
                         colors = glossyChipColors,
                         border = FilterChipDefaults.filterChipBorder(
                             enabled = true,

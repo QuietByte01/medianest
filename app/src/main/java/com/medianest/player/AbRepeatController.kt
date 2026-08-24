@@ -31,19 +31,23 @@ class AbRepeatController(
         )
     }
 
-    fun setPointB(currentPosMs: Long) {
-        val pos = currentPosMs.coerceAtLeast(0L)
-        val curA = _state.value.pointA ?: 0L
-        if (pos > curA) {
-            _state.value = _state.value.copy(
-                pointA = curA,
-                pointB = pos,
-                isActive = true
-            )
-            if (currentPosMs >= pos) {
-                onSeek(curA)
-            }
+    fun setPointB(currentPosMs: Long, defaultOffsetMs: Long = 3000L, durationMs: Long = 0L) {
+        val curA = _state.value.pointA
+        val targetA = curA ?: (currentPosMs - defaultOffsetMs).coerceAtLeast(0L)
+        val targetB = if (curA == null) {
+            currentPosMs.coerceAtLeast(targetA + 500L)
+        } else if (currentPosMs <= curA) {
+            (curA + defaultOffsetMs).coerceAtMost(if (durationMs > 0) durationMs else curA + defaultOffsetMs)
+        } else {
+            currentPosMs
         }
+
+        _state.value = _state.value.copy(
+            pointA = targetA,
+            pointB = targetB,
+            isActive = true
+        )
+        onSeek(targetA)
     }
 
     fun adjustPointA(deltaMs: Long, durationMs: Long) {
@@ -51,6 +55,7 @@ class AbRepeatController(
         val maxLimit = (_state.value.pointB ?: (if (durationMs > 0) durationMs else curA + 10000L)) - 100L
         val newA = (curA + deltaMs).coerceIn(0L, maxLimit.coerceAtLeast(0L))
         _state.value = _state.value.copy(pointA = newA)
+        onSeek(newA)
     }
 
     fun adjustPointB(deltaMs: Long, durationMs: Long) {
@@ -59,6 +64,7 @@ class AbRepeatController(
         val maxLimit = if (durationMs > 0) durationMs else Long.MAX_VALUE
         val newB = (curB + deltaMs).coerceIn(minLimit, maxLimit)
         _state.value = _state.value.copy(pointB = newB)
+        onSeek(newB)
     }
 
     fun toggle(currentPosMs: Long? = null) {

@@ -379,42 +379,49 @@ class MainActivity : ComponentActivity() {
                                             )
                                             startActivity(intent, options.toBundle())
                                         },
-                                        onOpenVideoPlayer = { item ->
-                                            // Handle GIFs separately
-                                            if (item.mimeType.contains("gif", ignoreCase = true)) {
-                                                val intent = Intent(this@MainActivity, QuickViewActivity::class.java).apply {
-                                                    action = Intent.ACTION_VIEW
-                                                    setDataAndType(item.uri, item.mimeType)
-                                                }
-                                                val options = ActivityOptionsCompat.makeCustomAnimation(
-                                                    this@MainActivity,
-                                                    R.anim.viewer_open_enter,
-                                                    R.anim.viewer_open_exit
-                                                )
-                                                startActivity(intent, options.toBundle())
-                                            } else {
-                                                // Filter list to only include videos from the same folder
-                                                val currentFolder = item.relativePath ?: item.bucketName ?: ""
-                                                val filteredList = videosList.filter { 
-                                                    (it.relativePath ?: it.bucketName ?: "") == currentFolder 
-                                                }
-                                                val index = filteredList.indexOfFirst { it.uri == item.uri }
-                                                
-                                                com.medianest.ui.videoplayer.VideoPlayerActivity.activeList = filteredList
-                                                val intent = Intent(this@MainActivity, VideoPlayerActivity::class.java).apply {
-                                                    putExtra("media_uri", item.uri.toString())
-                                                    putExtra("media_title", item.title)
-                                                    putExtra("mime_type", item.mimeType)
-                                                    putExtra("start_index", if (index >= 0) index else 0)
-                                                }
-                                                val options = ActivityOptionsCompat.makeCustomAnimation(
-                                                    this@MainActivity,
-                                                    R.anim.viewer_open_enter,
-                                                    R.anim.viewer_open_exit
-                                                )
-                                                startActivity(intent, options.toBundle())
-                                            }
-                                        },
+                                         onOpenVideoPlayer = { item, currentList, contextTitle ->
+                                             // Handle GIFs separately
+                                             if (item.mimeType.contains("gif", ignoreCase = true)) {
+                                                 val intent = Intent(this@MainActivity, QuickViewActivity::class.java).apply {
+                                                     action = Intent.ACTION_VIEW
+                                                     setDataAndType(item.uri, item.mimeType)
+                                                 }
+                                                 val options = ActivityOptionsCompat.makeCustomAnimation(
+                                                     this@MainActivity,
+                                                     R.anim.viewer_open_enter,
+                                                     R.anim.viewer_open_exit
+                                                 )
+                                                 startActivity(intent, options.toBundle())
+                                             } else {
+                                                 val playlist = if (!currentList.isNullOrEmpty()) {
+                                                     currentList
+                                                 } else {
+                                                     val currentFolder = item.relativePath ?: item.bucketName ?: ""
+                                                     val filtered = videosList.filter { 
+                                                         (it.relativePath ?: it.bucketName ?: "") == currentFolder 
+                                                     }
+                                                     if (filtered.isNotEmpty()) filtered else videosList
+                                                 }
+                                                 val index = playlist.indexOfFirst { it.uri == item.uri }
+                                                 val effectiveTitle = contextTitle ?: (item.bucketName ?: item.relativePath?.trim('/')?.substringAfterLast('/') ?: "Videos")
+                                                 
+                                                 com.medianest.ui.videoplayer.VideoPlayerActivity.activeList = playlist
+                                                 com.medianest.ui.videoplayer.VideoPlayerActivity.activeContextTitle = effectiveTitle
+                                                 val intent = Intent(this@MainActivity, VideoPlayerActivity::class.java).apply {
+                                                     putExtra("media_uri", item.uri.toString())
+                                                     putExtra("media_title", item.title)
+                                                     putExtra("mime_type", item.mimeType)
+                                                     putExtra("context_title", effectiveTitle)
+                                                     putExtra("start_index", if (index >= 0) index else 0)
+                                                 }
+                                                 val options = ActivityOptionsCompat.makeCustomAnimation(
+                                                     this@MainActivity,
+                                                     R.anim.viewer_open_enter,
+                                                     R.anim.viewer_open_exit
+                                                 )
+                                                 startActivity(intent, options.toBundle())
+                                             }
+                                         },
                                         onOpenAudioPlayer = { activeTab ->
                                             targetMainTab.value = activeTab
                                             currentScreen = "AUDIO_PLAYER"

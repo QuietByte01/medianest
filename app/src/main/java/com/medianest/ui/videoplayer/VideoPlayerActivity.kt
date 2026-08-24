@@ -19,6 +19,7 @@ class VideoPlayerActivity : ComponentActivity() {
 
     companion object {
         var activeList: List<com.medianest.data.model.MediaItem>? = null
+        var activeContextTitle: String? = null
     }
 
     private lateinit var playerManager: ExoPlayerManager
@@ -56,6 +57,7 @@ class VideoPlayerActivity : ComponentActivity() {
         val uriString = intent.getStringExtra("media_uri")
         val title = intent.getStringExtra("media_title") ?: "Video"
         val mimeType = intent.getStringExtra("mime_type") ?: "video/*"
+        val contextTitle = intent.getStringExtra("context_title") ?: activeContextTitle
         val startIndex = intent.getIntExtra("start_index", 0)
 
         // Hide notification bar & status bar for immersive video playback
@@ -65,7 +67,7 @@ class VideoPlayerActivity : ComponentActivity() {
         controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
         if (activeList != null) {
-            playerManager.playMediaList(activeList!!, startIndex.coerceIn(0, activeList!!.size - 1))
+            playerManager.playMediaList(activeList!!, startIndex.coerceIn(0, activeList!!.size - 1), queueTitle = contextTitle)
         } else if (uriString != null) {
             val uri = Uri.parse(uriString)
             playerManager.playSingleUri(uri, title, mimeType)
@@ -187,6 +189,7 @@ class VideoPlayerActivity : ComponentActivity() {
             
             if (isFinishing) {
                 activeList = null
+                activeContextTitle = null
             }
         } catch (e: Exception) {
             e.printStackTrace()
