@@ -147,7 +147,10 @@ fun VideoPlayerBottomBar(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                 activeTrackColor = Color.White,
                 inactiveTrackColor = Color.White.copy(alpha = 0.3f),
-                thumbColor = Color.White
+                thumbColor = Color.White,
+                abPointA = playerState.abRepeatA?.toFloat(),
+                abPointB = playerState.abRepeatB?.toFloat(),
+                isAbRepeatActive = playerState.isAbRepeatActive
             )
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(text = formatDuration(effectiveSeekPos), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)

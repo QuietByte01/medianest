@@ -44,6 +44,7 @@ class StandardBitmapRenderer(
 
         val request = ImageRequest.Builder(context)
             .data(modelData)
+            .decoderFactory(coil.decode.SvgDecoder.Factory())
             .crossfade(true)
             .build()
 

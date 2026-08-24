@@ -1205,15 +1205,25 @@ fun SidebarQueueDrawer(
                                         .align(Alignment.BottomEnd)
                                         .padding(6.dp)
                                         .clip(RoundedCornerShape(4.dp))
-                                        .background(Color(0x99000000))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        .background(Color.Black.copy(alpha = 0.30f))
+                                        .padding(2.dp)
                                 ) {
-                                    Text(
-                                        text = safeFormatDuration(context, video),
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        RoundedPlayIcon(
+                                            modifier = Modifier.size(10.dp),
+                                            tint = Color.White
+                                        )
+                                        Text(
+                                            text = safeFormatDuration(context, video),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
                                 }
                             }
 

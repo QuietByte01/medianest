@@ -1,6 +1,7 @@
 package com.medianest.ui.library
 
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.*
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -121,7 +122,8 @@ fun LibraryBottomBar(
             ) {
                 Row(
                     modifier = Modifier
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                        .height(48.dp)
+                        .padding(horizontal = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -173,7 +175,7 @@ private fun FloatingDockTabItem(
             selected -> if (isDark) Color.White else Color(0xFF0F172A)
             else -> if (isDark) Color(0xB3FFFFFF) else Color(0x990F172A)
         },
-        animationSpec = tween(200),
+        animationSpec = tween(220),
         label = "dockContentColor"
     )
 
@@ -182,34 +184,42 @@ private fun FloatingDockTabItem(
             selected -> if (isDark) Color(0x3DFFFFFF) else Color(0x40FFFFFF)
             else -> Color.Transparent
         },
-        animationSpec = tween(200),
+        animationSpec = tween(220),
         label = "dockBgColor"
     )
 
     Box(
         modifier = Modifier
+            .height(36.dp)
             .clip(CircleShape)
             .background(itemBgColor)
-            .then(
-                if (selected) {
-                    Modifier.border(
-                        width = 0.5.dp,
-                        brush = Brush.verticalGradient(
-                            colors = if (isDark) {
-                                listOf(Color(0x4DFFFFFF), Color(0x1AFFFFFF))
-                            } else {
-                                listOf(Color(0x80FFFFFF), Color(0x20000000))
-                            }
-                        ),
-                        shape = CircleShape
+            .border(
+                width = 0.5.dp,
+                brush = if (selected) {
+                    Brush.verticalGradient(
+                        colors = if (isDark) {
+                            listOf(Color(0x4DFFFFFF), Color(0x1AFFFFFF))
+                        } else {
+                            listOf(Color(0x80FFFFFF), Color(0x20000000))
+                        }
                     )
-                } else Modifier
+                } else {
+                    Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent))
+                },
+                shape = CircleShape
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .animateContentSize(
+                animationSpec = spring(
+                    dampingRatio = 0.82f,
+                    stiffness = 500f
+                )
+            )
+            .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
+            modifier = Modifier.fillMaxHeight(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
@@ -219,12 +229,24 @@ private fun FloatingDockTabItem(
                 tint = contentColor,
                 modifier = Modifier.size(19.dp)
             )
-            if (selected) {
+            AnimatedVisibility(
+                visible = selected,
+                enter = fadeIn(tween(180)) + expandHorizontally(
+                    animationSpec = spring(dampingRatio = 0.82f, stiffness = 500f),
+                    expandFrom = Alignment.Start
+                ),
+                exit = fadeOut(tween(120)) + shrinkHorizontally(
+                    animationSpec = spring(dampingRatio = 0.82f, stiffness = 500f),
+                    shrinkTowards = Alignment.Start
+                )
+            ) {
                 Text(
                     text = label,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = contentColor
+                    color = contentColor,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
         }

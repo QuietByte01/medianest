@@ -106,6 +106,7 @@ object MediaProcessorEngine {
         audioCodec: String = "aac",
         qualityCrf: Int = 20,
         audioBitrateKbps: Int = 256,
+        keepSubtitles: Boolean = true,
         isCreateNewFile: Boolean = true,
         customSuffix: String = "_converted"
     ): Boolean = withContext(Dispatchers.IO) {
@@ -128,7 +129,8 @@ object MediaProcessorEngine {
             videoCodec = videoCodec,
             audioCodec = audioCodec,
             qualityCrf = qualityCrf,
-            audioBitrateKbps = audioBitrateKbps
+            audioBitrateKbps = audioBitrateKbps,
+            keepSubtitles = keepSubtitles
         )
 
         executeFFmpegCommand(context, cmd, outputFile, origSize, totalDurationMs, "Converting media to ${outputFormat.uppercase()}...")
@@ -142,28 +144,38 @@ object MediaProcessorEngine {
         videoCodec: String = "libx264",
         audioCodec: String = "aac",
         qualityCrf: Int = 20,
-        audioBitrateKbps: Int = 256
+        audioBitrateKbps: Int = 256,
+        keepSubtitles: Boolean = true
     ): String {
         val cmd = StringBuilder("-y -i \"$resolvedInput\" ")
         if (isLosslessCopy) {
-            cmd.append("-c copy ")
+            cmd.append("-map 0? -c copy ")
         } else {
             val isAudioOnly = isAudioFormat(outputFormat)
             val isImageOnly = isImageFormat(outputFormat)
             if (isAudioOnly) {
                 cmd.append("-vn ")
-                when (outputFormat.lowercase()) {
-                    "flac" -> cmd.append("-c:a flac ")
-                    "wav" -> cmd.append("-c:a pcm_s16le ")
-                    "mp3" -> cmd.append("-c:a libmp3lame -b:a ${audioBitrateKbps}k ")
-                    "aac", "m4a" -> cmd.append("-c:a aac -b:a ${audioBitrateKbps}k ")
-                    "opus" -> cmd.append("-c:a libopus -b:a ${audioBitrateKbps.coerceAtMost(192)}k ")
-                    "ogg" -> cmd.append("-c:a libvorbis -q:a 6 ")
-                    else -> cmd.append("-c:a aac -b:a ${audioBitrateKbps}k ")
+                if (audioBitrateKbps <= 0 || audioCodec == "copy") {
+                    cmd.append("-c:a copy ")
+                } else {
+                    when (outputFormat.lowercase()) {
+                        "flac" -> cmd.append("-c:a flac ")
+                        "wav" -> cmd.append("-c:a pcm_s16le ")
+                        "mp3" -> cmd.append("-c:a libmp3lame -b:a ${audioBitrateKbps}k ")
+                        "aac", "m4a" -> cmd.append("-c:a aac -b:a ${audioBitrateKbps}k ")
+                        "opus" -> cmd.append("-c:a libopus -b:a ${audioBitrateKbps.coerceAtMost(192)}k ")
+                        "ogg" -> cmd.append("-c:a libvorbis -q:a 6 ")
+                        else -> cmd.append("-c:a aac -b:a ${audioBitrateKbps}k ")
+                    }
                 }
             } else if (isImageOnly) {
                 cmd.append("-vframes 1 ")
             } else {
+                // Map all streams to keep multi-audio and subtitles if enabled
+                if (keepSubtitles) {
+                    cmd.append("-map 0? ")
+                }
+
                 when (videoCodec.lowercase()) {
                     "libx265", "libaom-av1", "av1" -> cmd.append("-c:v libx265 -crf $qualityCrf -preset 6 -pix_fmt yuv420p10le ")
                     "libx265", "hevc", "h265" -> cmd.append("-c:v libx265 -crf $qualityCrf -preset medium -tag:v hvc1 ")
@@ -173,12 +185,21 @@ object MediaProcessorEngine {
                     "copy" -> cmd.append("-c:v copy ")
                     else -> cmd.append("-c:v libx264 -crf $qualityCrf -preset fast -pix_fmt yuv420p ")
                 }
-                when (audioCodec) {
-                    "copy" -> cmd.append("-c:a copy ")
-                    "flac" -> cmd.append("-c:a flac ")
-                    "libmp3lame" -> cmd.append("-c:a libmp3lame -b:a ${audioBitrateKbps}k ")
-                    "libopus" -> cmd.append("-c:a libopus -b:a ${audioBitrateKbps.coerceAtMost(192)}k ")
-                    else -> cmd.append("-c:a aac -b:a ${audioBitrateKbps}k ")
+
+                if (audioBitrateKbps <= 0 || audioCodec == "copy") {
+                    cmd.append("-c:a copy ")
+                } else {
+                    when (audioCodec) {
+                        "copy" -> cmd.append("-c:a copy ")
+                        "flac" -> cmd.append("-c:a flac ")
+                        "libmp3lame" -> cmd.append("-c:a libmp3lame -b:a ${audioBitrateKbps}k ")
+                        "libopus" -> cmd.append("-c:a libopus -b:a ${audioBitrateKbps.coerceAtMost(192)}k ")
+                        else -> cmd.append("-c:a aac -b:a ${audioBitrateKbps}k ")
+                    }
+                }
+
+                if (keepSubtitles) {
+                    cmd.append("-c:s copy ")
                 }
             }
         }

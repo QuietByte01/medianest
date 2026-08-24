@@ -582,7 +582,7 @@ fun QuickViewScreen(
                                     }
                                 }
                             },
-                            activeColor = Color(0xFFFF2D55),
+                            hue = imageHue,
                             inactiveColor = actionIconTint
                         )
 

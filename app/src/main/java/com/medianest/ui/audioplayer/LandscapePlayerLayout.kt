@@ -165,7 +165,7 @@ private fun ImmersiveLandscapeLayout(
 
     LaunchedEffect(showFavoriteIndicator) {
         if (showFavoriteIndicator) {
-            delay(1000)
+            delay(1800)
             showFavoriteIndicator = false
         }
     }
@@ -495,7 +495,8 @@ private fun ImmersiveLandscapeLayout(
                         IndicatorOverlay(
                             visible = showFavoriteIndicator,
                             type = if (isFavorite) IndicatorType.FavoriteOn else IndicatorType.FavoriteOff,
-                            alignment = Alignment.Center
+                            alignment = Alignment.Center,
+                            hue = albumArtHue
                         )
                     }
 
@@ -503,8 +504,10 @@ private fun ImmersiveLandscapeLayout(
 
                     TrackInfoSection(
                         currentItem = currentItem,
-                        isFavorite = isFavorite,
-                        onToggleFavorite = onToggleFavorite
+                        onDoubleTap = {
+                            onToggleFavorite()
+                            showFavoriteIndicator = true
+                        }
                     )
                 }
             } else {
@@ -523,6 +526,12 @@ private fun ImmersiveLandscapeLayout(
                     type = IndicatorType.Next,
                     alignment = Alignment.CenterEnd
                 )
+                IndicatorOverlay(
+                    visible = showFavoriteIndicator,
+                    type = if (isFavorite) IndicatorType.FavoriteOn else IndicatorType.FavoriteOff,
+                    alignment = Alignment.Center,
+                    hue = albumArtHue
+                )
             }
         }
 
@@ -536,8 +545,10 @@ private fun ImmersiveLandscapeLayout(
             ) {
                 TrackInfoSection(
                     currentItem = currentItem,
-                    isFavorite = isFavorite,
-                    onToggleFavorite = onToggleFavorite
+                    onDoubleTap = {
+                        onToggleFavorite()
+                        showFavoriteIndicator = true
+                    }
                 )
             }
         }
@@ -657,68 +668,36 @@ private fun ImmersiveLandscapeLayout(
 @Composable
 private fun TrackInfoSection(
     currentItem: MediaItem?,
-    isFavorite: Boolean = false,
-    onToggleFavorite: () -> Unit = {},
+    onDoubleTap: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var doubleTapBurstKey by remember { mutableIntStateOf(0) }
-
-    Box(
+    Column(
         modifier = modifier
-            .pointerInput(currentItem?.uri, isFavorite) {
+            .pointerInput(currentItem?.uri) {
                 detectTapGestures(
-                    onDoubleTap = {
-                        onToggleFavorite()
-                        if (!isFavorite) {
-                            doubleTapBurstKey += 1
-                        }
-                    }
+                    onDoubleTap = { onDoubleTap() }
                 )
             },
-        contentAlignment = Alignment.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    text = currentItem?.title ?: "No Track",
-                    color = Color.White,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .basicMarquee()
-                )
-
-                BubblingHeartButton(
-                    isFavorite = isFavorite,
-                    onClick = onToggleFavorite,
-                    size = 20.dp,
-                    activeColor = Color(0xFFFF2D55),
-                    inactiveColor = Color.White.copy(alpha = 0.75f)
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = currentItem?.artist ?: "Unknown Artist",
-                color = Color.White.copy(alpha = 0.85f),
-                fontSize = 16.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        // Bubbling Hearts Burst on double tap
-        BubblingHeartBurstEffect(
-            triggerKey = doubleTapBurstKey,
-            particleCount = 14,
-            minDistance = 40f,
-            maxDistance = 85f,
-            modifier = Modifier.fillMaxSize()
+        Text(
+            text = currentItem?.title ?: "No Track",
+            color = Color.White,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .padding(horizontal = 24.dp)
+                .basicMarquee()
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = currentItem?.artist ?: "Unknown Artist",
+            color = Color.White.copy(alpha = 0.85f),
+            fontSize = 16.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -731,7 +710,8 @@ private enum class IndicatorType {
 private fun BoxScope.IndicatorOverlay(
     visible: Boolean,
     type: IndicatorType,
-    alignment: Alignment = Alignment.Center
+    alignment: Alignment = Alignment.Center,
+    hue: Float? = null
 ) {
     AnimatedVisibility(
         visible = visible,
@@ -750,13 +730,18 @@ private fun BoxScope.IndicatorOverlay(
                 IndicatorType.Previous -> RoundedDoubleSkipPreviousIcon(Modifier.size(30.dp), tint = Color.White)
                 IndicatorType.Next -> RoundedDoubleSkipNextIcon(Modifier.size(30.dp), tint = Color.White)
                 IndicatorType.FavoriteOn -> {
+                    val heartColor = hue?.let { Color.hsv(it, 0.90f, 1.0f) } ?: Color(0xFFFF2D55)
                     Box(contentAlignment = Alignment.Center) {
                         BubblingHeartBurstEffect(
                             triggerKey = 1,
-                            particleCount = 12,
-                            modifier = Modifier.size(80.dp)
+                            hue = hue,
+                            particleCount = 8,
+                            durationMs = 1900,
+                            minUpwardDistance = 80f,
+                            maxUpwardDistance = 140f,
+                            modifier = Modifier.size(120.dp)
                         )
-                        Icon(Icons.Default.Favorite, null, tint = Color(0xFFFF2D55).copy(alpha = 0.85f), modifier = Modifier.size(60.dp))
+                        Icon(Icons.Default.Favorite, null, tint = heartColor.copy(alpha = 0.90f), modifier = Modifier.size(64.dp))
                     }
                 }
                 IndicatorType.FavoriteOff -> Icon(Icons.Default.HeartBroken, null, tint = Color.White.copy(0.4f), modifier = Modifier.size(60.dp))

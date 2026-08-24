@@ -47,6 +47,7 @@ import com.medianest.ui.components.media.AspectRatioSelectorStyle
 import com.medianest.ui.theme.LocalDarkTheme
 import com.medianest.ui.videoplayer.getBreadcrumbParts
 import com.medianest.ui.videoplayer.safeFormatDuration
+import com.medianest.ui.components.formatDuration
 import kotlinx.coroutines.withContext
 
 
@@ -62,6 +63,8 @@ internal fun VideoPlayerOverflowMenu(
     onToggleBackgroundPlay: (Boolean) -> Unit,
     isAutoRepeatEnabled: Boolean,
     onToggleAutoRepeat: (Boolean) -> Unit,
+    isAbRepeatActive: Boolean = false,
+    onAbRepeat: () -> Unit = {},
     onVideoFx: () -> Unit,
     onAudioTracks: () -> Unit,
     onCast: () -> Unit,
@@ -136,6 +139,25 @@ internal fun VideoPlayerOverflowMenu(
                     text = { Text("Auto Repeat: ${if (isAutoRepeatEnabled) "On" else "Off"}", color = Color.White, fontSize = 14.sp) },
                     leadingIcon = { Icon(Icons.Default.Repeat, null, tint = Color.White, modifier = Modifier.size(18.dp)) },
                     onClick = { onToggleAutoRepeat(!isAutoRepeatEnabled) }
+                )
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = if (isAbRepeatActive) "A-B Repeat: Active" else "A-B Repeat",
+                            color = if (isAbRepeatActive) Color(0xFF4FC3F7) else Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = if (isAbRepeatActive) FontWeight.SemiBold else FontWeight.Normal
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.RepeatOne,
+                            null,
+                            tint = if (isAbRepeatActive) Color(0xFF4FC3F7) else Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    onClick = { onAbRepeat(); onDismiss() }
                 )
                 DropdownMenuItem(
                     text = { Text("Audio Tracks", color = Color.White, fontSize = 14.sp) },
@@ -526,3 +548,4 @@ internal fun VideoTrimmerBottomSheet(
         }
     }
 }
+

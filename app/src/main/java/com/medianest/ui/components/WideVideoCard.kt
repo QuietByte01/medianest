@@ -169,18 +169,27 @@ fun WideVideoCard(
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xDD0F1015),
+                        color = Color.Black.copy(alpha = 0.30f),
                         modifier = Modifier
                             .padding(8.dp)
                             .align(Alignment.BottomEnd)
                     ) {
-                        Text(
-                            text = formatDuration(item.durationMs),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            RoundedPlayIcon(
+                                modifier = Modifier.size(10.dp),
+                                tint = Color.White
+                            )
+                            Text(
+                                text = formatDuration(item.durationMs),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
 

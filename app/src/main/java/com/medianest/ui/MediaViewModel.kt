@@ -82,9 +82,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setMediaLists(images: List<MediaItem>, videos: List<MediaItem>, audio: List<MediaItem>) {
-        _imagesList.value = images.distinctBy { it.id }
-        _videosList.value = videos.distinctBy { it.id }
-        _audioList.value = audio.distinctBy { it.id }
+        _imagesList.value = images.distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
+        _videosList.value = videos.distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
+        _audioList.value = audio.distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
     }
 
     private val _videoFilterTab = MutableStateFlow("ALL")

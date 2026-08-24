@@ -180,9 +180,9 @@ class MainActivity : ComponentActivity() {
                         }.collectLatest { (imageHiddenPaths, videoHiddenPaths, audioHiddenPaths) ->
                             // 1. Fast immediate fetch from MediaStore (<50ms)
                             isScanLoading = true
-                            imagesList = mediaStoreRepository.getImages(imageHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { it.id }
-                            videosList = mediaStoreRepository.getVideos(videoHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { it.id }
-                            audioList = mediaStoreRepository.getAudio(audioHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { it.id }
+                            imagesList = mediaStoreRepository.getImages(imageHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
+                            videosList = mediaStoreRepository.getVideos(videoHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
+                            audioList = mediaStoreRepository.getAudio(audioHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
                             isScanLoading = false
 
                             // 2. Delayed background filesystem scan for hidden folders so UI never blocks
@@ -196,13 +196,13 @@ class MainActivity : ComponentActivity() {
 
                                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                                         if (hiddenImages.isNotEmpty()) {
-                                            imagesList = (imagesList + hiddenImages).distinctBy { it.id }
+                                            imagesList = (imagesList + hiddenImages).distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
                                         }
                                         if (hiddenVideos.isNotEmpty()) {
-                                            videosList = (videosList + hiddenVideos).distinctBy { it.id }
+                                            videosList = (videosList + hiddenVideos).distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
                                         }
                                         if (hiddenAudio.isNotEmpty()) {
-                                            audioList = (audioList + hiddenAudio).distinctBy { it.id }
+                                            audioList = (audioList + hiddenAudio).distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
                                         }
                                         isScanningHidden = false
                                     }

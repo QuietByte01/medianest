@@ -78,7 +78,11 @@ data class PlayerState(
     val pitchSemitones: Int = 0,
     val isVocalMuteEnabled: Boolean = false,
     val isLoudnessNormalizerEnabled: Boolean = false,
-    val isSystemVolumeMaxed: Boolean = false
+    val isSystemVolumeMaxed: Boolean = false,
+    val abRepeatState: AbRepeatState = AbRepeatState(),
+    val abRepeatA: Long? = null,
+    val abRepeatB: Long? = null,
+    val isAbRepeatActive: Boolean = false
 )
 
 @OptIn(UnstableApi::class)
@@ -98,6 +102,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
 
     private val _playerState = MutableStateFlow(PlayerState())
     val playerState: StateFlow<PlayerState> = _playerState.asStateFlow()
+    val abRepeatController = AbRepeatController { activeEngine?.seekTo(it) }
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var currentDecoderPreference = "AUTO"
@@ -154,6 +159,16 @@ class ExoPlayerManager private constructor(private val context: Context) {
                 combine(settings.showPlaybackNotification, settings.showVideoNotification, _playerState) { a, v, s -> Triple(a, v, s) }
                     .collectLatest { (audioNotif, videoNotif, state) -> handleNotificationUpdate(audioNotif, videoNotif, state) }
             }
+            launch {
+                abRepeatController.state.collectLatest { ab ->
+                    _playerState.value = _playerState.value.copy(
+                        abRepeatState = ab,
+                        abRepeatA = ab.pointA,
+                        abRepeatB = ab.pointB,
+                        isAbRepeatActive = ab.isActive
+                    )
+                }
+            }
         }
 
         setupTelephonyListener()
@@ -176,6 +191,8 @@ class ExoPlayerManager private constructor(private val context: Context) {
 
                     val newPos = engine.currentPositionMs
                     val newDur = engine.durationMs
+
+                    abRepeatController.checkAndLoop(newPos)
                     
                     _playerState.value = _playerState.value.copy(
                         currentPositionMs = newPos,
@@ -477,7 +494,14 @@ class ExoPlayerManager private constructor(private val context: Context) {
         scope.launch {
             withContext(Dispatchers.Main) {
                 try {
-                    _playerState.value = _playerState.value.copy(queue = items, queueIndex = targetIndex, currentItem = currentTarget)
+                    _playerState.value = _playerState.value.copy(
+                        queue = items,
+                        queueIndex = targetIndex,
+                        currentItem = currentTarget,
+                        abRepeatA = null,
+                        abRepeatB = null,
+                        isAbRepeatActive = false
+                    )
                     val probeResult = withContext(Dispatchers.IO) { ffmpegEngine.probe(currentTarget.uri) }
                     val profile = MediaCapabilityInspector.inspect(currentTarget.uri, probeResult)
                     val forceHW = currentDecoderPreference == "HARDWARE"
@@ -575,6 +599,14 @@ class ExoPlayerManager private constructor(private val context: Context) {
             play()
         }
     }
+
+    fun setAbRepeatPointA(positionMs: Long? = null) = abRepeatController.setPointA(positionMs ?: activeEngine?.currentPositionMs ?: 0L)
+    fun setAbRepeatPointB(positionMs: Long? = null) = abRepeatController.setPointB(positionMs ?: activeEngine?.currentPositionMs ?: 0L)
+    fun adjustAbRepeatPointA(deltaMs: Long) = abRepeatController.adjustPointA(deltaMs, _playerState.value.durationMs)
+    fun adjustAbRepeatPointB(deltaMs: Long) = abRepeatController.adjustPointB(deltaMs, _playerState.value.durationMs)
+    fun toggleAbRepeat(active: Boolean? = null) = abRepeatController.toggle(activeEngine?.currentPositionMs)
+    fun clearAbRepeat() = abRepeatController.clear()
+
     fun onEnginePlaybackEnded() {
         scope.launch(Dispatchers.Main) {
             val state = _playerState.value

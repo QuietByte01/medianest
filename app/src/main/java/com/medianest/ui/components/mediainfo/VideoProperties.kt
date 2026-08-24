@@ -223,7 +223,10 @@ internal fun VideoFilePropertiesContent(
                                 PaletteTagChip(
                                     label = resBadgeText,
                                     paletteColor = Color(0xFFCBD5E1),
-                                    shape = RoundedCornerShape(8.dp)
+                                    shape = RoundedCornerShape(8.dp),
+                                    fontSize = 10.sp,
+                                    showIndicatorDot = false,
+                                    contentPadding = PaddingValues(horizontal = 5.dp, vertical = 1.5.dp)
                                 )
                             }
                         }
@@ -257,8 +260,13 @@ internal fun VideoFilePropertiesContent(
                         ) {
                             PlaybackSpeedChip(
                                 label = "Play",
-                                icon = Icons.Default.PlayArrow,
-                                isSelected = true,
+                                leadingContent = { 
+                                    com.medianest.ui.components.RoundedPlayIcon(
+                                        modifier = Modifier.size(14.dp), 
+                                        tint = Color.White
+                                    ) 
+                                },
+                                isSelected = false,
                                 onClick = { onDismiss() }
                             )
 
@@ -293,6 +301,7 @@ internal fun VideoFilePropertiesContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .height(IntrinsicSize.Min)
                         .padding(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -301,7 +310,7 @@ internal fun VideoFilePropertiesContent(
                     Box(
                         modifier = Modifier
                             .width(130.dp)
-                            .height(82.dp)
+                            .fillMaxHeight()
                             .clip(RoundedCornerShape(14.dp))
                             .background(
                                 Brush.radialGradient(
@@ -327,7 +336,10 @@ internal fun VideoFilePropertiesContent(
                                 PaletteTagChip(
                                     label = resBadgeText,
                                     paletteColor = Color(0xFFCBD5E1),
-                                    shape = RoundedCornerShape(6.dp)
+                                    shape = RoundedCornerShape(6.dp),
+                                    fontSize = 10.sp,
+                                    showIndicatorDot = false,
+                                    contentPadding = PaddingValues(horizontal = 5.dp, vertical = 1.5.dp)
                                 )
                             }
                         }
@@ -361,8 +373,13 @@ internal fun VideoFilePropertiesContent(
                         ) {
                             PlaybackSpeedChip(
                                 label = "Play",
-                                icon = Icons.Default.PlayArrow,
-                                isSelected = true,
+                                leadingContent = { 
+                                    com.medianest.ui.components.RoundedPlayIcon(
+                                        modifier = Modifier.size(14.dp), 
+                                        tint = Color.White
+                                    ) 
+                                },
+                                isSelected = false,
                                 onClick = { onDismiss() }
                             )
 
@@ -563,7 +580,12 @@ internal fun VideoFilePropertiesContent(
         }
 
         InfoSectionCard(
-            icon = Icons.Default.PlayArrow,
+            leadingContent = {
+                com.medianest.ui.components.RoundedPlayIcon(
+                    modifier = Modifier.size(18.dp),
+                    tint = Color.White.copy(alpha = 0.9f)
+                )
+            },
             title = "REAL-TIME PLAYBACK & DECODER STATUS"
         ) {
             if (isCompact) {

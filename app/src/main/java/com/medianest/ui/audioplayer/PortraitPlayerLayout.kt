@@ -467,7 +467,7 @@ fun PortraitPlayerLayout(
                 isFavorite = isFavorite,
                 onClick = onToggleFavorite,
                 size = 24.dp,
-                activeColor = Color(0xFFFF2D55),
+                hue = albumArtHue,
                 inactiveColor = Color.White.copy(alpha = 0.85f)
             )
 

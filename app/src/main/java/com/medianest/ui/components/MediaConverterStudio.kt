@@ -26,6 +26,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -126,6 +128,7 @@ fun MediaConverterStudioDialog(
     var qualityPreset by remember { mutableStateOf("HIGH") }
     var audioCodec by remember { mutableStateOf("aac") }
     var audioBitrate by remember { mutableIntStateOf(256) }
+    var keepSubtitles by remember { mutableStateOf(true) }
 
     // Parameters - Compress
     var compressTargetMode by remember { mutableStateOf("AUTO") }
@@ -158,17 +161,17 @@ fun MediaConverterStudioDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xCC05070E))
+                .background(Color(0xCC04060B))
                 .padding(if (isTablet) 24.dp else 0.dp),
             contentAlignment = Alignment.Center
         ) {
-            GlassSurface(
+            AmbientGlassSurface(
                 modifier = Modifier
-                    .fillMaxWidth(if (isTablet) 0.88f else 1f)
-                    .fillMaxHeight(if (isTablet) 0.92f else 1f),
-                shape = if (isTablet) RoundedCornerShape(24.dp) else RoundedCornerShape(0.dp),
-                backgroundColor = Color(0xEB0A0D18),
-                borderColor = if (isTablet) Color(0x26FFFFFF) else Color.Transparent
+                    .fillMaxWidth(if (isTablet) 0.90f else 1f)
+                    .fillMaxHeight(if (isTablet) 0.94f else 1f),
+                shape = if (isTablet) RoundedCornerShape(28.dp) else RoundedCornerShape(0.dp),
+                backgroundImage = selectedMediaItem?.albumArtUri ?: selectedMediaItem?.uri,
+                containerColor = Color(0xEB0A0D18)
             ) {
                 Column(
                     modifier = Modifier
@@ -316,7 +319,9 @@ fun MediaConverterStudioDialog(
                                     audioCodec = audioCodec,
                                     onAudioCodecChange = { audioCodec = it },
                                     audioBitrate = audioBitrate,
-                                    onAudioBitrateChange = { audioBitrate = it }
+                                    onAudioBitrateChange = { audioBitrate = it },
+                                    keepSubtitles = keepSubtitles,
+                                    onKeepSubtitlesChange = { keepSubtitles = it }
                                 )
                             }
 
@@ -439,9 +444,10 @@ fun MediaConverterStudioDialog(
                                             outputFormat = convertOutputFormat,
                                             isLosslessCopy = isLosslessCopy,
                                             videoCodec = videoCodec,
-                                            audioCodec = if (isLosslessCopy) "copy" else audioCodec,
+                                            audioCodec = if (isLosslessCopy || audioBitrate <= 0) "copy" else audioCodec,
                                             qualityCrf = crf,
                                             audioBitrateKbps = audioBitrate,
+                                            keepSubtitles = keepSubtitles,
                                             isCreateNewFile = isCreateNewFile
                                         )
                                     }
@@ -677,18 +683,53 @@ private fun GlossyPillButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
-        color = if (isSelected) Color(0x26FFFFFF) else Color(0x14FFFFFF),
-        border = BorderStroke(
-            if (isSelected) 1.0.dp else 0.5.dp,
-            if (isSelected) Color(0xFFF8F9FA) else Color(0x22FFFFFF)
-        ),
+    val bgBrush = if (isSelected) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0x4DFFFFFF),
+                Color(0x2EFFFFFF),
+                Color(0x1AFFFFFF)
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0x1AFFFFFF),
+                Color(0x0AFFFFFF)
+            )
+        )
+    }
+
+    val borderBrush = if (isSelected) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0x80FFFFFF),
+                Color(0x33FFFFFF)
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0x26FFFFFF),
+                Color(0x10FFFFFF)
+            )
+        )
+    }
+
+    Box(
         modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(bgBrush)
+            .border(
+                width = if (isSelected) 1.dp else 0.5.dp,
+                brush = borderBrush,
+                shape = RoundedCornerShape(14.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
@@ -696,7 +737,7 @@ private fun GlossyPillButton(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = if (isSelected) Color(0xFFF8F9FA) else Color(0xFFC0C7D5),
+                    tint = if (isSelected) Color.White else Color(0xFFC0C7D5),
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -704,7 +745,7 @@ private fun GlossyPillButton(
                 text = text,
                 fontSize = 12.5.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = if (isSelected) Color(0xFFF8F9FA) else Color.White
+                color = if (isSelected) Color.White else Color(0xCCFFFFFF)
             )
         }
     }
@@ -718,18 +759,53 @@ private fun GlossyCardButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
-        color = if (isSelected) Color(0x33FFFFFF) else Color(0x12FFFFFF),
-        border = BorderStroke(
-            if (isSelected) 1.0.dp else 0.5.dp,
-            if (isSelected) Color(0xFFF8F9FA) else Color(0x1FFFFFFF)
-        ),
+    val bgBrush = if (isSelected) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0x44FFFFFF),
+                Color(0x24FFFFFF),
+                Color(0x14FFFFFF)
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0x17FFFFFF),
+                Color(0x08FFFFFF)
+            )
+        )
+    }
+
+    val borderBrush = if (isSelected) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0x8CFFFFFF),
+                Color(0x2EFFFFFF)
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0x22FFFFFF),
+                Color(0x0FFFFFFF)
+            )
+        )
+    }
+
+    Box(
         modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(bgBrush)
+            .border(
+                width = if (isSelected) 1.dp else 0.5.dp,
+                brush = borderBrush,
+                shape = RoundedCornerShape(14.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -737,14 +813,14 @@ private fun GlossyCardButton(
                 text = title,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (isSelected) Color(0xFFF8F9FA) else Color.White
+                color = if (isSelected) Color.White else Color(0xEEFFFFFF)
             )
             if (subtitle != null) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = subtitle,
                     fontSize = 10.sp,
-                    color = if (isSelected) Color(0xFFE9ECEF) else Color(0xFF94A3B8)
+                    color = if (isSelected) Color(0xFFF1F3F5) else Color(0xFF94A3B8)
                 )
             }
         }
@@ -861,31 +937,55 @@ private fun SourceMediaSelectorCard(
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Surface(
-                    onClick = onChangeClick,
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0x26FFFFFF),
-                    border = BorderStroke(1.dp, Color(0x4DFFFFFF))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color(0x40FFFFFF), Color(0x1AFFFFFF))
+                            )
+                        )
+                        .border(
+                            1.dp,
+                            Brush.verticalGradient(
+                                listOf(Color(0x80FFFFFF), Color(0x2BFFFFFF))
+                            ),
+                            RoundedCornerShape(10.dp)
+                        )
+                        .clickable(onClick = onChangeClick)
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "Library",
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFF8F9FA),
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                        color = Color.White
                     )
                 }
-                Surface(
-                    onClick = onPickStorage,
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0x1FFFFFFF),
-                    border = BorderStroke(1.dp, Color(0x22FFFFFF))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color(0x20FFFFFF), Color(0x0AFFFFFF))
+                            )
+                        )
+                        .border(
+                            1.dp,
+                            Brush.verticalGradient(
+                                listOf(Color(0x33FFFFFF), Color(0x14FFFFFF))
+                            ),
+                            RoundedCornerShape(10.dp)
+                        )
+                        .clickable(onClick = onPickStorage)
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "Browse",
                         fontSize = 11.5.sp,
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                        color = Color.White
                     )
                 }
             }
@@ -922,7 +1022,7 @@ private fun BatchSourceMediaCard(
                     Icon(
                         Icons.Default.PhotoLibrary,
                         contentDescription = null,
-                        tint = Color(0xFFF8F9FA),
+                        tint = Color.White,
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
@@ -990,38 +1090,54 @@ private fun BatchSourceMediaCard(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Surface(
-                    onClick = onChangeClick,
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0x26FFFFFF),
-                    border = BorderStroke(1.dp, Color(0x4DFFFFFF)),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Box(
-                        modifier = Modifier.padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "Select From Library",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFF8F9FA)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color(0x40FFFFFF), Color(0x1AFFFFFF))
+                            )
                         )
-                    }
-                }
-                Surface(
-                    onClick = onPickStorage,
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0x1FFFFFFF),
-                    border = BorderStroke(1.dp, Color(0x22FFFFFF)),
-                    modifier = Modifier.weight(1f)
+                        .border(
+                            1.dp,
+                            Brush.verticalGradient(
+                                listOf(Color(0x80FFFFFF), Color(0x2BFFFFFF))
+                            ),
+                            RoundedCornerShape(10.dp)
+                        )
+                        .clickable(onClick = onChangeClick)
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier.padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("Browse Multi...", fontSize = 12.sp, color = Color.White)
-                    }
+                    Text(
+                        "Select From Library",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color(0x20FFFFFF), Color(0x0AFFFFFF))
+                            )
+                        )
+                        .border(
+                            1.dp,
+                            Brush.verticalGradient(
+                                listOf(Color(0x33FFFFFF), Color(0x14FFFFFF))
+                            ),
+                            RoundedCornerShape(10.dp)
+                        )
+                        .clickable(onClick = onPickStorage)
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Browse Multi...", fontSize = 12.sp, color = Color.White)
                 }
             }
         }
@@ -1085,7 +1201,9 @@ private fun ConvertControlsCard(
     audioCodec: String,
     onAudioCodecChange: (String) -> Unit,
     audioBitrate: Int,
-    onAudioBitrateChange: (Int) -> Unit
+    onAudioBitrateChange: (Int) -> Unit,
+    keepSubtitles: Boolean,
+    onKeepSubtitlesChange: (Boolean) -> Unit
 ) {
     val isAudioSource = selectedItem?.type == MediaType.AUDIO
     val videoFormats = listOf("mp4", "mkv", "webm", "mov", "avi", "gif")
@@ -1114,17 +1232,10 @@ private fun ConvertControlsCard(
             val formatList = if (isAudioSource) audioFormats else (videoFormats + audioFormats)
             formatList.forEach { fmt ->
                 val isSelected = outputFormat.equals(fmt, ignoreCase = true)
-                val category = getFormatCategory(fmt)
-                val chipColor = when(category) {
-                    FormatCategory.VIDEO -> AnalyticsColors.Ogg
-                    FormatCategory.AUDIO -> AnalyticsColors.Mp3
-                    FormatCategory.GIF_IMAGE -> AnalyticsColors.Gif
-                }
-                
-                PaletteTagChip(
-                    label = fmt,
+                AppFormatChip(
+                    format = fmt,
+                    label = fmt.uppercase(),
                     isSelected = isSelected,
-                    paletteColor = chipColor,
                     onClick = { onFormatChange(fmt) }
                 )
             }
@@ -1157,6 +1268,37 @@ private fun ConvertControlsCard(
                     checkedTrackColor = Color(0x4DFFFFFF)
                 )
             )
+        }
+
+        // Keep Subtitles and Extra Tracks
+        if (!isAudioSource && !listOf("mp3", "flac", "wav", "aac", "m4a", "opus", "ogg", "gif").contains(outputFormat.lowercase())) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Keep Subtitles & Multi-Audio",
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        "Preserve all original subtitle streams & multi-track channels",
+                        fontSize = 11.sp,
+                        color = Color(0xFF94A3B8)
+                    )
+                }
+                Switch(
+                    checked = keepSubtitles,
+                    onCheckedChange = onKeepSubtitlesChange,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = Color(0x4DFFFFFF)
+                    )
+                )
+            }
         }
 
         if (!isLossless) {
@@ -1248,6 +1390,7 @@ private fun ConvertControlsCard(
             ) {
                 listOf(
                     "aac" to ("AAC" to "Universal"),
+                    "copy" to ("Original (Copy)" to "Direct Passthrough"),
                     "libmp3lame" to ("MP3" to "Standard"),
                     "libopus" to ("Opus" to "High Efficiency"),
                     "flac" to ("FLAC" to "Lossless")
@@ -1258,7 +1401,10 @@ private fun ConvertControlsCard(
                         title = title,
                         subtitle = sub,
                         isSelected = isSel,
-                        onClick = { onAudioCodecChange(codec) },
+                        onClick = {
+                            onAudioCodecChange(codec)
+                            if (codec == "copy") onAudioBitrateChange(0)
+                        },
                         modifier = Modifier.width(165.dp)
                     )
                 }
@@ -1277,11 +1423,20 @@ private fun ConvertControlsCard(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf(128, 192, 256, 320).forEach { kbps ->
+                listOf(
+                    0 to "Original (Copy)",
+                    128 to "128 kbps",
+                    192 to "192 kbps",
+                    256 to "256 kbps",
+                    320 to "320 kbps"
+                ).forEach { (kbps, label) ->
                     GlossyPillButton(
-                        text = "${kbps} kbps",
+                        text = label,
                         isSelected = audioBitrate == kbps,
-                        onClick = { onAudioBitrateChange(kbps) }
+                        onClick = {
+                            onAudioBitrateChange(kbps)
+                            if (kbps == 0) onAudioCodecChange("copy")
+                        }
                     )
                 }
             }

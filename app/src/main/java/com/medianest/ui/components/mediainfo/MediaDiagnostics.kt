@@ -93,10 +93,13 @@ internal fun MediaDiagnosticsDialog(
                     .fillMaxWidth(if (isTabletOrWide) 0.88f else 1f)
                     .fillMaxHeight(0.94f),
                 shape = RoundedCornerShape(24.dp),
-                backgroundColor = Color(0xFF0A0D18),
                 borderColor = Color(0x33384260),
-                backgroundImage = R.drawable.bg_596,
-                backgroundImageAlpha = 1.0f,
+                backgroundBrush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF05070A),
+                        Color(0xFF0C101A)
+                    )
+                ),
                 enableBlur = false
             ) {
                 Column(
@@ -190,6 +193,7 @@ internal fun MediaDiagnosticsDialog(
                                             )
                                         }
 
+                                        /*
                                         val thumbBadge = when {
                                             isVideoMedia && (report.videoStream?.width ?: 0) >= 3840 -> "4K HDR"
                                             isVideoMedia && (report.videoStream?.width ?: 0) >= 2000 -> "2K QHD"
@@ -209,6 +213,7 @@ internal fun MediaDiagnosticsDialog(
                                         ) {
                                             Text(thumbBadge, fontSize = 7.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                         }
+                                        */
                                     }
 
                                     // Metadata & Chips & Actions
@@ -402,7 +407,12 @@ internal fun MediaDiagnosticsDialog(
                             if (isTabletOrWide) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     DiagStatCard(icon = Icons.Default.Folder, label = "FILE SIZE", value = com.medianest.util.formatBytesReport(report.fileSize), modifier = Modifier.weight(1f))
-                                    DiagStatCard(icon = Icons.Default.PlayArrow, label = "RESOLUTION", value = img?.let { "${it.width} × ${it.height}" } ?: "N/A", modifier = Modifier.weight(1f))
+                                    DiagStatCard(
+                                        modifier = Modifier.weight(1f),
+                                        leadingContent = { com.medianest.ui.components.RoundedPlayIcon(modifier = Modifier.size(16.dp), tint = Color(0xFFA5B4FC)) },
+                                        label = "RESOLUTION", 
+                                        value = img?.let { "${it.width} × ${it.height}" } ?: "N/A"
+                                    )
                                     DiagStatCard(icon = Icons.Default.Info, label = "COLOR DEPTH", value = img?.colorDepth ?: "8-bit", modifier = Modifier.weight(1f))
                                     DiagStatCard(icon = Icons.Default.Image, label = "FORMAT", value = img?.format ?: "IMAGE", modifier = Modifier.weight(1f))
                                 }
@@ -410,7 +420,12 @@ internal fun MediaDiagnosticsDialog(
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         DiagStatCard(icon = Icons.Default.Folder, label = "FILE SIZE", value = com.medianest.util.formatBytesReport(report.fileSize), modifier = Modifier.weight(1f))
-                                        DiagStatCard(icon = Icons.Default.PlayArrow, label = "RESOLUTION", value = img?.let { "${it.width} × ${it.height}" } ?: "N/A", modifier = Modifier.weight(1f))
+                                        DiagStatCard(
+                                        modifier = Modifier.weight(1f),
+                                        leadingContent = { com.medianest.ui.components.RoundedPlayIcon(modifier = Modifier.size(16.dp), tint = Color(0xFFA5B4FC)) },
+                                        label = "RESOLUTION", 
+                                        value = img?.let { "${it.width} × ${it.height}" } ?: "N/A"
+                                    )
                                     }
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         DiagStatCard(icon = Icons.Default.Info, label = "COLOR DEPTH", value = img?.colorDepth ?: "8-bit", modifier = Modifier.weight(1f))
@@ -423,7 +438,12 @@ internal fun MediaDiagnosticsDialog(
                             if (isTabletOrWide) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     DiagStatCard(icon = Icons.Default.Folder, label = "FILE SIZE", value = com.medianest.util.formatBytesReport(report.fileSize), modifier = Modifier.weight(1f))
-                                    DiagStatCard(icon = Icons.Default.PlayArrow, label = "RESOLUTION", value = report.videoStream?.let { "${it.width} × ${it.height}" } ?: "N/A", modifier = Modifier.weight(1f))
+                                    DiagStatCard(
+                                        leadingContent = { com.medianest.ui.components.RoundedPlayIcon(modifier = Modifier.size(16.dp), tint = Color(0xFFA5B4FC)) },
+                                        label = "RESOLUTION", 
+                                        value = report.videoStream?.let { "${it.width} × ${it.height}" } ?: "N/A", 
+                                        modifier = Modifier.weight(1f)
+                                    )
                                     DiagStatCard(icon = Icons.Default.Info, label = "DURATION", value = com.medianest.util.formatDurationReport(report.format?.duration ?: 0.0), modifier = Modifier.weight(1f))
                                     DiagStatCard(icon = Icons.Default.Movie, label = "CODEC", value = report.videoStream?.codecName ?: "N/A", modifier = Modifier.weight(1f))
                                 }
@@ -431,7 +451,12 @@ internal fun MediaDiagnosticsDialog(
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         DiagStatCard(icon = Icons.Default.Folder, label = "FILE SIZE", value = com.medianest.util.formatBytesReport(report.fileSize), modifier = Modifier.weight(1f))
-                                        DiagStatCard(icon = Icons.Default.PlayArrow, label = "RESOLUTION", value = report.videoStream?.let { "${it.width} × ${it.height}" } ?: "N/A", modifier = Modifier.weight(1f))
+                                        DiagStatCard(
+                                            modifier = Modifier.weight(1f),
+                                            leadingContent = { com.medianest.ui.components.RoundedPlayIcon(modifier = Modifier.size(16.dp), tint = Color(0xFFA5B4FC)) },
+                                            label = "RESOLUTION", 
+                                            value = report.videoStream?.let { "${it.width} × ${it.height}" } ?: "N/A"
+                                        )
                                     }
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         DiagStatCard(icon = Icons.Default.Info, label = "DURATION", value = com.medianest.util.formatDurationReport(report.format?.duration ?: 0.0), modifier = Modifier.weight(1f))
@@ -751,7 +776,7 @@ internal fun DiagActionButtonsRow(
                 .padding(horizontal = 10.dp, vertical = 5.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                com.medianest.ui.components.RoundedPlayIcon(modifier = Modifier.size(12.dp), tint = Color.White)
                 Spacer(modifier = Modifier.width(3.dp))
                 Text("Play", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
@@ -833,7 +858,7 @@ internal fun DiagnosticTechChip(badge: String) {
             .clip(RoundedCornerShape(6.dp))
             .background(bgColor)
             .border(1.dp, borderColor, RoundedCornerShape(6.dp))
-            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .padding(horizontal = 8.dp, vertical = 2.dp)
     ) {
         Text(
             text = badge,
@@ -847,10 +872,11 @@ internal fun DiagnosticTechChip(badge: String) {
 
 @Composable
 internal fun DiagStatCard(
-    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    leadingContent: (@Composable () -> Unit)? = null,
     label: String,
-    value: String,
-    modifier: Modifier = Modifier
+    value: String
 ) {
     GlassSurface(
         modifier = modifier,
@@ -872,7 +898,11 @@ internal fun DiagStatCard(
                     .background(Color(0x336366F1)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = Color(0xFFA5B4FC), modifier = Modifier.size(16.dp))
+                if (leadingContent != null) {
+                    leadingContent()
+                } else if (icon != null) {
+                    Icon(icon, contentDescription = null, tint = Color(0xFFA5B4FC), modifier = Modifier.size(16.dp))
+                }
             }
             Column {
                 Text(label, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8), letterSpacing = 0.5.sp)

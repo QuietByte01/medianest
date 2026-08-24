@@ -151,6 +151,7 @@ fun VideoPlayerScreen(
     var showVideoEditorSheet by remember { mutableStateOf(false) }
     var showDetailsSheet by remember { mutableStateOf(false) }
     var showAudioTrackSheet by remember { mutableStateOf(false) }
+    var showAbRepeatBar by remember { mutableStateOf(false) }
     var activeSubtitleText by remember { mutableStateOf<String?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -189,7 +190,7 @@ fun VideoPlayerScreen(
 
     val anyOverlayOpen = showOverflowMenu || showDetailsSheet || showDrawer || showSubtitleSheet ||
             showSubtitleCustomizationSheet || showSettingsSheet || showAudioTrackSheet ||
-            showAspectRatioMenu || showSpeedMenu
+            showAspectRatioMenu || showSpeedMenu || showAbRepeatBar
 
     BackHandler(enabled = true) {
         if (anyOverlayOpen) {
@@ -203,6 +204,7 @@ fun VideoPlayerScreen(
                 showAudioTrackSheet -> showAudioTrackSheet = false
                 showAspectRatioMenu -> showAspectRatioMenu = false
                 showSpeedMenu -> showSpeedMenu = false
+                showAbRepeatBar -> showAbRepeatBar = false
             }
         } else if (isControlsLocked) {
             isControlsLocked = false
@@ -417,6 +419,9 @@ fun VideoPlayerScreen(
                 // constraint-resolution order isn't reliable across every ratio/orientation
                 // combination (verified: it silently breaks for several presets in landscape while
                 // working in portrait). Explicit arithmetic is deterministic regardless of orientation.
+                // Compute letterbox/pillarbox ("contain") box size for FIT and presets.
+                // Returns (width, height) that fits the target ratio inside the screen constraints,
+                // handling both portrait and landscape orientations correctly.
                 fun containBoxSize(targetRatio: Float): Pair<androidx.compose.ui.unit.Dp, androidx.compose.ui.unit.Dp> {
                     return if (targetRatio >= containerRatio) {
                         // Relatively wide content -> width-bound, letterboxed top/bottom.
@@ -430,7 +435,9 @@ fun VideoPlayerScreen(
                 val surfaceModifier: Modifier = when (cropMode) {
                     MediaAspectRatio.FIT -> {
                         val (w, h) = containBoxSize(videoAspectRatio)
-                        Modifier.requiredSize(w, h)
+                        // Use size() instead of requiredSize() — more responsive to orientation
+                        // changes in the Compose layout pass (particularly in landscape).
+                        Modifier.size(w, h)
                     }
                     MediaAspectRatio.CROP, MediaAspectRatio.STRETCH -> {
                         Modifier.fillMaxSize()
@@ -448,16 +455,15 @@ fun VideoPlayerScreen(
                         }
                         val widthDp = with(density) { w.toDp() }
                         val heightDp = with(density) { h.toDp() }
-                        Modifier.requiredSize(widthDp, heightDp)
+                        Modifier.size(widthDp, heightDp)
                     }
                     else -> {
-                        // Fixed presets: size a target-ratio window that FITS INSIDE the screen
-                        // (letterboxed/pillarboxed as needed, never stretched, never forced to fill).
-                        // RESIZE_MODE_ZOOM (below) then crops the actual video to completely fill
-                        // this window, which is what reshapes the video to the chosen ratio.
+                        // Fixed presets (16:9, 4:3, 1:1, 9:16, etc.): letterbox/pillarbox the
+                        // target-ratio box inside the screen. RESIZE_MODE_ZOOM then crops the video
+                        // to fill this window, reshaping it to the chosen ratio.
                         val targetRatio = cropMode.ratio ?: videoAspectRatio
                         val (w, h) = containBoxSize(targetRatio)
-                        Modifier.requiredSize(w, h)
+                        Modifier.size(w, h)
                     }
                 }
 
@@ -747,6 +753,56 @@ fun VideoPlayerScreen(
             )
         }
 
+        AnimatedVisibility(
+            visible = (showAbRepeatBar || playerState.isAbRepeatActive || playerState.abRepeatA != null) && !isControlsLocked && !showDrawer && !showSubtitleSheet && !showDetailsSheet && !showSettingsSheet && !showAudioTrackSheet && !showVideoFxSheet && !showVideoEditorSheet,
+            enter = fadeIn(animationSpec = controlsFadeSpec) + slideInVertically(initialOffsetY = { it / 2 }),
+            exit = fadeOut(animationSpec = controlsFadeSpec) + slideOutVertically(targetOffsetY = { it / 2 }),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = if (showControls) 115.dp else 24.dp)
+        ) {
+            AbRepeatControlBar(
+                abRepeatState = playerState.abRepeatState,
+                onSetPointA = {
+                    playerManager.setAbRepeatPointA()
+                    gestureFeedbackText = "Point A Set: ${formatDuration(playerManager.playerState.value.abRepeatA ?: 0L)}"
+                },
+                onSetPointB = {
+                    val curA = playerState.abRepeatA ?: 0L
+                    val curPos = playerState.currentPositionMs
+                    if (curPos <= curA) {
+                        gestureFeedbackText = "Point B must be after Point A"
+                    } else {
+                        playerManager.setAbRepeatPointB()
+                        gestureFeedbackText = "Point B Set: ${formatDuration(curPos)} (Loop Active)"
+                    }
+                },
+                onAdjustPointA = { delta ->
+                    playerManager.adjustAbRepeatPointA(delta)
+                },
+                onAdjustPointB = { delta ->
+                    playerManager.adjustAbRepeatPointB(delta)
+                },
+                onSeekToA = {
+                    playerState.abRepeatA?.let { playerManager.seekTo(it) }
+                },
+                onSeekToB = {
+                    playerState.abRepeatB?.let { playerManager.seekTo(it) }
+                },
+                onToggleActive = {
+                    playerManager.toggleAbRepeat()
+                    gestureFeedbackText = if (playerState.isAbRepeatActive) "A-B Loop Active" else "A-B Loop Paused"
+                },
+                onClear = {
+                    playerManager.clearAbRepeat()
+                    gestureFeedbackText = "A-B Repeat Cleared"
+                },
+                onClose = {
+                    showAbRepeatBar = false
+                }
+            )
+        }
+
         if (showDrawer) {
             Box(
                 modifier = Modifier
@@ -933,6 +989,10 @@ fun VideoPlayerScreen(
                     playerManager.setRepeatMode(nextMode)
                     android.widget.Toast.makeText(context, "Auto Repeat ${if (enabled) "Enabled" else "Disabled"}", android.widget.Toast.LENGTH_SHORT).show()
                 },
+                isAbRepeatActive = playerState.isAbRepeatActive,
+                onAbRepeat = {
+                    showAbRepeatBar = true
+                },
                 onVideoFx = { showVideoFxSheet = true },
                 onAudioTracks = { showAudioTrackSheet = true },
                 onCast = {
@@ -1023,7 +1083,9 @@ fun FilmGrainOverlay(
             matrix.postTranslate(randomOffsetX.toFloat(), randomOffsetY.toFloat())
             shader.setLocalMatrix(matrix)
 
-            alpha = (intensity * 255 * 0.40f).toInt().coerceIn(0, 255)
+            // Reduce opacity: 0.15x multiplier (was 0.40x) makes grain subtle cinematic effect
+            // instead of grey haze. With intensity=0.15f (default), this yields ~6 alpha.
+            alpha = (intensity * 255 * 0.15f).toInt().coerceIn(0, 255)
             isFilterBitmap = true
             isAntiAlias = false
         }

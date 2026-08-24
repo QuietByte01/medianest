@@ -27,8 +27,9 @@ internal fun QualityBadgePill(text: String) {
 
 @Composable
 internal fun InfoSectionCard(
-    icon: ImageVector,
+    icon: ImageVector? = null,
     title: String,
+    leadingContent: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     GlassSurface(
@@ -42,7 +43,11 @@ internal fun InfoSectionCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(imageVector = icon, contentDescription = null, tint = Color.White.copy(alpha = 0.90f), modifier = Modifier.size(18.dp))
+                if (leadingContent != null) {
+                    leadingContent()
+                } else if (icon != null) {
+                    Icon(imageVector = icon, contentDescription = null, tint = Color.White.copy(alpha = 0.90f), modifier = Modifier.size(18.dp))
+                }
                 Text(
                     text = title,
                     fontSize = 14.sp,

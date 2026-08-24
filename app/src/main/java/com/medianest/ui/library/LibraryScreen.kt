@@ -82,7 +82,7 @@ fun LibraryScreen(
             }
         }
 
-        val currentTab = pagerState.currentPage
+        val currentTab = pagerState.targetPage
 
         val searchQuery by viewModel.searchQuery.collectAsState()
         var isSearchActive by remember { mutableStateOf(false) }

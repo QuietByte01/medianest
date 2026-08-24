@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.*
@@ -60,7 +61,16 @@ class TiledImageRenderer : ImageRenderer {
 
         if (!isInitialized) return
 
-        Canvas(modifier = modifier.fillMaxSize()) {
+        Canvas(modifier = modifier
+            .fillMaxSize()
+            .graphicsLayer(
+                scaleX = viewport.scale,
+                scaleY = viewport.scale,
+                translationX = viewport.offsetX,
+                translationY = viewport.offsetY,
+                rotationZ = viewport.rotation
+            )
+        ) {
             val contentSize = viewport.contentSize
             if (contentSize.width <= 0f || contentSize.height <= 0f) return@Canvas
 
@@ -72,28 +82,34 @@ class TiledImageRenderer : ImageRenderer {
 
             val tileSize = config.tileSizePx * sampleSize
 
-            // Size of the visible area in content-pixel coordinates.
-            val viewWidth = size.width / totalScale
-            val viewHeight = size.height / totalScale
+            val dx = (size.width - contentSize.width * fitScale) / 2f
+            val dy = (size.height - contentSize.height * fitScale) / 2f
+            
+            val pivotX = size.width / 2f
+            val pivotY = size.height / 2f
 
-            // The viewport offset is a screen-space translation applied AFTER fit-scale.
-            // To get the content-space pan we only divide by fitScale (scale is handled by viewWidth/Height).
-            val panX = viewport.offsetX / fitScale
-            val panY = viewport.offsetY / fitScale
+            fun screenToContentX(sx: Float): Float {
+                return ((sx - pivotX - viewport.offsetX) / viewport.scale + pivotX - dx) / fitScale
+            }
 
-            // Center of the visible region in content coordinates.
-            val viewCenterX = contentSize.width / 2f - panX / viewport.scale
-            val viewCenterY = contentSize.height / 2f - panY / viewport.scale
+            fun screenToContentY(sy: Float): Float {
+                return ((sy - pivotY - viewport.offsetY) / viewport.scale + pivotY - dy) / fitScale
+            }
 
-            val viewLeft  = (viewCenterX - viewWidth  / 2f).coerceIn(0f, contentSize.width)
-            val viewTop   = (viewCenterY - viewHeight / 2f).coerceIn(0f, contentSize.height)
-            val viewRight = (viewCenterX + viewWidth  / 2f).coerceIn(0f, contentSize.width)
-            val viewBottom= (viewCenterY + viewHeight / 2f).coerceIn(0f, contentSize.height)
+            val viewLeft = screenToContentX(0f)
+            val viewRight = screenToContentX(size.width)
+            val viewTop = screenToContentY(0f)
+            val viewBottom = screenToContentY(size.height)
 
-            val startCol = floor(viewLeft  / tileSize).toInt()
-            val endCol   = ceil (viewRight / tileSize).toInt()
-            val startRow = floor(viewTop   / tileSize).toInt()
-            val endRow   = ceil (viewBottom/ tileSize).toInt()
+            val minX = minOf(viewLeft, viewRight).coerceIn(0f, contentSize.width)
+            val maxX = maxOf(viewLeft, viewRight).coerceIn(0f, contentSize.width)
+            val minY = minOf(viewTop, viewBottom).coerceIn(0f, contentSize.height)
+            val maxY = maxOf(viewTop, viewBottom).coerceIn(0f, contentSize.height)
+
+            val startCol = floor(minX / tileSize).toInt()
+            val endCol   = ceil(maxX / tileSize).toInt()
+            val startRow = floor(minY / tileSize).toInt()
+            val endRow   = ceil(maxY / tileSize).toInt()
 
             val visibleKeys = mutableSetOf<String>()
 
@@ -115,19 +131,17 @@ class TiledImageRenderer : ImageRenderer {
                                 if (decoded != null) tiles[tileKey] = decoded
                             }
                         } else if (!bitmap.isRecycled) {
-                            // Map tile content-coords back to screen-coords using the same
-                            // viewCenter / totalScale that produced viewLeft/Top.
-                            val screenLeft   = (left   - viewCenterX + viewWidth  / 2f) * totalScale
-                            val screenTop    = (top    - viewCenterY + viewHeight / 2f) * totalScale
-                            val screenRight  = (right  - viewCenterX + viewWidth  / 2f) * totalScale
-                            val screenBottom = (bottom - viewCenterY + viewHeight / 2f) * totalScale
+                            val dstLeft = left * fitScale + dx
+                            val dstTop = top * fitScale + dy
+                            val dstRight = right * fitScale + dx
+                            val dstBottom = bottom * fitScale + dy
 
                             canvas.nativeCanvas.drawBitmap(
                                 bitmap,
                                 null,
-                                android.graphics.RectF(screenLeft, screenTop, screenRight, screenBottom),
+                                android.graphics.RectF(dstLeft, dstTop, dstRight, dstBottom),
                                 android.graphics.Paint().apply {
-                                    isAntiAlias   = true
+                                    isAntiAlias = true
                                     isFilterBitmap = true
                                 }
                             )

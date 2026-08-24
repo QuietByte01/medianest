@@ -68,12 +68,9 @@ fun VideoSeriesView(
     }
 
     if (selectedSeriesName == null) {
-        // Initial state: Show all series in a grid
+        // Initial state: Show all series in a list (matching master col width)
         val seriesGridState = rememberLazyGridState()
-        val columns = when {
-            isTablet -> GridCells.Adaptive(minSize = 180.dp)
-            else -> GridCells.Fixed(1)
-        }
+        val columns = GridCells.Fixed(1)
 
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Row(
@@ -275,13 +272,14 @@ private fun SeriesCard(
         borderColor = if (isSelected) Color(0x66FFFFFF) else Color(0x28FFFFFF)
     ) {
         Row(
-            modifier = Modifier.padding(if (compact) 8.dp else 12.dp),
+            modifier = Modifier.padding(if (compact) 10.dp else 16.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(if (compact) 44.dp else 54.dp)
+                    .width(if (compact) 72.dp else 130.dp)
+                    .height(if (compact) 44.dp else 76.dp)
                     .clip(RoundedCornerShape(if (compact) 8.dp else 12.dp))
                     .background(Color(0x33FFFFFF)),
                 contentAlignment = Alignment.Center
@@ -295,8 +293,8 @@ private fun SeriesCard(
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(name, fontWeight = FontWeight.Bold, fontSize = if (compact) 14.sp else 15.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("$seasonsCount Seasons • $episodesCount Episodes", fontSize = 11.sp, color = Color(0xFF9EA3B0))
+                Text(name, fontWeight = FontWeight.Bold, fontSize = if (compact) 14.sp else 16.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("$seasonsCount Seasons • $episodesCount Episodes", fontSize = if (compact) 11.sp else 12.sp, color = Color(0xFF9EA3B0))
             }
         }
     }
@@ -320,13 +318,14 @@ private fun SeasonCard(
         borderColor = if (isSelected) Color(0x66FFFFFF) else Color(0x28FFFFFF)
     ) {
         Row(
-            modifier = Modifier.padding(10.dp),
+            modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(46.dp)
+                    .width(72.dp)
+                    .height(44.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(Color(0x33FFFFFF)),
                 contentAlignment = Alignment.Center

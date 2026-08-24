@@ -216,15 +216,13 @@ fun MediaGridItem(
                         .padding(6.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(10.dp)
+                        RoundedPlayIcon(
+                            modifier = Modifier.size(10.dp),
+                            tint = Color.White
                         )
                         Text(
                             text = formatDuration(item.durationMs),
