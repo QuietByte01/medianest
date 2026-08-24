@@ -223,14 +223,11 @@ fun QuickViewScreen(
                 val item = mutableMediaList[page]
                 when (item.type) {
                     MediaType.IMAGE -> {
-                        val colorFilter = remember(pictureModeEnabled, pictureMode, customSat, customCon, customWarmth) {
-                            com.medianest.ui.components.PictureModeUtils.getComposeColorFilter(
-                                modeKey = pictureMode,
-                                customSat = customSat,
-                                customCon = customCon,
-                                customWarmth = customWarmth,
-                                enabled = pictureModeEnabled
-                            )
+                        val colorFilter = remember(pictureModeEnabled, pictureMode) {
+                            if (pictureModeEnabled) {
+                                val effect = try { com.medianest.ui.components.media.MediaEffect.fromString(pictureMode) } catch(e:Exception) { com.medianest.ui.components.media.MediaEffect.OFF }
+                                com.medianest.player.fx.MediaFxPipeline.getComposeColorFilter(effect)
+                            } else null
                         }
                         val zoomPadding = if (showControls) 150.dp else 24.dp
                         
@@ -718,15 +715,15 @@ fun QuickViewScreen(
                         modifier = Modifier.verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        com.medianest.ui.components.PictureMode.entries.forEach { mode ->
-                            val isSelected = pictureMode.equals(mode.key, ignoreCase = true)
+                        com.medianest.ui.components.media.MediaEffect.entries.forEach { mode ->
+                            val isSelected = pictureMode.equals(mode.name, ignoreCase = true)
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable {
                                         scope.launch {
-                                            settingsManager.setPictureMode(mode.key)
+                                            settingsManager.setPictureMode(mode.name)
                                         }
                                         showPictureModeDialog = false
                                     },
@@ -744,7 +741,7 @@ fun QuickViewScreen(
                                         selected = isSelected,
                                         onClick = {
                                             scope.launch {
-                                                settingsManager.setPictureMode(mode.key)
+                                                settingsManager.setPictureMode(mode.name)
                                             }
                                             showPictureModeDialog = false
                                         }
@@ -752,12 +749,12 @@ fun QuickViewScreen(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = mode.displayName,
+                                            text = mode.label,
                                             fontWeight = FontWeight.SemiBold,
                                             fontSize = 14.sp
                                         )
                                         Text(
-                                            text = mode.subtitle,
+                                            text = mode.label,
                                             fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )

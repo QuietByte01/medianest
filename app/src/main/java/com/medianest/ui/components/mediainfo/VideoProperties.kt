@@ -176,8 +176,8 @@ internal fun VideoFilePropertiesContent(
         }
 
         val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-        val isCompactScreen = configuration.screenWidthDp < 600
-        val isCompact = isCompactScreen
+        val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val isCompact = !isLandscape
 
         // Top Hero Card
         GlassSurface(
@@ -186,7 +186,7 @@ internal fun VideoFilePropertiesContent(
             backgroundColor = Color(0x3B181A26),
             borderColor = Color(0x2EFFFFFF)
         ) {
-            if (isCompactScreen) {
+            if (isCompact) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -414,7 +414,7 @@ internal fun VideoFilePropertiesContent(
         }
 
         // 4 Stat Boxes Row / 2x2 Grid on phone
-        if (isCompactScreen) {
+        if (isCompact) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),

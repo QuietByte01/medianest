@@ -22,7 +22,7 @@ import java.util.Locale
 fun ChronologicalCategoryVideoGrid(
     category: MediaCategory,
     videos: List<MediaItem>,
-    onVideoClick: (MediaItem) -> Unit,
+    onVideoClick: (MediaItem, List<MediaItem>?, String?) -> Unit,
     onVideoLongClick: (MediaItem) -> Unit,
     selectedUris: Set<String>,
     isSelectionMode: Boolean,
@@ -101,7 +101,7 @@ fun ChronologicalCategoryVideoGrid(
                             item = item,
                             isSelected = isSelected,
                             isSelectionMode = isSelectionMode,
-                            onClick = { onVideoClick(item) },
+                            onClick = { onVideoClick(item, videos, category.name) },
                             onLongClick = { onVideoLongClick(item) },
                             modifier = Modifier.width(280.dp),
                             placeName = locationResult?.placeName,

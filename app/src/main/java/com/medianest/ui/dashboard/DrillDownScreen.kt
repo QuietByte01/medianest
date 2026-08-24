@@ -108,7 +108,7 @@ fun DrillDownScreen(
     allAudio: List<MediaItem>,
     onBack: () -> Unit,
     onOpenQuickView: (MediaItem, List<MediaItem>) -> Unit,
-    onOpenVideoPlayer: (MediaItem) -> Unit,
+    onOpenVideoPlayer: (MediaItem, List<MediaItem>?, String?) -> Unit,
     onOpenAudioPlayer: (MediaItem) -> Unit
 ) {
     val context = LocalContext.current
@@ -313,7 +313,7 @@ fun DrillDownScreen(
                                         } else {
                                             when {
                                                 allImages.contains(item) -> onOpenQuickView(item, sortedFiles.filter { it.type == com.medianest.data.db.MediaType.IMAGE })
-                                                allVideos.contains(item) -> onOpenVideoPlayer(item)
+                                                allVideos.contains(item) -> onOpenVideoPlayer(item, sortedFiles.filter { it.type == com.medianest.data.db.MediaType.VIDEO || allVideos.contains(it) }, title)
                                                 else -> onOpenAudioPlayer(item)
                                             }
                                         }
@@ -510,7 +510,7 @@ fun DrillDownScreen(
                                     } else {
                                         when {
                                             allImages.contains(item) -> onOpenQuickView(item, sortedFiles.filter { it.type == com.medianest.data.db.MediaType.IMAGE })
-                                            allVideos.contains(item) -> onOpenVideoPlayer(item)
+                                            allVideos.contains(item) -> onOpenVideoPlayer(item, sortedFiles.filter { it.type == com.medianest.data.db.MediaType.VIDEO || allVideos.contains(it) }, title)
                                             else -> onOpenAudioPlayer(item)
                                         }
                                     }

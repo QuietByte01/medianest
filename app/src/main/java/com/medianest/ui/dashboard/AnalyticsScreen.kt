@@ -49,7 +49,7 @@ fun AnalyticsScreen(
     videosList: List<MediaItem>,
     audioList: List<MediaItem>,
     onOpenQuickView: (MediaItem, List<MediaItem>) -> Unit,
-    onOpenVideoPlayer: (MediaItem) -> Unit,
+    onOpenVideoPlayer: (MediaItem, List<MediaItem>?, String?) -> Unit,
     onOpenAudioPlayer: (MediaItem) -> Unit,
     onOpenSettings: (() -> Unit)? = null,
     searchQuery: String = ""
@@ -853,7 +853,7 @@ fun DashboardSearchResultView(
     videosList: List<MediaItem>,
     audioList: List<MediaItem>,
     onOpenQuickView: (MediaItem, List<MediaItem>) -> Unit,
-    onOpenVideoPlayer: (MediaItem) -> Unit,
+    onOpenVideoPlayer: (MediaItem, List<MediaItem>?, String?) -> Unit,
     onOpenAudioPlayer: (MediaItem) -> Unit
 ) {
     val filteredImages = remember(searchQuery, imagesList) {
@@ -957,7 +957,7 @@ fun DashboardSearchResultView(
                                     .width(180.dp)
                                     .height(110.dp)
                                     .clip(RoundedCornerShape(14.dp))
-                                    .clickable { onOpenVideoPlayer(vid) },
+                                    .clickable { onOpenVideoPlayer(vid, filteredVideos, "Search: $searchQuery") },
                                 shape = RoundedCornerShape(14.dp)
                             ) {
                                 Box(modifier = Modifier.fillMaxSize()) {

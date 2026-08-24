@@ -117,7 +117,7 @@ fun VideosTab(
     isScanningHidden: Boolean = false,
     onCategorySelect: (MediaCategory?) -> Unit,
     onCreateCategoryClick: () -> Unit,
-    onVideoClick: (MediaItem) -> Unit,
+    onVideoClick: (MediaItem, List<MediaItem>?, String?) -> Unit,
     onVideoLongClick: (MediaItem) -> Unit,
     showAddVideosDialog: Boolean = false,
     onDismissAddVideosDialog: () -> Unit = {},
@@ -389,6 +389,26 @@ fun VideosTab(
             if (isAscending) displayList.sortedWith(comp) else displayList.sortedWith(comp).reversed()
         }
 
+        val currentContextTitle = remember(selectedCategory, isFolderViewActive, selectedFolder, activeFilterTab, selectedSeriesName, selectedSeasonName) {
+            when {
+                selectedCategory != null -> selectedCategory.name
+                isFolderViewActive && selectedFolder != null -> selectedFolder?.substringAfterLast('/') ?: "Folder"
+                activeFilterTab == "SERIES" && selectedSeasonName != null -> "$selectedSeriesName • $selectedSeasonName"
+                activeFilterTab == "SERIES" && selectedSeriesName != null -> selectedSeriesName ?: "Series"
+                activeFilterTab == "MUSIC" -> "Music Videos"
+                activeFilterTab == "MOVIES" -> "Movies"
+                activeFilterTab == "CLIPS" -> "Clips"
+                activeFilterTab == "SHORTS" -> "Shorts"
+                activeFilterTab == "SOCIAL" -> "Social Media"
+                activeFilterTab == "EDITED" -> "Edited Videos"
+                activeFilterTab == "DOWNLOADED" -> "Downloads"
+                activeFilterTab == "HIDDEN" -> "Hidden Videos"
+                activeFilterTab == "EXCLUDED" -> "Excluded Videos"
+                isFolderViewActive -> "Folders"
+                else -> "All Videos"
+            }
+        }
+
         if ((isLoading && (videosList.isEmpty() || (displayList.isEmpty() && activeFilterTab != "CATEGORIES" && activeFilterTab != "SERIES"))) ||
             (isScanningHidden && (activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED") && displayList.isEmpty())) {
             Box(
@@ -515,7 +535,7 @@ fun VideosTab(
                 roundedCornersEnabled = roundedCornersEnabled,
                 selectedCategory = selectedCategory,
                 activeFilterTab = activeFilterTab,
-                onVideoClick = onVideoClick,
+                onVideoClick = { item -> onVideoClick(item, sortedDisplayList, currentContextTitle) },
                 onVideoLongClick = onVideoLongClick,
                 onInfoItem = { infoItem = it },
                 onVideoDelete = { videoToDelete = it },

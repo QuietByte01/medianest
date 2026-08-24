@@ -51,7 +51,7 @@ internal fun MediaDiagnosticsDialog(
     context: Context
 ) {
     val configuration = LocalConfiguration.current
-    val isTabletOrWide = configuration.screenWidthDp >= 600
+    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val isHealthClean = !report.diagnostics.corruptedFramesDetected && !report.diagnostics.timestampIssues && !report.diagnostics.hasErrors
     var selectedAudioTrackIndex by remember { mutableIntStateOf(0) }
     val isAudioMedia = item.type == MediaType.AUDIO
@@ -85,12 +85,12 @@ internal fun MediaDiagnosticsDialog(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(0xCC05070E))
-                .padding(if (isTabletOrWide) 24.dp else 10.dp),
+                .padding(if (isLandscape) 24.dp else 10.dp),
             contentAlignment = Alignment.Center
         ) {
             GlassSurface(
                 modifier = Modifier
-                    .fillMaxWidth(if (isTabletOrWide) 0.88f else 1f)
+                    .fillMaxWidth(if (isLandscape) 0.88f else 1f)
                     .fillMaxHeight(0.94f),
                 shape = RoundedCornerShape(24.dp),
                 borderColor = Color(0x33384260),
@@ -105,7 +105,7 @@ internal fun MediaDiagnosticsDialog(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = if (isTabletOrWide) 20.dp else 14.dp, vertical = 14.dp)
+                        .padding(horizontal = if (isLandscape) 20.dp else 14.dp, vertical = 14.dp)
                 ) {
                     // Dialog Top Header Bar
                     Row(
@@ -160,7 +160,7 @@ internal fun MediaDiagnosticsDialog(
                             backgroundColor = Color(0x1A1E2438),
                             borderColor = Color(0x333F4A6A)
                         ) {
-                            if (isTabletOrWide) {
+                            if (isLandscape) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -383,7 +383,7 @@ internal fun MediaDiagnosticsDialog(
                         // 2. Four Stat Cards Grid/Row tailored by media type
                         if (isAudioMedia) {
                             val audio = report.audioStreams.firstOrNull()
-                            if (isTabletOrWide) {
+                            if (isLandscape) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     DiagStatCard(icon = Icons.Default.Folder, label = "FILE SIZE", value = com.medianest.util.formatBytesReport(report.fileSize), modifier = Modifier.weight(1f))
                                     DiagStatCard(icon = Icons.Default.GraphicEq, label = "CHANNELS", value = "${audio?.channels ?: 2} Channels (${audio?.channelLayout ?: "Stereo"})", modifier = Modifier.weight(1f))
@@ -404,7 +404,7 @@ internal fun MediaDiagnosticsDialog(
                             }
                         } else if (isImageMedia) {
                             val img = report.imageInfo
-                            if (isTabletOrWide) {
+                            if (isLandscape) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     DiagStatCard(icon = Icons.Default.Folder, label = "FILE SIZE", value = com.medianest.util.formatBytesReport(report.fileSize), modifier = Modifier.weight(1f))
                                     DiagStatCard(
@@ -435,7 +435,7 @@ internal fun MediaDiagnosticsDialog(
                             }
                         } else {
                             // Video Stats
-                            if (isTabletOrWide) {
+                            if (isLandscape) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     DiagStatCard(icon = Icons.Default.Folder, label = "FILE SIZE", value = com.medianest.util.formatBytesReport(report.fileSize), modifier = Modifier.weight(1f))
                                     DiagStatCard(
@@ -483,7 +483,7 @@ internal fun MediaDiagnosticsDialog(
                                     )
                                 }
 
-                                if (isTabletOrWide) {
+                                if (isLandscape) {
                                     Row(modifier = Modifier.fillMaxWidth()) {
                                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                             DiagHealthRow(label = if (isAudioMedia) "Corrupted Audio Packets" else "Corrupted Video Frames", value = if (report.diagnostics.corruptedVideoFramesCount > 0 || report.diagnostics.corruptedAudioSamplesCount > 0) "Errors detected" else "0 errors (0.00%)", isError = report.diagnostics.corruptedFramesDetected)
@@ -526,7 +526,7 @@ internal fun MediaDiagnosticsDialog(
                                         Text("VIDEO INFORMATION", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA78BFA))
                                     }
 
-                                    if (isTabletOrWide) {
+                                    if (isLandscape) {
                                         Row(modifier = Modifier.fillMaxWidth()) {
                                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                                 DiagInfoRow("Codec", "${v.codecName} (${v.codecLongName})")
@@ -587,7 +587,7 @@ internal fun MediaDiagnosticsDialog(
                                         Text("IMAGE SPECIFICATIONS", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA78BFA))
                                     }
 
-                                    if (isTabletOrWide) {
+                                    if (isLandscape) {
                                         Row(modifier = Modifier.fillMaxWidth()) {
                                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                                 DiagInfoRow("Format", img.format.uppercase())
@@ -663,7 +663,7 @@ internal fun MediaDiagnosticsDialog(
                                         }
                                     }
 
-                                    if (isTabletOrWide) {
+                                    if (isLandscape) {
                                         Row(modifier = Modifier.fillMaxWidth()) {
                                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                                 DiagInfoRow("Audio Codec", currentAudio.codecName)
@@ -711,7 +711,7 @@ internal fun MediaDiagnosticsDialog(
                                         Text("CONTAINER / FILE INFORMATION", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA78BFA))
                                     }
 
-                                    if (isTabletOrWide) {
+                                    if (isLandscape) {
                                         Row(modifier = Modifier.fillMaxWidth()) {
                                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                                 DiagInfoRow("Container Format", f.formatLongName.ifBlank { f.containerFormat })

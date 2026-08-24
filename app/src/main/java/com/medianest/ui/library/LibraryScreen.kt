@@ -54,7 +54,7 @@ fun LibraryScreen(
     initialImageFolder: String? = null,
     targetMediaUri: String? = null,
     onOpenQuickView: (MediaItem, List<MediaItem>) -> Unit,
-    onOpenVideoPlayer: (MediaItem) -> Unit,
+    onOpenVideoPlayer: (MediaItem, List<MediaItem>?, String?) -> Unit,
     onOpenAudioPlayer: (Int) -> Unit,
     onOpenSettings: () -> Unit,
     onCreateCategory: (String, String, String?) -> Unit,
@@ -291,12 +291,12 @@ fun LibraryScreen(
                                         isScanningHidden = isScanningHidden,
                                         onCategorySelect = { selectedCategory = it },
                                         onCreateCategoryClick = { showCreateCategoryModal = true },
-                                        onVideoClick = { item ->
+                                        onVideoClick = { item, currentList, contextTitle ->
                                             if (isSelectionMode) {
                                                 val uriStr = item.uri.toString()
                                                 selectedUris = if (selectedUris.contains(uriStr)) selectedUris - uriStr else selectedUris + uriStr
                                             } else {
-                                                onOpenVideoPlayer(item)
+                                                onOpenVideoPlayer(item, currentList, contextTitle)
                                             }
                                         },
                                         onVideoLongClick = { item ->
@@ -329,12 +329,12 @@ fun LibraryScreen(
                                         isScanningHidden = isScanningHidden,
                                         onCategorySelect = { selectedCategory = it },
                                         onCreateCategoryClick = { showCreateCategoryModal = true },
-                                        onVideoClick = { item ->
+                                        onVideoClick = { item, currentList, contextTitle ->
                                             if (isSelectionMode) {
                                                 val uriStr = item.uri.toString()
                                                 selectedUris = if (selectedUris.contains(uriStr)) selectedUris - uriStr else selectedUris + uriStr
                                             } else {
-                                                onOpenVideoPlayer(item)
+                                                onOpenVideoPlayer(item, currentList, contextTitle)
                                             }
                                         },
                                         onVideoLongClick = { item ->
