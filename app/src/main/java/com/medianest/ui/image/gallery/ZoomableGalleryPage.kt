@@ -1,13 +1,14 @@
-package com.medianest.ui.image.hybrid
+package com.medianest.ui.image.gallery
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BrokenImage
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,78 +25,68 @@ import me.saket.telephoto.zoomable.rememberZoomableImageState
 import me.saket.telephoto.zoomable.rememberZoomableState
 
 /**
- * Modern High-Performance Image Viewer powered by Telephoto (ZoomableAsyncImage).
- * Handles sub-sampled deep zooming up to 100MP+, SVGs, GIFs, and smooth gesture coordination.
+ * High-performance zoomable image gallery page using Telephoto.
+ * Automatically delegates to sub-sampled tile decoding for high-res images (up to 100MP+)
+ * while seamlessly managing gesture delegation with HorizontalPager.
  */
 @Composable
-fun HybridImageViewer(
-    source: ImageSource,
+fun ZoomableGalleryPage(
+    model: Any?,
+    isCurrentPage: Boolean,
+    onTap: () -> Unit,
+    onZoomChanged: (isZoomed: Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    config: HybridImageViewerConfig = HybridImageViewerConfig(),
+    thumbnailModel: Any? = null,
     colorFilter: ColorFilter? = null,
-    backgroundColor: Color = Color.Black,
-    zoomControlsBottomPadding: androidx.compose.ui.unit.Dp = 16.dp,
-    onInteraction: () -> Unit = {},
-    onZoomChanged: (Boolean) -> Unit = {},
-    onToggleControls: () -> Unit = {},
-    onSwipeUpForInfo: () -> Unit = {}
+    maxZoomFactor: Float = 5.0f
 ) {
     val context = LocalContext.current
-    val modelData = remember(source) {
-        when (source) {
-            is ImageSource.FromUri -> source.uri
-            is ImageSource.FromFile -> source.file
-            is ImageSource.FromByteArray -> source.bytes
-        }
-    }
-
     val zoomableState = rememberZoomableState(
         zoomSpec = ZoomSpec(
-            maxZoomFactor = config.maxZoom
+            maxZoomFactor = maxZoomFactor
         )
     )
     val zoomableImageState = rememberZoomableImageState(zoomableState = zoomableState)
 
-    // Notify parent about zoom state
+    // Notify parent if page is zoomed in (used to coordinate pager scroll and drag-to-dismiss)
     val isZoomed = (zoomableState.zoomFraction ?: 0f) > 0.01f
     LaunchedEffect(isZoomed) {
         onZoomChanged(isZoomed)
-        if (isZoomed) {
-            onInteraction()
+    }
+
+    // Auto-reset zoom level when swiped away from this page
+    LaunchedEffect(isCurrentPage) {
+        if (!isCurrentPage && isZoomed) {
+            zoomableState.resetZoom(animationSpec = androidx.compose.animation.core.tween(300))
         }
     }
 
-    val request = remember(modelData) {
+    val fullRequest = remember(model, thumbnailModel) {
         ImageRequest.Builder(context)
-            .data(modelData)
+            .data(model)
             .decoderFactory(SvgDecoder.Factory())
             .decoderFactory(GifDecoder.Factory())
             .crossfade(true)
+            .apply {
+                if (thumbnailModel != null) {
+                    placeholderMemoryCacheKey(thumbnailModel.toString())
+                }
+            }
             .build()
     }
 
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(backgroundColor),
+        modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         ZoomableAsyncImage(
-            model = request,
+            model = fullRequest,
             contentDescription = null,
             state = zoomableImageState,
             contentScale = ContentScale.Fit,
             colorFilter = colorFilter,
-            onClick = {
-                onInteraction()
-                onToggleControls()
-            },
-            onLongClick = {
-                onInteraction()
-                onSwipeUpForInfo()
-            },
+            onClick = { onTap() },
             modifier = Modifier.fillMaxSize()
         )
     }
 }
-

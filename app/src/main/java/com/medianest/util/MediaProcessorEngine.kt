@@ -774,6 +774,94 @@ object MediaProcessorEngine {
     }
 
     // ==========================================
+    // 7. DETERMINISTIC NON-AI VIDEO COLORIZER
+    // ==========================================
+    suspend fun colorizeMedia(
+        context: Context,
+        inputPath: String,
+        inputUri: Uri? = null,
+        originalFileName: String? = null,
+        config: VideoColorizerEngine.ColorizerConfig
+    ): Boolean = withContext(Dispatchers.IO) {
+        val resolvedInput = resolveInputPath(context, inputPath, inputUri)
+        if (resolvedInput == null) {
+            _processingState.value = ProcessingState.Failed("Could not resolve input media path", "")
+            return@withContext false
+        }
+
+        val baseName = getBaseName(resolvedInput, originalFileName)
+        val isImg = isImageFormat(File(resolvedInput).extension)
+        val ext = if (isImg) (File(resolvedInput).extension.ifBlank { "png" }) else config.codec.containerExt
+        val outputDir = getOutputDirForFormat(ext, "Colorized")
+        val outputFile = File(outputDir, "${baseName}_colorized_${System.currentTimeMillis()}.$ext")
+        val origFile = File(resolvedInput)
+        val origSize = if (origFile.exists()) origFile.length() else 0L
+
+        val startTimeMs = System.currentTimeMillis()
+        _processingState.value = ProcessingState.Processing(
+            progressPercent = 0,
+            speed = 1.0,
+            timeMs = 0L,
+            statusText = if (isImg) "Initializing Image Colorizer..." else "Initializing Deterministic Video Colorizer...",
+            recentLog = "Starting ${config.mode.label} engine..."
+        )
+
+        val success = if (isImg) {
+            VideoColorizerEngine.colorizeImage(
+                context = context,
+                inputPath = resolvedInput,
+                outputPath = outputFile.absolutePath,
+                config = config,
+                onProgress = { percent, msg ->
+                    _processingState.value = ProcessingState.Processing(
+                        progressPercent = percent,
+                        speed = 1.0,
+                        timeMs = System.currentTimeMillis() - startTimeMs,
+                        statusText = msg,
+                        recentLog = msg
+                    )
+                }
+            )
+        } else {
+            VideoColorizerEngine.colorizeVideo(
+                context = context,
+                inputPath = resolvedInput,
+                outputPath = outputFile.absolutePath,
+                config = config,
+                onProgress = { percent, msg ->
+                    _processingState.value = ProcessingState.Processing(
+                        progressPercent = percent,
+                        speed = 1.0,
+                        timeMs = System.currentTimeMillis() - startTimeMs,
+                        statusText = msg,
+                        recentLog = msg
+                    )
+                }
+            )
+        }
+
+        if (success && outputFile.exists()) {
+            MediaScannerConnection.scanFile(context, arrayOf(outputFile.absolutePath), null, null)
+            val elapsed = System.currentTimeMillis() - startTimeMs
+            _processingState.value = ProcessingState.Completed(
+                outputFile = outputFile,
+                outputUri = Uri.fromFile(outputFile),
+                originalSizeBytes = origSize,
+                newSizeBytes = outputFile.length(),
+                durationMs = elapsed
+            )
+            return@withContext true
+        } else {
+            _processingState.value = ProcessingState.Failed(
+                errorMessage = if (isImg) "Image colorization pipeline failed to complete." else "Video colorization pipeline failed to complete.",
+                fullLog = "Colorizer mode: ${config.mode.name}, codec: ${config.codec.name}"
+            )
+            if (outputFile.exists()) outputFile.delete()
+            return@withContext false
+        }
+    }
+
+    // ==========================================
     // INTERNAL EXECUTION & HELPER PIPELINE
     // ==========================================
     private suspend fun executeFFmpegCommand(

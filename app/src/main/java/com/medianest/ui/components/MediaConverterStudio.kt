@@ -42,8 +42,15 @@ import coil.compose.AsyncImage
 import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.dashboard.AnalyticsColors
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
 import com.medianest.util.MediaProcessorEngine
 import com.medianest.util.MediaProcessorEngine.ProcessingState
+import com.medianest.util.VideoColorizerEngine
+import com.medianest.util.VideoColorizerEngine.ColorizeMode
+import com.medianest.util.VideoColorizerEngine.ColorizeCodec
+import com.medianest.util.VideoColorizerEngine.ColorizePixFmt
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Locale
@@ -51,6 +58,7 @@ import java.util.Locale
 enum class StudioTab(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     CONVERT("Convert", Icons.Default.Transform),
     COMPRESS("Compress", Icons.Default.Compress),
+    COLORIZE("Colorize", Icons.Default.Palette),
     CROP("Crop", Icons.Default.Crop),
     EXTRACT("Extract", Icons.Default.AudioFile),
     REPAIR("Repair", Icons.Default.Build)
@@ -149,6 +157,36 @@ fun MediaConverterStudioDialog(
     // Parameters - Repair
     var repairLossless by remember { mutableStateOf(true) }
 
+    // Parameters - Colorize (Deterministic Non-AI Pipeline)
+    var colorizeMode by remember { mutableStateOf(ColorizeMode.WELSH_REFERENCE_MATCHING) }
+    var colorizeRefImagePath by remember { mutableStateOf<String?>(null) }
+    var colorizeOpticalFlowIterations by remember { mutableIntStateOf(3) }
+    var colorizeFilterStrength by remember { mutableFloatStateOf(0.5f) }
+    var colorizePatchRadius by remember { mutableIntStateOf(2) }
+    var colorizeTextureWeight by remember { mutableFloatStateOf(0.5f) }
+    var colorizeCodec by remember { mutableStateOf(ColorizeCodec.H264) }
+    var colorizePixFmt by remember { mutableStateOf(ColorizePixFmt.YUV420P) }
+    var colorizeCrf by remember { mutableIntStateOf(18) }
+    var colorizePreviewBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var isGeneratingPreview by remember { mutableStateOf(false) }
+
+    val colorizeRefImagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val tempFile = File(context.cacheDir, "ref_color_${System.currentTimeMillis()}.png")
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    tempFile.outputStream().use { output -> input.copyTo(output) }
+                }
+                colorizeRefImagePath = tempFile.absolutePath
+                colorizePreviewBitmap = null
+            } catch (e: Exception) {
+                colorizeRefImagePath = uri.path ?: uri.toString()
+            }
+        }
+    }
+
     Dialog(
         onDismissRequest = {
             if (processingState !is ProcessingState.Processing && processingState !is ProcessingState.BatchProcessing) {
@@ -156,12 +194,16 @@ fun MediaConverterStudioDialog(
                 onDismissRequest()
             }
         },
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(0xCC04060B))
+                .systemBarsPadding()
                 .padding(if (isTablet) 24.dp else 0.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -290,10 +332,17 @@ fun MediaConverterStudioDialog(
                                 onSwitchToSingle = { isBatchMode = false }
                             )
                         } else {
+                            val pickMime = when (selectedTab) {
+                                StudioTab.COLORIZE -> "video/*,image/*"
+                                StudioTab.CROP -> "video/*,image/*"
+                                StudioTab.EXTRACT -> "video/*"
+                                StudioTab.REPAIR -> "video/*,audio/*"
+                                else -> "*/*"
+                            }
                             SourceMediaSelectorCard(
                                 selectedItem = selectedMediaItem,
                                 onChangeClick = { showMediaPickerSheet = true },
-                                onPickStorage = { singleFilePickerLauncher.launch("*/*") }
+                                onPickStorage = { singleFilePickerLauncher.launch(pickMime) }
                             )
                         }
 
@@ -347,6 +396,59 @@ fun MediaConverterStudioDialog(
                                 )
                             }
 
+                            StudioTab.COLORIZE -> {
+                                ColorizeControlsCard(
+                                    selectedItem = selectedMediaItem,
+                                    mode = colorizeMode,
+                                    onModeChange = { colorizeMode = it },
+                                    referenceImagePath = colorizeRefImagePath,
+                                    onPickReferenceImage = { colorizeRefImagePickerLauncher.launch("image/*") },
+                                    opticalFlowIterations = colorizeOpticalFlowIterations,
+                                    onOpticalFlowIterationsChange = { colorizeOpticalFlowIterations = it },
+                                    filterStrength = colorizeFilterStrength,
+                                    onFilterStrengthChange = { colorizeFilterStrength = it },
+                                    patchRadius = colorizePatchRadius,
+                                    onPatchRadiusChange = { colorizePatchRadius = it },
+                                    textureWeight = colorizeTextureWeight,
+                                    onTextureWeightChange = { colorizeTextureWeight = it },
+                                    codec = colorizeCodec,
+                                    onCodecChange = { colorizeCodec = it },
+                                    pixFmt = colorizePixFmt,
+                                    onPixFmtChange = { colorizePixFmt = it },
+                                    crf = colorizeCrf,
+                                    onCrfChange = { colorizeCrf = it },
+                                    previewBitmap = colorizePreviewBitmap,
+                                    isGeneratingPreview = isGeneratingPreview,
+                                    onGeneratePreview = {
+                                        val item = selectedMediaItem
+                                        if (item != null) {
+                                            val path = item.uri.path ?: item.uri.toString()
+                                            scope.launch {
+                                                isGeneratingPreview = true
+                                                val config = VideoColorizerEngine.ColorizerConfig(
+                                                    mode = colorizeMode,
+                                                    referenceImagePath = colorizeRefImagePath,
+                                                    opticalFlowIterations = colorizeOpticalFlowIterations,
+                                                    filterStrength = colorizeFilterStrength,
+                                                    patchRadius = colorizePatchRadius,
+                                                    textureWeight = colorizeTextureWeight,
+                                                    codec = colorizeCodec,
+                                                    pixelFormat = colorizePixFmt,
+                                                    customCrf = colorizeCrf
+                                                )
+                                                colorizePreviewBitmap = VideoColorizerEngine.generatePreviewBitmap(
+                                                    context = context,
+                                                    inputMediaPath = path,
+                                                    timeSec = 1.0f,
+                                                    config = config
+                                                )
+                                                isGeneratingPreview = false
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+
                             StudioTab.CROP -> {
                                 CropControlsCard(
                                     selectedItem = selectedMediaItem,
@@ -382,6 +484,12 @@ fun MediaConverterStudioDialog(
                         text = when (selectedTab) {
                             StudioTab.CONVERT -> if (isLosslessCopy) "Start Lossless Remux" else "Start Video/Audio Conversion"
                             StudioTab.COMPRESS -> if (isBatchMode) "Compress ${selectedBatchItems.size} Files (Batch)" else "Start Smart Compression"
+                            StudioTab.COLORIZE -> {
+                                val isImg = selectedMediaItem?.type == MediaType.IMAGE ||
+                                    selectedMediaItem?.mimeType?.startsWith("image/") == true ||
+                                    listOf("png", "jpg", "jpeg", "webp", "bmp", "avif").any { selectedMediaItem?.uri?.toString()?.lowercase()?.endsWith(".$it") == true }
+                                if (isImg) "Start Image Colorization (Welsh Transfer)" else "Start Deterministic Colorization Pipeline"
+                            }
                             StudioTab.CROP -> "Start Video Crop & Reframe"
                             StudioTab.EXTRACT -> when(extractType) {
                                 "GIF" -> "Generate Animated Cinema GIF"
@@ -466,6 +574,31 @@ fun MediaConverterStudioDialog(
                                             resolutionScale = compressResolution,
                                             videoCodec = codec,
                                             isCreateNewFile = isCreateNewFile
+                                        )
+                                    }
+
+                                    StudioTab.COLORIZE -> {
+                                        if (colorizeMode == ColorizeMode.WELSH_REFERENCE_MATCHING && colorizeRefImagePath.isNullOrBlank()) {
+                                            Toast.makeText(context, "Please select a reference color image first", Toast.LENGTH_LONG).show()
+                                            return@launch
+                                        }
+                                        val config = VideoColorizerEngine.ColorizerConfig(
+                                            mode = colorizeMode,
+                                            referenceImagePath = colorizeRefImagePath,
+                                            opticalFlowIterations = colorizeOpticalFlowIterations,
+                                            filterStrength = colorizeFilterStrength,
+                                            patchRadius = colorizePatchRadius,
+                                            textureWeight = colorizeTextureWeight,
+                                            codec = colorizeCodec,
+                                            pixelFormat = colorizePixFmt,
+                                            customCrf = colorizeCrf
+                                        )
+                                        MediaProcessorEngine.colorizeMedia(
+                                            context = context,
+                                            inputPath = path,
+                                            inputUri = item.uri,
+                                            originalFileName = item.title,
+                                            config = config
                                         )
                                     }
 
@@ -625,12 +758,20 @@ fun MediaConverterStudioDialog(
 
             // Unified Library Picker Sheet (Single & Batch Modes)
             if (showMediaPickerSheet) {
+                val pickMime = when (selectedTab) {
+                    StudioTab.COLORIZE -> "video/*,image/*"
+                    StudioTab.CROP -> "video/*,image/*"
+                    StudioTab.EXTRACT -> "video/*"
+                    StudioTab.REPAIR -> "video/*,audio/*"
+                    else -> "*/*"
+                }
                 UnifiedMediaPickerModal(
                     imagesList = imagesList,
                     videosList = videosList,
                     audioList = audioList,
                     initialBatchItems = selectedBatchItems,
                     initialIsBatch = isBatchMode,
+                    activeTab = selectedTab,
                     onSelectSingle = { item ->
                         selectedMediaItem = item
                         isBatchMode = false
@@ -645,7 +786,7 @@ fun MediaConverterStudioDialog(
                     },
                     onPickSingleExternal = {
                         showMediaPickerSheet = false
-                        singleFilePickerLauncher.launch("*/*")
+                        singleFilePickerLauncher.launch(pickMime)
                     },
                     onPickMultiExternal = {
                         showMediaPickerSheet = false
@@ -1993,6 +2134,368 @@ private fun RepairControlsCard(
 }
 
 // ==========================================
+// 6. COLORIZE CONTROLS (DETERMINISTIC NON-AI)
+// ==========================================
+@Composable
+private fun ColorizeControlsCard(
+    selectedItem: MediaItem?,
+    mode: ColorizeMode,
+    onModeChange: (ColorizeMode) -> Unit,
+    referenceImagePath: String?,
+    onPickReferenceImage: () -> Unit,
+    opticalFlowIterations: Int,
+    onOpticalFlowIterationsChange: (Int) -> Unit,
+    filterStrength: Float,
+    onFilterStrengthChange: (Float) -> Unit,
+    patchRadius: Int,
+    onPatchRadiusChange: (Int) -> Unit,
+    textureWeight: Float,
+    onTextureWeightChange: (Float) -> Unit,
+    codec: ColorizeCodec,
+    onCodecChange: (ColorizeCodec) -> Unit,
+    pixFmt: ColorizePixFmt,
+    onPixFmtChange: (ColorizePixFmt) -> Unit,
+    crf: Int,
+    onCrfChange: (Int) -> Unit,
+    previewBitmap: Bitmap?,
+    isGeneratingPreview: Boolean,
+    onGeneratePreview: () -> Unit
+) {
+    val isImageSource = selectedItem?.type == MediaType.IMAGE ||
+        selectedItem?.mimeType?.startsWith("image/") == true ||
+        listOf("png", "jpg", "jpeg", "webp", "bmp", "avif").any { selectedItem?.uri?.toString()?.lowercase()?.endsWith(".$it") == true }
+
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        // Section Header
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    Icons.Default.Palette,
+                    contentDescription = null,
+                    tint = Color(0xFF60A5FA),
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    if (isImageSource) "Deterministic Non-AI Image Colorization" else "Deterministic Non-AI Video Colorization",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+            Text(
+                if (isImageSource) {
+                    "Transfers color statistics from reference palette in perceptual CIELAB space while preserving 100% of the original uncompressed Luminance (Y) sharpness."
+                } else {
+                    "Isolates native uncompressed Luminance (Y) to preserve 100% sharpness while mathematically synthesizing Chrominance (U/V) via classical CV algorithms."
+                },
+                fontSize = 11.5.sp,
+                color = Color(0xFF94A3B8)
+            )
+        }
+
+        // Colorization Mode Selector (Video Only)
+        if (!isImageSource) {
+            Text("Colorization Engine", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFCBD5E1))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ColorizeMode.entries.forEach { engineMode ->
+                    val isSelected = mode == engineMode
+                    Surface(
+                        onClick = { onModeChange(engineMode) },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) Color(0x333B82F6) else Color(0x12FFFFFF),
+                        border = BorderStroke(
+                            if (isSelected) 1.5.dp else 0.5.dp,
+                            if (isSelected) Color(0xFF60A5FA) else Color(0x1FFFFFFF)
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                if (engineMode == ColorizeMode.WELSH_REFERENCE_MATCHING) "Welsh Transfer" else "Optical Flow",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) Color(0xFF93C5FD) else Color.White
+                            )
+                            Text(
+                                if (engineMode == ColorizeMode.WELSH_REFERENCE_MATCHING) "CIELAB statistical matching from reference" else "Farnebäck motion vectors & Joint Bilateral",
+                                fontSize = 10.5.sp,
+                                color = Color(0xFF94A3B8),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Reference Image or Keyframe Setup
+        if (isImageSource || mode == ColorizeMode.WELSH_REFERENCE_MATCHING) {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0x14FFFFFF),
+                border = BorderStroke(0.5.dp, Color(0x2AFFFFFF)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Reference Color Palette Image", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                        OutlinedButton(
+                            onClick = onPickReferenceImage,
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            border = BorderStroke(1.dp, Color(0xFF60A5FA))
+                        ) {
+                            Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFF60A5FA))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (referenceImagePath != null) "Change Image" else "Select Image", fontSize = 11.5.sp, color = Color(0xFF60A5FA))
+                        }
+                    }
+
+                    if (referenceImagePath != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            AsyncImage(
+                                model = referenceImagePath,
+                                contentDescription = "Reference Preview",
+                                modifier = Modifier
+                                    .size(54.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .border(1.dp, Color(0x44FFFFFF), RoundedCornerShape(8.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    File(referenceImagePath).name,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text("CIELAB color space statistics ready for transfer", fontSize = 10.5.sp, color = Color(0xFF4ADE80))
+                            }
+                        }
+                    } else {
+                        Text(
+                            "Select a high-quality color image (e.g. skin tones, landscape, sky) matching the scene lighting.",
+                            fontSize = 11.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Fine-tuning CV Parameters
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = Color(0x14FFFFFF),
+            border = BorderStroke(0.5.dp, Color(0x2AFFFFFF)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Mathematical Tuning Parameters", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+
+                if (isImageSource || mode == ColorizeMode.WELSH_REFERENCE_MATCHING) {
+                    // Patch Radius
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Neighborhood Window Radius", fontSize = 11.sp, color = Color(0xFFCBD5E1))
+                            Text("${patchRadius * 2 + 1}x${patchRadius * 2 + 1} px", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
+                        }
+                        Slider(
+                            value = patchRadius.toFloat(),
+                            onValueChange = { onPatchRadiusChange(it.toInt()) },
+                            valueRange = 1f..4f,
+                            steps = 2,
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color(0xFF60A5FA),
+                                activeTrackColor = Color(0xFF3B82F6)
+                            )
+                        )
+                    }
+
+                    // Texture Variance Weight
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Luminance Variance Weight (Texture)", fontSize = 11.sp, color = Color(0xFFCBD5E1))
+                            Text(String.format(Locale.US, "%.2f", textureWeight), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
+                        }
+                        Slider(
+                            value = textureWeight,
+                            onValueChange = onTextureWeightChange,
+                            valueRange = 0.1f..1.0f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color(0xFF60A5FA),
+                                activeTrackColor = Color(0xFF3B82F6)
+                            )
+                        )
+                    }
+                } else {
+                    // Optical Flow Iterations
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Farnebäck Pyramid Iterations", fontSize = 11.sp, color = Color(0xFFCBD5E1))
+                            Text("$opticalFlowIterations iters", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
+                        }
+                        Slider(
+                            value = opticalFlowIterations.toFloat(),
+                            onValueChange = { onOpticalFlowIterationsChange(it.toInt()) },
+                            valueRange = 1f..6f,
+                            steps = 4,
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color(0xFF60A5FA),
+                                activeTrackColor = Color(0xFF3B82F6)
+                            )
+                        )
+                    }
+
+                    // Joint Bilateral Edge Snapping Strength
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Joint Bilateral Edge-Snapping Guide (Y)", fontSize = 11.sp, color = Color(0xFFCBD5E1))
+                            Text(String.format(Locale.US, "%.2f", filterStrength), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
+                        }
+                        Slider(
+                            value = filterStrength,
+                            onValueChange = onFilterStrengthChange,
+                            valueRange = 0.1f..1.0f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color(0xFF60A5FA),
+                                activeTrackColor = Color(0xFF3B82F6)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // Codec & Chroma Format Selector (Video Only)
+        if (!isImageSource) {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0x14FFFFFF),
+                border = BorderStroke(0.5.dp, Color(0x2AFFFFFF)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("FFmpeg Output Encoding & Chroma Planes", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ColorizeCodec.entries.forEach { c ->
+                            val isSelected = codec == c
+                            Surface(
+                                onClick = { onCodecChange(c) },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSelected) Color(0x333B82F6) else Color(0x12FFFFFF),
+                                border = BorderStroke(if (isSelected) 1.dp else 0.5.dp, if (isSelected) Color(0xFF60A5FA) else Color(0x1FFFFFFF)),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(modifier = Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                                    Text(c.name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (isSelected) Color(0xFF93C5FD) else Color.White)
+                                }
+                            }
+                        }
+                    }
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ColorizePixFmt.entries.forEach { fmt ->
+                            val isSelected = pixFmt == fmt
+                            Surface(
+                                onClick = { onPixFmtChange(fmt) },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSelected) Color(0x333B82F6) else Color(0x12FFFFFF),
+                                border = BorderStroke(if (isSelected) 1.dp else 0.5.dp, if (isSelected) Color(0xFF60A5FA) else Color(0x1FFFFFFF)),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(modifier = Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                                    Text(
+                                        if (fmt == ColorizePixFmt.YUV420P) "YUV 4:2:0" else "YUV 4:4:4",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) Color(0xFF93C5FD) else Color.White
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Live Real-Time Frame Preview
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = Color(0x14FFFFFF),
+            border = BorderStroke(0.5.dp, Color(0x2AFFFFFF)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Live Colorization Preview", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                    Button(
+                        onClick = onGeneratePreview,
+                        enabled = !isGeneratingPreview && (mode != ColorizeMode.WELSH_REFERENCE_MATCHING || referenceImagePath != null),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        if (isGeneratingPreview) {
+                            CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp, color = Color.White)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Processing...", fontSize = 11.sp)
+                        } else {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Preview Frame", fontSize = 11.sp)
+                        }
+                    }
+                }
+
+                if (previewBitmap != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.Black)
+                            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(10.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            bitmap = previewBitmap.asImageBitmap(),
+                            contentDescription = "Colorized Preview Frame",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
 // PROGRESS HUD MODALS
 // ==========================================
 @Composable
@@ -2292,6 +2795,7 @@ private fun UnifiedMediaPickerModal(
     audioList: List<MediaItem>,
     initialBatchItems: List<MediaItem>,
     initialIsBatch: Boolean,
+    activeTab: StudioTab = StudioTab.CONVERT,
     onSelectSingle: (MediaItem) -> Unit,
     onSelectBatch: (List<MediaItem>) -> Unit,
     onPickSingleExternal: () -> Unit,
@@ -2300,7 +2804,42 @@ private fun UnifiedMediaPickerModal(
 ) {
     var isBatchSelection by remember { mutableStateOf(initialIsBatch) }
     var selectedBatchSet by remember { mutableStateOf(initialBatchItems.toSet()) }
-    var pickerFilter by remember { mutableStateOf("ALL") }
+    val defaultFilter = when (activeTab) {
+        StudioTab.COLORIZE -> "VIDEO"
+        StudioTab.CROP -> "VIDEO"
+        StudioTab.EXTRACT -> "VIDEO"
+        else -> "ALL"
+    }
+    var pickerFilter by remember { mutableStateOf(defaultFilter) }
+
+    val categoryOptions = remember(activeTab) {
+        when (activeTab) {
+            StudioTab.COLORIZE -> listOf(
+                "ALL" to "All (Vid/Img)",
+                "VIDEO" to "Videos",
+                "IMAGE" to "Images"
+            )
+            StudioTab.CROP -> listOf(
+                "ALL" to "All (Vid/Img)",
+                "VIDEO" to "Videos",
+                "IMAGE" to "Images"
+            )
+            StudioTab.EXTRACT -> listOf(
+                "VIDEO" to "Videos"
+            )
+            StudioTab.REPAIR -> listOf(
+                "ALL" to "All Media",
+                "VIDEO" to "Videos",
+                "AUDIO" to "Audio"
+            )
+            else -> listOf(
+                "ALL" to "All Media",
+                "VIDEO" to "Videos",
+                "AUDIO" to "Audio",
+                "IMAGE" to "Images"
+            )
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         GlassSurface(
@@ -2388,12 +2927,7 @@ private fun UnifiedMediaPickerModal(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf(
-                        "ALL" to "All Media",
-                        "VIDEO" to "Videos",
-                        "AUDIO" to "Audio",
-                        "IMAGE" to "Images"
-                    ).forEach { (f, label) ->
+                    categoryOptions.forEach { (f, label) ->
                         val isSel = pickerFilter == f
                         GlossyPillButton(
                             text = label,
@@ -2404,12 +2938,17 @@ private fun UnifiedMediaPickerModal(
                     }
                 }
 
-                val allList = remember(pickerFilter, imagesList, videosList, audioList) {
+                val allList = remember(pickerFilter, activeTab, imagesList, videosList, audioList) {
                     when (pickerFilter) {
                         "VIDEO" -> videosList
                         "AUDIO" -> audioList
                         "IMAGE" -> imagesList
-                        else -> (videosList + audioList + imagesList).sortedByDescending { it.id }
+                        else -> when (activeTab) {
+                            StudioTab.COLORIZE, StudioTab.CROP -> (videosList + imagesList).sortedByDescending { it.id }
+                            StudioTab.EXTRACT -> videosList
+                            StudioTab.REPAIR -> (videosList + audioList).sortedByDescending { it.id }
+                            else -> (videosList + audioList + imagesList).sortedByDescending { it.id }
+                        }
                     }
                 }
 

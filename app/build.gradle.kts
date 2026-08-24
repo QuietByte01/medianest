@@ -142,6 +142,7 @@ dependencies {
   implementation(libs.coil.video)
   implementation("io.coil-kt:coil-gif:2.7.0")
   implementation("io.coil-kt:coil-svg:2.7.0")
+  implementation(libs.telephoto.zoomable.image.coil)
 
   implementation(libs.media3.exoplayer)
     implementation("androidx.media3:media3-effect:1.11.0")

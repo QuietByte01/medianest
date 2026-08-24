@@ -322,7 +322,7 @@ fun MediaProcessorStudioCard(
                         color = Color.White
                     )
                     Text(
-                        text = "Professional tools for lossless conversion, smart compression, cropping, and media repair.",
+                        text = "Professional tools for lossless conversion, deterministic non-AI colorization, smart compression, cropping, and bitstream repair.",
                         fontSize = 12.sp,
                         color = Color(0xFF94A3B8),
                         lineHeight = 16.sp

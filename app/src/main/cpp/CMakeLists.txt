@@ -28,6 +28,7 @@ find_package(oboe REQUIRED CONFIG)
 
 add_library(medianest_ffmpeg SHARED
     ffmpeg_jni.cpp
+    video_colorizer.cpp
 )
 
 target_include_directories(medianest_ffmpeg PRIVATE include)
