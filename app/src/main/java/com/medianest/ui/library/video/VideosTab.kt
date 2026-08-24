@@ -211,10 +211,17 @@ fun VideosTab(
         )
     }
 
-    val allVideoCategories = remember(categories, defaultVideoCategories) {
+    val searchQuery by viewModel.searchQuery.collectAsState()
+
+    val allVideoCategories = remember(categories, defaultVideoCategories, searchQuery) {
         val userNames = categories.map { it.name.lowercase() }.toSet()
         val filteredDefaults = defaultVideoCategories.filter { it.name.lowercase() !in userNames }
-        categories + filteredDefaults
+        val all = categories + filteredDefaults
+        if (searchQuery.isNotBlank()) {
+            all.filter { it.name.contains(searchQuery, ignoreCase = true) }
+        } else {
+            all
+        }
     }
 
     val showHiddenSetting by settingsManager.showHiddenFiles.collectAsState(initial = false)
@@ -222,6 +229,20 @@ fun VideosTab(
     val videoFolderGroups by viewModel.videoFolderGroups.collectAsState()
     val sharedTitleWords by viewModel.sharedTitleWords.collectAsState()
     val videoCounts by viewModel.videoCounts.collectAsState()
+
+    val effectiveFolderGroups = remember(videoFolderGroups, searchQuery) {
+        if (searchQuery.isNotBlank()) {
+            videoFolderGroups.mapNotNull { (folderName, items) ->
+                val matchesFolder = folderName.contains(searchQuery, ignoreCase = true)
+                val matchingItems = items.filter { it.title.contains(searchQuery, ignoreCase = true) }
+                if (matchesFolder || matchingItems.isNotEmpty()) {
+                    folderName to if (matchesFolder) items else matchingItems
+                } else null
+            }.toMap()
+        } else {
+            videoFolderGroups
+        }
+    }
 
     val categoryUris = remember(allCrossRefs, selectedCategory, videosList) {
         if (selectedCategory != null) {
@@ -353,8 +374,8 @@ fun VideosTab(
             }
         )
 
-        val displayList = remember(videosList, videoFolderGroups, activeFilterTab, isFolderViewActive, selectedFolder, selectedCategory, categoryUris, showHiddenSetting) {
-            if (isFolderViewActive || selectedFolder != null) {
+        val displayList = remember(videosList, videoFolderGroups, activeFilterTab, isFolderViewActive, selectedFolder, selectedCategory, categoryUris, showHiddenSetting, searchQuery) {
+            val raw = if (isFolderViewActive || selectedFolder != null) {
                 if (selectedFolder != null) {
                     videoFolderGroups[selectedFolder]
                         ?: videoFolderGroups.entries.firstOrNull { (k, _) ->
@@ -376,6 +397,12 @@ fun VideosTab(
                 emptyList()
             } else {
                 filterVideoList(videosList, activeFilterTab, showHiddenSetting)
+            }
+
+            if (searchQuery.isNotBlank()) {
+                raw.filter { it.title.contains(searchQuery, ignoreCase = true) }
+            } else {
+                raw
             }
         }
 
@@ -459,15 +486,20 @@ fun VideosTab(
                 gridState = chronologicalGridState
             )
         } else if (activeFilterTab == "CATEGORIES" && selectedCategory == null) {
-            val combinedCategoryVideos = remember(videosList, allCrossRefs, allVideoCategories) {
+            val combinedCategoryVideos = remember(videosList, allCrossRefs, allVideoCategories, searchQuery) {
                 val videoCatIds = allVideoCategories.map { it.id }.toSet()
                 val crossRefsByCat = allCrossRefs.filter { it.categoryId in videoCatIds }.groupBy { it.categoryId }
                 
-                videosList.filter { item ->
+                val base = videosList.filter { item ->
                     allVideoCategories.any { cat ->
                         val crossRefUris = crossRefsByCat[cat.id]?.map { it.mediaUri }?.toSet() ?: emptySet()
                         isItemInCategory(item, cat, crossRefUris)
                     }
+                }
+                if (searchQuery.isNotBlank()) {
+                    base.filter { it.title.contains(searchQuery, ignoreCase = true) }
+                } else {
+                    base
                 }
             }
             val allCategoriesHeader = remember {
@@ -487,7 +519,7 @@ fun VideosTab(
             )
         } else if (isFolderViewActive && selectedFolder == null) {
             VideoFoldersGrid(
-                videoFolderGroups = videoFolderGroups,
+                videoFolderGroups = effectiveFolderGroups,
                 activeFilterTab = activeFilterTab,
                 settingsManager = settingsManager,
                 db = db,
@@ -504,8 +536,15 @@ fun VideosTab(
                 gridState = folderGridState
             )
         } else if (activeFilterTab == "SERIES") {
+            val seriesVideos = remember(videosList, searchQuery) {
+                if (searchQuery.isNotBlank()) {
+                    videosList.filter { it.title.contains(searchQuery, ignoreCase = true) }
+                } else {
+                    videosList
+                }
+            }
             VideoSeriesView(
-                videosList = videosList,
+                videosList = seriesVideos,
                 sharedTitleWords = sharedTitleWords,
                 selectedSeriesName = selectedSeriesName,
                 selectedSeasonName = selectedSeasonName,

@@ -499,6 +499,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
                         queue = items,
                         queueIndex = targetIndex,
                         currentItem = currentTarget,
+                        queueTitle = queueTitle ?: _playerState.value.queueTitle,
                         abRepeatA = null,
                         abRepeatB = null,
                         isAbRepeatActive = false
@@ -568,8 +569,8 @@ class ExoPlayerManager private constructor(private val context: Context) {
     fun seekTo(positionMs: Long) = activeEngine?.seekTo(positionMs)
     fun seekForward(offsetMs: Long = 10000L) = seekTo(((activeEngine?.currentPositionMs ?: 0L) + offsetMs).coerceAtMost(activeEngine?.durationMs ?: 0L))
     fun seekBackward(offsetMs: Long = 10000L) = seekTo(((activeEngine?.currentPositionMs ?: 0L) - offsetMs).coerceAtLeast(0L))
-    fun next() = _playerState.value.let { if (it.queue.isNotEmpty()) playMediaList(it.queue, (it.queueIndex + 1) % it.queue.size, 0L) }
-    fun previous() = _playerState.value.let { if (it.queue.isNotEmpty()) { if ((activeEngine?.currentPositionMs ?: 0L) > 3000L) { activeEngine?.seekTo(0L) } else { playMediaList(it.queue, if (it.queueIndex - 1 < 0) it.queue.size - 1 else it.queueIndex - 1, 0L) } } }
+    fun next() = _playerState.value.let { if (it.queue.isNotEmpty()) playMediaList(it.queue, (it.queueIndex + 1) % it.queue.size, 0L, it.queueTitle) }
+    fun previous() = _playerState.value.let { if (it.queue.isNotEmpty()) { if ((activeEngine?.currentPositionMs ?: 0L) > 3000L) { activeEngine?.seekTo(0L) } else { playMediaList(it.queue, if (it.queueIndex - 1 < 0) it.queue.size - 1 else it.queueIndex - 1, 0L, it.queueTitle) } } }
     fun play() {
         if (requestAudioFocus()) {
             activeEngine?.play()

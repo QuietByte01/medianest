@@ -125,11 +125,13 @@ fun AudioTab(
         }
     }
 
+    val searchQuery by viewModel.searchQuery.collectAsState()
+
     val db = remember { com.medianest.MediaNestApp.instance.database }
     val cachedMetadataList by db.metadataCacheDao().getAllCacheFlow().collectAsState(initial = emptyList<com.medianest.data.db.AudioMetadataCache>())
     val cacheMap = remember(cachedMetadataList) { cachedMetadataList.associateBy { it.audioUri } }
     
-    val effectiveAudioList = remember(audioList, cacheMap, sortField, isAscending, subTabState, showHiddenSetting) {
+    val effectiveAudioList = remember(audioList, cacheMap, sortField, isAscending, subTabState, showHiddenSetting, searchQuery) {
         val baseList = when (subTabState) {
             7 -> audioList.filter { it.isExcluded || com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
             8 -> audioList.filter { it.isHidden && !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
@@ -158,6 +160,16 @@ fun AudioTab(
                 item
             }
         }
+
+        val filteredBySearch = if (searchQuery.isNotBlank()) {
+            list.filter { item ->
+                item.title.contains(searchQuery, ignoreCase = true) ||
+                (item.artist?.contains(searchQuery, ignoreCase = true) == true) ||
+                (item.album?.contains(searchQuery, ignoreCase = true) == true)
+            }
+        } else {
+            list
+        }
         
         // Sorting logic based on tab and field (Tracks & Albums & Artists & Folders)
         if (subTabState == 0 || subTabState == 3 || subTabState == 4 || subTabState == 5 || subTabState == 7) {
@@ -171,34 +183,39 @@ fun AudioTab(
                 }
                 else -> compareBy<MediaItem> { it.title.lowercase() }
             }
-            if (isAscending) list.sortedWith(comp) else list.sortedWith(comp).reversed()
+            if (isAscending) filteredBySearch.sortedWith(comp) else filteredBySearch.sortedWith(comp).reversed()
         } else {
-            list
+            filteredBySearch
         }
     }
 
     val recentlyPlayedStates by db.playbackStateDao().getRecentlyPlayed("AUDIO").collectAsState(initial = emptyList())
     val mostPlayedStates by db.playbackStateDao().getMostPlayed("AUDIO").collectAsState(initial = emptyList())
 
-    val sortedPlaylists = remember(playlists, sortField, isAscending, subTabState, recentlyPlayedStates) {
+    val sortedPlaylists = remember(playlists, sortField, isAscending, subTabState, recentlyPlayedStates, searchQuery) {
         if (subTabState != 6) return@remember playlists
+        val basePlaylists = if (searchQuery.isNotBlank()) {
+            playlists.filter { it.name.contains(searchQuery, ignoreCase = true) }
+        } else {
+            playlists
+        }
         val comp = when (sortField) {
             "Name" -> compareBy<MediaCategory> { it.name.lowercase() }
             "Date Added" -> compareBy<MediaCategory> { it.createdAt }
             "Date Played" -> compareBy<MediaCategory> { 0L }
             else -> compareBy<MediaCategory> { it.sortOrder } // Custom Order
         }
-        if (isAscending) playlists.sortedWith(comp) else playlists.sortedWith(comp).reversed()
+        if (isAscending) basePlaylists.sortedWith(comp) else basePlaylists.sortedWith(comp).reversed()
     }
 
     val recentSongs = remember(recentlyPlayedStates, effectiveAudioList) {
-        val audioMap = audioList.associateBy { it.uri.toString() }
+        val audioMap = effectiveAudioList.associateBy { it.uri.toString() }
         recentlyPlayedStates.mapNotNull { state -> audioMap[state.mediaUri] }
             .filter { !it.isExcluded }
     }
 
     val mostPlayedSongs = remember(mostPlayedStates, effectiveAudioList) {
-        val audioMap = audioList.associateBy { it.uri.toString() }
+        val audioMap = effectiveAudioList.associateBy { it.uri.toString() }
         mostPlayedStates.mapNotNull { state -> audioMap[state.mediaUri] }
             .filter { !it.isExcluded }
     }

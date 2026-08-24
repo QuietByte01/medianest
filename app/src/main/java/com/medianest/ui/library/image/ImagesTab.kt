@@ -228,6 +228,8 @@ fun ImagesTab(
         return isFolderExcluded(folderKey, items) || isFolderSystemHidden(folderKey, items)
     }
 
+    val searchQuery by viewModel.searchQuery.collectAsState()
+
     val sortedFolderNames = remember(folderGroups, allHiddenImageFolders, sortField, isAscending) {
         if (folderGroups.isEmpty()) emptyList()
         else {
@@ -291,8 +293,8 @@ fun ImagesTab(
             )
 
             Box(modifier = Modifier.weight(1f)) {
-                val visibleFolders = remember(sortedFolderNames, folderGroups, activeFilterTab, allHiddenImageFolders, showHiddenSetting) {
-                    when (activeFilterTab) {
+                val visibleFolders = remember(sortedFolderNames, folderGroups, activeFilterTab, allHiddenImageFolders, showHiddenSetting, searchQuery) {
+                    val base = when (activeFilterTab) {
                         "HIDDEN" -> sortedFolderNames.filter { fn -> isFolderSystemHidden(fn, folderGroups[fn]) }
                         "EXCLUDED" -> sortedFolderNames.filter { fn -> isFolderExcluded(fn, folderGroups[fn]) }
                         else -> sortedFolderNames.filter { fn ->
@@ -300,9 +302,17 @@ fun ImagesTab(
                             !isFolderExcluded(fn, items) && (showHiddenSetting || !isFolderSystemHidden(fn, items))
                         }
                     }
+                    if (searchQuery.isNotBlank()) {
+                        base.filter { fn ->
+                            fn.contains(searchQuery, ignoreCase = true) ||
+                            folderGroups[fn]?.any { it.title.contains(searchQuery, ignoreCase = true) } == true
+                        }
+                    } else {
+                        base
+                    }
                 }
 
-                val displayList = remember(imagesList, activeFilterTab, favoriteUris, showHiddenSetting) {
+                val displayList = remember(imagesList, activeFilterTab, favoriteUris, showHiddenSetting, searchQuery) {
                     val baseList = when (activeFilterTab) {
                         "EXCLUDED" -> imagesList.filter { it.isExcluded || com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
                         "HIDDEN" -> imagesList.filter { it.isHidden && !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
@@ -312,15 +322,21 @@ fun ImagesTab(
                         }
                     }
 
-                    if (activeFilterTab == "ALL" || activeFilterTab == "EXCLUDED" || activeFilterTab == "HIDDEN") {
+                    val tabFiltered = if (activeFilterTab == "ALL" || activeFilterTab == "EXCLUDED" || activeFilterTab == "HIDDEN") {
                         baseList
                     } else {
                         filterImageList(baseList, activeFilterTab, favoriteUris)
                     }
+
+                    if (searchQuery.isNotBlank()) {
+                        tabFiltered.filter { it.title.contains(searchQuery, ignoreCase = true) }
+                    } else {
+                        tabFiltered
+                    }
                 }
 
                 val currentDisplayList = if ((viewMode == 1 || activeFilterTab == "FOLDERS" || activeFilterTab == "HIDDEN") && selectedFolder != null) {
-                    folderGroups[selectedFolder]
+                    val folderItems = folderGroups[selectedFolder]
                         ?: folderGroups.entries.firstOrNull { (k, _) ->
                             val normKey = k.trim('/').lowercase()
                             val normTarget = selectedFolder!!.trim('/').lowercase()
@@ -331,6 +347,11 @@ fun ImagesTab(
                             normTarget.endsWith("/$normKey")
                         }?.value
                         ?: emptyList()
+                    if (searchQuery.isNotBlank()) {
+                        folderItems.filter { it.title.contains(searchQuery, ignoreCase = true) }
+                    } else {
+                        folderItems
+                    }
                 } else {
                     displayList
                 }

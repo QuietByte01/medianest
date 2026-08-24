@@ -454,14 +454,10 @@ fun VideoPlayerScreen(
                             }
                         }
 
-                        val surfaceModifier: Modifier = when (cropMode) {
-                            MediaAspectRatio.FIT -> {
-                                val (w, h) = containBoxSize(videoAspectRatio)
-                                Modifier.requiredSize(w, h)
-                            }
-                            MediaAspectRatio.CROP, MediaAspectRatio.STRETCH -> {
-                                Modifier.fillMaxSize()
-                            }
+                        // Calculate viewport letterbox container bounds:
+                        val (boxWidthDp, boxHeightDp) = when (cropMode) {
+                            MediaAspectRatio.FIT -> containBoxSize(videoAspectRatio)
+                            MediaAspectRatio.CROP, MediaAspectRatio.STRETCH -> maxWidth to maxHeight
                             MediaAspectRatio.ORIGINAL -> {
                                 val w = if (rawEncodedWidth > 0f) {
                                     (if (isRotated) rawEncodedHeight else rawEncodedWidth) * pixelRatio
@@ -473,41 +469,55 @@ fun VideoPlayerScreen(
                                 } else {
                                     (currentItem?.height?.takeIf { it > 0 } ?: 1080).toFloat()
                                 }
-                                val widthDp = with(density) { w.toDp() }
-                                val heightDp = with(density) { h.toDp() }
-                                Modifier.requiredSize(widthDp, heightDp)
+                                with(density) { w.toDp() } to with(density) { h.toDp() }
                             }
                             else -> {
                                 val targetRatio = cropMode.ratio ?: videoAspectRatio
-                                val (w, h) = containBoxSize(targetRatio)
-                                Modifier.requiredSize(w, h)
+                                containBoxSize(targetRatio)
                             }
                         }
 
-                        // Outer clip container: always fills the screen exactly and trims any overflow from
-                        // the "cover" boxes above to the screen edge. This is the ONLY place clipping to the
-                        // full screen happens; the content box itself is centered inside it.
+                        val surfaceModifier = Modifier.requiredSize(boxWidthDp, boxHeightDp)
+
+                        // Calculate exact un-distorted video render dimensions:
+                        // The video view ALWAYS maintains exact videoAspectRatio (so stretching is impossible).
+                        // In CROP or fixed aspect ratio presets, it expands to fill the viewport and is clipped by surfaceModifier.
+                        val (videoWidthDp, videoHeightDp) = when (cropMode) {
+                            MediaAspectRatio.FIT, MediaAspectRatio.ORIGINAL -> boxWidthDp to boxHeightDp
+                            MediaAspectRatio.STRETCH -> boxWidthDp to boxHeightDp
+                            else -> {
+                                val boxRatio = boxWidthDp.value / boxHeightDp.value.coerceAtLeast(0.001f)
+                                if (videoAspectRatio >= boxRatio) {
+                                    // Video is wider than viewport -> match height, expand width (crops left & right)
+                                    (boxHeightDp * videoAspectRatio) to boxHeightDp
+                                } else {
+                                    // Video is taller than viewport -> match width, expand height (crops top & bottom)
+                                    boxWidthDp to (boxWidthDp / videoAspectRatio.coerceAtLeast(0.001f))
+                                }
+                            }
+                        }
+
+                        // Outer clip container: centers the letterboxed viewport
                         Box(
                             modifier = Modifier.fillMaxSize().clipToBounds(),
                             contentAlignment = Alignment.Center
                         ) {
-                            // Content box: matches surfaceModifier exactly. Both the video surface and the
-                            // film grain overlay are sized against THIS box, so grain always lines up with
-                            // actual video pixels and never bleeds onto black borders (relevant in ORIGINAL
-                            // mode) or gets scaled/panned by the user's pinch-zoom gesture below.
+                            // Viewport box: defines the letterboxed window (e.g. 16:9, 4:3, 1:1, or full screen)
                             Box(
                                 modifier = surfaceModifier.clipToBounds(),
                                 contentAlignment = Alignment.Center
                             ) {
+                                // Content container: sized to exact video geometry (maintains aspect ratio, crops overflow)
                                 Box(
                                     modifier = Modifier
-                                        .fillMaxSize()
+                                        .requiredSize(videoWidthDp, videoHeightDp)
                                         .graphicsLayer(
                                             scaleX = scale,
                                             scaleY = scale,
                                             translationX = panOffset.x,
                                             translationY = panOffset.y
-                                        )
+                                        ),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     androidx.compose.runtime.key(playerState.activeEngineName) {
                                         if (playerState.activeEngineName == "Media3") {
@@ -516,8 +526,6 @@ fun VideoPlayerScreen(
                                                     Log.i("VideoPlayerScreen", "Creating NEW PlayerView for Media3")
                                                     PlayerView(ctx).apply {
                                                         useController = false
-                                                        // FORCE TextureView: SurfaceView (default) stays on a separate hardware layer 
-                                                        // that often bypasses window-level backdrop blurs on Samsung devices.
                                                         try {
                                                             val setSurfaceTypeMethod = this.javaClass.getMethod("setSurfaceType", Int::class.javaPrimitiveType)
                                                             setSurfaceTypeMethod.invoke(this, 2) // 2 = SURFACE_TYPE_TEXTURE_VIEW
@@ -528,6 +536,7 @@ fun VideoPlayerScreen(
                                                         try {
                                                             this.player = playerManager.exoPlayer
                                                         } catch (_: Exception) {}
+                                                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
                                                         layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                                                     }
                                                 },
@@ -543,20 +552,7 @@ fun VideoPlayerScreen(
                                                         } catch (e: Exception) {
                                                             Log.e("VideoPlayerScreen", "Error syncing player", e)
                                                         }
-
-                                                        // FIT: show the entire video inside its own letterboxed box — no crop.
-                                                        // ORIGINAL: box is already sized to exact native pixels, so FIT renders it 1:1 with no crop.
-                                                        // STRETCH: fill frame without preserving aspect ratio (the only mode allowed to distort).
-                                                        // CROP & all fixed presets (16:9, 16:10, 4:3, 1:1, 9:16, 4:5, 21:9):
-                                                        // RESIZE_MODE_ZOOM crops the video to completely fill its target box — for CROP that
-                                                        // box is the full screen; for presets it's the letterboxed target-ratio window, so this
-                                                        // is what actually reshapes the video to the chosen ratio.
-                                                        view.resizeMode = when (cropMode) {
-                                                            MediaAspectRatio.FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                                            MediaAspectRatio.ORIGINAL -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                                            MediaAspectRatio.STRETCH -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                                                            else -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                                        }
+                                                        view.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
                                                     }
                                                     applySettings()
                                                 },
@@ -595,52 +591,6 @@ fun VideoPlayerScreen(
                                                     }
                                                 },
                                                 update = { view ->
-                                                    val viewWidth = view.width.toFloat()
-                                                    val viewHeight = view.height.toFloat()
-                                                    val dispWidth = (if (isRotated) rawEncodedHeight else rawEncodedWidth)
-                                                        .let { if (it > 0f) it else (currentItem?.width?.takeIf { w -> w > 0 } ?: 1920).toFloat() }
-                                                    val dispHeight = (if (isRotated) rawEncodedWidth else rawEncodedHeight)
-                                                        .let { if (it > 0f) it else (currentItem?.height?.takeIf { h -> h > 0 } ?: 1080).toFloat() }
-                                                    if (viewWidth > 0 && viewHeight > 0 && dispWidth > 0 && dispHeight > 0) {
-                                                        val matrix = android.graphics.Matrix()
-                                                        val viewRatio = viewWidth / viewHeight
-                                                        val vidRatio = dispWidth / dispHeight
-
-                                                        val scaleX: Float
-                                                        val scaleY: Float
-
-                                                        when (cropMode) {
-                                                            MediaAspectRatio.STRETCH -> {
-                                                                scaleX = 1f
-                                                                scaleY = 1f
-                                                            }
-                                                            MediaAspectRatio.FIT, MediaAspectRatio.ORIGINAL -> {
-                                                                // Box is already sized to the video's own aspect ratio (letterboxed for FIT,
-                                                                // exact native pixels for ORIGINAL) — no cropping, show the full frame.
-                                                                if (vidRatio > viewRatio) {
-                                                                    scaleX = 1f
-                                                                    scaleY = viewRatio / vidRatio
-                                                                } else {
-                                                                    scaleX = vidRatio / viewRatio
-                                                                    scaleY = 1f
-                                                                }
-                                                            }
-                                                            else -> {
-                                                                // CROP & all fixed presets: crop/zoom video to completely fill the render box
-                                                                // (screen for CROP, letterboxed target-ratio window for presets).
-                                                                if (vidRatio > viewRatio) {
-                                                                    scaleX = vidRatio / viewRatio
-                                                                    scaleY = 1f
-                                                                } else {
-                                                                    scaleX = 1f
-                                                                    scaleY = viewRatio / vidRatio
-                                                                }
-                                                            }
-                                                        }
-                                                        matrix.setScale(scaleX, scaleY, viewWidth / 2f, viewHeight / 2f)
-                                                        view.setTransform(matrix)
-                                                    }
-
                                                     try {
                                                         val activeFx = if (!pictureModeEnabled || pictureMode == "DEVICE_DEFAULT" || pictureMode == "OFF") {
                                                             com.medianest.ui.components.media.MediaEffect.OFF
@@ -662,10 +612,6 @@ fun VideoPlayerScreen(
                                     }
                                 }
 
-                                // Grain is sized to the content box (not the pinch-zoom transform, not the
-                                // full screen), so it only ever covers actual video pixels — never any black
-                                // borders around a smaller-than-screen ORIGINAL-mode video — and stays visually
-                                // constant (doesn't scale/pan) while the user pinch-zooms the video itself.
                                 if (isFilmGrainEnabled) {
                                     FilmGrainOverlay(intensity = filmGrainIntensity, modifier = Modifier.matchParentSize())
                                 }

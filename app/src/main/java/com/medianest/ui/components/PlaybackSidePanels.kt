@@ -1163,35 +1163,18 @@ fun SidebarQueueDrawer(
                             )
                         }
                     } else {
-                        val breadcrumbParts = remember(playerState.currentItem) {
-                            getBreadcrumbParts(context, playerState.currentItem)
-                        }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .horizontalScroll(rememberScrollState())
-                        ) {
-                            breadcrumbParts.forEachIndexed { index, part ->
-                                Text(
-                                    text = part,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFCBD5E1),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                if (index < breadcrumbParts.lastIndex) {
-                                    Icon(
-                                        imageVector = Icons.Default.ChevronRight,
-                                        contentDescription = null,
-                                        tint = Color(0x99FFFFFF),
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                }
-                            }
-                        }
+                        val folderName = playerState.currentItem?.let { item ->
+                            item.bucketName ?: item.relativePath?.trim('/')?.substringAfterLast('/') ?: "Single Video"
+                        } ?: "Single Video"
+                        
+                        Text(
+                            text = folderName,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
 
@@ -1248,16 +1231,15 @@ fun SidebarQueueDrawer(
                                     modifier = Modifier.fillMaxSize()
                                 )
 
-                                Box(
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color.Black.copy(alpha = 0.30f),
                                     modifier = Modifier
                                         .align(Alignment.BottomEnd)
                                         .padding(6.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(Color.Black.copy(alpha = 0.30f))
-                                        .padding(2.dp)
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(3.dp)
                                     ) {
