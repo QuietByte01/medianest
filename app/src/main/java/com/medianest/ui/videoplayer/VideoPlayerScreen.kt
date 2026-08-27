@@ -225,7 +225,8 @@ fun VideoPlayerScreen(
 
     val anyOverlayOpen = showOverflowMenu || showDetailsSheet || showDrawer || showSubtitleSheet ||
             showSubtitleCustomizationSheet || showSettingsSheet || showAudioTrackSheet ||
-            showAspectRatioMenu || showSpeedMenu || showAbRepeatBar || showEngineDialog
+            showAspectRatioMenu || showSpeedMenu || showAbRepeatBar || showEngineDialog ||
+            showVideoFxSheet || showVideoEditorSheet || showDeleteDialog
 
     BackHandler(enabled = true) {
         if (anyOverlayOpen) {
@@ -241,6 +242,9 @@ fun VideoPlayerScreen(
                 showSpeedMenu -> showSpeedMenu = false
                 showAbRepeatBar -> showAbRepeatBar = false
                 showEngineDialog -> showEngineDialog = false
+                showVideoFxSheet -> showVideoFxSheet = false
+                showVideoEditorSheet -> showVideoEditorSheet = false
+                showDeleteDialog -> showDeleteDialog = false
             }
         } else if (isControlsLocked) {
             isControlsLocked = false

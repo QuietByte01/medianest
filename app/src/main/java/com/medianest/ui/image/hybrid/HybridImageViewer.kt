@@ -1,96 +1,144 @@
 package com.medianest.ui.image.hybrid
 
+import android.app.Activity
+import android.graphics.Bitmap
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
 import coil.compose.AsyncImage
-import coil.decode.GifDecoder
-import coil.decode.SvgDecoder
 import coil.request.ImageRequest
-import com.medianest.ui.components.GlassSurface
+import coil.size.Precision
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
- * Modern High-Performance Image Viewer with custom physics and AGSL integration coming.
+ * Google Photos / Pixel standard Image Viewer:
+ * - RenderThread / Skia accelerated Base overview for 1.0x.
+ * - Dynamic BitmapRegionDecoder + 2-Tier LRU Tile Cache for deep zoom > 1.0x.
+ * - Full Ultra HDR / Display P3 color accuracy.
+ * - 120Hz smooth multi-touch pinch up to 10x, double-tap, and physical drag-to-dismiss.
+ * - Floating auto-hiding zoom percentage pill (e.g., "150%").
  */
 @Composable
 fun HybridImageViewer(
     source: ImageSource,
     modifier: Modifier = Modifier,
-    config: HybridImageViewerConfig = HybridImageViewerConfig(),
     colorFilter: ColorFilter? = null,
     backgroundColor: Color = Color.Black,
-    zoomControlsBottomPadding: androidx.compose.ui.unit.Dp = 16.dp,
+    zoomControlsBottomPadding: Dp = 80.dp,
+    onDismiss: () -> Unit = {},
     onInteraction: () -> Unit = {},
-    onZoomChanged: (Boolean) -> Unit = {},
     onToggleControls: () -> Unit = {},
+    onZoomChanged: (Boolean) -> Unit = {},
     onSwipeUpForInfo: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val viewportState = rememberViewportState()
+    val scope = rememberCoroutineScope()
+    val viewportState = remember { ViewportState(scope) }
 
-    val modelData = remember(source) {
-        when (source) {
-            is ImageSource.FromUri -> source.uri
-            is ImageSource.FromFile -> source.file
-            is ImageSource.FromByteArray -> source.bytes
+    // Configure 10-bit HDR / Wide Color Gamut on Window
+    SideEffect {
+        (context as? Activity)?.let { activity ->
+            UltraHdrManager.configureWindowColorMode(activity)
         }
     }
 
-    val isZoomed = viewportState.scale > 1.01f
-
+    val isZoomed = viewportState.isZoomed
     LaunchedEffect(isZoomed) {
         onZoomChanged(isZoomed)
     }
 
-    val request = remember(modelData) {
-        ImageRequest.Builder(context)
-            .data(modelData)
-            .decoderFactory(SvgDecoder.Factory())
-            .decoderFactory(GifDecoder.Factory())
-            .crossfade(true)
-            .build()
+    // Decoder & Tile Cache engine for zoom levels > 1.0x
+    val decoderEngine = remember { RegionDecoderEngine(context, scope) }
+    val tileCache = remember { TileCache(context) }
+    val tileManager = remember { TileManager(androidx.compose.ui.geometry.Size(2000f, 2000f)) }
+    val activeTileBitmaps = remember { mutableStateMapOf<String, Bitmap>() }
+
+    val uri = remember(source) {
+        when (source) {
+            is ImageSource.FromUri -> source.uri
+            is ImageSource.FromFile -> android.net.Uri.fromFile(source.file)
+            else -> null
+        }
     }
+
+    LaunchedEffect(uri) {
+        uri?.let { decoderEngine.initialize(it) }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            decoderEngine.recycle()
+            activeTileBitmaps.clear()
+        }
+    }
+
+    // Floating Zoom Percentage Pill
+    var showZoomPill by remember { mutableStateOf(false) }
+    var zoomPillText by remember { mutableStateOf("100%") }
+
+    LaunchedEffect(viewportState.scale) {
+        val pct = (viewportState.scale * 100).toInt()
+        zoomPillText = "$pct%"
+        if (viewportState.scale > 1.05f) {
+            showZoomPill = true
+            delay(800)
+            showZoomPill = false
+        } else {
+            showZoomPill = false
+        }
+    }
+
+    // Scrim Alpha decays smoothly during pull-to-dismiss
+    val scrimAlpha = (1f - viewportState.dismissFraction).coerceIn(0f, 1f)
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(backgroundColor)
+            .background(backgroundColor.copy(alpha = scrimAlpha))
             .onSizeChanged { viewportState.viewportSize = it.toSize() }
             .pointerInput(Unit) {
-                detectInertialTransformGestures(
-                    canConsumePan = { viewportState.scale > 1.0f },
+                detectGooglePhotosGestures(
+                    isZoomed = { viewportState.isZoomed },
                     onGestureStart = { onInteraction() },
                     onGesture = { centroid, pan, zoom ->
                         viewportState.onGesture(centroid, pan, zoom)
@@ -98,47 +146,28 @@ fun HybridImageViewer(
                     onGestureEnd = { velocity ->
                         viewportState.onGestureEnd(velocity)
                     },
+                    onDragDismiss = { dragAmount ->
+                        onInteraction()
+                        viewportState.onDragDismiss(dragAmount)
+                    },
+                    onDragDismissEnd = { velocity ->
+                        viewportState.onDragDismissEnd(velocity, onDismiss = onDismiss)
+                    },
                     onSwipeUp = {
                         onInteraction()
                         onSwipeUpForInfo()
-                    }
-                )
-            }
-            .pointerInput(Unit) {
-                detectTapGestures(
+                    },
                     onTap = {
                         onToggleControls()
                     },
                     onDoubleTap = { centroid ->
                         onInteraction()
                         viewportState.toggleZoom(centroid)
-                    },
-                    onLongPress = {
-                        onInteraction()
                     }
                 )
             },
         contentAlignment = Alignment.Center
     ) {
-        val tileManager = remember { TileManager(androidx.compose.ui.geometry.Size(2000f, 2000f)) } // Placeholder size until decoder fetches it
-        val scope = rememberCoroutineScope()
-        val decoderEngine = remember { RegionDecoderEngine(context, scope) }
-        val tileCache = remember { TileCache(context) }
-        
-        LaunchedEffect(source) {
-            if (source is com.medianest.ui.image.hybrid.ImageSource.FromUri) {
-                decoderEngine.initialize(source.uri)
-            }
-        }
-        
-        // Use our GL Surface instead of standard AsyncImage
-        HybridGLSurface(
-            viewportState = viewportState,
-            tileManager = tileManager,
-            decoderEngine = decoderEngine,
-            modifier = Modifier.fillMaxSize()
-        )
-        
         var intrinsicImageSize by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
 
         LaunchedEffect(intrinsicImageSize, viewportState.viewportSize) {
@@ -154,7 +183,62 @@ fun HybridImageViewer(
             }
         }
 
-        // Base low-res preview (fallback if GL is not yet ready, or for transitions)
+        // Active Tile Scheduler for Zoom > 1.0x
+        LaunchedEffect(viewportState.scale, viewportState.offset, intrinsicImageSize, viewportState.viewportSize) {
+            if (viewportState.scale > 1.05f && intrinsicImageSize.width > 0 && viewportState.viewportSize.width > 0) {
+                val fitScaleX = viewportState.contentSize.width / tileManager.imageSize.width
+                val fitScaleY = viewportState.contentSize.height / tileManager.imageSize.height
+                val fitScale = minOf(fitScaleX, fitScaleY).takeIf { !it.isNaN() && it > 0f } ?: 1f
+
+                val imageLeft = (viewportState.viewportSize.width - viewportState.contentSize.width) / 2f
+                val imageTop = (viewportState.viewportSize.height - viewportState.contentSize.height) / 2f
+                val originX = viewportState.viewportSize.width / 2f
+                val originY = viewportState.viewportSize.height / 2f
+
+                val left1x = (0f - viewportState.offset.x - originX) / viewportState.scale + originX
+                val top1x = (0f - viewportState.offset.y - originY) / viewportState.scale + originY
+                val right1x = (viewportState.viewportSize.width - viewportState.offset.x - originX) / viewportState.scale + originX
+                val bottom1x = (viewportState.viewportSize.height - viewportState.offset.y - originY) / viewportState.scale + originY
+
+                val intrinsicViewportBounds = Rect(
+                    (left1x - imageLeft) / fitScale,
+                    (top1x - imageTop) / fitScale,
+                    (right1x - imageLeft) / fitScale,
+                    (bottom1x - imageTop) / fitScale
+                )
+
+                val tiles = tileManager.calculateVisibleTiles(intrinsicViewportBounds, viewportState.scale * fitScale)
+                for (tile in tiles) {
+                    val tileId = "${tile.sampleSize}_${tile.x}_${tile.y}"
+                    if (!activeTileBitmaps.containsKey(tileId)) {
+                        val cached = tileCache.getL2(tileId)
+                        if (cached != null && !cached.isRecycled) {
+                            activeTileBitmaps[tileId] = cached
+                        } else {
+                            decoderEngine.decodeTileAsync(tile) { bitmap ->
+                                scope.launch {
+                                    tileCache.putL2(tileId, bitmap)
+                                }
+                                activeTileBitmaps[tileId] = bitmap
+                            }
+                        }
+                    }
+                }
+            } else if (viewportState.scale <= 1.0f && activeTileBitmaps.isNotEmpty()) {
+                activeTileBitmaps.clear()
+            }
+        }
+
+        val request = remember(source, context) {
+            ImageRequest.Builder(context)
+                .data(uri ?: source.key)
+                .size(coil.size.Size.ORIGINAL)
+                .precision(Precision.EXACT)
+                .crossfade(true)
+                .build()
+        }
+
+        // Layer 1: Downsampled / Base Layer
         AsyncImage(
             model = request,
             contentDescription = null,
@@ -167,55 +251,81 @@ fun HybridImageViewer(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    // Fix black screen by ensuring scale is never 0 or NaN
-                    scaleX = if (viewportState.scale.isNaN() || viewportState.scale <= 0f) 1f else viewportState.scale
-                    scaleY = if (viewportState.scale.isNaN() || viewportState.scale <= 0f) 1f else viewportState.scale
+                    val s = if (viewportState.scale.isNaN() || viewportState.scale <= 0f) 1f else viewportState.scale
+                    scaleX = s
+                    scaleY = s
                     translationX = if (viewportState.offset.x.isNaN()) 0f else viewportState.offset.x
                     translationY = if (viewportState.offset.y.isNaN()) 0f else viewportState.offset.y
-                    
-                    // We apply transparency when the GL surface takes over, but for now we leave it visible.
-                    // alpha = if (isGLReady) 0f else 1f
                 }
         )
 
-        // Sleek Zoom Percentage Floating Pill Overlay
-        val animatedBottomPadding by animateDpAsState(
-            targetValue = zoomControlsBottomPadding,
-            animationSpec = tween(300),
-            label = "ZoomPillPadding"
-        )
-
-        AnimatedVisibility(
-            visible = isZoomed,
-            enter = fadeIn() + scaleIn(),
-            exit = fadeOut() + scaleOut(),
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = animatedBottomPadding)
-        ) {
-            GlassSurface(
-                shape = RoundedCornerShape(20.dp),
-                backgroundColor = Color(0x66000000),
-                borderColor = Color(0x40FFFFFF),
-                modifier = Modifier.clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { /* Consumes click to block background toggle */ }
-                )
+        // Layer 2: Native BitmapRegionDecoder Ultra High-Res Tiles for Zoom > 1.0x
+        if (viewportState.scale > 1.05f && activeTileBitmaps.isNotEmpty() && intrinsicImageSize.width > 0) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        val s = if (viewportState.scale.isNaN() || viewportState.scale <= 0f) 1f else viewportState.scale
+                        scaleX = s
+                        scaleY = s
+                        translationX = if (viewportState.offset.x.isNaN()) 0f else viewportState.offset.x
+                        translationY = if (viewportState.offset.y.isNaN()) 0f else viewportState.offset.y
+                    }
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        text = "${(viewportState.scale * 100).toInt()}%",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                val fitScaleX = viewportState.contentSize.width / intrinsicImageSize.width
+                val fitScaleY = viewportState.contentSize.height / intrinsicImageSize.height
+                val fitScale = minOf(fitScaleX, fitScaleY).takeIf { !it.isNaN() && it > 0f } ?: 1f
+
+                val imageLeft = (size.width - viewportState.contentSize.width) / 2f
+                val imageTop = (size.height - viewportState.contentSize.height) / 2f
+
+                for ((tileId, bitmap) in activeTileBitmaps) {
+                    if (bitmap.isRecycled) continue
+                    val parts = tileId.split("_")
+                    if (parts.size != 3) continue
+                    val sampleSize = parts[0].toIntOrNull() ?: 1
+                    val tileX = parts[1].toIntOrNull() ?: 0
+                    val tileY = parts[2].toIntOrNull() ?: 0
+
+                    val effectiveTileSize = tileManager.tileSize * sampleSize
+                    val leftIntrinsic = tileX * effectiveTileSize.toFloat()
+                    val topIntrinsic = tileY * effectiveTileSize.toFloat()
+
+                    val left1x = imageLeft + leftIntrinsic * fitScale
+                    val top1x = imageTop + topIntrinsic * fitScale
+                    val dstW = bitmap.width.toFloat() * sampleSize * fitScale
+                    val dstH = bitmap.height.toFloat() * sampleSize * fitScale
+
+                    drawImage(
+                        image = bitmap.asImageBitmap(),
+                        dstOffset = IntOffset(left1x.toInt(), top1x.toInt()),
+                        dstSize = IntSize(dstW.toInt(), dstH.toInt())
                     )
                 }
+            }
+        }
+
+        // Google Photos style floating zoom badge
+        AnimatedVisibility(
+            visible = showZoomPill && !viewportState.isDismissing,
+            enter = fadeIn(animationSpec = tween(150)),
+            exit = fadeOut(animationSpec = tween(300)),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = zoomControlsBottomPadding)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = Color.Black.copy(alpha = 0.70f),
+                shadowElevation = 4.dp
+            ) {
+                Text(
+                    text = zoomPillText,
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                )
             }
         }
     }

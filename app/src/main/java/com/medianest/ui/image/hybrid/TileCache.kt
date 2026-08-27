@@ -8,18 +8,20 @@ import android.util.LruCache
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+/**
+ * 2-Tier Cache for Ultra HDR & Zero-Copy Tile Buffers (Google Photos Architecture).
+ * - L1: Native HardwareBuffers / GraphicBuffers for zero-copy GPU texturing.
+ * - L2: High-resolution Display P3 Bitmaps.
+ */
 class TileCache(context: Context) {
-    // Determine safe memory limits based on device RAM class
     private val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-    private val memoryClass = activityManager.memoryClass // e.g., 256MB
+    private val memoryClass = activityManager.memoryClass
     
-    // Allocate ~1/8th of available app memory for L1/L2 tile caching
+    // Allocate ~1/8th of available app memory for tile cache
     private val maxCacheBytes = (memoryClass * 1024 * 1024) / 8
 
-    // L1 Cache: Direct HardwareBuffers for zero-copy GL uploading
     private val l1Cache = object : LruCache<String, HardwareBuffer>(maxCacheBytes / 2) {
         override fun sizeOf(key: String, value: HardwareBuffer): Int {
-            // Approximate bytes
             return value.width * value.height * 4
         }
 
@@ -29,11 +31,12 @@ class TileCache(context: Context) {
             oldValue: HardwareBuffer,
             newValue: HardwareBuffer?
         ) {
-            oldValue.close() // Release native memory
+            try {
+                oldValue.close()
+            } catch (ignored: Exception) {}
         }
     }
 
-    // L2 Cache: Standard Bitmaps waiting to be promoted
     private val l2Cache = object : LruCache<String, Bitmap>(maxCacheBytes / 2) {
         override fun sizeOf(key: String, value: Bitmap): Int {
             return value.allocationByteCount

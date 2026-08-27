@@ -251,17 +251,21 @@ class Media3PlaybackEngine(
         })
     }
 
-    override fun prepare(uri: Uri, playWhenReady: Boolean) {
+    override fun prepare(requestUri: Uri, playWhenReady: Boolean) {
         val currentItem = player.currentMediaItem
-        val mediaItem = if (currentItem?.localConfiguration?.uri == uri) {
-            currentItem // Reuse the item which might have subtitles injected
+        val currentUriString = currentItem?.localConfiguration?.uri?.toString()
+        
+        if (currentItem != null && currentUriString == requestUri.toString()) {
+            // Reuse the item which might have subtitles injected
+            player.setMediaItem(currentItem, true)
         } else {
-            Media3Item.fromUri(uri)
+            val mediaItem = Media3Item.fromUri(requestUri)
+            player.setMediaItem(mediaItem, true)
         }
-        player.setMediaItem(mediaItem, true)
+        
         player.prepare()
         player.playWhenReady = playWhenReady
-        Logger.i("Media3PlaybackEngine", "Player prepared for URI: $uri, playWhenReady=$playWhenReady")
+        Logger.i("Media3PlaybackEngine", "Player prepared for URI: $requestUri, playWhenReady=$playWhenReady")
     }
 
     override fun play() {

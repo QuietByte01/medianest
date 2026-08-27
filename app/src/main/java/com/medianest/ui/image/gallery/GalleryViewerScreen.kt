@@ -99,6 +99,7 @@ fun <T> GalleryViewerScreen(
                     source = source,
                     colorFilter = colorFilter,
                     backgroundColor = Color.Transparent,
+                    onDismiss = onDismiss,
                     onToggleControls = { isImmersive = !isImmersive },
                     onZoomChanged = { zoomed ->
                         if (pagerState.currentPage == pageIndex) {

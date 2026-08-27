@@ -244,6 +244,7 @@ fun QuickViewScreen(
                                 colorFilter = colorFilter,
                                 backgroundColor = Color.Transparent,
                                 zoomControlsBottomPadding = zoomPadding,
+                                onDismiss = { onClose() },
                                 onInteraction = { resetControlsTimer() },
                                 onZoomChanged = { zoomed ->
                                     if (pagerState.currentPage == page) {
