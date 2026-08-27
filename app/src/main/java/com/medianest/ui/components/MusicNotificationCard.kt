@@ -201,7 +201,7 @@ fun MusicNotificationCard(
                         Spacer(modifier = Modifier.width(8.dp))
                         IconButton(
                             onClick = {
-                                exoPlayerManager.exoPlayer.pause()
+                                exoPlayerManager.exoPlayer?.pause()
                                 onClose()
                             },
                             modifier = Modifier

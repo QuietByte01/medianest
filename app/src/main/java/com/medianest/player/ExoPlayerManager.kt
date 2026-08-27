@@ -13,6 +13,7 @@ import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
 import android.util.Log
 import android.view.Surface
+import com.medianest.util.Logger
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -28,7 +29,9 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
 import com.medianest.data.model.MediaItem
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,8 +41,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.math.pow
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.pow
 
 data class PlayerState(
     val currentItem: MediaItem? = null,
@@ -60,8 +64,12 @@ data class PlayerState(
     val isVideoBackgroundPlayEnabled: Boolean = false,
     val activeDecoderName: String = "Hardware Default",
     val isHardwareAccelerated: Boolean = true,
+    val currentBitrate: Long = 0L,
     val droppedFrames: Int = 0,
     val audioDecodeErrors: Int = 0,
+    val audioMissingFrames: Int = 0,
+    val corruptedFrames: Int = 0,
+    val bitrateHistory: List<Long> = emptyList(),
     val timestampRecoveryCount: Int = 0,
     val containerName: String = "Unknown",
     val videoCodec: String = "Unknown",
@@ -83,7 +91,11 @@ data class PlayerState(
     val abRepeatState: AbRepeatState = AbRepeatState(),
     val abRepeatA: Long? = null,
     val abRepeatB: Long? = null,
-    val isAbRepeatActive: Boolean = false
+    val isAbRepeatActive: Boolean = false,
+    val media3InstanceId: Long = 0L,
+    val isHdrContent: Boolean = false,
+    val hdrType: String = "SDR",
+    val colorSpace: String = "SDR"
 )
 
 @OptIn(UnstableApi::class)
@@ -115,15 +127,18 @@ class ExoPlayerManager private constructor(private val context: Context) {
     private val customMediaCodecSelector by lazy {
         MediaCodecSelector { mimeType, requiresSecure, requiresTunneling ->
             try {
-                val decoders = MediaCodecUtil.getDecoderInfos(mimeType, requiresSecure, requiresTunneling)
-                val sorted = if (!isHwAccelEnabled || currentDecoderPreference == "SOFTWARE") {
-                    decoders.sortedWith(compareByDescending { it.softwareOnly || !it.hardwareAccelerated })
-                } else if (currentDecoderPreference == "HARDWARE") {
-                    decoders.sortedWith(compareByDescending { it.hardwareAccelerated })
-                } else {
-                    decoders.sortedWith(compareByDescending<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> { it.hardwareAccelerated }.thenByDescending { it.vendor }.thenBy { it.softwareOnly })
+                val decoders = MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, requiresSecure, requiresTunneling)
+                if (decoders.isEmpty()) return@MediaCodecSelector decoders
+                
+                when (currentDecoderPreference) {
+                    "SOFTWARE" -> decoders.sortedWith(compareByDescending { it.softwareOnly || !it.hardwareAccelerated })
+                    "HARDWARE" -> decoders.sortedWith(compareByDescending { it.hardwareAccelerated })
+                    else -> if (!isHwAccelEnabled) {
+                        decoders.sortedWith(compareByDescending { it.softwareOnly || !it.hardwareAccelerated })
+                    } else {
+                        decoders
+                    }
                 }
-                sorted.ifEmpty { MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, requiresSecure, requiresTunneling) }
             } catch (e: Exception) {
                 MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, requiresSecure, requiresTunneling)
             }
@@ -134,9 +149,17 @@ class ExoPlayerManager private constructor(private val context: Context) {
     private var media3Engine: Media3PlaybackEngine? = null
     private var activeEngine: PlaybackEngine? = null
     private var lastSurface: Surface? = null
+    private var activeAudioSessionId: Int = C.AUDIO_SESSION_ID_UNSET
+    private var watchdogJob: kotlinx.coroutines.Job? = null
+    private var isHardwareFaulty = false // Flag to disable Media3 if it keeps timing out
+    private var av1FailureCount = 0
+    private var audioFxFailureCount = 0
+    private var instanceIdCounter = 1L
+    private val brokenEngines = java.util.Collections.synchronizedList(mutableListOf<Media3PlaybackEngine>())
 
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+    private var telephonyCallback: Any? = null
     private var isCallActive = false
     private var playOnFocusGain = false
     private var isPausedByCall = false
@@ -199,8 +222,12 @@ class ExoPlayerManager private constructor(private val context: Context) {
                         currentPositionMs = newPos,
                         durationMs = newDur,
                         isPlaying = engine.isPlaying,
+                        currentBitrate = diag.currentBitrate,
                         droppedFrames = diag.droppedFrames,
                         audioDecodeErrors = diag.audioDecodeErrors,
+                        audioMissingFrames = diag.audioMissingFrames,
+                        corruptedFrames = diag.corruptedFrames,
+                        bitrateHistory = diag.bitrateHistory,
                         timestampRecoveryCount = diag.timestampRecoveryCount,
                         containerName = diag.containerName,
                         videoCodec = diag.videoCodec,
@@ -208,7 +235,10 @@ class ExoPlayerManager private constructor(private val context: Context) {
                         activeDecoderName = diag.decoderName,
                         isHardwareAccelerated = diag.isHardwareAccelerated,
                         audioSessionId = if (liveSessionId != 0 && liveSessionId != C.AUDIO_SESSION_ID_UNSET) liveSessionId else _playerState.value.audioSessionId,
-                        isSystemVolumeMaxed = isMaxed
+                        isSystemVolumeMaxed = isMaxed,
+                        isHdrContent = diag.isHdr,
+                        hdrType = diag.hdrType,
+                        colorSpace = diag.colorSpace
                     )
 
                     // Periodically save progress to DB (every ~5 seconds)
@@ -240,7 +270,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
                 )
                 db.playbackStateDao().savePlaybackState(newState)
             } catch (e: Exception) {
-                Log.e("ExoPlayerManager", "Failed to save playback progress", e)
+                Logger.e("ExoPlayerManager", "Failed to save playback progress", e)
             }
         }
     }
@@ -249,30 +279,261 @@ class ExoPlayerManager private constructor(private val context: Context) {
     private var androidBassBoost: android.media.audiofx.BassBoost? = null
     private var androidLoudnessEnhancer: android.media.audiofx.LoudnessEnhancer? = null
 
-    private fun updateAndroidAudioEffects(audioSessionId: Int) {
-        if (audioSessionId == C.AUDIO_SESSION_ID_UNSET || audioSessionId == 0) return
+    private fun releaseAudioEffects() {
         try {
-            if (androidEqualizer == null || androidEqualizer?.hasControl() == false) {
-                androidEqualizer?.release()
+            androidEqualizer?.enabled = false
+            androidEqualizer?.release()
+            androidEqualizer = null
+            
+            androidBassBoost?.enabled = false
+            androidBassBoost?.release()
+            androidBassBoost = null
+            
+            androidLoudnessEnhancer?.enabled = false
+            androidLoudnessEnhancer?.release()
+            androidLoudnessEnhancer = null
+        } catch (e: Exception) {
+            Logger.w("ExoPlayerManager", "Error releasing AudioFX: ${e.message}")
+        }
+    }
+
+    private fun startWatchdog() {
+        watchdogJob?.cancel()
+        watchdogJob = scope.launch {
+            delay(25000) // 25s timeout
+            val state = _playerState.value
+            val isMedia3 = activeEngine == media3Engine
+            
+            // STUCK CHECK: isPlaying is true but position is 0, or playWhenReady is true but not playing
+            val isBufferingForever = isMedia3 && !state.isPlaying && media3Engine?.player?.playWhenReady == true
+            
+            if (isBufferingForever) {
+                val reason = "Buffering deadlock"
+                Logger.w("ExoPlayerManager", "Watchdog: $reason detected. Triggering recovery.")
+                
+                if (av1FailureCount >= 2 || isHardwareFaulty) {
+                    Logger.e("ExoPlayerManager", "Watchdog: Hardware persistent failure. Forcing FFmpeg fallback.")
+                    switchToFFmpegFallback("Persistent hardware hang: $reason")
+                } else {
+                    Logger.w("ExoPlayerManager", "Watchdog: Triggering isolated engine rebirth for $reason")
+                    rebuildEngineDueToDeadlock("Watchdog: $reason")
+                }
+            }
+        }
+    }
+
+    private var isRebirthing = false
+
+    @OptIn(DelicateCoroutinesApi::class)
+    private fun rebuildEngineDueToDeadlock(reason: String) {
+        if (isRebirthing) return
+        isRebirthing = true
+
+        scope.launch(Dispatchers.Main) {
+            Logger.e("ExoPlayerManager", "FATAL DEADLOCK ($reason) - Isolated rebirth initiated. Instance: ${_playerState.value.media3InstanceId}")
+            
+            val currentItem = _playerState.value.currentItem
+            val currentPos = activeEngine?.currentPositionMs ?: 0L
+            val wasPlaying = activeEngine?.isPlaying ?: false
+
+            // 1. ORPHAN the broken engine immediately. 
+            media3Engine?.let {
+                try {
+                    // SILENCE THE ZOMBIE: Explicitly mute and stop the orphaned player.
+                    // Even if the decoder is stuck, the audio renderer might still be playing.
+                    try { it.player.volume = 0f } catch(e: Exception) {}
+                    try { it.player.playWhenReady = false } catch(e: Exception) {}
+                    try { it.stop() } catch(e: Exception) {}
+                    Logger.d("ExoPlayerManager", "Orphaned engine silenced: ${it.player}")
+                } catch (e: Exception) {
+                    Logger.w("ExoPlayerManager", "Failed to silence orphaned engine: ${it.player}")
+                }
+                brokenEngines.add(it)
+            }
+            media3Engine = null
+            activeEngine = null
+            
+            // 2. Increment ID immediately to force UI to drop all surface references
+            val nextId = instanceIdCounter++
+            _playerState.value = _playerState.value.copy(
+                media3InstanceId = nextId,
+                activeEngineName = "Resetting hardware...",
+                isPlaying = false
+            )
+            
+            // 3. "Cool Down" period. 
+            // Gives the hardware driver time to clear its interrupt queues.
+            delay(4000) 
+
+            // 4. Sprout new engine
+            initializeMedia3Engine()
+            
+            // 5. Restore state with Surface-First synchronization
+            if (currentItem != null && media3Engine != null) {
+                // If this is the second time we are rebirthing for this specific item,
+                // the hardware is definitively unable to handle it.
+                if (av1FailureCount >= 2) {
+                    Logger.w("ExoPlayerManager", "Persistent deadlock for this item. Forcing FFmpeg fallback.")
+                    switchToFFmpegFallback("Persistent hardware deadlock")
+                    isRebirthing = false
+                    return@launch
+                }
+
+                // Explicitly set surface before wait
+                media3Engine?.setSurface(lastSurface)
+                activeEngine = media3Engine
+                _playerState.value = _playerState.value.copy(
+                    activeEngineName = "Media3 (Recovered)"
+                )
+                
+                // CRITICAL: We wait for the UI to report that the new TextureView is ready 
+                // before calling prepare(). This prevents the "Audio Only" black screen.
+                Logger.d("ExoPlayerManager", "Waiting for new surface attachment...")
+                
+                var surfaceWaitCount = 0
+                while (media3Engine?.isSurfaceReady?.value == false && surfaceWaitCount < 15) {
+                    delay(300)
+                    surfaceWaitCount++
+                }
+                
+                Logger.d("ExoPlayerManager", "Surface wait finished. Ready: ${media3Engine?.isSurfaceReady?.value == true}")
+
+                activeEngine?.prepare(currentItem.uri, wasPlaying)
+                activeEngine?.seekTo(currentPos)
+                if (wasPlaying && requestAudioFocus()) {
+                    activeEngine?.play()
+                }
+            }
+            
+            isRebirthing = false
+        }
+
+        // Background "Hopeful" Cleanup
+        GlobalScope.launch(Dispatchers.IO) {
+            delay(30000) // Wait 30s before trying to touch the dead ones
+            synchronized(brokenEngines) {
+                val iterator = brokenEngines.iterator()
+                while(iterator.hasNext()) {
+                    val deadEngine = iterator.next()
+                    try {
+                        Logger.d("ExoPlayerManager", "Attempting FINAL RELEASE of dead engine in background")
+                        deadEngine.release() // ACTUALLY RELEASE IT
+                        iterator.remove()
+                    } catch (e: Exception) {
+                        Logger.w("ExoPlayerManager", "Failed to release zombie engine: ${e.message}")
+                    }
+                }
+            }
+        }
+    }
+
+    private fun switchToFFmpegFallback(reason: String) {
+        val currentItem = _playerState.value.currentItem ?: return
+        val currentPos = activeEngine?.currentPositionMs ?: 0L
+        
+        scope.launch(Dispatchers.Main) {
+            Logger.e("ExoPlayerManager", "ENGINE SWITCH: Performing emergency swap to FFmpeg. Reason: $reason")
+            
+            if (reason.contains("watchdog", true) || reason.contains("timeout", true) || reason.contains("Black screen", true)) {
+                isHardwareFaulty = true
+                Logger.w("ExoPlayerManager", "Global Hardware Fault flag SET. Future playbacks will prefer FFmpeg.")
+            }
+
+            val oldEngine = activeEngine
+            activeEngine = ffmpegEngine
+            
+            _playerState.value = _playerState.value.copy(
+                activeEngineName = "FFmpeg (Fallback)",
+                isHardwareAccelerated = false,
+                decoderFallbackReason = reason
+            )
+
+            // CRITICAL: Clear surface and SILENCE the old engine immediately
+            try {
+                if (oldEngine is Media3PlaybackEngine) {
+                    Logger.d("ExoPlayerManager", "Muting dead Media3 engine before swap")
+                    oldEngine.player.volume = 0f
+                    oldEngine.player.playWhenReady = false
+                }
+                oldEngine?.setSurface(null)
+                oldEngine?.stop()
+            } catch (e: Exception) {
+                Logger.w("ExoPlayerManager", "Non-fatal error clearing old engine during fallback: ${e.message}")
+            }
+
+            Logger.i("ExoPlayerManager", "FFmpeg Fallback Engine Ready. Resuming at $currentPos ms")
+            ffmpegEngine.setSurface(lastSurface)
+            updateNativeFilters()
+            ffmpegEngine.prepare(currentItem.uri, true)
+            ffmpegEngine.seekTo(currentPos)
+        }
+    }
+
+    private fun updateAndroidAudioEffects(audioSessionId: Int) {
+        if (audioSessionId == C.AUDIO_SESSION_ID_UNSET || audioSessionId <= 0) {
+            Logger.d("ExoPlayerManager", "Ignoring invalid AudioSession: $audioSessionId")
+            return
+        }
+        
+        // If session ID changed, we MUST release previous effects to avoid system-wide leaks.
+            if (activeAudioSessionId != audioSessionId) {
+                Logger.i("ExoPlayerManager", "AudioSession changed: $activeAudioSessionId -> $audioSessionId. (Player: $audioSessionId) Recreating effects.")
+                releaseAudioEffects()
+                activeAudioSessionId = audioSessionId
+                
+                // Add a 1.5-second stabilization delay for Samsung devices to avoid Error -3 (BAD_VALUE)
+                scope.launch {
+                    delay(1500)
+                    Logger.d("ExoPlayerManager", "Initializing AudioFX for session $audioSessionId after stabilization")
+                    initAudioEffectsWithRetry(audioSessionId, 3)
+                }
+            } else {
+                initAudioEffectsInternal(audioSessionId)
+            }
+    }
+
+    private fun initAudioEffectsWithRetry(audioSessionId: Int, retries: Int) {
+        try {
+            initAudioEffectsInternal(audioSessionId)
+        } catch (e: Exception) {
+            if (retries > 0) {
+                Logger.w("ExoPlayerManager", "AudioFX init failed, retrying... ($retries left)")
+                scope.launch {
+                    delay(500)
+                    initAudioEffectsWithRetry(audioSessionId, retries - 1)
+                }
+            } else {
+                Logger.e("ExoPlayerManager", "AudioFX init failed after retries for session $audioSessionId")
+            }
+        }
+    }
+
+    private fun initAudioEffectsInternal(audioSessionId: Int) {
+        if (audioFxFailureCount > 10) {
+            Logger.w("ExoPlayerManager", "AudioFX disabled due to too many failures")
+            return
+        }
+        try {
+            if (androidEqualizer == null) {
                 androidEqualizer = android.media.audiofx.Equalizer(0, audioSessionId).apply {
                     enabled = _playerState.value.isEqEnabled
                 }
             }
-            if (androidBassBoost == null || androidBassBoost?.hasControl() == false) {
-                androidBassBoost?.release()
+            if (androidBassBoost == null) {
                 androidBassBoost = android.media.audiofx.BassBoost(0, audioSessionId).apply {
                     enabled = true
                 }
             }
-            if (androidLoudnessEnhancer == null || androidLoudnessEnhancer?.hasControl() == false) {
-                androidLoudnessEnhancer?.release()
+            if (androidLoudnessEnhancer == null) {
                 androidLoudnessEnhancer = android.media.audiofx.LoudnessEnhancer(audioSessionId).apply {
                     enabled = true
                 }
             }
             applyExoAudioEffects()
         } catch (e: Exception) {
-            Log.w("ExoPlayerManager", "AudioFX init warning: ${e.message}")
+            audioFxFailureCount++
+            Logger.w("ExoPlayerManager", "AudioFX init failed for session $audioSessionId (Fail Count: $audioFxFailureCount): ${e.message}")
+            releaseAudioEffects()
         }
     }
 
@@ -310,21 +571,61 @@ class ExoPlayerManager private constructor(private val context: Context) {
                 }
             }
         } catch (e: Exception) {
-            Log.w("ExoPlayerManager", "Apply AudioFX error: ${e.message}")
+            Logger.w("ExoPlayerManager", "Apply AudioFX error: ${e.message}")
         }
     }
 
+    private var playerListener: Player.Listener? = null
+
     private fun initializeMedia3Engine() {
+        if (media3Engine != null) {
+            Logger.d("ExoPlayerManager", "Media3 Engine already exists, skipping re-init")
+            return
+        }
+        
+        Logger.i("ExoPlayerManager", "Initializing Singleton Media3 Engine")
         val extractorsFactory = DefaultExtractorsFactory()
             .setConstantBitrateSeekingEnabled(true)
             .setMp4ExtractorFlags(androidx.media3.extractor.mp4.Mp4Extractor.FLAG_WORKAROUND_IGNORE_EDIT_LISTS)
         val mediaSourceFactory = DefaultMediaSourceFactory(context, extractorsFactory)
-        val loadControl = DefaultLoadControl.Builder().setBufferDurationsMs(15000, 50000, 1500, 3000).build()
-        val renderersFactory = DefaultRenderersFactory(context).setEnableDecoderFallback(true).setMediaCodecSelector(customMediaCodecSelector)
-        val player = ExoPlayer.Builder(context, renderersFactory).setMediaSourceFactory(mediaSourceFactory).setLoadControl(loadControl).setAudioAttributes(AudioAttributes.Builder().setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).setUsage(C.USAGE_MEDIA).build(), false).build()
-        player.addListener(object : Player.Listener {
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(15000, 50000, 2000, 5000)
+            .build()
+        val renderersFactory = DefaultRenderersFactory(context).setEnableDecoderFallback(true)
+        val player = ExoPlayer.Builder(context, renderersFactory).setLooper(android.os.Looper.getMainLooper())
+            .setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(loadControl)
+            .setAudioAttributes(AudioAttributes.Builder().setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).setUsage(C.USAGE_MEDIA).build(), false)
+            .build()
+        
+        val listener = object : Player.Listener {
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                Log.e("ExoPlayerManager", "Player error encountered: ${error.message}", error)
+                Logger.e("ExoPlayerManager", "Player error encountered: ${error.message}", error)
+                
+                // If we get a timeout, trigger rebirth
+                if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT) {
+                    rebuildEngineDueToDeadlock("ExoTimeoutException")
+                    return
+                }
+
+                // If it's a decoder failure, try one-time FFmpeg fallback for this item
+                if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                    error.cause is androidx.media3.exoplayer.mediacodec.MediaCodecRenderer.DecoderInitializationException) {
+                    
+                    val engineName = _playerState.value.activeEngineName
+                    
+                    if (engineName.contains("Media3", true)) {
+                        // Check if it's AV1 via technical specs if available
+                        val isAv1 = _playerState.value.videoCodec.contains("av1", ignoreCase = true)
+                        if (isAv1) {
+                            av1FailureCount++
+                            if (av1FailureCount >= 2) isHardwareFaulty = true
+                        }
+                        
+                        Logger.w("ExoPlayerManager", "Hardware decoder failure (AV1=$isAv1). Attempting FFmpeg fallback.")
+                        switchToFFmpegFallback(error.message ?: "Decoder init failed")
+                    }
+                }
             }
             override fun onAudioSessionIdChanged(audioSessionId: Int) {
                 updateAndroidAudioEffects(audioSessionId)
@@ -335,65 +636,69 @@ class ExoPlayerManager private constructor(private val context: Context) {
                 }
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY) {
+                    watchdogJob?.cancel()
+                    Logger.d("ExoPlayerManager", "Playback READY, watchdog cancelled")
+                }
                 if (playbackState == Player.STATE_ENDED) {
                     onEnginePlaybackEnded()
                 }
             }
-        })
+        }
+        
+        playerListener = listener
+        player.addListener(listener)
         updateAndroidAudioEffects(player.audioSessionId)
         // Seed playerState immediately with the session ID assigned at player creation.
         if (player.audioSessionId != 0 && player.audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
             _playerState.value = _playerState.value.copy(audioSessionId = player.audioSessionId)
         }
         media3Engine = Media3PlaybackEngine(context, player)
+        _playerState.value = _playerState.value.copy(media3InstanceId = instanceIdCounter++)
         if (activeEngine == null) activeEngine = media3Engine
     }
 
     private fun recreatePlayerBySettings() {
-        val wasPlaying = activeEngine?.isPlaying ?: false
-        val pos = activeEngine?.currentPositionMs ?: 0L
-        val item = _playerState.value.currentItem
-
-        activeEngine?.pause()
-        media3Engine?.release()
-        initializeMedia3Engine()
-        
-        if (item != null) {
-            scope.launch {
-                val probeResult = withContext(Dispatchers.IO) { ffmpegEngine.probe(item.uri) }
-                val profile = MediaCapabilityInspector.inspect(item.uri, probeResult)
-                val forceHW = currentDecoderPreference == "HARDWARE"
-                
-                activeEngine = if (profile.requiresFFmpegFallback && !forceHW) ffmpegEngine else media3Engine
-                _playerState.value = _playerState.value.copy(activeEngineName = if (activeEngine == ffmpegEngine) "FFmpeg" else "Media3")
-                
-                // If we switched to FFmpeg, apply the surface manually.
-                // If we are on Media3, the VideoPlayerScreen's AndroidView will attach the surface itself.
-                if (activeEngine == ffmpegEngine) {
-                    activeEngine?.setSurface(lastSurface)
-                    updateNativeFilters()
-                }
-                
-                activeEngine?.prepare(item.uri, wasPlaying)
-                activeEngine?.seekTo(pos)
-            }
+        if (media3Engine != null) {
+            Logger.i("ExoPlayerManager", "Settings changed, but keeping singleton Media3 instance to avoid driver deadlock.")
+            // Most settings can be updated without recreation.
+            // If we absolutely need to recreate, we'd do it here, but let's prioritize stability.
+            return
         }
+
+        initializeMedia3Engine()
     }
 
-    val exoPlayer: ExoPlayer
-        get() = media3Engine?.player ?: throw IllegalStateException("Media3 Engine not initialized")
+    val exoPlayer: ExoPlayer?
+        get() = media3Engine?.player
 
     private fun handleNotificationUpdate(audioNotif: Boolean, videoNotif: Boolean, state: PlayerState) {
         val currentItem = state.currentItem ?: return
         val engine = activeEngine ?: return
+        
+        Logger.v("ExoPlayerManager", "Notification Update Check: title=${currentItem.title}, isPlaying=${state.isPlaying}, pos=${engine.currentPositionMs}, dur=${engine.durationMs}")
+
         if (engine.currentPositionMs < engine.durationMs || state.isPlaying) {
             val isVideo = currentItem.mimeType.startsWith("video") || currentItem.type == com.medianest.data.db.MediaType.VIDEO
             val bgPlayEnabled = if (isVideo) state.isVideoBackgroundPlayEnabled else state.isAudioBackgroundPlayEnabled
-            if (!bgPlayEnabled && !state.isPlaying) { FloatingPlayerService.stopService(context); return }
+            
+            if (!bgPlayEnabled && !state.isPlaying) { 
+                Logger.d("ExoPlayerManager", "Notification: Background play disabled and not playing for ${currentItem.title}. Stopping service.")
+                FloatingPlayerService.stopService(context)
+                return 
+            }
+            
             if (if (isVideo) videoNotif else audioNotif) {
+                Logger.v("ExoPlayerManager", "Notification: Updating service for ${currentItem.title} (isPlaying=${state.isPlaying})")
                 FloatingPlayerService.startOrUpdateService(context, currentItem.title, currentItem.artist ?: currentItem.album ?: "MediaNest", state.isPlaying, currentItem.albumArtUri?.toString() ?: currentItem.uri.toString(), isVideo)
-            } else FloatingPlayerService.stopService(context)
-        } else FloatingPlayerService.stopService(context)
+            } else {
+                Logger.d("ExoPlayerManager", "Notification: Hidden by user settings for ${currentItem.title}. Stopping service.")
+                FloatingPlayerService.stopService(context)
+            }
+        } else {
+            Logger.d("ExoPlayerManager", "Notification: Playback ended for ${currentItem.title}. Stopping service.")
+            FloatingPlayerService.stopService(context)
+        }
     }
 
     private fun setupTelephonyListener() {
@@ -401,15 +706,19 @@ class ExoPlayerManager private constructor(private val context: Context) {
             val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_PHONE_STATE) == android.content.pm.PackageManager.PERMISSION_GRANTED
             if (!hasPermission) return
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                telephonyManager.registerTelephonyCallback(context.mainExecutor, object : TelephonyCallback(), TelephonyCallback.CallStateListener {
+                val callback = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
                     override fun onCallStateChanged(state: Int) = handleCallState(state)
-                })
+                }
+                telephonyCallback = callback
+                telephonyManager.registerTelephonyCallback(context.mainExecutor, callback)
             } else {
                 @Suppress("DEPRECATION")
-                telephonyManager.listen(object : android.telephony.PhoneStateListener() {
+                val listener = object : android.telephony.PhoneStateListener() {
                     @Deprecated("Deprecated in Java")
                     override fun onCallStateChanged(state: Int, phoneNumber: String?) = handleCallState(state)
-                }, android.telephony.PhoneStateListener.LISTEN_CALL_STATE)
+                }
+                telephonyCallback = listener
+                telephonyManager.listen(listener, android.telephony.PhoneStateListener.LISTEN_CALL_STATE)
             }
         } catch (_: Exception) {}
     }
@@ -482,17 +791,57 @@ class ExoPlayerManager private constructor(private val context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) focusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
     }
 
+    private var playbackJob: kotlinx.coroutines.Job? = null
+
+    private fun stopAllEnginesExcept(active: PlaybackEngine?) {
+        // 1. Mute and pause Media3 if not active
+        if (media3Engine != null && media3Engine != active) {
+            try {
+                media3Engine?.player?.volume = 0f
+                media3Engine?.player?.playWhenReady = false
+                media3Engine?.pause()
+            } catch (e: Exception) {
+                Logger.w("ExoPlayerManager", "Error muting inactive Media3 engine: ${e.message}")
+            }
+        }
+        
+        // 2. Pause/stop FFmpeg if not active
+        if (active != ffmpegEngine) {
+            try {
+                ffmpegEngine.pause()
+                ffmpegEngine.stop()
+            } catch (e: Exception) {
+                Logger.w("ExoPlayerManager", "Error stopping inactive FFmpeg engine: ${e.message}")
+            }
+        }
+
+        // 3. Mute and stop all orphaned broken engines
+        synchronized(brokenEngines) {
+            val iterator = brokenEngines.iterator()
+            while (iterator.hasNext()) {
+                val dead = iterator.next()
+                try {
+                    dead.player.volume = 0f
+                    dead.player.playWhenReady = false
+                    dead.pause()
+                    dead.stop()
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
     fun playMediaList(items: List<MediaItem>, startIndex: Int = 0, startPosMs: Long = 0L, queueTitle: String? = null) {
-        if (items.isEmpty()) return
+        if (items.isEmpty()) {
+            Logger.w("ExoPlayerManager", "playMediaList called with empty list")
+            return
+        }
         
-        // Filter out hidden/excluded items if necessary
-        // In a real scenario, we should get the current hidden folders list from SettingsManager
-        // For now, assume the list passed is what the user wants to play, 
-        // but let's double check if we can filter here.
-        
+        playbackJob?.cancel()
         val targetIndex = startIndex.coerceIn(0, items.size - 1)
         val currentTarget = items[targetIndex]
-        scope.launch {
+        Logger.i("ExoPlayerManager", "PLAYBACK START: title=${currentTarget.title}, index=$targetIndex, pos=$startPosMs, uri=${currentTarget.uri}")
+
+        playbackJob = scope.launch {
             withContext(Dispatchers.Main) {
                 try {
                     _playerState.value = _playerState.value.copy(
@@ -505,16 +854,39 @@ class ExoPlayerManager private constructor(private val context: Context) {
                         isAbRepeatActive = false
                     )
                     val probeResult = withContext(Dispatchers.IO) { ffmpegEngine.probe(currentTarget.uri) }
+                    Logger.d("ExoPlayerManager", "Probe result for ${currentTarget.title}: $probeResult")
                     val profile = MediaCapabilityInspector.inspect(currentTarget.uri, probeResult)
+                    Logger.i("ExoPlayerManager", "Media Profile for ${currentTarget.title}: $profile")
                     val forceHW = currentDecoderPreference == "HARDWARE"
                     
-                    val newEngine = if (profile.requiresFFmpegFallback && !forceHW) ffmpegEngine else media3Engine
+                    val isAv1 = profile.videoCodec.contains("AV1", ignoreCase = true)
+                    val isAvi = profile.container.contains("AVI", ignoreCase = true)
+                    
+                    val needsFFmpeg = profile.requiresFFmpegFallback || isAv1 || isAvi
+                    
+                    if (needsFFmpeg && !forceHW) {
+                        Logger.w("ExoPlayerManager", "Avoiding hardware engine (needsFFmpeg=true, isAv1=$isAv1, isAvi=$isAvi, GlobalFault=$isHardwareFaulty)")
+                    }
+
+                    val newEngine = if (needsFFmpeg && !forceHW) ffmpegEngine else media3Engine
                     val newEngineName = if (newEngine == ffmpegEngine) "FFmpeg" else "Media3"
                     
-                    activeEngine?.pause()
-                    activeEngine = newEngine
-                    
-                    Log.i("ExoPlayerManager", "Selected engine $newEngineName for ${currentTarget.title}")
+                    stopAllEnginesExcept(newEngine)
+
+                    if (activeEngine != newEngine) {
+                        Logger.i("ExoPlayerManager", "Switching engine: ${activeEngine?.diagnosticState?.value?.engineName ?: "None"} -> $newEngineName")
+                        
+                        val oldEngine = activeEngine
+                        scope.launch(Dispatchers.Main) {
+                            try {
+                                withTimeoutOrNull(2000) {
+                                    oldEngine?.setSurface(null)
+                                    oldEngine?.stop()
+                                } ?: Logger.w("ExoPlayerManager", "Engine swap: old engine stop timed out - orphaning")
+                            } catch (_: Exception) {}
+                        }
+                        activeEngine = newEngine
+                    }
                     
                     _playerState.value = _playerState.value.copy(
                         activeEngineName = newEngineName,
@@ -543,14 +915,27 @@ class ExoPlayerManager private constructor(private val context: Context) {
                         }
                     }
 
-                    if (activeEngine == ffmpegEngine) {
+                    if (newEngine == media3Engine) {
+                        try { media3Engine?.player?.volume = 1.0f } catch (_: Exception) {}
+                    } else if (newEngine == ffmpegEngine) {
+                        try { ffmpegEngine.setVolume(1.0f) } catch (_: Exception) {}
+                        Logger.d("ExoPlayerManager", "Setting surface for FFmpeg: $lastSurface")
                         activeEngine?.setSurface(lastSurface)
                         updateNativeFilters() // Apply DSP settings to FFmpeg
                     }
+                    Logger.d("ExoPlayerManager", "Preparing engine for URI: ${currentTarget.uri}")
                     activeEngine?.prepare(currentTarget.uri, true)
+                    startWatchdog()
                     if (startPosMs > 0) activeEngine?.seekTo(startPosMs)
-                    if (requestAudioFocus()) activeEngine?.play()
-                } catch (e: Exception) { Log.e("ExoPlayerManager", "Failed to prepare playback", e) }
+                    if (requestAudioFocus()) {
+                        Logger.d("ExoPlayerManager", "Audio focus granted, starting playback")
+                        activeEngine?.play()
+                    } else {
+                        Logger.w("ExoPlayerManager", "Audio focus denied")
+                    }
+                } catch (e: Exception) { 
+                    Logger.e("ExoPlayerManager", "Failed to prepare playback for ${currentTarget.title}", e) 
+                }
             }
         }
     }
@@ -572,23 +957,54 @@ class ExoPlayerManager private constructor(private val context: Context) {
     fun next() = _playerState.value.let { if (it.queue.isNotEmpty()) playMediaList(it.queue, (it.queueIndex + 1) % it.queue.size, 0L, it.queueTitle) }
     fun previous() = _playerState.value.let { if (it.queue.isNotEmpty()) { if ((activeEngine?.currentPositionMs ?: 0L) > 3000L) { activeEngine?.seekTo(0L) } else { playMediaList(it.queue, if (it.queueIndex - 1 < 0) it.queue.size - 1 else it.queueIndex - 1, 0L, it.queueTitle) } } }
     fun play() {
+        Logger.d("ExoPlayerManager", "play() called. Active Engine: ${_playerState.value.activeEngineName}, isHardwareFaulty: $isHardwareFaulty")
+        stopAllEnginesExcept(activeEngine)
+        if (activeEngine == media3Engine) {
+            try { media3Engine?.player?.volume = 1.0f } catch (_: Exception) {}
+        } else if (activeEngine == ffmpegEngine) {
+            try { ffmpegEngine.setVolume(1.0f) } catch (_: Exception) {}
+        }
         if (requestAudioFocus()) {
             activeEngine?.play()
-            // State is confirmed by the 200ms polling loop; no optimistic override here
         }
     }
 
     fun pause() {
-        activeEngine?.pause()
+        Logger.d("ExoPlayerManager", "pause() called")
+        try { activeEngine?.pause() } catch (_: Exception) {}
+        stopAllEnginesExcept(null)
+        _playerState.value = _playerState.value.copy(isPlaying = false)
         savePlaybackProgress()
         abandonAudioFocus()
-        // State is confirmed by the 200ms polling loop
     }
 
     fun stop() {
-        activeEngine?.pause()
-        activeEngine?.seekTo(0L)
-        abandonAudioFocus()
+        scope.launch(Dispatchers.Main) {
+            try {
+                withTimeoutOrNull(1500) {
+                    media3Engine?.setSurface(null)
+                    media3Engine?.player?.volume = 0f
+                    media3Engine?.player?.playWhenReady = false
+                    media3Engine?.stop()
+                }
+            } catch (_: Exception) {}
+            try {
+                withTimeoutOrNull(1500) {
+                    ffmpegEngine.setSurface(null)
+                    ffmpegEngine.stop()
+                }
+            } catch (_: Exception) {}
+            stopAllEnginesExcept(null)
+            _playerState.value = _playerState.value.copy(isPlaying = false)
+            abandonAudioFocus()
+        }
+    }
+
+    fun releaseSurface() {
+        try {
+            media3Engine?.player?.clearVideoSurface()
+            ffmpegEngine.setSurface(null)
+        } catch (_: Exception) {}
     }
 
     val isPlaying: Boolean
@@ -687,14 +1103,55 @@ class ExoPlayerManager private constructor(private val context: Context) {
         }
     }
     
+    @OptIn(DelicateCoroutinesApi::class)
     fun release() {
+        Logger.i("ExoPlayerManager", "Full release initiated")
+        watchdogJob?.cancel()
+        playbackJob?.cancel()
+        
+        activeEngine?.setSurface(null)
         activeEngine?.pause()
-        media3Engine?.release()
-        ffmpegEngine.release()
-        androidEqualizer?.release(); androidEqualizer = null
-        androidBassBoost?.release(); androidBassBoost = null
-        androidLoudnessEnhancer?.release(); androidLoudnessEnhancer = null
+        
+        playerListener?.let { media3Engine?.player?.removeListener(it) }
+        playerListener = null
+        
+        val m3 = media3Engine
+        val ff = ffmpegEngine
+        media3Engine = null
+        activeEngine = null
+        
+        // Use GlobalScope or a dedicated Non-Cancellable block for final cleanup
+        // to ensure release() completes even if the manager's scope is cancelled.
+        GlobalScope.launch(Dispatchers.Main) {
+            try {
+                m3?.release()
+                ff.release()
+                Logger.d("ExoPlayerManager", "Engines released successfully in background")
+                synchronized(brokenEngines) { brokenEngines.forEach { try { it.release() } catch(e: Exception) {} }; brokenEngines.clear() }
+            } catch (e: Exception) {
+                Logger.e("ExoPlayerManager", "Error in background engine release", e)
+            }
+        }
+        
+        releaseAudioEffects()
         abandonAudioFocus()
+        
+        try {
+            context.unregisterReceiver(bluetoothReceiver)
+        } catch (_: Exception) {}
+        try {
+            context.unregisterReceiver(volumeReceiver)
+        } catch (_: Exception) {}
+        
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                telephonyCallback?.let { telephonyManager.unregisterTelephonyCallback(it as TelephonyCallback) }
+            } else {
+                telephonyCallback?.let { telephonyManager.listen(it as android.telephony.PhoneStateListener, android.telephony.PhoneStateListener.LISTEN_NONE) }
+            }
+        } catch (_: Exception) {}
+        telephonyCallback = null
+        
         scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
         instance = null
     }
@@ -786,6 +1243,13 @@ class ExoPlayerManager private constructor(private val context: Context) {
     private fun updateNativeFilters() {
         val state = _playerState.value
         val filterList = mutableListOf<String>()
+        val vFilterList = mutableListOf<String>()
+
+        // 0. VIDEO TONEMAPPING (FFmpeg Fallback Only)
+        if (state.isHdrContent && state.activeEngineName.contains("FFmpeg")) {
+            // SDR Tonemapping for HDR content played via software
+            vFilterList.add("tonemap=hable,format=yuv420p")
+        }
         
         // 1. Vocal Mute / Center Channel Cancellation
         if (state.isVocalMuteEnabled) {
@@ -827,6 +1291,13 @@ class ExoPlayerManager private constructor(private val context: Context) {
         
         val fullFilterDesc = if (filterList.isEmpty()) "anull" else filterList.joinToString(",")
         ffmpegEngine.setAudioFilters(fullFilterDesc)
+
+        if (vFilterList.isNotEmpty()) {
+            ffmpegEngine.setVideoFilters(vFilterList.joinToString(","))
+        } else {
+            ffmpegEngine.setVideoFilters("null") // No-op video filter
+        }
+
         applyExoAudioEffects()
     }
 
@@ -858,20 +1329,25 @@ class ExoPlayerManager private constructor(private val context: Context) {
     fun setVideoBackgroundPlayEnabled(enabled: Boolean) { _playerState.value = _playerState.value.copy(isVideoBackgroundPlayEnabled = enabled) }
     fun clearAllCache(onComplete: () -> Unit = {}) { onComplete() }
     fun addToQueue(items: List<MediaItem>) {}
-    fun stopPlayback() { activeEngine?.pause(); abandonAudioFocus(); FloatingPlayerService.stopService(context); _playerState.value = PlayerState() }
+    fun stopPlayback() { 
+        stop()
+        stopAllEnginesExcept(null)
+        FloatingPlayerService.stopService(context)
+        _playerState.value = PlayerState() 
+    }
 
     fun setVideoEffect(effect: com.medianest.ui.components.media.MediaEffect) {
         try {
             if (effect == com.medianest.ui.components.media.MediaEffect.OFF || 
                 effect == com.medianest.ui.components.media.MediaEffect.NORMAL ||
                 effect == com.medianest.ui.components.media.MediaEffect.ORIGINAL) {
-                exoPlayer.setVideoEffects(emptyList())
+                exoPlayer?.setVideoEffects(emptyList())
             } else {
                 val glEffect = com.medianest.player.fx.ColorGradingGlEffect(effect)
-                exoPlayer.setVideoEffects(listOf(glEffect))
+                exoPlayer?.setVideoEffects(listOf(glEffect))
             }
         } catch (e: Exception) {
-            android.util.Log.e("ExoPlayerManager", "Failed to set video effect", e)
+            Logger.e("ExoPlayerManager", "Failed to set video effect", e)
         }
     }
 }

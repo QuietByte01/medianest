@@ -1,5 +1,6 @@
 package com.medianest.ui.components
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -32,12 +33,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import coil.compose.AsyncImage
 import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
@@ -96,7 +103,7 @@ fun MediaConverterStudioDialog(
 
     // Single external file picker
     val singleFilePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri != null) {
             val item = com.medianest.util.AudioMetadataUtils.extractMetadata(
@@ -187,6 +194,21 @@ fun MediaConverterStudioDialog(
         }
     }
 
+    val activity = context as? Activity
+    DisposableEffect(Unit) {
+        activity?.window?.let { win ->
+            val insetsController = WindowCompat.getInsetsController(win, win.decorView)
+            insetsController.hide(WindowInsetsCompat.Type.statusBars())
+            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+        onDispose {
+            activity?.window?.let { win ->
+                val insetsController = WindowCompat.getInsetsController(win, win.decorView)
+                insetsController.show(WindowInsetsCompat.Type.statusBars())
+            }
+        }
+    }
+
     Dialog(
         onDismissRequest = {
             if (processingState !is ProcessingState.Processing && processingState !is ProcessingState.BatchProcessing) {
@@ -199,11 +221,20 @@ fun MediaConverterStudioDialog(
             decorFitsSystemWindows = false
         )
     ) {
+        val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
+        SideEffect {
+            dialogWindow?.let { win ->
+                val insetsController = WindowCompat.getInsetsController(win, win.decorView)
+                insetsController.hide(WindowInsetsCompat.Type.statusBars())
+                insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(0xCC04060B))
-                .systemBarsPadding()
+                .navigationBarsPadding()
                 .padding(if (isTablet) 24.dp else 0.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -332,17 +363,17 @@ fun MediaConverterStudioDialog(
                                 onSwitchToSingle = { isBatchMode = false }
                             )
                         } else {
-                            val pickMime = when (selectedTab) {
-                                StudioTab.COLORIZE -> "video/*,image/*"
-                                StudioTab.CROP -> "video/*,image/*"
-                                StudioTab.EXTRACT -> "video/*"
-                                StudioTab.REPAIR -> "video/*,audio/*"
-                                else -> "*/*"
+                            val pickMimes = when (selectedTab) {
+                                StudioTab.COLORIZE -> arrayOf("video/*", "image/*")
+                                StudioTab.CROP -> arrayOf("video/*", "image/*")
+                                StudioTab.EXTRACT -> arrayOf("video/*")
+                                StudioTab.REPAIR -> arrayOf("video/*", "audio/*")
+                                else -> arrayOf("*/*")
                             }
                             SourceMediaSelectorCard(
                                 selectedItem = selectedMediaItem,
                                 onChangeClick = { showMediaPickerSheet = true },
-                                onPickStorage = { singleFilePickerLauncher.launch(pickMime) }
+                                onPickStorage = { singleFilePickerLauncher.launch(pickMimes) }
                             )
                         }
 
@@ -758,12 +789,12 @@ fun MediaConverterStudioDialog(
 
             // Unified Library Picker Sheet (Single & Batch Modes)
             if (showMediaPickerSheet) {
-                val pickMime = when (selectedTab) {
-                    StudioTab.COLORIZE -> "video/*,image/*"
-                    StudioTab.CROP -> "video/*,image/*"
-                    StudioTab.EXTRACT -> "video/*"
-                    StudioTab.REPAIR -> "video/*,audio/*"
-                    else -> "*/*"
+                val pickMimes = when (selectedTab) {
+                    StudioTab.COLORIZE -> arrayOf("video/*", "image/*")
+                    StudioTab.CROP -> arrayOf("video/*", "image/*")
+                    StudioTab.EXTRACT -> arrayOf("video/*")
+                    StudioTab.REPAIR -> arrayOf("video/*", "audio/*")
+                    else -> arrayOf("*/*")
                 }
                 UnifiedMediaPickerModal(
                     imagesList = imagesList,
@@ -786,7 +817,7 @@ fun MediaConverterStudioDialog(
                     },
                     onPickSingleExternal = {
                         showMediaPickerSheet = false
-                        singleFilePickerLauncher.launch(pickMime)
+                        singleFilePickerLauncher.launch(pickMimes)
                     },
                     onPickMultiExternal = {
                         showMediaPickerSheet = false
@@ -974,17 +1005,47 @@ private fun GlossyActionButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit
 ) {
-    SolidGlossySurface(
+    val bgBrush = Brush.horizontalGradient(
+        colors = listOf(
+            Color(0xFF2563EB),
+            Color(0xFF3B82F6),
+            Color(0xFF1D4ED8)
+        )
+    )
+    val borderBrush = Brush.verticalGradient(
+        colors = listOf(
+            Color(0x9993C5FD),
+            Color(0x4060A5FA),
+            Color(0x261E40AF)
+        )
+    )
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(54.dp)
+            .height(52.dp)
             .clip(RoundedCornerShape(16.dp))
-            .clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        backgroundColor = Color.White,
-        borderColor = Color.White,
-        showTopSheen = true
+            .background(bgBrush)
+            .border(1.dp, borderBrush, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
+        // Top highlight sheen for true glossy ambient glass appearance
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(26.dp)
+                .align(Alignment.TopCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0x55FFFFFF),
+                            Color(0x00FFFFFF)
+                        )
+                    )
+                )
+        )
+
         Row(
             modifier = Modifier.fillMaxSize(),
             verticalAlignment = Alignment.CenterVertically,
@@ -993,15 +1054,15 @@ private fun GlossyActionButton(
             Icon(
                 icon,
                 contentDescription = null,
-                tint = Color.Black,
+                tint = Color.White,
                 modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
                 text = text,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = Color.Black
+                fontSize = 14.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
             )
         }
     }
@@ -2319,15 +2380,14 @@ private fun ColorizeControlsCard(
                             Text("Neighborhood Window Radius", fontSize = 11.sp, color = Color(0xFFCBD5E1))
                             Text("${patchRadius * 2 + 1}x${patchRadius * 2 + 1} px", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
                         }
-                        Slider(
+                        AppSlider(
                             value = patchRadius.toFloat(),
                             onValueChange = { onPatchRadiusChange(it.toInt()) },
                             valueRange = 1f..4f,
                             steps = 2,
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color(0xFF60A5FA),
-                                activeTrackColor = Color(0xFF3B82F6)
-                            )
+                            thickness = AppSliderThickness.Thin,
+                            customThumbSize = DpSize(14.dp, 14.dp),
+                            accentColor = Color(0xFF60A5FA)
                         )
                     }
 
@@ -2337,14 +2397,13 @@ private fun ColorizeControlsCard(
                             Text("Luminance Variance Weight (Texture)", fontSize = 11.sp, color = Color(0xFFCBD5E1))
                             Text(String.format(Locale.US, "%.2f", textureWeight), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
                         }
-                        Slider(
+                        AppSlider(
                             value = textureWeight,
                             onValueChange = onTextureWeightChange,
                             valueRange = 0.1f..1.0f,
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color(0xFF60A5FA),
-                                activeTrackColor = Color(0xFF3B82F6)
-                            )
+                            thickness = AppSliderThickness.Thin,
+                            customThumbSize = DpSize(14.dp, 14.dp),
+                            accentColor = Color(0xFF60A5FA)
                         )
                     }
                 } else {
@@ -2354,15 +2413,14 @@ private fun ColorizeControlsCard(
                             Text("Farnebäck Pyramid Iterations", fontSize = 11.sp, color = Color(0xFFCBD5E1))
                             Text("$opticalFlowIterations iters", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
                         }
-                        Slider(
+                        AppSlider(
                             value = opticalFlowIterations.toFloat(),
                             onValueChange = { onOpticalFlowIterationsChange(it.toInt()) },
                             valueRange = 1f..6f,
                             steps = 4,
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color(0xFF60A5FA),
-                                activeTrackColor = Color(0xFF3B82F6)
-                            )
+                            thickness = AppSliderThickness.Thin,
+                            customThumbSize = DpSize(14.dp, 14.dp),
+                            accentColor = Color(0xFF60A5FA)
                         )
                     }
 
@@ -2372,14 +2430,13 @@ private fun ColorizeControlsCard(
                             Text("Joint Bilateral Edge-Snapping Guide (Y)", fontSize = 11.sp, color = Color(0xFFCBD5E1))
                             Text(String.format(Locale.US, "%.2f", filterStrength), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
                         }
-                        Slider(
+                        AppSlider(
                             value = filterStrength,
                             onValueChange = onFilterStrengthChange,
                             valueRange = 0.1f..1.0f,
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color(0xFF60A5FA),
-                                activeTrackColor = Color(0xFF3B82F6)
-                            )
+                            thickness = AppSliderThickness.Thin,
+                            customThumbSize = DpSize(14.dp, 14.dp),
+                            accentColor = Color(0xFF60A5FA)
                         )
                     }
                 }
@@ -2924,7 +2981,9 @@ private fun UnifiedMediaPickerModal(
 
                 // Category Filters
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     categoryOptions.forEach { (f, label) ->
@@ -2932,8 +2991,7 @@ private fun UnifiedMediaPickerModal(
                         GlossyPillButton(
                             text = label,
                             isSelected = isSel,
-                            onClick = { pickerFilter = f },
-                            modifier = Modifier.weight(1f)
+                            onClick = { pickerFilter = f }
                         )
                     }
                 }

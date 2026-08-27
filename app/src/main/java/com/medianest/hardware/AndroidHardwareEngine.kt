@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.MediaCodecList
 import android.os.Build
 import android.util.Log
+import com.medianest.util.Logger
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import org.json.JSONObject
@@ -114,7 +115,7 @@ object AndroidHardwareEngine {
                 }
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to query MediaCodec list: ${e.message}")
+            Logger.w(TAG, "Failed to query MediaCodec list: ${e.message}")
             hasH264Hw = true
             hasHevcHw = true
         }
@@ -138,7 +139,7 @@ object AndroidHardwareEngine {
             maxTextureSize = if (totalRamMb >= 8192) 8192 else 4096
         )
         cachedCapabilities = caps
-        Log.i(TAG, "Hardware Capabilities Detected: $caps")
+        Logger.i(TAG, "Hardware Capabilities Detected: $caps")
         return caps
     }
 

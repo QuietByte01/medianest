@@ -80,7 +80,7 @@ object MediaMetadataUtils {
                     embeddedPicture = retriever.embeddedPicture
                 }
             } catch (e: Exception) {
-                Log.e("MediaMetadataUtils", "Failed to retrieve retriever metadata for $uri", e)
+                Logger.e("MediaMetadataUtils", "Failed to retrieve retriever metadata for $uri", e)
             } finally {
                 try {
                     retriever.release()
@@ -115,7 +115,7 @@ object MediaMetadataUtils {
                             val attrs = Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
                             dateCreated = attrs.creationTime().toMillis() / 1000
                         } catch (e: Exception) {
-                            Log.e("MediaMetadataUtils", "Failed to read creation time for $path", e)
+                            Logger.e("MediaMetadataUtils", "Failed to read creation time for $path", e)
                             dateCreated = dateModified
                         }
                     } else {

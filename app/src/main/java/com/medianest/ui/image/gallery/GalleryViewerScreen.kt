@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -23,6 +24,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +37,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.medianest.ui.components.debug.ImageDebugOverlay
 
 /**
  * Modern, high-performance image gallery viewer featuring:
@@ -63,6 +66,7 @@ fun <T> GalleryViewerScreen(
         pageCount = { items.size }
     )
 
+    val showDebugOverlay by com.medianest.MediaNestApp.instance.settingsManager.showImageDebugInfo.collectAsState(initial = false)
     var isImmersive by remember { mutableStateOf(false) }
     var isCurrentPageZoomed by remember { mutableStateOf(false) }
 
@@ -81,18 +85,32 @@ fun <T> GalleryViewerScreen(
             modifier = Modifier.fillMaxSize()
         ) { pageIndex ->
             val item = items[pageIndex]
-            ZoomableGalleryPage(
-                model = getItemModel(item),
-                thumbnailModel = getThumbnailModel?.invoke(item),
-                colorFilter = colorFilter,
-                isCurrentPage = pagerState.currentPage == pageIndex,
-                onTap = { isImmersive = !isImmersive },
-                onZoomChanged = { zoomed ->
-                    if (pagerState.currentPage == pageIndex) {
-                        isCurrentPageZoomed = zoomed
+            val model = getItemModel(item)
+            val source = when (model) {
+                is android.net.Uri -> com.medianest.ui.image.hybrid.ImageSource.FromUri(model)
+                is java.io.File -> com.medianest.ui.image.hybrid.ImageSource.FromFile(model)
+                is ByteArray -> com.medianest.ui.image.hybrid.ImageSource.FromByteArray(model)
+                is String -> com.medianest.ui.image.hybrid.ImageSource.FromUri(android.net.Uri.parse(model))
+                else -> null
+            }
+            
+            if (source != null) {
+                com.medianest.ui.image.hybrid.HybridImageViewer(
+                    source = source,
+                    colorFilter = colorFilter,
+                    backgroundColor = Color.Transparent,
+                    onToggleControls = { isImmersive = !isImmersive },
+                    onZoomChanged = { zoomed ->
+                        if (pagerState.currentPage == pageIndex) {
+                            isCurrentPageZoomed = zoomed
+                        }
                     }
+                )
+            } else {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Unsupported format", color = Color.White)
                 }
-            )
+            }
         }
 
         // 2. Top App Bar & Page Indicator Overlay
@@ -148,6 +166,17 @@ fun <T> GalleryViewerScreen(
                     }
                 }
             }
+        }
+
+        // IMAGE DEBUG OVERLAY
+        if (showDebugOverlay) {
+            ImageDebugOverlay(
+                item = items.getOrNull(pagerState.currentPage) as? com.medianest.data.model.MediaItem,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(16.dp)
+                    .padding(bottom = 60.dp)
+            )
         }
     }
 }

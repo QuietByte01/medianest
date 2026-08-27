@@ -243,18 +243,15 @@ fun FloatingMiniPlayerBar(
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val isTablet = (configuration.screenWidthDp >= 600)
 
-    GlassSurface(
+    AmbientGlassSurface(
         modifier = Modifier
             .then(if (isTablet) Modifier.width(380.dp) else Modifier.fillMaxWidth())
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .then(swipeGestureModifier)
             .clickable { onExpand() },
         shape = RoundedCornerShape(20.dp),
-        backgroundColor = Color(0x66181C20),
-        borderColor = Color.White.copy(alpha = 0.35f),
-        backgroundImage = currentItem.albumArtUri ?: currentItem.uri,
-        enableBlur = true,
-        blurRadius = 36.dp
+        containerColor = Color.Transparent,
+        backgroundImage = currentItem.albumArtUri ?: currentItem.uri
     ) {
         var isDraggingSeek by remember { mutableStateOf(false) }
         var dragProgress by remember { mutableFloatStateOf(0f) }

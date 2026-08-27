@@ -11,6 +11,7 @@ import android.provider.MediaStore
 import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.mediainfo.getFilePathFromUri
+import com.medianest.util.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -117,6 +118,7 @@ class MediaStoreRepository(private val context: Context) {
                     val isHidden = name.startsWith(".") || folderName.startsWith(".") || (relativePath != null && relativePath.split("/").any { it.startsWith(".") })
 
                     if (!showHidden && (isExcluded || isHidden)) {
+                        Logger.v("MediaStoreRepo", "Skipping hidden/excluded item: $name (folder=$folderName, isHidden=$isHidden, isExcluded=$isExcluded)")
                         continue
                     }
                     val mimeType = if (mimeColumn >= 0) c.getString(mimeColumn) ?: "image/*" else "image/*"
@@ -274,6 +276,7 @@ class MediaStoreRepository(private val context: Context) {
                     val isHidden = name.startsWith(".") || folderName.startsWith(".") || (relativePath != null && relativePath.split("/").any { it.startsWith(".") })
 
                     if (!showHidden && (isExcluded || isHidden)) {
+                        Logger.v("MediaStoreRepo", "Skipping hidden/excluded item: $name (folder=$folderName, isHidden=$isHidden, isExcluded=$isExcluded)")
                         continue
                     }
 
@@ -440,6 +443,7 @@ class MediaStoreRepository(private val context: Context) {
                     val isHidden = name.startsWith(".") || folderName.startsWith(".") || (relativePath != null && relativePath.split("/").any { it.startsWith(".") })
 
                     if (!showHidden && (isExcluded || isHidden)) {
+                        Logger.v("MediaStoreRepo", "Skipping hidden/excluded item: $name (folder=$folderName, isHidden=$isHidden, isExcluded=$isExcluded)")
                         continue
                     }
 
@@ -682,6 +686,8 @@ class MediaStoreRepository(private val context: Context) {
     )
 
     private fun scanFileSystemHiddenMedia(mediaType: MediaType, hiddenFolders: Set<String> = emptySet(), showHidden: Boolean = true): List<MediaItem> {
+        val startTime = System.currentTimeMillis()
+        Logger.i("MediaStoreRepo", "START FS SCAN: type=$mediaType, showHidden=$showHidden")
         val hiddenItems = mutableListOf<MediaItem>()
         try {
             val rootDir = android.os.Environment.getExternalStorageDirectory() ?: return emptyList()
@@ -812,8 +818,9 @@ class MediaStoreRepository(private val context: Context) {
             for (root in scanRoots) {
                 scanDir(root, 0, false)
             }
+            Logger.i("MediaStoreRepo", "END FS SCAN: Found ${hiddenItems.size} items in ${System.currentTimeMillis() - startTime}ms")
         } catch (e: Exception) {
-            e.printStackTrace()
+            Logger.e("MediaStoreRepo", "FS Scan Error: ${e.message}", e)
         }
         return hiddenItems
     }

@@ -34,8 +34,8 @@ class NetworkRepository(
 ) {
 
     private val userAgent = "MediaNestApp/1.0"
-    // Use the key provided by the user. Daily limit: 5 requests.
-    private val openSubKey = "HqVKTULS5Y6bmKeJWYMZZt1oAvlxx6F0"
+    // Pulled from .env via Secrets Gradle Plugin
+    private val openSubKey = com.medianest.BuildConfig.OPEN_SUBTITLES_API_KEY
 
     suspend fun fetchSyncedLyrics(
         title: String,
@@ -80,7 +80,7 @@ class NetworkRepository(
                     }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.w("NetworkRepository", "Lyrics fetch error: ${e.message}")
             }
 
             // 2. Try LRCLIB search
@@ -109,7 +109,7 @@ class NetworkRepository(
                     }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.w("NetworkRepository", "Lyrics fetch error: ${e.message}")
             }
         }
 

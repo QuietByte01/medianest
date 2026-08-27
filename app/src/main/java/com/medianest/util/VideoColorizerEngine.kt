@@ -24,9 +24,9 @@ object VideoColorizerEngine {
     init {
         try {
             System.loadLibrary("medianest_ffmpeg")
-            Log.i(TAG, "Native library medianest_ffmpeg loaded successfully")
+            Logger.i(TAG, "Native library medianest_ffmpeg loaded successfully")
         } catch (e: UnsatisfiedLinkError) {
-            Log.e(TAG, "Failed to load native library: ${e.message}")
+            Logger.e(TAG, "Failed to load native library: ${e.message}")
         }
     }
 
@@ -182,7 +182,7 @@ object VideoColorizerEngine {
 
             return@withContext targetBmp
         } catch (e: Exception) {
-            Log.e(TAG, "Error generating preview: ${e.message}", e)
+            Logger.e(TAG, "Error generating preview: ${e.message}", e)
             null
         }
     }
@@ -208,7 +208,7 @@ object VideoColorizerEngine {
             } else null
 
             if (refBmp == null) {
-                Log.e(TAG, "Reference image required for image colorization")
+                Logger.e(TAG, "Reference image required for image colorization")
                 return@withContext false
             }
 
@@ -275,7 +275,7 @@ object VideoColorizerEngine {
             onProgress(100, "Image colorization complete!")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Image colorization failed: ${e.message}", e)
+            Logger.e(TAG, "Image colorization failed: ${e.message}", e)
             false
         }
     }
@@ -305,18 +305,18 @@ object VideoColorizerEngine {
             val extractCmd = "-y -i \"$inputPath\" -qscale:v 2 \"${framesDir.absolutePath}/frame_%06d.png\""
             val extractSession = FFmpegKit.execute(extractCmd)
             if (!ReturnCode.isSuccess(extractSession.returnCode)) {
-                Log.e(TAG, "Failed to extract frames: ${extractSession.failStackTrace}")
+                Logger.e(TAG, "Failed to extract frames: ${extractSession.failStackTrace}")
                 return@withContext false
             }
 
             val frameFiles = framesDir.listFiles { _, name -> name.endsWith(".png") }?.sortedBy { it.name } ?: emptyList()
             if (frameFiles.isEmpty()) {
-                Log.e(TAG, "No frames extracted")
+                Logger.e(TAG, "No frames extracted")
                 return@withContext false
             }
 
             val totalFrames = frameFiles.size
-            Log.i(TAG, "Processing $totalFrames frames with mode: ${config.mode}")
+            Logger.i(TAG, "Processing $totalFrames frames with mode: ${config.mode}")
 
             // 2. Process frames according to mode
             when (config.mode) {
@@ -326,7 +326,7 @@ object VideoColorizerEngine {
                     } else null
 
                     if (refBmp == null) {
-                        Log.e(TAG, "Reference image missing for Welsh Color Transfer")
+                        Logger.e(TAG, "Reference image missing for Welsh Color Transfer")
                         return@withContext false
                     }
 
@@ -521,12 +521,12 @@ object VideoColorizerEngine {
             if (success) {
                 onProgress(100, "Colorization finished successfully!")
             } else {
-                Log.e(TAG, "Encoding failed: ${encodeSession.failStackTrace}")
+                Logger.e(TAG, "Encoding failed: ${encodeSession.failStackTrace}")
             }
 
             return@withContext success
         } catch (e: Exception) {
-            Log.e(TAG, "Colorization pipeline error: ${e.message}", e)
+            Logger.e(TAG, "Colorization pipeline error: ${e.message}", e)
             false
         } finally {
             workDir.deleteRecursively()

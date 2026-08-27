@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
+import com.medianest.util.Logger
 
 data class MediaCounts(
     val music: Int = 0,
@@ -82,9 +83,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setMediaLists(images: List<MediaItem>, videos: List<MediaItem>, audio: List<MediaItem>) {
-        _imagesList.value = images.distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
-        _videosList.value = videos.distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
-        _audioList.value = audio.distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
+        _imagesList.value = images.distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
+        _videosList.value = videos.distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
+        _audioList.value = audio.distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
     }
 
     private val _videoFilterTab = MutableStateFlow("ALL")
@@ -191,20 +192,32 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    fun updateVideoFilter(tab: String) { _videoFilterTab.value = tab }
-    fun updateImageFilter(tab: String) { _imageFilterTab.value = tab }
-    fun updateAudioFilter(tab: String) { _audioFilterTab.value = tab }
+    fun updateVideoFilter(tab: String) { 
+        Logger.d("MediaViewModel", "Video Filter Updated: $tab")
+        _videoFilterTab.value = tab 
+    }
+    fun updateImageFilter(tab: String) { 
+        Logger.d("MediaViewModel", "Image Filter Updated: $tab")
+        _imageFilterTab.value = tab 
+    }
+    fun updateAudioFilter(tab: String) { 
+        Logger.d("MediaViewModel", "Audio Filter Updated: $tab")
+        _audioFilterTab.value = tab 
+    }
     fun updateVideoSort(field: String, ascending: Boolean) {
+        Logger.d("MediaViewModel", "Video Sort Updated: $field, asc=$ascending")
         _videoSortField.value = field
         _videoSortAscending.value = ascending
     }
 
     fun updateImageSort(field: String, ascending: Boolean) {
+        Logger.d("MediaViewModel", "Image Sort Updated: $field, asc=$ascending")
         _imageSortField.value = field
         _imageSortAscending.value = ascending
     }
 
     fun updateAudioSort(field: String, ascending: Boolean) {
+        Logger.d("MediaViewModel", "Audio Sort Updated: $field, asc=$ascending")
         _audioSortField.value = field
         _audioSortAscending.value = ascending
     }

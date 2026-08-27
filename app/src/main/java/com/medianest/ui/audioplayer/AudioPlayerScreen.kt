@@ -35,6 +35,7 @@ import com.medianest.data.repository.MediaStoreRepository
 import com.medianest.player.ExoPlayerManager
 import com.medianest.ui.components.MediaInfoBottomSheet
 import com.medianest.ui.components.extractBaseHueFromArt
+import com.medianest.ui.components.debug.AudioDebugOverlay
 import com.medianest.ui.library.audio.AudioMetadataEditDialog
 import com.medianest.ui.theme.LocalDarkTheme
 import kotlinx.coroutines.flow.first
@@ -65,6 +66,7 @@ fun AudioPlayerScreen(
     val settingsManager = MediaNestApp.instance.settingsManager
     val offlineMode by settingsManager.offlineMode.collectAsState(initial = false)
     val showAudioVisualizer by settingsManager.showAudioVisualizer.collectAsState(initial = true)
+    val showAudioDebug by settingsManager.showAudioDebugInfo.collectAsState(initial = false)
 
     val configuration = LocalConfiguration.current
     val isTablet = configuration.smallestScreenWidthDp >= 600
@@ -455,5 +457,14 @@ fun AudioPlayerScreen(
         if (showManualLyricsDialog) ManualLyricsDialog(currentItem = currentItem, rawLyricsText = rawLyricsText, initialInput = manualLyricsInput, networkRepository = networkRepository, context = context, onLyricsUpdated = { raw, lines -> rawLyricsText = raw; lyricsLines = lines; if (raw != null) showLyricsView = true }, onDismiss = { showManualLyricsDialog = false })
         if (showDspSheet) com.medianest.ui.components.NativeAudioDspSheet(playerState = playerState, playerManager = playerManager, onDismiss = { showDspSheet = false }, backgroundImage = currentItem?.albumArtUri ?: currentItem?.uri)
         if (isVisualizerFullscreen) FullscreenVisualizerDialog(isPlaying = playerState.isPlaying, audioSessionId = playerState.audioSessionId, albumArtHue = albumArtHue, currentItem = currentItem, onDismiss = { isVisualizerFullscreen = false })
+        
+        if (showAudioDebug) {
+            AudioDebugOverlay(
+                playerState = playerState,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = 80.dp, start = 20.dp)
+            )
+        }
     }
 }

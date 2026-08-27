@@ -9,6 +9,7 @@ import android.graphics.ColorMatrixColorFilter
 import android.net.Uri
 import android.os.Build
 import android.util.Log
+import com.medianest.util.Logger
 import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.compose.animation.*
@@ -54,6 +55,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
@@ -71,6 +73,8 @@ import com.medianest.data.db.PlaybackState
 import com.medianest.data.repository.NetworkRepository
 import com.medianest.data.repository.SubtitleProvider
 import com.medianest.player.ExoPlayerManager
+import com.medianest.player.PlayerState
+import com.medianest.ui.components.debug.PlayerDebugOverlay
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.MediaInfoBottomSheet
 import com.medianest.ui.videoplayer.studio.VideoEditorStudioSheet
@@ -105,6 +109,23 @@ fun VideoPlayerScreen(
     val currentItem = playerState.currentItem?.takeIf { it.type == com.medianest.data.db.MediaType.VIDEO }
     val settingsManager = MediaNestApp.instance.settingsManager
 
+    val hdrPlaybackEnabledSetting by settingsManager.hdrPlaybackEnabled.collectAsState(initial = true)
+
+    // HANDLE WINDOW HDR MODE
+    LaunchedEffect(playerState.isHdrContent, hdrPlaybackEnabledSetting) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            activity?.window?.let { window ->
+                if (playerState.isHdrContent && hdrPlaybackEnabledSetting) {
+                    Logger.i("VideoPlayerScreen", "Enabling Window HDR Mode")
+                    window.colorMode = android.content.pm.ActivityInfo.COLOR_MODE_HDR
+                } else {
+                    Logger.i("VideoPlayerScreen", "Restoring Window SDR Mode")
+                    window.colorMode = android.content.pm.ActivityInfo.COLOR_MODE_DEFAULT
+                }
+            }
+        }
+    }
+
     val showStatusBar by settingsManager.showStatusBarInPlayback.collectAsState(initial = false)
     val keepScreenOn by settingsManager.keepScreenOn.collectAsState(initial = true)
     val offlineMode by settingsManager.offlineMode.collectAsState(initial = false)
@@ -127,6 +148,7 @@ fun VideoPlayerScreen(
 
     val isFilmGrainEnabled by settingsManager.filmGrainEnabled.collectAsState(initial = false)
     val filmGrainIntensity by settingsManager.filmGrainIntensity.collectAsState(initial = 0.15f)
+    val showDebugOverlay by settingsManager.showPlayerDebugInfo.collectAsState(initial = false)
 
     var showControls by remember { mutableStateOf(true) }
     var cropMode by remember { mutableStateOf(MediaAspectRatio.FIT) }
@@ -159,6 +181,7 @@ fun VideoPlayerScreen(
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showVideoFxSheet by remember { mutableStateOf(false) }
     var showVideoEditorSheet by remember { mutableStateOf(false) }
+    var showEngineDialog by remember { mutableStateOf(false) }
     var showDetailsSheet by remember { mutableStateOf(false) }
     var showAudioTrackSheet by remember { mutableStateOf(false) }
     var showAbRepeatBar by remember { mutableStateOf(false) }
@@ -178,17 +201,19 @@ fun VideoPlayerScreen(
     var subtitleBgColor by remember { mutableStateOf(Color(0x99000000)) }
     var subtitleHasShadow by remember { mutableStateOf(true) }
 
-    val embeddedTracks = remember(currentItem) {
+    val embeddedTracks = remember(currentItem, playerState.media3InstanceId) {
         val list = mutableListOf<com.medianest.data.model.SubtitleItem>()
         try {
-            val tracks = playerManager.exoPlayer.currentTracks
-            for (group in tracks.groups) {
-                if (group.type == androidx.media3.common.C.TRACK_TYPE_TEXT) {
-                    for (i in 0 until group.length) {
-                        val format = group.getTrackFormat(i)
-                        val lang = format.language ?: "und"
-                        val label = format.label ?: "Track ${i + 1}"
-                        list.add(com.medianest.data.model.SubtitleItem(id = "embedded_$i", name = label, language = lang, isLocal = true))
+            val tracks = playerManager.exoPlayer?.currentTracks
+            if (tracks != null) {
+                for (group in tracks.groups) {
+                    if (group.type == androidx.media3.common.C.TRACK_TYPE_TEXT) {
+                        for (i in 0 until group.length) {
+                            val format = group.getTrackFormat(i)
+                            val lang = format.language ?: "und"
+                            val label = format.label ?: "Track ${i + 1}"
+                            list.add(com.medianest.data.model.SubtitleItem(id = "embedded_$i", name = label, language = lang, isLocal = true))
+                        }
                     }
                 }
             }
@@ -200,7 +225,7 @@ fun VideoPlayerScreen(
 
     val anyOverlayOpen = showOverflowMenu || showDetailsSheet || showDrawer || showSubtitleSheet ||
             showSubtitleCustomizationSheet || showSettingsSheet || showAudioTrackSheet ||
-            showAspectRatioMenu || showSpeedMenu || showAbRepeatBar
+            showAspectRatioMenu || showSpeedMenu || showAbRepeatBar || showEngineDialog
 
     BackHandler(enabled = true) {
         if (anyOverlayOpen) {
@@ -215,6 +240,7 @@ fun VideoPlayerScreen(
                 showAspectRatioMenu -> showAspectRatioMenu = false
                 showSpeedMenu -> showSpeedMenu = false
                 showAbRepeatBar -> showAbRepeatBar = false
+                showEngineDialog -> showEngineDialog = false
             }
         } else if (isControlsLocked) {
             isControlsLocked = false
@@ -223,11 +249,14 @@ fun VideoPlayerScreen(
         }
     }
 
-    var activeVideoSize by remember(playerManager.exoPlayer) {
-        mutableStateOf(playerManager.exoPlayer.videoSize)
+    var activeVideoSize by remember(playerState.media3InstanceId) {
+        mutableStateOf(playerManager.exoPlayer?.videoSize ?: androidx.media3.common.VideoSize.UNKNOWN)
     }
 
-    DisposableEffect(playerManager.exoPlayer) {
+    DisposableEffect(playerState.media3InstanceId) {
+        val player = playerManager.exoPlayer
+        if (player == null) return@DisposableEffect onDispose {}
+
         val listener = object : androidx.media3.common.Player.Listener {
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
                 if (videoSize.width > 0 && videoSize.height > 0) {
@@ -235,7 +264,9 @@ fun VideoPlayerScreen(
                 }
             }
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
-                val vs = playerManager.exoPlayer.videoSize
+                // Safeguard against null exoPlayer during rapid engine transitions
+                val currentM3 = playerManager.exoPlayer ?: return
+                val vs = currentM3.videoSize
                 if (vs.width > 0 && vs.height > 0) {
                     activeVideoSize = vs
                 }
@@ -248,12 +279,12 @@ fun VideoPlayerScreen(
                 }
             }
         }
-        playerManager.exoPlayer.addListener(listener)
-        val initialVs = playerManager.exoPlayer.videoSize
+        player.addListener(listener)
+        val initialVs = player.videoSize
         if (initialVs.width > 0 && initialVs.height > 0) {
             activeVideoSize = initialVs
         }
-        onDispose { playerManager.exoPlayer.removeListener(listener) }
+        onDispose { player.removeListener(listener) }
     }
 
     DisposableEffect(showStatusBar, keepScreenOn) {
@@ -519,95 +550,88 @@ fun VideoPlayerScreen(
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    androidx.compose.runtime.key(playerState.activeEngineName) {
-                                        if (playerState.activeEngineName == "Media3") {
-                                            AndroidView(
-                                                factory = { ctx ->
-                                                    Log.i("VideoPlayerScreen", "Creating NEW PlayerView for Media3")
-                                                    PlayerView(ctx).apply {
-                                                        useController = false
-                                                        try {
-                                                            val setSurfaceTypeMethod = this.javaClass.getMethod("setSurfaceType", Int::class.javaPrimitiveType)
-                                                            setSurfaceTypeMethod.invoke(this, 2) // 2 = SURFACE_TYPE_TEXTURE_VIEW
-                                                        } catch (e: Exception) {
-                                                            Log.e("VideoPlayerScreen", "Failed to set surface type to TextureView", e)
+                                    androidx.compose.runtime.key(playerState.activeEngineName, playerState.media3InstanceId) {
+                                        when {
+                                            playerState.activeEngineName.contains("Media3") -> {
+                                                AndroidView(
+                                                    factory = { ctx ->
+                                                        Logger.i("VideoPlayerScreen", "Creating NEW TextureView for Media3 (Instance: ${playerState.media3InstanceId})")
+                                                        android.view.TextureView(ctx).apply {
+                                                            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                                                            playerManager.exoPlayer?.setVideoTextureView(this)
                                                         }
-                                                        
-                                                        try {
-                                                            this.player = playerManager.exoPlayer
-                                                        } catch (_: Exception) {}
-                                                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-                                                        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                                                    }
-                                                },
-                                                update = { view ->
-                                                    @androidx.annotation.OptIn(UnstableApi::class)
-                                                    fun applySettings() {
-                                                        try {
-                                                            val currentExo = playerManager.exoPlayer
-                                                            if (view.player != currentExo) {
-                                                                Log.i("VideoPlayerScreen", "Syncing PlayerView with new ExoPlayer instance")
-                                                                view.player = currentExo
-                                                            }
-                                                        } catch (e: Exception) {
-                                                            Log.e("VideoPlayerScreen", "Error syncing player", e)
-                                                        }
-                                                        view.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-                                                    }
-                                                    applySettings()
-                                                },
-                                                modifier = Modifier.fillMaxSize()
-                                            )
-                                        } else {
-                                            // FFmpeg Rendering Path (TextureView)
-                                            AndroidView(
-                                                factory = { ctx ->
-                                                    Log.i("VideoPlayerScreen", "Creating TextureView for FFmpeg")
-                                                    android.view.TextureView(ctx).apply {
-                                                        surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
-                                                            private var activeSurface: android.view.Surface? = null
-                                                            override fun onSurfaceTextureAvailable(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
-                                                                Log.i("VideoPlayerScreen", "FFmpeg SurfaceTexture Available")
-                                                                activeSurface?.release()
-                                                                activeSurface = android.view.Surface(st)
-                                                                playerManager.setVideoSurface(activeSurface)
-                                                            }
-                                                            override fun onSurfaceTextureSizeChanged(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
-                                                                if (activeSurface == null) {
+                                                    },
+                                                    update = { view ->
+                                                        playerManager.exoPlayer?.setVideoTextureView(view)
+                                                    },
+                                                    onRelease = { view ->
+                                                        Logger.i("VideoPlayerScreen", "Media3 TextureView Disposed (Instance: ${playerState.media3InstanceId})")
+                                                        playerManager.exoPlayer?.setVideoTextureView(null)
+                                                    },
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            }
+                                            playerState.activeEngineName.contains("FFmpeg") -> {
+                                                // FFmpeg Rendering Path (TextureView)
+                                                AndroidView(
+                                                    factory = { ctx ->
+                                                        Logger.i("VideoPlayerScreen", "Creating TextureView for FFmpeg")
+                                                        android.view.TextureView(ctx).apply {
+                                                            surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
+                                                                private var activeSurface: android.view.Surface? = null
+                                                                override fun onSurfaceTextureAvailable(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
+                                                                    Logger.i("VideoPlayerScreen", "FFmpeg SurfaceTexture Available")
+                                                                    activeSurface?.release()
                                                                     activeSurface = android.view.Surface(st)
+                                                                    playerManager.setVideoSurface(activeSurface)
                                                                 }
-                                                                playerManager.setVideoSurface(activeSurface)
+                                                                override fun onSurfaceTextureSizeChanged(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
+                                                                    if (activeSurface == null) {
+                                                                        activeSurface = android.view.Surface(st)
+                                                                    }
+                                                                    playerManager.setVideoSurface(activeSurface)
+                                                                }
+                                                                override fun onSurfaceTextureDestroyed(st: android.graphics.SurfaceTexture): Boolean {
+                                                                    Logger.i("VideoPlayerScreen", "FFmpeg SurfaceTexture Destroyed")
+                                                                    playerManager.setVideoSurface(null)
+                                                                    activeSurface?.release()
+                                                                    activeSurface = null
+                                                                    return true
+                                                                }
+                                                                override fun onSurfaceTextureUpdated(st: android.graphics.SurfaceTexture) {}
                                                             }
-                                                            override fun onSurfaceTextureDestroyed(st: android.graphics.SurfaceTexture): Boolean {
-                                                                Log.i("VideoPlayerScreen", "FFmpeg SurfaceTexture Destroyed")
-                                                                playerManager.setVideoSurface(null)
-                                                                activeSurface?.release()
-                                                                activeSurface = null
-                                                                return true
+                                                            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                                                        }
+                                                    },
+                                                    update = { view ->
+                                                        try {
+                                                            val activeFx = if (!pictureModeEnabled || pictureMode == "DEVICE_DEFAULT" || pictureMode == "OFF") {
+                                                                com.medianest.ui.components.media.MediaEffect.OFF
+                                                            } else {
+                                                                com.medianest.ui.components.media.MediaEffect.fromString(pictureMode)
                                                             }
-                                                            override fun onSurfaceTextureUpdated(st: android.graphics.SurfaceTexture) {}
-                                                        }
-                                                        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                                                    }
-                                                },
-                                                update = { view ->
-                                                    try {
-                                                        val activeFx = if (!pictureModeEnabled || pictureMode == "DEVICE_DEFAULT" || pictureMode == "OFF") {
-                                                            com.medianest.ui.components.media.MediaEffect.OFF
-                                                        } else {
-                                                            com.medianest.ui.components.media.MediaEffect.fromString(pictureMode)
-                                                        }
-                                                        val androidFilter = com.medianest.player.fx.MediaFxPipeline.getAndroidColorFilter(activeFx)
-                                                        if (androidFilter != null) {
-                                                            val paint = android.graphics.Paint().apply { colorFilter = androidFilter }
-                                                            view.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, paint)
-                                                        } else {
-                                                            view.setLayerType(android.view.View.LAYER_TYPE_NONE, null)
-                                                        }
-                                                    } catch (_: Exception) {}
-                                                },
-                                                modifier = Modifier.fillMaxSize()
-                                            )
+                                                            val androidFilter = com.medianest.player.fx.MediaFxPipeline.getAndroidColorFilter(activeFx)
+                                                            if (androidFilter != null) {
+                                                                val paint = android.graphics.Paint().apply { colorFilter = androidFilter }
+                                                                view.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, paint)
+                                                            } else {
+                                                                view.setLayerType(android.view.View.LAYER_TYPE_NONE, null)
+                                                            }
+                                                        } catch (_: Exception) {}
+                                                    },
+                                                    onRelease = { view ->
+                                                        view.surfaceTextureListener = null
+                                                        playerManager.setVideoSurface(null)
+                                                    },
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            }
+                                            else -> {
+                                                // Rebooting or Idle state - show nothing or a subtle loader
+                                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                                    CircularProgressIndicator(color = Color.White.copy(alpha = 0.5f))
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -660,10 +684,7 @@ fun VideoPlayerScreen(
             ) {
                 VideoPlayerTopBar(
                     playerState = playerState, onClose = onClose, decoderMode = decoderMode,
-                    onDecoderModeClick = {
-                        decoderMode = when (decoderMode) { "HW+" -> "HW"; "HW" -> "SW"; else -> "HW+" }
-                        scope.launch { settingsManager.setDecoderMode(decoderMode) }
-                    },
+                    onDecoderModeClick = { showEngineDialog = true },
                     onDrawerClick = { showDrawer = true }, onSubtitleClick = { showSubtitleSheet = true },
                     onInfoClick = { showDetailsSheet = true }, onMenuClick = { showOverflowMenu = true },
                     onCaptureClick = { captureVideoFrame(context, currentItem, playerState.currentPositionMs) },
@@ -879,6 +900,7 @@ fun VideoPlayerScreen(
             onDismiss = { showSettingsSheet = false },
             playerState = playerState,
             playerManager = playerManager,
+            settingsManager = settingsManager,
             audioSyncOffsetMs = audioSyncOffsetMs,
             onAudioSyncOffsetChange = { audioSyncOffsetMs = it },
             isFilmGrainEnabled = isFilmGrainEnabled,
@@ -969,6 +991,24 @@ fun VideoPlayerScreen(
             )
         }
 
+        if (showEngineDialog) {
+            AlertDialog(
+                onDismissRequest = { showEngineDialog = false },
+                containerColor = Color(0xFF1A1C1E),
+                title = { Text("Engine & Hardware", color = Color.White) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        com.medianest.ui.components.HardwareAccelerationSetting(settingsManager = settingsManager)
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                        com.medianest.ui.components.HdrPlaybackSetting(settingsManager = settingsManager)
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showEngineDialog = false }) { Text("Done") }
+                }
+            )
+        }
+
         if (showDeleteDialog) {
             val item = currentItem
             AlertDialog(
@@ -997,6 +1037,15 @@ fun VideoPlayerScreen(
             activeEdge = swipeEdgeState,
             swipeProgress = swipeProgressState
         )
+
+        if (showDebugOverlay) {
+            PlayerDebugOverlay(
+                playerState = playerState,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = 64.dp, start = 16.dp)
+            )
+        }
     }
 }
 

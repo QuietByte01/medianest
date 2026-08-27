@@ -31,6 +31,7 @@ internal fun VideoPlayerSettingsOverlay(
     onDismiss: () -> Unit,
     playerState: PlayerState,
     playerManager: ExoPlayerManager,
+    settingsManager: com.medianest.data.settings.SettingsManager,
     audioSyncOffsetMs: Long,
     onAudioSyncOffsetChange: (Long) -> Unit,
     isFilmGrainEnabled: Boolean,
@@ -133,6 +134,7 @@ internal fun VideoPlayerSettingsOverlay(
                     SettingsContent(
                         playerState = playerState,
                         playerManager = playerManager,
+                        settingsManager = settingsManager,
                         audioSyncOffsetMs = audioSyncOffsetMs,
                         onAudioSyncOffsetChange = onAudioSyncOffsetChange,
                         isFilmGrainEnabled = isFilmGrainEnabled,
@@ -152,6 +154,7 @@ internal fun VideoPlayerSettingsOverlay(
 private fun SettingsContent(
     playerState: PlayerState,
     playerManager: ExoPlayerManager,
+    settingsManager: com.medianest.data.settings.SettingsManager,
     audioSyncOffsetMs: Long,
     onAudioSyncOffsetChange: (Long) -> Unit,
     isFilmGrainEnabled: Boolean,
@@ -187,6 +190,40 @@ private fun SettingsContent(
                 Text("View Detailed File Info", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             }
         }
+
+        // Hardware & Performance Section
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(text = "Hardware & Performance", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF38BDF8))
+            
+            com.medianest.ui.components.HardwareAccelerationSetting(settingsManager = settingsManager)
+            
+            Spacer(modifier = Modifier.height(4.dp))
+            
+            com.medianest.ui.components.HdrPlaybackSetting(settingsManager = settingsManager)
+
+            if (playerState.isHdrContent) {
+                GlassSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    backgroundColor = Color(0x1AFFD700),
+                    borderColor = Color(0x33FFD700)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Waves, contentDescription = null, tint = Color(0xFFFFD700), modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(text = "Active ${playerState.hdrType} Pipeline", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFFD700))
+                            Text(text = "Color Space: ${playerState.colorSpace} • 10-bit HDR Rendering", fontSize = 10.sp, color = Color.White.copy(alpha = 0.7f))
+                        }
+                    }
+                }
+            }
+        }
+
+        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(text = "Repeat Mode", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)

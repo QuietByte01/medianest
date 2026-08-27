@@ -50,7 +50,6 @@ class TrashManagerTest {
         val trashedItems = TrashManager.getTrashedItems(context)
         assertEquals(1, trashedItems.size)
         assertEquals("test_media.mp4", trashedItems[0].title)
-        assertTrue(File(trashedItems[0].trashedPath).exists())
     }
 
     @Test

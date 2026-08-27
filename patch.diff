@@ -1,0 +1,11 @@
+--- app/src/main/java/com/medianest/ui/components/mediainfo/MediaMetadataUtils.kt
++++ app/src/main/java/com/medianest/ui/components/mediainfo/MediaMetadataUtils.kt
+@@ -128,7 +128,7 @@
+     var aBitrate = ""
+     var aChannels = "2 Channels (Stereo)"
+     var aSampleRate = "48.0 kHz"
+     val trackList = mutableListOf<String>()
+ 
+     try {
+         val extractor = android.media.MediaExtractor()
+         try {

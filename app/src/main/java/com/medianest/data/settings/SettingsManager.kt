@@ -44,6 +44,11 @@ class SettingsManager(private val context: Context) {
         val KEY_HIDDEN_FOLDERS = stringSetPreferencesKey("hidden_folders")
         val KEY_ENABLE_ANALYTICS_TAB = booleanPreferencesKey("enable_analytics_tab")
         val KEY_ENABLE_TRASH = booleanPreferencesKey("enable_trash")
+        val KEY_DEVELOPER_MODE_ENABLED = booleanPreferencesKey("developer_mode_enabled")
+        val KEY_VERBOSE_LOGGING_ENABLED = booleanPreferencesKey("verbose_logging_enabled")
+        val KEY_SHOW_PLAYER_DEBUG_INFO = booleanPreferencesKey("show_player_debug_info")
+        val KEY_SHOW_IMAGE_DEBUG_INFO = booleanPreferencesKey("show_image_debug_info")
+        val KEY_SHOW_AUDIO_DEBUG_INFO = booleanPreferencesKey("show_audio_debug_info")
 
         val KEY_AUDIO_BACKGROUND_PLAY = booleanPreferencesKey("audio_background_play")
         val KEY_VIDEO_BACKGROUND_PLAY = booleanPreferencesKey("video_background_play")
@@ -56,6 +61,7 @@ class SettingsManager(private val context: Context) {
         val KEY_PICTURE_MODE_ENABLED = booleanPreferencesKey("picture_mode_enabled")
         val KEY_DECODER_MODE = stringPreferencesKey("decoder_mode") // AUTO, HARDWARE, SOFTWARE
         val KEY_PICTURE_MODE = stringPreferencesKey("picture_mode") // DEVICE_DEFAULT, BALANCED, NATURAL, VIVID, CINEMATIC, CUSTOM
+        val KEY_HDR_PLAYBACK_ENABLED = booleanPreferencesKey("hdr_playback_enabled")
         val KEY_FILM_GRAIN_ENABLED = booleanPreferencesKey("film_grain_enabled")
         val KEY_FILM_GRAIN_INTENSITY = floatPreferencesKey("film_grain_intensity")
         val KEY_CUSTOM_SATURATION = floatPreferencesKey("custom_saturation")
@@ -88,6 +94,7 @@ class SettingsManager(private val context: Context) {
     val decoderMode: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_DECODER_MODE] ?: "AUTO" }
     val pictureModeEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_PICTURE_MODE_ENABLED] ?: true }
     val pictureMode: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_PICTURE_MODE] ?: "DEVICE_DEFAULT" }
+    val hdrPlaybackEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_HDR_PLAYBACK_ENABLED] ?: true }
     val filmGrainEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_FILM_GRAIN_ENABLED] ?: false }
     val filmGrainIntensity: Flow<Float> = context.dataStore.data.map { prefs -> prefs[KEY_FILM_GRAIN_INTENSITY] ?: 0.15f }
     val enableTrash: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_ENABLE_TRASH] ?: true }
@@ -130,6 +137,11 @@ class SettingsManager(private val context: Context) {
     val showHiddenFiles: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_SHOW_HIDDEN_FILES] ?: false }
     val hiddenFolders: Flow<Set<String>> = context.dataStore.data.map { prefs -> prefs[KEY_HIDDEN_FOLDERS] ?: emptySet() }
     val enableAnalyticsTab: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_ENABLE_ANALYTICS_TAB] ?: true }
+    val developerModeEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_DEVELOPER_MODE_ENABLED] ?: false }
+    val verboseLoggingEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_VERBOSE_LOGGING_ENABLED] ?: false }
+    val showPlayerDebugInfo: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_SHOW_PLAYER_DEBUG_INFO] ?: false }
+    val showImageDebugInfo: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_SHOW_IMAGE_DEBUG_INFO] ?: false }
+    val showAudioDebugInfo: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_SHOW_AUDIO_DEBUG_INFO] ?: false }
 
     val audioBackgroundPlay: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUDIO_BACKGROUND_PLAY] ?: true }
     val videoBackgroundPlay: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_VIDEO_BACKGROUND_PLAY] ?: false }
@@ -182,6 +194,11 @@ class SettingsManager(private val context: Context) {
     suspend fun setHiddenFolders(folders: Set<String>) = context.dataStore.edit { it[KEY_HIDDEN_FOLDERS] = folders }
     suspend fun setEnableAnalyticsTab(enabled: Boolean) = context.dataStore.edit { it[KEY_ENABLE_ANALYTICS_TAB] = enabled }
     suspend fun setEnableTrash(enabled: Boolean) = context.dataStore.edit { it[KEY_ENABLE_TRASH] = enabled }
+    suspend fun setDeveloperModeEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_DEVELOPER_MODE_ENABLED] = enabled }
+    suspend fun setVerboseLoggingEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_VERBOSE_LOGGING_ENABLED] = enabled }
+    suspend fun setShowPlayerDebugInfo(enabled: Boolean) = context.dataStore.edit { it[KEY_SHOW_PLAYER_DEBUG_INFO] = enabled }
+    suspend fun setShowImageDebugInfo(enabled: Boolean) = context.dataStore.edit { it[KEY_SHOW_IMAGE_DEBUG_INFO] = enabled }
+    suspend fun setShowAudioDebugInfo(enabled: Boolean) = context.dataStore.edit { it[KEY_SHOW_AUDIO_DEBUG_INFO] = enabled }
 
     suspend fun setAudioBackgroundPlay(enabled: Boolean) = context.dataStore.edit { it[KEY_AUDIO_BACKGROUND_PLAY] = enabled }
     suspend fun setVideoBackgroundPlay(enabled: Boolean) = context.dataStore.edit { it[KEY_VIDEO_BACKGROUND_PLAY] = enabled }
@@ -192,6 +209,7 @@ class SettingsManager(private val context: Context) {
     suspend fun setVideoShuffleMode(enabled: Boolean) = context.dataStore.edit { it[KEY_VIDEO_SHUFFLE_MODE] = enabled }
 
     suspend fun setDecoderMode(mode: String) = context.dataStore.edit { it[KEY_DECODER_MODE] = mode }
+    suspend fun setHdrPlaybackEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_HDR_PLAYBACK_ENABLED] = enabled }
     suspend fun setPictureModeEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_PICTURE_MODE_ENABLED] = enabled }
     suspend fun setPictureMode(mode: String) = context.dataStore.edit { it[KEY_PICTURE_MODE] = mode }
     suspend fun setFilmGrainEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_FILM_GRAIN_ENABLED] = enabled }

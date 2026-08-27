@@ -1114,16 +1114,21 @@ fun SidebarQueueDrawer(
                     val contextIcon = remember(contextTitle) {
                         when {
                             contextTitle == null -> Icons.Default.Folder
-                            contextTitle.contains("Series", ignoreCase = true) || contextTitle.contains("Season", ignoreCase = true) || contextTitle.contains("•") -> Icons.Default.Tv
-                            contextTitle.equals("All Videos", ignoreCase = true) -> Icons.Default.VideoLibrary
-                            contextTitle.contains("Music", ignoreCase = true) -> Icons.Default.MusicNote
-                            contextTitle.contains("Movie", ignoreCase = true) -> Icons.Default.Movie
-                            contextTitle.contains("Clip", ignoreCase = true) -> Icons.Default.ContentCut
-                            contextTitle.contains("Short", ignoreCase = true) -> Icons.Default.FlashOn
+                            contextTitle.equals("All Videos", ignoreCase = true) -> Icons.Default.GridView
+                            contextTitle.contains("Songs", ignoreCase = true) || contextTitle.contains("Music", ignoreCase = true) -> Icons.Default.MusicNote
+                            contextTitle.contains("Movies", ignoreCase = true) -> Icons.Default.Movie
+                            contextTitle.contains("Web Series", ignoreCase = true) || contextTitle.contains("Series", ignoreCase = true) || contextTitle.contains("Season", ignoreCase = true) || contextTitle.contains("•") -> Icons.Default.Tv
+                            contextTitle.contains("Clips", ignoreCase = true) || contextTitle.contains("Recordings", ignoreCase = true) -> Icons.Default.Videocam
+                            contextTitle.contains("Shorts", ignoreCase = true) -> Icons.Default.FlashOn
                             contextTitle.contains("Social", ignoreCase = true) -> Icons.Default.Share
-                            contextTitle.contains("Edit", ignoreCase = true) -> Icons.Default.Edit
+                            contextTitle.contains("Edited", ignoreCase = true) -> Icons.Default.ContentCut
                             contextTitle.contains("Download", ignoreCase = true) -> Icons.Default.Download
-                            contextTitle.contains("Hidden", ignoreCase = true) -> Icons.Default.VisibilityOff
+                            contextTitle.contains("Hidden", ignoreCase = true) -> Icons.Default.FolderZip
+                            contextTitle.contains("Excluded", ignoreCase = true) -> Icons.Default.VisibilityOff
+                            contextTitle.contains("Travel", ignoreCase = true) -> Icons.Default.Flight
+                            contextTitle.contains("Birthday", ignoreCase = true) -> Icons.Default.Cake
+                            contextTitle.contains("Training", ignoreCase = true) -> Icons.Default.School
+                            contextTitle.contains("Workout", ignoreCase = true) -> Icons.Default.FitnessCenter
                             else -> Icons.Default.Folder
                         }
                     }
@@ -1145,7 +1150,7 @@ fun SidebarQueueDrawer(
                                 .padding(end = 4.dp)
                         ) {
                             Text(
-                                text = "Playing from $contextTitle",
+                                text = contextTitle,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
@@ -1179,25 +1184,8 @@ fun SidebarQueueDrawer(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Text(
-                                text = "Queue Context",
-                                fontSize = 10.sp,
-                                color = Color.White.copy(alpha = 0.6f),
-                                maxLines = 1
-                            )
                         }
                     }
-                }
-
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(Color(0x33FFFFFF))
-                        .clickable { onClose() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(14.dp))
                 }
             }
 

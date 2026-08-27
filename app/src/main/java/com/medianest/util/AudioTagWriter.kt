@@ -107,7 +107,7 @@ object AudioTagWriter {
                         }
                     }
                 } catch (e: Exception) {
-                    Log.w(TAG, "Failed to prepare album art: ${e.message}")
+                    Logger.w(TAG, "Failed to prepare album art: ${e.message}")
                     tempArtFile.delete()
                     tempArtFile = null
                 }
@@ -175,11 +175,11 @@ object AudioTagWriter {
 
             cmd.append("\"${tempOutputFile.absolutePath}\"")
 
-            Log.i(TAG, "Executing tag injection: $cmd")
+            Logger.i(TAG, "Executing tag injection: $cmd")
             val session = FFmpegKit.execute(cmd.toString())
 
             if (!ReturnCode.isSuccess(session.returnCode) || !tempOutputFile.exists() || tempOutputFile.length() == 0L) {
-                Log.e(TAG, "FFmpeg tag writing failed: ${session.failStackTrace}")
+                Logger.e(TAG, "FFmpeg tag writing failed: ${session.failStackTrace}")
                 return@withContext false
             }
 
@@ -192,7 +192,7 @@ object AudioTagWriter {
                         tempOutputFile.copyTo(orig, overwrite = true)
                         writeSuccess = true
                     } catch (e: Exception) {
-                        Log.w(TAG, "Direct file copy failed, trying content resolver: ${e.message}")
+                        Logger.w(TAG, "Direct file copy failed, trying content resolver: ${e.message}")
                     }
                 }
             }
@@ -206,7 +206,7 @@ object AudioTagWriter {
                         }
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed writing back via content resolver: ${e.message}")
+                    Logger.e(TAG, "Failed writing back via content resolver: ${e.message}")
                 }
             }
 
@@ -215,7 +215,7 @@ object AudioTagWriter {
 
             return@withContext writeSuccess
         } catch (e: Exception) {
-            Log.e(TAG, "Tag writing error: ${e.message}", e)
+            Logger.e(TAG, "Tag writing error: ${e.message}", e)
             return@withContext false
         } finally {
             try { tempInputFile?.delete() } catch (_: Exception) {}
@@ -260,7 +260,7 @@ object AudioTagWriter {
                 MediaScannerConnection.scanFile(context, arrayOf(pathToScan), null, null)
             }
         } catch (e: Exception) {
-            Log.w(TAG, "MediaStore update warning: ${e.message}")
+            Logger.w(TAG, "MediaStore update warning: ${e.message}")
         }
     }
 

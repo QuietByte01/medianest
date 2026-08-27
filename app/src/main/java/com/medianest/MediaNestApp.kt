@@ -26,6 +26,10 @@ class MediaNestApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        
+        // Initialize Logger Crash Handler FIRST to catch any subsequent init failures
+        com.medianest.util.Logger.installCrashHandler()
+        
         database = AppDatabase.getDatabase(this)
         settingsManager = SettingsManager(this)
         artistMetadataRepository = com.medianest.data.repository.ArtistMetadataRepository(this)
@@ -37,7 +41,7 @@ class MediaNestApp : Application() {
         val imageLoader = ImageLoader.Builder(this)
             .allowHardware(true) // Enable Hardware Bitmaps stored in VRAM for zero-copy UI rendering
             .components {
-                add(VideoFrameDecoder.Factory())
+                add(com.medianest.util.SemaphoreVideoFrameDecoder.Factory())
                 add(SvgDecoder.Factory())      // SVG image rendering support
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                     add(coil.decode.ImageDecoderDecoder.Factory())

@@ -1,7 +1,7 @@
 package com.medianest.player
 
 import android.net.Uri
-import android.util.Log
+import com.medianest.util.Logger
 import java.util.Locale
 
 object MediaCapabilityInspector {
@@ -25,20 +25,22 @@ object MediaCapabilityInspector {
                 val vcodec = parts[1].lowercase()
                 val acodec = parts[2].lowercase()
                 
-                Log.d("MediaInspector", "Probe: Container=$container, Video=$vcodec, Audio=$acodec")
+                Logger.d("MediaInspector", "Probe for $fileName: Container=$container, Video=$vcodec, Audio=$acodec")
                 
-                // Only force FFmpeg for containers/codecs Media3/MediaCodec definitively struggles with
-                val isAvi = container.contains("AVI")
-                val isMpeg4 = vcodec.contains("mpeg4") || vcodec.contains("xvid") || vcodec.contains("msmpeg4")
-                val isAc3 = acodec.contains("ac3")
+                // Force FFmpeg for formats hardware definitively struggles with
+                val isAvi = container.contains("AVI", ignoreCase = true)
+                val isAv1 = vcodec.contains("av1") || vcodec.contains("dav1d")
                 
-                val needsFFmpeg = isAvi && (isMpeg4 || isAc3) || 
+                val needsFFmpeg = isAvi || 
+                                  vcodec.contains("mpeg4") || vcodec.contains("xvid") || vcodec.contains("msmpeg4") ||
                                   vcodec.contains("flv") || 
                                   vcodec.contains("wmv") ||
-                                  acodec.contains("wma")
+                                  acodec.contains("wma") ||
+                                  acodec.contains("ac3") ||
+                                  isAv1 // Default AV1 to FFmpeg for stability
                 
                 if (needsFFmpeg) {
-                    Log.i("MediaInspector", "FFmpeg fallback triggered by probe: $probeResult")
+                    Logger.i("MediaInspector", "FFmpeg fallback triggered by probe for $fileName. Reason: container=$container, vcodec=$vcodec, acodec=$acodec")
                     return MediaProfile(
                         container = container,
                         videoCodec = vcodec.uppercase(),
@@ -50,25 +52,13 @@ object MediaCapabilityInspector {
         }
 
         // Only route to FFmpeg/Oboe for formats ExoPlayer/MediaCodec struggles with.
-        // Common formats (.mp3, .flac, .wav, .m4a, .aac) are handled fine by hardware decoders.
-        val ffmpegOnlyExtensions = listOf(".ogg", ".opus")
+        val ffmpegOnlyExtensions = listOf(".ogg", ".opus", ".avi", ".wmv", ".flv", ".divx")
         if (ffmpegOnlyExtensions.any { fileName.endsWith(it) }) {
+            Logger.i("MediaInspector", "FFmpeg fallback triggered by extension: $fileName")
             return MediaProfile(
-                container = "Audio (Native)",
+                container = if (fileName.endsWith(".avi")) "AVI" else "Native Fallback",
                 videoCodec = "NONE",
                 audioCodec = fileName.substringAfterLast(".").uppercase(),
-                requiresFFmpegFallback = true
-            )
-        }
-
-        // Fallback to extension check if probe is missing or clean
-        val isAvi = fileName.endsWith(".avi")
-        if (isAvi) {
-            Log.i("MediaInspector", "FFmpeg fallback triggered by extension: $fileName")
-            return MediaProfile(
-                container = "AVI (Ext)",
-                videoCodec = "MPEG-4 / XVID",
-                audioCodec = "AC-3",
                 requiresFFmpegFallback = true
             )
         }

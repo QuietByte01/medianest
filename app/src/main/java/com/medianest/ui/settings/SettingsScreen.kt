@@ -73,6 +73,11 @@ fun SettingsScreen(
     val offlineMode by settingsManager.offlineMode.collectAsState(initial = false)
     val showHiddenFiles by settingsManager.showHiddenFiles.collectAsState(initial = false)
     val decoderMode by settingsManager.decoderMode.collectAsState(initial = "AUTO")
+    val developerModeEnabled by settingsManager.developerModeEnabled.collectAsState(initial = false)
+
+    var versionTapCount by remember { mutableIntStateOf(0) }
+    val packageInfo = remember { context.packageManager.getPackageInfo(context.packageName, 0) }
+    val versionText = "v${packageInfo.versionName} (${packageInfo.versionCode})"
 
     // Selective Hidden Folders State
     var folderCategoryTab by remember { mutableIntStateOf(0) } // 0: Audio, 1: Images, 2: Videos
@@ -523,147 +528,7 @@ fun SettingsScreen(
 
             // SECTION 3: PLAYBACK & ENGINE
             SettingsGlassCard(title = "PLAYBACK & ENGINE") {
-                // Master Hardware Acceleration Toggle
-                SettingsRowItem(
-                    title = "Enable Hardware Acceleration",
-                    subtitle = "Use device GPU/DSP for high-performance zero-copy media rendering",
-                    control = {
-                        Switch(
-                            checked = hwAccelEnabled,
-                            onCheckedChange = { scope.launch { settingsManager.setHardwareAccelerationEnabled(it) } },
-                            colors = customSwitchColors
-                        )
-                    }
-                )
-
-                // HDR Video Playback Support
-                val displayManager = remember { context.getSystemService(android.content.Context.DISPLAY_SERVICE) as? android.hardware.display.DisplayManager }
-                val defaultDisplay = remember { displayManager?.getDisplay(android.view.Display.DEFAULT_DISPLAY) }
-                val isHdrSupported = remember(context) {
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                        try {
-                            val caps = defaultDisplay?.hdrCapabilities
-                            caps != null && (caps.supportedHdrTypes?.isNotEmpty() == true)
-                        } catch (_: Exception) { true }
-                    } else true
-                }
-                var hdrPlaybackEnabled by remember { mutableStateOf(isHdrSupported) }
-
-                SettingsRowItem(
-                    title = "HDR Video Playback",
-                    subtitle = if (isHdrSupported) "Display hardware supports HDR10 / Dolby Vision • Enhanced color range" else "HDR rendering unavailable on this display hardware",
-                    control = {
-                        Switch(
-                            checked = hdrPlaybackEnabled && isHdrSupported,
-                            enabled = isHdrSupported,
-                            onCheckedChange = { hdrPlaybackEnabled = it },
-                            colors = customSwitchColors
-                        )
-                    }
-                )
-
-                // Hardware Acceleration (HW)
-                var hwDropdownExpanded by remember { mutableStateOf(false) }
-                val currentDecoderLabel = when (decoderMode) {
-                    "HARDWARE" -> "Hardware Only (GPU/DSP)"
-                    "SOFTWARE" -> "Software Only (CPU)"
-                    else -> "Auto (Hardware + SW Fallback)"
-                }
-                SettingsRowItem(
-                    title = "Hardware Acceleration (HW)",
-                    subtitle = "Configure GPU/DSP decoding & software fallback strategy",
-                    stackedOnPhone = true,
-                    control = {
-                        Box {
-                            SettingsDropdownPill(
-                                label = currentDecoderLabel,
-                                onClick = { hwDropdownExpanded = true }
-                            )
-                            DropdownMenu(
-                                expanded = hwDropdownExpanded,
-                                onDismissRequest = { hwDropdownExpanded = false },
-                                containerColor = if (com.medianest.ui.theme.LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Auto (Hardware + SW Fallback)", color = Color.White) },
-                                    onClick = {
-                                        scope.launch { settingsManager.setDecoderMode("AUTO") }
-                                        hwDropdownExpanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Hardware Only (GPU/DSP)", color = Color.White) },
-                                    onClick = {
-                                        scope.launch { settingsManager.setDecoderMode("HARDWARE") }
-                                        hwDropdownExpanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Software Only (CPU)", color = Color.White) },
-                                    onClick = {
-                                        scope.launch { settingsManager.setDecoderMode("SOFTWARE") }
-                                        hwDropdownExpanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                )
-
-                // Hardware Pipeline Profile Summary
-                val hwCaps = remember { com.medianest.hardware.AndroidHardwareEngine.detectCapabilities(context) }
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp, bottom = 4.dp)
-                        .background(Color(0x1A6366F1), RoundedCornerShape(12.dp))
-                        .border(1.dp, Color(0x336366F1), RoundedCornerShape(12.dp))
-                        .padding(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Hardware Pipeline Diagnostics",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFA5B4FC)
-                        )
-                        if (!isPhoneScreen) {
-                            Text(
-                                text = "100% Offline • Local GPU",
-                                fontSize = 10.sp,
-                                color = Color(0xFF34D399),
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                    if (isPhoneScreen) {
-                        Text(
-                            text = "100% Offline • Local GPU",
-                            fontSize = 10.sp,
-                            color = Color(0xFF34D399),
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "• Device Profile: ${hwCaps.deviceModel} (${hwCaps.ramTier} RAM)\n" +
-                               "• GPU Backend: ${if (hwCaps.isVulkanSupported) "Vulkan 1.3 / OpenGL ES 3.2" else "OpenGL ES 3.0"}\n" +
-                               "• Video Decode: MediaCodec SoC DSP (H.264, HEVC${if (hwCaps.isAv1HwSupported) ", AV1" else ""})\n" +
-                               "• Audio Sink: ${if (hwCaps.isAAudioSupported) "AAudio Exclusive Low-Latency" else "OpenSL ES / AudioTrack"}\n" +
-                               "• Image Engine: Hardware Bitmaps (VRAM Zero-Copy)",
-                        fontSize = 11.sp,
-                        color = Color.White.copy(alpha = 0.85f),
-                        lineHeight = 16.sp
-                    )
-                }
-
+                
                 // Keep Screen On During Playback
                 SettingsRowItem(
                     title = "Keep Screen On During Playback",
@@ -889,6 +754,55 @@ fun SettingsScreen(
                         }
                     }
                 )
+            }
+
+            // Developer Options
+            DeveloperSettingsSection(
+                settingsManager = settingsManager,
+                onDisableDevMode = { versionTapCount = 0 }
+            )
+
+            // Version info at the bottom
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = versionText,
+                    fontSize = 12.sp,
+                    color = Color(0xFF64748B),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            if (!developerModeEnabled) {
+                                versionTapCount++
+                                if (versionTapCount >= 3) {
+                                    scope.launch {
+                                        settingsManager.setDeveloperModeEnabled(true)
+                                        Toast.makeText(context, "Developer Mode Enabled!", Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    val remaining = 3 - versionTapCount
+                                    Toast.makeText(context, "Tap $remaining more times for dev mode", Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                Toast.makeText(context, "Developer Mode is already active", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+                
+                if (developerModeEnabled) {
+                    Text(
+                        text = "Developer Mode Active",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF34D399),
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
             }
         }
     }

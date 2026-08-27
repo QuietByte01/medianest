@@ -4,8 +4,8 @@ import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
-import com.medianest.util.MediaMetadataUtils
 import io.mockk.*
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -25,6 +25,11 @@ class AudioMetadataUtilsTest {
         mockkConstructor(MediaMetadataRetriever::class)
         mockkObject(MediaMetadataUtils)
         every { MediaMetadataUtils.extractBasicMetadata(any(), any()) } returns MediaMetadataUtils.MetadataResult()
+    }
+
+    @After
+    fun teardown() {
+        unmockkAll()
     }
 
     @Test
@@ -58,7 +63,6 @@ class AudioMetadataUtilsTest {
 
         val item = AudioMetadataUtils.extractMetadata(context, uri)
 
-        // Should fallback to lastPathSegment without extension
         assertEquals("MySong", item.title)
     }
 
@@ -73,7 +77,6 @@ class AudioMetadataUtilsTest {
 
         val item = AudioMetadataUtils.extractMetadata(context, uri, rawTitleHint = "12345.mp3")
 
-        // Should ignore pure digit hint and use "Audio Track" or URI seg if available
         assertEquals("Audio Track", item.title)
     }
 }

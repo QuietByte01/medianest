@@ -81,7 +81,7 @@ object MediaProcessorEngine {
             try {
                 FFmpegKit.cancel(id)
             } catch (e: Exception) {
-                Log.w(TAG, "Cancel session error: ${e.message}")
+                Logger.w(TAG, "Cancel session error: ${e.message}")
             }
         }
         _processingState.value = ProcessingState.Cancelled
@@ -145,7 +145,8 @@ object MediaProcessorEngine {
         audioCodec: String = "aac",
         qualityCrf: Int = 20,
         audioBitrateKbps: Int = 256,
-        keepSubtitles: Boolean = true
+        keepSubtitles: Boolean = true,
+        isHdr: Boolean = false
     ): String {
         val cmd = StringBuilder("-y -i \"$resolvedInput\" ")
         if (isLosslessCopy) {
@@ -176,9 +177,17 @@ object MediaProcessorEngine {
                     cmd.append("-map 0? ")
                 }
 
+                // HDR Metadata Preservation
+                if (isHdr) {
+                    cmd.append("-color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc -map_metadata 0 ")
+                }
+
                 when (videoCodec.lowercase()) {
-                    "libx265", "libaom-av1", "av1" -> cmd.append("-c:v libx265 -crf $qualityCrf -preset 6 -pix_fmt yuv420p10le ")
-                    "libx265", "hevc", "h265" -> cmd.append("-c:v libx265 -crf $qualityCrf -preset medium -tag:v hvc1 ")
+                    "libsvtav1", "libaom-av1", "av1" -> cmd.append("-c:v libsvtav1 -crf $qualityCrf -preset 8 -pix_fmt yuv420p10le ")
+                    "libx265", "hevc", "h265" -> {
+                        cmd.append("-c:v libx265 -crf $qualityCrf -preset medium -tag:v hvc1 ")
+                        if (isHdr || qualityCrf < 22) cmd.append("-pix_fmt yuv420p10le ")
+                    }
                     "hevc_mediacodec" -> cmd.append("-c:v hevc_mediacodec -b:v 0 -crf $qualityCrf ")
                     "h264_mediacodec" -> cmd.append("-c:v h264_mediacodec -b:v 0 -crf $qualityCrf ")
                     "libvpx-vp9", "vp9" -> cmd.append("-c:v libvpx-vp9 -crf $qualityCrf -b:v 0 ")
@@ -265,9 +274,16 @@ object MediaProcessorEngine {
         crf: Int = 26,
         resolutionScale: String = "ORIGINAL",
         videoCodec: String = "libx265",
-        durationSecs: Double = 60.0
+        durationSecs: Double = 60.0,
+        isHdr: Boolean = false
     ): String {
         val cmd = StringBuilder("-y -i \"$resolvedInput\" ")
+
+        // HDR Metadata Preservation
+        if (isHdr) {
+            cmd.append("-color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc -map_metadata 0 ")
+        }
+
         val scaleFilter = when (resolutionScale.uppercase()) {
             "1440P" -> "scale='min(2560,iw)':-2"
             "1080P" -> "scale='min(1920,iw)':-2"
@@ -281,18 +297,19 @@ object MediaProcessorEngine {
         }
 
         val isAv1 = videoCodec.contains("av1", ignoreCase = true) || videoCodec.contains("svt", ignoreCase = true) || targetMode.equals("AV1", ignoreCase = true)
+        val codecToUse = if (isAv1) "libsvtav1" else "libx265"
 
         when (targetMode.uppercase()) {
             "AUTO" -> {
                 if (isAv1) {
-                    cmd.append("-c:v libx265 -crf 26 -preset 6 -pix_fmt yuv420p10le ")
+                    cmd.append("-c:v libsvtav1 -crf 26 -preset 8 -pix_fmt yuv420p10le ")
                 } else {
                     cmd.append("-c:v libx265 -crf 26 -preset medium -tag:v hvc1 ")
                 }
                 cmd.append("-c:a aac -b:a 128k ")
             }
             "AV1" -> {
-                cmd.append("-c:v libx265 -crf $crf -preset 6 -pix_fmt yuv420p10le ")
+                cmd.append("-c:v libsvtav1 -crf $crf -preset 8 -pix_fmt yuv420p10le ")
                 cmd.append("-c:a aac -b:a 128k ")
             }
             "LIMIT_SIZE" -> {
@@ -302,7 +319,7 @@ object MediaProcessorEngine {
                 val videoBitrateKbps = (totalBitrateKbps - audioBitrateKbps).toInt().coerceAtLeast(150)
 
                 if (isAv1) {
-                    cmd.append("-c:v libx265 -b:v ${videoBitrateKbps}k -maxrate ${(videoBitrateKbps * 1.3).toInt()}k -bufsize ${videoBitrateKbps * 2}k -preset 6 -pix_fmt yuv420p10le ")
+                    cmd.append("-c:v libsvtav1 -b:v ${videoBitrateKbps}k -maxrate ${(videoBitrateKbps * 1.3).toInt()}k -bufsize ${videoBitrateKbps * 2}k -preset 8 -pix_fmt yuv420p10le ")
                 } else {
                     cmd.append("-c:v libx265 -b:v ${videoBitrateKbps}k -maxrate ${(videoBitrateKbps * 1.3).toInt()}k -bufsize ${videoBitrateKbps * 2}k -preset medium -tag:v hvc1 ")
                 }
@@ -315,17 +332,17 @@ object MediaProcessorEngine {
                     else -> 23
                 }
                 if (isAv1) {
-                    cmd.append("-c:v libx265 -crf $effectiveCrf -preset 6 -pix_fmt yuv420p10le ")
+                    cmd.append("-c:v libsvtav1 -crf $effectiveCrf -preset 8 -pix_fmt yuv420p10le ")
                 } else {
-                    cmd.append("-c:v libx265 -crf $effectiveCrf -preset medium -tag:v hvc1 ")
+                    cmd.append("-c:v libx265 -crf $effectiveCrf -preset medium -tag:v hvc1 -pix_fmt yuv420p10le ")
                 }
                 cmd.append("-c:a aac -b:a 128k ")
             }
             else -> {
                 if (isAv1) {
-                    cmd.append("-c:v libx265 -crf $crf -preset 6 -pix_fmt yuv420p10le ")
+                    cmd.append("-c:v libsvtav1 -crf $crf -preset 8 -pix_fmt yuv420p10le ")
                 } else {
-                    cmd.append("-c:v libx265 -crf $crf -preset medium -tag:v hvc1 ")
+                    cmd.append("-c:v libx265 -crf $crf -preset medium -tag:v hvc1 -pix_fmt yuv420p10le ")
                 }
                 cmd.append("-c:a aac -b:a 160k ")
             }
@@ -872,7 +889,7 @@ object MediaProcessorEngine {
         totalDurationMs: Long,
         initialStatusText: String
     ): Boolean = withContext(Dispatchers.IO) {
-        Log.i(TAG, "Executing FFmpeg: $commandString")
+        Logger.i(TAG, "Executing FFmpeg: $commandString")
 
         // Pre-flight Storage Safety Check
         try {
@@ -889,7 +906,7 @@ object MediaProcessorEngine {
                 return@withContext false
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Disk space pre-check warning: ${e.message}")
+            Logger.w(TAG, "Disk space pre-check warning: ${e.message}")
         }
 
         _processingState.value = ProcessingState.Processing(
@@ -960,7 +977,7 @@ object MediaProcessorEngine {
             activeSessionId = session.sessionId
             return@withContext true
         } catch (e: Exception) {
-            Log.e(TAG, "FFmpeg launch error", e)
+            Logger.e(TAG, "FFmpeg launch error", e)
             _processingState.value = ProcessingState.Failed(e.message ?: "Unknown execution error", fullLogs.toString())
             return@withContext false
         }

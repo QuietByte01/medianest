@@ -11,6 +11,8 @@
 local.properties
 .env
 debug.keystore
+my-upload-key.jks
+docs/keystore.md
 .artifacts/
 .tmp/
 *.tmp

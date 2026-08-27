@@ -219,7 +219,8 @@ class FloatingPlayerService : Service() {
             }
             ACTION_STOP -> {
                 val activeManager = ExoPlayerManager.getInstance(applicationContext)
-                activeManager.pause()
+                activeManager.stop()
+                activeManager.releaseSurface()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
@@ -244,16 +245,17 @@ class FloatingPlayerService : Service() {
                 try {
                     val uri = Uri.parse(uriString)
                     // 1. Try MediaMetadataRetriever embedded picture for audio
+                    val mmr = android.media.MediaMetadataRetriever()
                     try {
-                        val mmr = android.media.MediaMetadataRetriever()
                         mmr.setDataSource(applicationContext, uri)
                         val artBytes = mmr.embeddedPicture
                         if (artBytes != null) {
                             bitmap = BitmapFactory.decodeByteArray(artBytes, 0, artBytes.size)
                         }
-                        mmr.release()
                     } catch (e: Exception) {
                         // ignore
+                    } finally {
+                        try { mmr.release() } catch (_: Exception) {}
                     }
 
                     // 2. Try loadThumbnail for Q+
@@ -498,6 +500,11 @@ private fun extractHueFromBitmap(bitmap: Bitmap): Float? {
     override fun onDestroy() {
         super.onDestroy()
         serviceJob.cancel()
+        try {
+            val mgr = ExoPlayerManager.getInstance(applicationContext)
+            mgr.stopPlayback()
+            mgr.releaseSurface()
+        } catch (_: Exception) {}
         try {
             mediaSession?.isActive = false
             mediaSession?.release()

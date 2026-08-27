@@ -1,0 +1,2 @@
+sed -i '' -e 's/val mediaItem = Media3Item.fromUri(uri)/val currentUri = player.currentMediaItem?.localConfiguration?.uri\n        if (currentUri != uri) {\n            val mediaItem = Media3Item.fromUri(uri)\n            player.setMediaItem(mediaItem, true)\n        }/g' app/src/main/java/com/medianest/player/Media3PlaybackEngine.kt
+sed -i '' -e 's/        player.setMediaItem(mediaItem, true)//g' app/src/main/java/com/medianest/player/Media3PlaybackEngine.kt

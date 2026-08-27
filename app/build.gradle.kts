@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlinCompose)
@@ -45,11 +47,19 @@ android {
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      val envFile = rootProject.file(".env")
+      val envProperties = Properties()
+      if (envFile.exists()) {
+        val stream = envFile.inputStream()
+        envProperties.load(stream)
+        stream.close()
+      }
+
+      val keystorePath = System.getenv("KEYSTORE_PATH") ?: envProperties.getProperty("KEYSTORE_PATH") ?: "my-upload-key.jks"
+      storeFile = rootProject.file(keystorePath)
+      storePassword = System.getenv("STORE_PASSWORD") ?: envProperties.getProperty("STORE_PASSWORD")
+      keyAlias = System.getenv("KEY_ALIAS") ?: envProperties.getProperty("KEY_ALIAS") ?: "upload"
+      keyPassword = System.getenv("KEY_PASSWORD") ?: envProperties.getProperty("KEY_PASSWORD")
     }
   }
 
@@ -93,7 +103,15 @@ android {
     }
   }
 
-  testOptions { unitTests { isIncludeAndroidResources = true } }
+  testOptions { 
+    unitTests { 
+      isIncludeAndroidResources = true 
+      all {
+        it.maxHeapSize = "4g"
+        it.maxParallelForks = 1
+      }
+    } 
+  }
 
   // ABI splits: reduces APK size from ~90MB to ~25MB for release per-ABI split
   splits {
@@ -142,7 +160,6 @@ dependencies {
   implementation(libs.coil.video)
   implementation("io.coil-kt:coil-gif:2.7.0")
   implementation("io.coil-kt:coil-svg:2.7.0")
-  implementation(libs.telephoto.zoomable.image.coil)
 
   implementation(libs.media3.exoplayer)
     implementation("androidx.media3:media3-effect:1.11.0")

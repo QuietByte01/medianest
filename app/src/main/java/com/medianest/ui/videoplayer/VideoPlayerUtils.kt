@@ -17,15 +17,17 @@ import kotlinx.coroutines.launch
 
 fun safeFormatDuration(context: Context, item: MediaItem): String {
     if (item.durationMs > 0) return formatDuration(item.durationMs)
+    var retriever: MediaMetadataRetriever? = null
     return try {
-        val retriever = MediaMetadataRetriever()
+        retriever = MediaMetadataRetriever()
         retriever.setDataSource(context, item.uri)
         val timeStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-        retriever.release()
         val duration = timeStr?.toLongOrNull() ?: 0L
         if (duration > 0) formatDuration(duration) else "00:00"
     } catch (e: Exception) {
         "00:00"
+    } finally {
+        try { retriever?.release() } catch (_: Exception) {}
     }
 }
 
@@ -36,15 +38,15 @@ fun captureVideoFrame(
 ) {
     if (item?.uri == null) return
     CoroutineScope(Dispatchers.IO).launch {
+        var retriever: MediaMetadataRetriever? = null
         try {
-            val retriever = MediaMetadataRetriever()
+            retriever = MediaMetadataRetriever()
             retriever.setDataSource(context, item.uri)
             val positionUs = currentPositionMs * 1000L
             val bitmap = retriever.getFrameAtTime(
                 positionUs,
                 MediaMetadataRetriever.OPTION_CLOSEST
             )
-            retriever.release()
             if (bitmap != null) {
                 saveScreenshot(context, bitmap)
             } else {
@@ -57,6 +59,8 @@ fun captureVideoFrame(
             (context as? Activity)?.runOnUiThread {
                 Toast.makeText(context, "Unable to extract frame", Toast.LENGTH_SHORT).show()
             }
+        } finally {
+            try { retriever?.release() } catch (_: Exception) {}
         }
     }
 }

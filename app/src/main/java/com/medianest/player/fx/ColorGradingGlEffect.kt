@@ -1,5 +1,6 @@
 package com.medianest.player.fx
 
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.RgbMatrix
 import com.medianest.ui.components.media.MediaEffect
 
@@ -7,6 +8,7 @@ import com.medianest.ui.components.media.MediaEffect
  * A Media3 RgbMatrix effect that applies mathematically accurate GPU color grading presets
  * with zero CPU overhead and seamless real-time dynamic switching during playback.
  */
+@UnstableApi
 class ColorGradingGlEffect(private val effectMode: MediaEffect) : RgbMatrix {
 
     override fun getMatrix(presentationTimeUs: Long, useHdr: Boolean): FloatArray {

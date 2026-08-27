@@ -3,6 +3,7 @@ package com.medianest.player
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import com.medianest.util.Logger
 import android.view.Surface
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,7 +19,7 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
                 System.loadLibrary("medianest_ffmpeg")
                 isLibLoaded = true
             } catch (e: Throwable) {
-                Log.e(TAG, "Failed to load medianest_ffmpeg native library: ${e.message}")
+                Logger.e(TAG, "Failed to load medianest_ffmpeg native library: ${e.message}")
             }
         }
     }
@@ -39,6 +40,7 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
     private external fun nativeIsPlaying(ptr: Long): Boolean
     private external fun nativeSetRepeatMode(ptr: Long, repeatMode: Int)
     private external fun nativeSetAudioFilters(ptr: Long, filters: String)
+    private external fun nativeSetVideoFilters(ptr: Long, filters: String)
 
     private val _diagnosticState = MutableStateFlow(
         EngineDiagnosticState(
@@ -59,7 +61,7 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
             try {
                 nativeContextPtr = nativeInit()
             } catch (e: Throwable) {
-                Log.e(TAG, "Error calling nativeInit: ${e.message}")
+                Logger.e(TAG, "Error calling nativeInit: ${e.message}")
             }
         }
     }
@@ -79,15 +81,19 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
                 res
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to probe URI: $uri", e)
+            Logger.e(TAG, "Failed to probe URI: $uri", e)
             null
         }
     }
 
     override fun prepare(uri: Uri, playWhenReady: Boolean) {
-        if (nativeContextPtr == 0L) return
+        if (nativeContextPtr == 0L) {
+            Logger.e(TAG, "prepare failed: nativeContextPtr is 0")
+            return
+        }
         
         val profile = MediaCapabilityInspector.inspect(uri, lastProbeResult)
+        Logger.i(TAG, "Preparing FFmpeg for $uri. Profile: $profile")
         _diagnosticState.value = _diagnosticState.value.copy(
             containerName = profile.container,
             videoCodec = profile.videoCodec,
@@ -99,14 +105,21 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
             context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
                 // dup() the fd — native layer holds it open independently for seeks/async reads
                 val dupFd = android.os.ParcelFileDescriptor.dup(pfd.fileDescriptor)
-                nativePrepare(nativeContextPtr, dupFd.fd, currentSurface)
-                // Note: dupFd ownership is intentionally transferred to native; do NOT close here
+                Logger.d(TAG, "Opening FD: ${dupFd.fd} for nativePrepare")
+                try {
+                    nativePrepare(nativeContextPtr, dupFd.fd, currentSurface)
+                } finally {
+                    // CRITICAL: We must close the Kotlin-side ParcelFileDescriptor. 
+                    // The native layer (JNI) performs its own dup() to take ownership of the underlying FD.
+                    dupFd.close()
+                }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to open FD for prepare: $uri", e)
+            Logger.e(TAG, "Failed to open FD for prepare: $uri", e)
         }
 
         if (playWhenReady) {
+            Logger.d(TAG, "Calling nativePlay from prepare")
             play()
         }
     }
@@ -121,6 +134,11 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
 
     override fun seekTo(positionMs: Long) {
         if (nativeContextPtr != 0L) try { nativeSeek(nativeContextPtr, positionMs) } catch (e: Throwable) {}
+    }
+
+    override fun stop() {
+        pause()
+        seekTo(0L)
     }
 
     override fun setPlaybackSpeed(speed: Float) {}
@@ -148,6 +166,10 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
         if (nativeContextPtr != 0L) try { nativeSetAudioFilters(nativeContextPtr, filters) } catch (e: Throwable) {}
     }
 
+    fun setVideoFilters(filters: String) {
+        if (nativeContextPtr != 0L) try { nativeSetVideoFilters(nativeContextPtr, filters) } catch (e: Throwable) {}
+    }
+
     // Called from Native
     fun onNativePlaybackEnded() {
         ExoPlayerManager.getInstance(context).onEnginePlaybackEnded()
@@ -158,6 +180,14 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
             droppedFrames = dropped,
             audioDecodeErrors = audioErrs,
             timestampRecoveryCount = tsRecov
+        )
+    }
+
+    fun onNativeHdrUpdate(isHdr: Boolean, hdrType: String, colorSpace: String) {
+        _diagnosticState.value = _diagnosticState.value.copy(
+            isHdr = isHdr,
+            hdrType = hdrType,
+            colorSpace = colorSpace
         )
     }
 

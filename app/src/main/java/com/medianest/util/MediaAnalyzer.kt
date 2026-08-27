@@ -5,6 +5,7 @@ import androidx.exifinterface.media.ExifInterface
 import android.net.Uri
 import android.util.Log
 import com.arthenica.ffmpegkit.FFprobeKit
+import com.arthenica.ffmpegkit.FFmpegKitConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -37,340 +38,358 @@ object MediaAnalyzer {
         val uri = Uri.parse(filePath)
         val isContentUri = filePath.startsWith("content://") && context != null
 
+        var tempFilePath: String? = null
         val targetFFmpegPath = if (isContentUri) {
-            getFFmpegSafePathFromUri(context!!, uri)
+            try {
+                // Try to use SAF parameter first (No copy)
+                FFmpegKitConfig.getSafParameterForRead(context!!, uri)
+            } catch (e: Exception) {
+                // Fallback to temporary copy (Massive Disk Usage!)
+                tempFilePath = getFFmpegSafePathFromUri(context!!, uri)
+                tempFilePath
+            }
         } else {
             filePath
         }
 
-        val file = File(targetFFmpegPath)
-        val fileName = file.name.ifBlank { uri.lastPathSegment ?: "unknown_media" }
-        val fileSize = if (file.exists()) file.length() else 0L
-        val lastModified = if (file.exists()) file.lastModified() else 0L
+        try {
+            val file = File(if (tempFilePath != null) tempFilePath else filePath)
+            val fileName = file.name.ifBlank { uri.lastPathSegment ?: "unknown_media" }
+            val fileSize = if (file.exists()) file.length() else 0L
+            val lastModified = if (file.exists()) file.lastModified() else 0L
 
-        // Fast Cache Lookup: Return cached report instantly if file hasn't been modified
-        val cacheKey = "$filePath:$fileSize:$lastModified"
-        reportCache[cacheKey]?.let { cachedReport ->
-            Log.d(TAG, "Serving diagnostics report from cache for: $fileName")
-            return@withContext cachedReport
-        }
+            // Fast Cache Lookup
+            val cacheKey = "$filePath:$fileSize:$lastModified"
+            reportCache[cacheKey]?.let { cachedReport ->
+                Log.d(TAG, "Serving diagnostics report from cache for: $fileName")
+                return@withContext cachedReport
+            }
 
-        val startMs = System.currentTimeMillis()
+            val startMs = System.currentTimeMillis()
 
-        val errors = mutableListOf<String>()
-        val warnings = mutableListOf<String>()
-        var timestampIssues = false
-        var corruptedFrames = false
-        var muxingIssues = false
+            val errors = mutableListOf<String>()
+            val warnings = mutableListOf<String>()
+            var timestampIssues = false
+            var corruptedFrames = false
+            var muxingIssues = false
 
-        var formatInfo: FormatInfo? = null
-        var videoStream: VideoStreamInfo? = null
-        val audioStreams = mutableListOf<AudioStreamInfo>()
-        val subtitleStreams = mutableListOf<SubtitleStreamInfo>()
-        var imageInfo: ImageAnalysisInfo? = null
+            var formatInfo: FormatInfo? = null
+            var videoStream: VideoStreamInfo? = null
+            val audioStreams = mutableListOf<AudioStreamInfo>()
+            val subtitleStreams = mutableListOf<SubtitleStreamInfo>()
+            var imageInfo: ImageAnalysisInfo? = null
 
-        // Execute FFprobe JSON inspection pass
-        val ffprobeJson = executeFFprobe(targetFFmpegPath)
+            // Execute FFprobe JSON inspection pass
+            val ffprobeJson = executeFFprobe(targetFFmpegPath)
 
-        if (ffprobeJson == null) {
-            errors.add("FFprobe failed to inspect file. Container header may be missing or severely corrupted.")
-            muxingIssues = true
-        } else {
-            try {
-                // 1. Format & Container Details
-                val formatObj = ffprobeJson.optJSONObject("format")
-                if (formatObj != null) {
-                    val rawContainer = formatObj.optString("format_name", "unknown")
-                    val formattedContainer = rawContainer.split(",").joinToString(", ") { it.trim() }
-                    val duration = formatObj.optString("duration", "0.0").toDoubleOrNull() ?: 0.0
-                    val bitrate = formatObj.optString("bit_rate", "0").toLongOrNull() ?: 0L
-                    val probeScore = formatObj.optInt("probe_score", 100)
-                    val tags = formatObj.optJSONObject("tags")
-                    val creationTime = tags?.optString("creation_time", "2026-08-01 14:22:08 UTC") ?: "2026-08-01 14:22:08 UTC"
-                    val encoder = tags?.optString("encoder", "encoder=FFmpeg v6.1") ?: "encoder=FFmpeg v6.1"
+            if (ffprobeJson == null) {
+                errors.add("FFprobe failed to inspect file. Container header may be missing or severely corrupted.")
+                muxingIssues = true
+            } else {
+                try {
+                    // 1. Format & Container Details
+                    val formatObj = ffprobeJson.optJSONObject("format")
+                    if (formatObj != null) {
+                        val rawContainer = formatObj.optString("format_name", "unknown")
+                        val formattedContainer = rawContainer.split(",").joinToString(", ") { it.trim() }
+                        val duration = formatObj.optString("duration", "0.0").toDoubleOrNull() ?: 0.0
+                        val bitrate = formatObj.optString("bit_rate", "0").toLongOrNull() ?: 0L
+                        val probeScore = formatObj.optInt("probe_score", 100)
+                        val tags = formatObj.optJSONObject("tags")
+                        val creationTime = tags?.optString("creation_time", "2026-08-01 14:22:08 UTC") ?: "2026-08-01 14:22:08 UTC"
+                        val encoder = tags?.optString("encoder", "encoder=FFmpeg v6.1") ?: "encoder=FFmpeg v6.1"
 
-                    var vCount = 0; var aCount = 0; var sCount = 0
+                        var vCount = 0; var aCount = 0; var sCount = 0
+                        val streamsArray = ffprobeJson.optJSONArray("streams")
+                        if (streamsArray != null) {
+                            for (i in 0 until streamsArray.length()) {
+                                when (streamsArray.getJSONObject(i).optString("codec_type")) {
+                                    "video" -> vCount++
+                                    "audio" -> aCount++
+                                    "subtitle" -> sCount++
+                                }
+                            }
+                        }
+
+                        formatInfo = FormatInfo(
+                            containerFormat = formattedContainer,
+                            formatLongName = formatObj.optString("format_long_name", formattedContainer),
+                            duration = duration,
+                            bitrate = bitrate,
+                            size = formatObj.optString("size", fileSize.toString()).toLongOrNull() ?: fileSize,
+                            streamCount = formatObj.optInt("nb_streams", (vCount + aCount + sCount)),
+                            videoStreamCount = vCount.coerceAtLeast(1),
+                            audioStreamCount = aCount,
+                            subtitleStreamCount = sCount,
+                            startTime = formatObj.optString("start_time", "0.0").toDoubleOrNull() ?: 0.0,
+                            probeScore = probeScore,
+                            creationTime = creationTime,
+                            encoderTags = encoder,
+                            containerFlags = "faststart, seekable"
+                        )
+                    }
+
+                    // 2. Stream-Level Codec & Technical Specs
                     val streamsArray = ffprobeJson.optJSONArray("streams")
                     if (streamsArray != null) {
                         for (i in 0 until streamsArray.length()) {
-                            when (streamsArray.getJSONObject(i).optString("codec_type")) {
-                                "video" -> vCount++
-                                "audio" -> aCount++
-                                "subtitle" -> sCount++
+                            val stream = streamsArray.getJSONObject(i)
+                            val codecType = stream.optString("codec_type")
+
+                            when (codecType) {
+                                "video" -> {
+                                    val width = stream.optInt("width", 0)
+                                    val height = stream.optInt("height", 0)
+                                    val codecName = stream.optString("codec_name", "unknown").uppercase(Locale.US)
+                                    val colorTransfer = stream.optString("color_transfer", "")
+                                    val colorPrimaries = stream.optString("color_primaries", "")
+                                    val profile = stream.optString("profile", "")
+                                    val isHdr = colorTransfer.contains("2084", ignoreCase = true) || 
+                                            colorTransfer.contains("arib-std-b67", ignoreCase = true) ||
+                                            colorPrimaries.contains("2020", ignoreCase = true)
+                                    val isDolbyVision = profile.contains("dv", ignoreCase = true) ||
+                                            profile.contains("dolby vision", ignoreCase = true) ||
+                                            stream.optJSONObject("side_data_list")?.toString()?.contains("DOVI", ignoreCase = true) == true
+                                    val isHdr10Plus = stream.optJSONObject("side_data_list")?.toString()?.contains("HDR10+", ignoreCase = true) == true ||
+                                            colorTransfer.contains("smpte2084", ignoreCase = true)
+
+                                    val hdrInfo = when {
+                                        isDolbyVision && isHdr10Plus -> "Dolby Vision / HDR10+"
+                                        isDolbyVision -> "Dolby Vision"
+                                        isHdr10Plus -> "HDR10+"
+                                        isHdr -> "HDR10"
+                                        else -> "SDR (Standard Dynamic Range)"
+                                    }
+
+                                    val isImageFormat = mediaType.equals("IMAGE", ignoreCase = true) ||
+                                            codecName in listOf("MJPEG", "PNG", "WEBP", "BMP", "TIFF", "GIF", "HEIC", "AVIF")
+
+                                    if (isImageFormat && imageInfo == null) {
+                                        imageInfo = extractImageInfo(stream, targetFFmpegPath, context)
+                                    }
+
+                                    if (videoStream == null && !isImageFormat) {
+                                        val frameRateStr = stream.optString("r_frame_rate", "30/1")
+                                        val avgFpsDecimal = parseFraction(frameRateStr)
+                                        val pixFmt = stream.optString("pix_fmt", "yuv420p").lowercase(Locale.US)
+                                        val streamBitrate = stream.optString("bit_rate", "0").toLongOrNull() ?: (formatInfo?.bitrate ?: 0L)
+                                        val streamDuration = stream.optString("duration", "0.0").toDoubleOrNull() ?: (formatInfo?.duration ?: 0.0)
+                                        val nbFrames = stream.optString("nb_frames", "0").toLongOrNull() ?: (streamDuration * (if (avgFpsDecimal > 0) avgFpsDecimal else 30.0)).toLong()
+                                        val fieldOrder = stream.optString("field_order", "progressive")
+                                        val isInterlaced = fieldOrder.contains("interlaced", ignoreCase = true) || fieldOrder.contains("tt", ignoreCase = true) || fieldOrder.contains("bb", ignoreCase = true)
+
+                                        videoStream = VideoStreamInfo(
+                                            index = stream.optInt("index", i),
+                                            streamId = "#0:$i",
+                                            codecName = codecName,
+                                            codecLongName = stream.optString("codec_long_name", "$codecName Video"),
+                                            profile = profile.ifBlank { "Main 10@L5.1@High" },
+                                            level = stream.optInt("level", 51),
+                                            width = width,
+                                            height = height,
+                                            pixelFormat = pixFmt,
+                                            colorSpace = stream.optString("color_space", "bt709").let { if (it.contains("2020")) "BT.2020 (bt2020nc)" else "BT.709 (rec709)" },
+                                            colorPrimaries = colorPrimaries.ifBlank { if (isHdr) "BT.2020" else "BT.709" },
+                                            colorTransfer = colorTransfer.ifBlank { if (isHdr) "SMPTE ST 2086" else "BT.709" },
+                                            colorRange = stream.optString("color_range", "tv").let { if (it == "pc" || it == "full") "Full Range (0-255)" else "Limited Range (16-235)" },
+                                            frameRate = "$frameRateStr fps (Constant)",
+                                            avgFrameRate = avgFpsDecimal.toString(),
+                                            avgFpsDecimal = avgFpsDecimal,
+                                            aspectRatio = stream.optString("display_aspect_ratio", if (width > 0 && height > 0) "$width:$height" else "16:9"),
+                                            bitrate = streamBitrate,
+                                            maxBitrate = (streamBitrate * 1.3).toLong(),
+                                            duration = streamDuration,
+                                            totalFrames = nbFrames.coerceAtLeast(1L),
+                                            isInterlaced = isInterlaced,
+                                            isDefault = stream.optJSONObject("disposition")?.optInt("default") == 1,
+                                            rotation = parseRotation(stream),
+                                            isHdr = isHdr,
+                                            isDolbyVision = isDolbyVision,
+                                            isHdr10Plus = isHdr10Plus,
+                                            hdrInfo = hdrInfo
+                                        )
+                                    }
+                                }
+                                "audio" -> {
+                                    val codecName = stream.optString("codec_name", "unknown").uppercase(Locale.US)
+                                    val channels = stream.optInt("channels", 2)
+                                    val rawLayout = stream.optString("channel_layout", if (channels == 8) "7.1" else if (channels == 6) "5.1" else "stereo")
+                                    val layoutFormatted = when (channels) {
+                                        8 -> "L, R, C, LFE, Ls, Rs, Ltz, Rtz"
+                                        6 -> "L, R, C, LFE, Ls, Rs"
+                                        else -> if (rawLayout.contains("stereo", true)) "L, R" else rawLayout
+                                    }
+                                    val profile = stream.optString("profile", "")
+                                    val tags = stream.optJSONObject("tags")
+                                    val title = tags?.optString("title", "") ?: ""
+
+                                    val isSpatial = channels > 6 || 
+                                            rawLayout.contains("7.1", ignoreCase = true) ||
+                                            profile.contains("atmos", ignoreCase = true) ||
+                                            codecName.contains("TRUEHD", ignoreCase = true) ||
+                                            title.contains("atmos", ignoreCase = true) ||
+                                            stream.optJSONObject("side_data_list")?.toString()?.contains("atmos", ignoreCase = true) == true
+
+                                    val displayCodec = when {
+                                        codecName.contains("TRUEHD") && isSpatial -> "Dolby TrueHD with Atmos / TrueHD"
+                                        codecName.contains("EAC3") && isSpatial -> "Dolby Digital Plus with Atmos"
+                                        codecName.contains("FLAC") -> "FLAC Lossless"
+                                        codecName.contains("AAC") -> "AAC (Advanced Audio Coding)"
+                                        else -> codecName
+                                    }
+
+                                    audioStreams.add(
+                                        AudioStreamInfo(
+                                            index = stream.optInt("index", i),
+                                            streamId = "#0:$i",
+                                            codecName = displayCodec,
+                                            codecLongName = stream.optString("codec_long_name", displayCodec),
+                                            profile = profile,
+                                            sampleRate = stream.optString("sample_rate", "48000").toIntOrNull() ?: 48000,
+                                            channels = channels,
+                                            channelLayout = layoutFormatted,
+                                            sampleFormat = stream.optString("sample_fmt", "s16p"),
+                                            bitsPerSample = stream.optInt("bits_per_raw_sample", 24).coerceAtLeast(16),
+                                            bitrate = stream.optString("bit_rate", "0").toLongOrNull() ?: 4500000L,
+                                            duration = stream.optString("duration", "0.0").toDoubleOrNull() ?: 0.0,
+                                            isDefault = stream.optJSONObject("disposition")?.optInt("default") == 1,
+                                            language = tags?.optString("language", "eng") ?: "eng",
+                                            isSpatialAudio = isSpatial,
+                                            title = title.ifBlank { "Track ${audioStreams.size + 1}: ${if (tags?.optString("language") == "eng") "English" else tags?.optString("language") ?: "Audio"}${if (isSpatial) " (Atmos)" else ""}" }
+                                        )
+                                    )
+                                }
+                                "subtitle" -> {
+                                    subtitleStreams.add(
+                                        SubtitleStreamInfo(
+                                            index = stream.optInt("index", i),
+                                            codecName = stream.optString("codec_name", "subrip").uppercase(Locale.US),
+                                            language = stream.optJSONObject("tags")?.optString("language", "eng") ?: "eng"
+                                        )
+                                    )
+                                }
                             }
                         }
                     }
 
-                    formatInfo = FormatInfo(
-                        containerFormat = formattedContainer,
-                        formatLongName = formatObj.optString("format_long_name", formattedContainer),
-                        duration = duration,
-                        bitrate = bitrate,
-                        size = formatObj.optString("size", fileSize.toString()).toLongOrNull() ?: fileSize,
-                        streamCount = formatObj.optInt("nb_streams", (vCount + aCount + sCount)),
-                        videoStreamCount = vCount.coerceAtLeast(1),
-                        audioStreamCount = aCount,
-                        subtitleStreamCount = sCount,
-                        startTime = formatObj.optString("start_time", "0.0").toDoubleOrNull() ?: 0.0,
-                        probeScore = probeScore,
-                        creationTime = creationTime,
-                        encoderTags = encoder,
-                        containerFlags = "faststart, seekable"
-                    )
-                }
-
-                // 2. Stream-Level Codec & Technical Specs
-                val streamsArray = ffprobeJson.optJSONArray("streams")
-                if (streamsArray != null) {
-                    for (i in 0 until streamsArray.length()) {
-                        val stream = streamsArray.getJSONObject(i)
-                        val codecType = stream.optString("codec_type")
-
-                        when (codecType) {
-                            "video" -> {
-                                val width = stream.optInt("width", 0)
-                                val height = stream.optInt("height", 0)
-                                val codecName = stream.optString("codec_name", "unknown").uppercase(Locale.US)
-                                val colorTransfer = stream.optString("color_transfer", "")
-                                val colorPrimaries = stream.optString("color_primaries", "")
-                                val profile = stream.optString("profile", "")
-                                val isHdr = colorTransfer.contains("2084", ignoreCase = true) || 
-                                        colorTransfer.contains("arib-std-b67", ignoreCase = true) ||
-                                        colorPrimaries.contains("2020", ignoreCase = true)
-                                val isDolbyVision = profile.contains("dv", ignoreCase = true) ||
-                                        profile.contains("dolby vision", ignoreCase = true) ||
-                                        stream.optJSONObject("side_data_list")?.toString()?.contains("DOVI", ignoreCase = true) == true
-                                val isHdr10Plus = stream.optJSONObject("side_data_list")?.toString()?.contains("HDR10+", ignoreCase = true) == true ||
-                                        colorTransfer.contains("smpte2084", ignoreCase = true)
-
-                                val hdrInfo = when {
-                                    isDolbyVision && isHdr10Plus -> "Dolby Vision / HDR10+"
-                                    isDolbyVision -> "Dolby Vision"
-                                    isHdr10Plus -> "HDR10+"
-                                    isHdr -> "HDR10"
-                                    else -> "SDR (Standard Dynamic Range)"
-                                }
-
-                                val isImageFormat = mediaType.equals("IMAGE", ignoreCase = true) ||
-                                        codecName in listOf("MJPEG", "PNG", "WEBP", "BMP", "TIFF", "GIF", "HEIC", "AVIF")
-
-                                if (isImageFormat && imageInfo == null) {
-                                    imageInfo = extractImageInfo(stream, targetFFmpegPath, context)
-                                }
-
-                                if (videoStream == null && !isImageFormat) {
-                                    val frameRateStr = stream.optString("r_frame_rate", "30/1")
-                                    val avgFpsDecimal = parseFraction(frameRateStr)
-                                    val pixFmt = stream.optString("pix_fmt", "yuv420p").lowercase(Locale.US)
-                                    val streamBitrate = stream.optString("bit_rate", "0").toLongOrNull() ?: (formatInfo?.bitrate ?: 0L)
-                                    val streamDuration = stream.optString("duration", "0.0").toDoubleOrNull() ?: (formatInfo?.duration ?: 0.0)
-                                    val nbFrames = stream.optString("nb_frames", "0").toLongOrNull() ?: (streamDuration * (if (avgFpsDecimal > 0) avgFpsDecimal else 30.0)).toLong()
-                                    val fieldOrder = stream.optString("field_order", "progressive")
-                                    val isInterlaced = fieldOrder.contains("interlaced", ignoreCase = true) || fieldOrder.contains("tt", ignoreCase = true) || fieldOrder.contains("bb", ignoreCase = true)
-
-                                    videoStream = VideoStreamInfo(
-                                        index = stream.optInt("index", i),
-                                        streamId = "#0:$i",
-                                        codecName = codecName,
-                                        codecLongName = stream.optString("codec_long_name", "$codecName Video"),
-                                        profile = profile.ifBlank { "Main 10@L5.1@High" },
-                                        level = stream.optInt("level", 51),
-                                        width = width,
-                                        height = height,
-                                        pixelFormat = pixFmt,
-                                        colorSpace = stream.optString("color_space", "bt709").let { if (it.contains("2020")) "BT.2020 (bt2020nc)" else "BT.709 (rec709)" },
-                                        colorPrimaries = colorPrimaries.ifBlank { if (isHdr) "BT.2020" else "BT.709" },
-                                        colorTransfer = colorTransfer.ifBlank { if (isHdr) "SMPTE ST 2086" else "BT.709" },
-                                        colorRange = stream.optString("color_range", "tv").let { if (it == "pc" || it == "full") "Full Range (0-255)" else "Limited Range (16-235)" },
-                                        frameRate = "$frameRateStr fps (Constant)",
-                                        avgFrameRate = avgFpsDecimal.toString(),
-                                        avgFpsDecimal = avgFpsDecimal,
-                                        aspectRatio = stream.optString("display_aspect_ratio", if (width > 0 && height > 0) "$width:$height" else "16:9"),
-                                        bitrate = streamBitrate,
-                                        maxBitrate = (streamBitrate * 1.3).toLong(),
-                                        duration = streamDuration,
-                                        totalFrames = nbFrames.coerceAtLeast(1L),
-                                        isInterlaced = isInterlaced,
-                                        isDefault = stream.optJSONObject("disposition")?.optInt("default") == 1,
-                                        rotation = parseRotation(stream),
-                                        isHdr = isHdr,
-                                        isDolbyVision = isDolbyVision,
-                                        isHdr10Plus = isHdr10Plus,
-                                        hdrInfo = hdrInfo
-                                    )
-                                }
-                            }
-                            "audio" -> {
-                                val codecName = stream.optString("codec_name", "unknown").uppercase(Locale.US)
-                                val channels = stream.optInt("channels", 2)
-                                val rawLayout = stream.optString("channel_layout", if (channels == 8) "7.1" else if (channels == 6) "5.1" else "stereo")
-                                val layoutFormatted = when (channels) {
-                                    8 -> "L, R, C, LFE, Ls, Rs, Ltz, Rtz"
-                                    6 -> "L, R, C, LFE, Ls, Rs"
-                                    else -> if (rawLayout.contains("stereo", true)) "L, R" else rawLayout
-                                }
-                                val profile = stream.optString("profile", "")
-                                val tags = stream.optJSONObject("tags")
-                                val title = tags?.optString("title", "") ?: ""
-
-                                val isSpatial = channels > 6 || 
-                                        rawLayout.contains("7.1", ignoreCase = true) ||
-                                        profile.contains("atmos", ignoreCase = true) ||
-                                        codecName.contains("TRUEHD", ignoreCase = true) ||
-                                        title.contains("atmos", ignoreCase = true) ||
-                                        stream.optJSONObject("side_data_list")?.toString()?.contains("atmos", ignoreCase = true) == true
-
-                                val displayCodec = when {
-                                    codecName.contains("TRUEHD") && isSpatial -> "Dolby TrueHD with Atmos / TrueHD"
-                                    codecName.contains("EAC3") && isSpatial -> "Dolby Digital Plus with Atmos"
-                                    codecName.contains("FLAC") -> "FLAC Lossless"
-                                    codecName.contains("AAC") -> "AAC (Advanced Audio Coding)"
-                                    else -> codecName
-                                }
-
-                                audioStreams.add(
-                                    AudioStreamInfo(
-                                        index = stream.optInt("index", i),
-                                        streamId = "#0:$i",
-                                        codecName = displayCodec,
-                                        codecLongName = stream.optString("codec_long_name", displayCodec),
-                                        profile = profile,
-                                        sampleRate = stream.optString("sample_rate", "48000").toIntOrNull() ?: 48000,
-                                        channels = channels,
-                                        channelLayout = layoutFormatted,
-                                        sampleFormat = stream.optString("sample_fmt", "s16p"),
-                                        bitsPerSample = stream.optInt("bits_per_raw_sample", 24).coerceAtLeast(16),
-                                        bitrate = stream.optString("bit_rate", "0").toLongOrNull() ?: 4500000L,
-                                        duration = stream.optString("duration", "0.0").toDoubleOrNull() ?: 0.0,
-                                        isDefault = stream.optJSONObject("disposition")?.optInt("default") == 1,
-                                        language = tags?.optString("language", "eng") ?: "eng",
-                                        isSpatialAudio = isSpatial,
-                                        title = title.ifBlank { "Track ${audioStreams.size + 1}: ${if (tags?.optString("language") == "eng") "English" else tags?.optString("language") ?: "Audio"}${if (isSpatial) " (Atmos)" else ""}" }
-                                    )
-                                )
-                            }
-                            "subtitle" -> {
-                                subtitleStreams.add(
-                                    SubtitleStreamInfo(
-                                        index = stream.optInt("index", i),
-                                        codecName = stream.optString("codec_name", "subrip").uppercase(Locale.US),
-                                        language = stream.optJSONObject("tags")?.optString("language", "eng") ?: "eng"
-                                    )
-                                )
-                            }
-                        }
+                    if (mediaType.equals("IMAGE", ignoreCase = true) && imageInfo == null) {
+                        imageInfo = extractImageInfoFallback(targetFFmpegPath, context)
                     }
+                } catch (e: Exception) {
+                    errors.add("Error parsing FFprobe analysis payload: ${e.message}")
                 }
+            }
 
-                if (mediaType.equals("IMAGE", ignoreCase = true) && imageInfo == null) {
-                    imageInfo = extractImageInfoFallback(targetFFmpegPath, context)
+            // 3. Diagnostics & Corruption Validation Scan Pass (Optimized fast scan)
+            var isVideoCorrupted = false
+            var isAudioCorrupted = false
+            var corruptedVideoFramesCount = 0
+            var droppedVideoFramesCount = 0
+            var corruptedAudioSamplesCount = 0
+            var audioBufferUnderrunsCount = 0
+            var concealedMacroblocks = 0
+            var keyframeLoss = 0
+            var demuxerDiscontinuity = false
+
+            if (ffprobeJson != null) {
+                val corruptionReport = scanForBitstreamCorruption(targetFFmpegPath)
+                if (corruptionReport.hasCorruption) {
+                    corruptedFrames = true
+                    isVideoCorrupted = corruptionReport.isVideoCorrupted
+                    isAudioCorrupted = corruptionReport.isAudioCorrupted
+
+                    if (isVideoCorrupted) {
+                        corruptedVideoFramesCount = 12
+                        droppedVideoFramesCount = 3
+                        concealedMacroblocks = 8
+                    }
+                    if (isAudioCorrupted) {
+                        corruptedAudioSamplesCount = 4
+                        audioBufferUnderrunsCount = 1
+                    }
+
+                    val specificMsg = when {
+                        isVideoCorrupted && isAudioCorrupted -> "Video & Audio stream corruption detected."
+                        isVideoCorrupted -> "Video frame / stream corruption detected."
+                        isAudioCorrupted -> "Audio packet / stream corruption detected."
+                        else -> corruptionReport.message
+                    }
+                    warnings.add(specificMsg)
                 }
-            } catch (e: Exception) {
-                errors.add("Error parsing FFprobe analysis payload: ${e.message}")
+                if (corruptionReport.hasTimestampIssues) {
+                    timestampIssues = true
+                    demuxerDiscontinuity = true
+                    warnings.add("Non-monotonically increasing timestamps (PTS/DTS discontinuities) detected.")
+                }
+                if (corruptionReport.hasMuxingIssues) {
+                    muxingIssues = true
+                    warnings.add("Container demuxing / missing header warnings detected.")
+                }
+            }
+
+            val elapsedMs = System.currentTimeMillis() - startMs
+
+            val diagnostics = DiagnosticsInfo(
+                hasErrors = errors.isNotEmpty(),
+                errors = errors,
+                warnings = warnings,
+                corruptedFramesDetected = corruptedFrames,
+                corruptedVideoFramesCount = corruptedVideoFramesCount,
+                corruptedVideoFramesPct = if (corruptedVideoFramesCount > 0) 0.002 else 0.0,
+                droppedVideoFramesCount = droppedVideoFramesCount,
+                isVideoCorrupted = isVideoCorrupted,
+                corruptedAudioSamplesCount = corruptedAudioSamplesCount,
+                corruptedAudioSamplesPct = if (corruptedAudioSamplesCount > 0) 0.001 else 0.0,
+                audioBufferUnderrunsCount = audioBufferUnderrunsCount,
+                isAudioCorrupted = isAudioCorrupted,
+                avSyncOffsetMs = 4,
+                concealedMacroblocksCount = concealedMacroblocks,
+                keyframeLossCount = keyframeLoss,
+                demuxerDiscontinuity = demuxerDiscontinuity,
+                timestampIssues = timestampIssues,
+                muxingIssues = muxingIssues,
+                missingStreams = formatInfo?.streamCount == 0,
+                decodingErrorLines = warnings.take(5),
+                analysisNote = when {
+                    errors.isNotEmpty() -> "${errors.size} error(s) found during inspection"
+                    corruptedFrames -> if (isVideoCorrupted) "⚠ Corrupted video frames detected" else "⚠ Corrupted audio packets detected"
+                    timestampIssues -> "⚠ Timestamp irregularities detected"
+                    muxingIssues -> "⚠ Container / header warnings detected"
+                    else -> "✅ Stream integrity clean (0 packet errors)"
+                }
+            )
+
+            // 4. Tech Badges Generation
+            val badges = detectTechBadges(formatInfo, videoStream, audioStreams, imageInfo)
+
+            val report = MediaDiagnosticsReport(
+                filePath = filePath,
+                fileName = fileName,
+                fileSize = fileSize,
+                mediaType = mediaType,
+                analysisTimestampMs = startMs,
+                analysisElapsedMs = elapsedMs,
+                format = formatInfo,
+                videoStream = videoStream,
+                audioStreams = audioStreams,
+                imageInfo = imageInfo,
+                subtitleStreams = subtitleStreams,
+                diagnostics = diagnostics,
+                techBadges = badges
+            )
+
+            // Cache the newly generated report
+            reportCache[cacheKey] = report
+            report
+        } finally {
+            // CRITICAL: Cleanup temporary files to prevent massive disk leaks
+            tempFilePath?.let { path ->
+                try {
+                    val f = File(path)
+                    if (f.exists()) f.delete()
+                } catch (_: Exception) {}
             }
         }
-
-        // 3. Diagnostics & Corruption Validation Scan Pass (Optimized fast scan)
-        var isVideoCorrupted = false
-        var isAudioCorrupted = false
-        var corruptedVideoFramesCount = 0
-        var droppedVideoFramesCount = 0
-        var corruptedAudioSamplesCount = 0
-        var audioBufferUnderrunsCount = 0
-        var concealedMacroblocks = 0
-        var keyframeLoss = 0
-        var demuxerDiscontinuity = false
-
-        if (ffprobeJson != null) {
-            val corruptionReport = scanForBitstreamCorruption(targetFFmpegPath)
-            if (corruptionReport.hasCorruption) {
-                corruptedFrames = true
-                isVideoCorrupted = corruptionReport.isVideoCorrupted
-                isAudioCorrupted = corruptionReport.isAudioCorrupted
-
-                if (isVideoCorrupted) {
-                    corruptedVideoFramesCount = 12
-                    droppedVideoFramesCount = 3
-                    concealedMacroblocks = 8
-                }
-                if (isAudioCorrupted) {
-                    corruptedAudioSamplesCount = 4
-                    audioBufferUnderrunsCount = 1
-                }
-
-                val specificMsg = when {
-                    isVideoCorrupted && isAudioCorrupted -> "Video & Audio stream corruption detected."
-                    isVideoCorrupted -> "Video frame / stream corruption detected."
-                    isAudioCorrupted -> "Audio packet / stream corruption detected."
-                    else -> corruptionReport.message
-                }
-                warnings.add(specificMsg)
-            }
-            if (corruptionReport.hasTimestampIssues) {
-                timestampIssues = true
-                demuxerDiscontinuity = true
-                warnings.add("Non-monotonically increasing timestamps (PTS/DTS discontinuities) detected.")
-            }
-            if (corruptionReport.hasMuxingIssues) {
-                muxingIssues = true
-                warnings.add("Container demuxing / missing header warnings detected.")
-            }
-        }
-
-        val elapsedMs = System.currentTimeMillis() - startMs
-
-        val diagnostics = DiagnosticsInfo(
-            hasErrors = errors.isNotEmpty(),
-            errors = errors,
-            warnings = warnings,
-            corruptedFramesDetected = corruptedFrames,
-            corruptedVideoFramesCount = corruptedVideoFramesCount,
-            corruptedVideoFramesPct = if (corruptedVideoFramesCount > 0) 0.002 else 0.0,
-            droppedVideoFramesCount = droppedVideoFramesCount,
-            isVideoCorrupted = isVideoCorrupted,
-            corruptedAudioSamplesCount = corruptedAudioSamplesCount,
-            corruptedAudioSamplesPct = if (corruptedAudioSamplesCount > 0) 0.001 else 0.0,
-            audioBufferUnderrunsCount = audioBufferUnderrunsCount,
-            isAudioCorrupted = isAudioCorrupted,
-            avSyncOffsetMs = 4,
-            concealedMacroblocksCount = concealedMacroblocks,
-            keyframeLossCount = keyframeLoss,
-            demuxerDiscontinuity = demuxerDiscontinuity,
-            timestampIssues = timestampIssues,
-            muxingIssues = muxingIssues,
-            missingStreams = formatInfo?.streamCount == 0,
-            decodingErrorLines = warnings.take(5),
-            analysisNote = when {
-                errors.isNotEmpty() -> "${errors.size} error(s) found during inspection"
-                corruptedFrames -> if (isVideoCorrupted) "⚠ Corrupted video frames detected" else "⚠ Corrupted audio packets detected"
-                timestampIssues -> "⚠ Timestamp irregularities detected"
-                muxingIssues -> "⚠ Container / header warnings detected"
-                else -> "✅ Stream integrity clean (0 packet errors)"
-            }
-        )
-
-        // 4. Tech Badges Generation (Includes 4K, 2K, FHD, HD, HDR, Dolby Vision, Dolby TrueHD, 7.1CH, 5.1CH, Spatial Audio, FLAC, Blu-Ray, IMAX)
-        val badges = detectTechBadges(formatInfo, videoStream, audioStreams, imageInfo)
-
-        val report = MediaDiagnosticsReport(
-            filePath = filePath,
-            fileName = fileName,
-            fileSize = fileSize,
-            mediaType = mediaType,
-            analysisTimestampMs = startMs,
-            analysisElapsedMs = elapsedMs,
-            format = formatInfo,
-            videoStream = videoStream,
-            audioStreams = audioStreams,
-            imageInfo = imageInfo,
-            subtitleStreams = subtitleStreams,
-            diagnostics = diagnostics,
-            techBadges = badges
-        )
-
-        // Cache the newly generated report
-        reportCache[cacheKey] = report
-        report
     }
 
     private fun detectTechBadges(

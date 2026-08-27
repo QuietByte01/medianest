@@ -26,7 +26,9 @@ class VideoPlayerActivity : ComponentActivity() {
     private val networkRepository by lazy { NetworkRepository() }
 
     private fun getPipAspectRatio(): Rational {
-        val videoSize = playerManager.exoPlayer.videoSize
+        val player = playerManager.exoPlayer ?: return Rational(16, 9)
+        
+        val videoSize = player.videoSize
         val width = videoSize.width
         val height = videoSize.height
         if (width > 0 && height > 0) {
@@ -183,7 +185,11 @@ class VideoPlayerActivity : ComponentActivity() {
             val state = playerManager.playerState.value
             // Only stop service if background play is disabled
             if (!state.isVideoBackgroundPlayEnabled) {
-                playerManager.pause()
+                if (isFinishing) {
+                    playerManager.stop()
+                } else {
+                    playerManager.pause()
+                }
                 stopService(Intent(this, FloatingPlayerService::class.java))
             }
             

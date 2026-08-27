@@ -1,6 +1,5 @@
-package com.medianest
+package com.medianest.util
 
-import com.medianest.util.MetadataUtils
 import org.junit.Assert.*
 import org.junit.Test
 

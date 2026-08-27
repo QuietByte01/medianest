@@ -9,6 +9,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import android.util.Log
+import com.medianest.util.Logger
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -80,6 +82,10 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            window.colorMode = android.content.pm.ActivityInfo.COLOR_MODE_HDR
+        }
+        
         // Global Fullscreen: Hide Status and Navigation bars
         val controller = androidx.core.view.WindowInsetsControllerCompat(window, window.decorView)
         controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
@@ -127,6 +133,10 @@ class MainActivity : ComponentActivity() {
 
                     var isUnlocked by remember { mutableStateOf(!appLockEnabled) }
                     var currentScreen by rememberSaveable { mutableStateOf("LIBRARY") } // LIBRARY, SETTINGS, AUDIO_PLAYER
+
+                    LaunchedEffect(currentScreen) {
+                        Logger.i("MainActivity", "Screen changed to: $currentScreen")
+                    }
 
                     val pendingScreen by pendingScreenState.collectAsState()
                     LaunchedEffect(pendingScreen) {
@@ -178,16 +188,20 @@ class MainActivity : ComponentActivity() {
 
                             Triple(selectiveImage + appHiddenFolders, selectiveVideo + appHiddenFolders, selectiveAudio + appHiddenFolders)
                         }.collectLatest { (imageHiddenPaths, videoHiddenPaths, audioHiddenPaths) ->
+                            Logger.i("MainActivity", "DATA REFRESH START: showHidden=$showHiddenFiles")
                             // 1. Fast immediate fetch from MediaStore (<50ms)
                             isScanLoading = true
-                            imagesList = mediaStoreRepository.getImages(imageHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
-                            videosList = mediaStoreRepository.getVideos(videoHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
-                            audioList = mediaStoreRepository.getAudio(audioHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
+                            imagesList = mediaStoreRepository.getImages(imageHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
+                            videosList = mediaStoreRepository.getVideos(videoHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
+                            audioList = mediaStoreRepository.getAudio(audioHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
                             isScanLoading = false
+                            
+                            Logger.i("MainActivity", "MediaStore Load DONE: imgs=${imagesList.size}, vids=${videosList.size}, audio=${audioList.size}")
 
                             // 2. Delayed background filesystem scan for hidden folders so UI never blocks
                             if (showHiddenFiles) {
                                 isScanningHidden = true
+                                Logger.i("MainActivity", "Hidden File Scan STARTING...")
                                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                                     kotlinx.coroutines.delay(150) // Let main screen compose immediately
                                     val hiddenImages = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.IMAGE, imageHiddenPaths)
@@ -195,16 +209,18 @@ class MainActivity : ComponentActivity() {
                                     val hiddenAudio = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.AUDIO, audioHiddenPaths)
 
                                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        Logger.i("MainActivity", "Hidden File Scan COMPLETE: imgs=${hiddenImages.size}, vids=${hiddenVideos.size}, audio=${hiddenAudio.size}")
                                         if (hiddenImages.isNotEmpty()) {
-                                            imagesList = (imagesList + hiddenImages).distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
+                                            imagesList = (imagesList + hiddenImages).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
                                         }
                                         if (hiddenVideos.isNotEmpty()) {
-                                            videosList = (videosList + hiddenVideos).distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
+                                            videosList = (videosList + hiddenVideos).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
                                         }
                                         if (hiddenAudio.isNotEmpty()) {
-                                            audioList = (audioList + hiddenAudio).distinctBy { if (it.size > 0) "${it.title.lowercase().trim()}_${it.size}" else it.id.toString() }
+                                            audioList = (audioList + hiddenAudio).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
                                         }
                                         isScanningHidden = false
+                                        Logger.i("MainActivity", "Total Merged List: imgs=${imagesList.size}, vids=${videosList.size}, audio=${audioList.size}")
                                     }
                                 }
                             } else {
@@ -541,12 +557,13 @@ class MainActivity : ComponentActivity() {
         if (exoPlayerManager.playerState.value.currentItem?.type == com.medianest.data.db.MediaType.VIDEO) return
         val state = exoPlayerManager.playerState.value
         val currentItem = state.currentItem
-        if (currentItem != null && exoPlayerManager.exoPlayer.isPlaying && !isFinishing && !isChangingConfigurations) {
+        val player = exoPlayerManager.exoPlayer
+        if (currentItem != null && player != null && player.isPlaying && !isFinishing && !isChangingConfigurations) {
             val isVideo = currentItem.mimeType.startsWith("video") || currentItem.type == com.medianest.data.db.MediaType.VIDEO
             val bgPlayEnabled = if (isVideo) state.isVideoBackgroundPlayEnabled else state.isAudioBackgroundPlayEnabled
             
             if (!bgPlayEnabled) {
-                exoPlayerManager.exoPlayer.pause()
+                player.pause()
             }
         }
     }

@@ -76,6 +76,23 @@ fun VideoPlayerTopBar(
                     ) {
                         Text(text = decoderMode, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
+
+                    if (playerState.isHdrContent) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFFFFD700).copy(alpha = 0.9f)) // Golden for HDR/DV
+                                .padding(horizontal = 5.dp)
+                        ) {
+                            Text(
+                                text = playerState.hdrType.uppercase(), 
+                                fontSize = 8.5.sp, 
+                                fontWeight = FontWeight.ExtraBold, 
+                                color = Color.Black
+                            )
+                        }
+                    }
                 }
             }
 

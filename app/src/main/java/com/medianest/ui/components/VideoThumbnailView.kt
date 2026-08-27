@@ -30,7 +30,11 @@ import coil.size.Precision
 import com.medianest.data.model.MediaItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+
+private val thumbnailSemaphore = Semaphore(1) // Limit concurrent decoders
 
 /**
  * Robust video thumbnail renderer that automatically skips initial black/blank frames
@@ -75,7 +79,7 @@ fun VideoThumbnailView(
             .data(uri)
             .crossfade(true)
             .precision(Precision.INEXACT)
-            .decoderFactory(VideoFrameDecoder.Factory())
+            .decoderFactory(com.medianest.util.SemaphoreVideoFrameDecoder.Factory())
             .videoFrameMicros(videoSeekMicros)
             .build()
     }
@@ -102,7 +106,9 @@ fun VideoThumbnailView(
                     }
                     if (targetUri != null && fallbackBitmap == null) {
                         coroutineScope.launch(Dispatchers.IO) {
-                            val extracted = extractNonBlackVideoThumbnail(context, targetUri, durationMs)
+                            val extracted = thumbnailSemaphore.withPermit {
+                                extractNonBlackVideoThumbnail(context, targetUri, durationMs)
+                            }
                             withContext(Dispatchers.Main) {
                                 fallbackBitmap = extracted
                             }

@@ -22,8 +22,9 @@ internal fun extractComprehensiveMetadata(context: Context, item: MediaItem): Co
     var composer = ""
 
     if (item.type == MediaType.AUDIO || item.type == MediaType.VIDEO) {
-        val retriever = MediaMetadataRetriever()
+        var retriever: MediaMetadataRetriever? = null
         try {
+            retriever = MediaMetadataRetriever()
             retriever.setDataSource(context, item.uri)
 
             val durStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
@@ -56,10 +57,10 @@ internal fun extractComprehensiveMetadata(context: Context, item: MediaItem): Co
 
             val mime = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE) ?: item.mimeType
             codecInfo = mime.replace("audio/", "").replace("video/", "").uppercase(Locale.US)
-
-            retriever.release()
         } catch (e: Exception) {
             e.printStackTrace()
+        } finally {
+            try { retriever?.release() } catch (_: Exception) {}
         }
     }
 
@@ -129,72 +130,96 @@ internal fun extractRealStreamDetails(context: Context, item: MediaItem): RealVi
     var aBitrate = ""
     var aChannels = "2 Channels (Stereo)"
     var aSampleRate = "48.0 kHz"
+    var hdrInfo = "SDR (Standard Dynamic Range)"
+    var colorSpace = "BT.709 / Standard"
     val trackList = mutableListOf<String>()
 
     try {
         val extractor = android.media.MediaExtractor()
-        extractor.setDataSource(context, item.uri, null)
-        val numTracks = extractor.trackCount
-        var audioTrackCount = 0
+        try {
+            extractor.setDataSource(context, item.uri, null)
+            val numTracks = extractor.trackCount
+            var audioTrackCount = 0
 
-        for (i in 0 until numTracks) {
-            val format = extractor.getTrackFormat(i)
-            val mime = format.getString(android.media.MediaFormat.KEY_MIME) ?: ""
+            for (i in 0 until numTracks) {
+                val format = extractor.getTrackFormat(i)
+                val mime = format.getString(android.media.MediaFormat.KEY_MIME) ?: ""
 
-            if (mime.startsWith("video/")) {
-                val codec = mime.substringAfter("video/").uppercase(Locale.US)
-                vCodec = when {
-                    codec.contains("AVC") || codec.contains("H264") || codec.contains("4") -> "H.264 / AVC"
-                    codec.contains("HEVC") || codec.contains("H265") || codec.contains("5") -> "HEVC / H.265"
-                    codec.contains("VP9") -> "VP9"
-                    codec.contains("AV1") -> "AV1"
-                    else -> codec
-                }
-                if (format.containsKey(android.media.MediaFormat.KEY_FRAME_RATE)) {
-                    val fr = try { format.getInteger(android.media.MediaFormat.KEY_FRAME_RATE) } catch (e: Exception) { try { format.getFloat(android.media.MediaFormat.KEY_FRAME_RATE).toInt() } catch(ex: Exception) { 30 } }
-                    if (fr > 0) fRate = "$fr fps"
-                }
-                if (format.containsKey(android.media.MediaFormat.KEY_BIT_RATE)) {
-                    val br = format.getInteger(android.media.MediaFormat.KEY_BIT_RATE)
-                    if (br > 0) {
-                        vBitrate = if (br >= 1_000_000) String.format(Locale.US, "%.2f Mbps", br / 1_000_000.0) else "${br / 1000} kbps"
+                if (mime.startsWith("video/")) {
+                    val codec = mime.substringAfter("video/").uppercase(Locale.US)
+                    vCodec = when {
+                        codec.contains("AVC") || codec.contains("H264") || codec.contains("4") -> "H.264 / AVC"
+                        codec.contains("HEVC") || codec.contains("H265") || codec.contains("5") -> "HEVC / H.265"
+                        codec.contains("VP9") -> "VP9"
+                        codec.contains("AV1") -> "AV1"
+                        else -> codec
                     }
-                }
-            } else if (mime.startsWith("audio/")) {
-                audioTrackCount++
-                val codec = mime.substringAfter("audio/").uppercase(Locale.US)
-                aCodec = when {
-                    codec.contains("AAC") -> "AAC (Advanced Audio Coding)"
-                    codec.contains("MPEG") || codec.contains("MP3") -> "MP3 (MPEG Audio Layer III)"
-                    codec.contains("OPUS") -> "Opus"
-                    codec.contains("FLAC") -> "FLAC (Free Lossless Audio Codec)"
-                    codec.contains("AC3") || codec.contains("EAC3") -> "Dolby Digital (AC-3)"
-                    else -> codec
-                }
-                val lang = if (format.containsKey(android.media.MediaFormat.KEY_LANGUAGE)) format.getString(android.media.MediaFormat.KEY_LANGUAGE)?.uppercase(Locale.US) else "Default"
-                trackList.add("Track $audioTrackCount: ${lang ?: "Primary"} ($codec)")
 
-                if (format.containsKey(android.media.MediaFormat.KEY_CHANNEL_COUNT)) {
-                    val ch = format.getInteger(android.media.MediaFormat.KEY_CHANNEL_COUNT)
-                    aChannels = when (ch) {
-                        1 -> "1 Channel (Mono)"
-                        2 -> "2 Channels (Stereo)"
-                        6 -> "6 Channels (5.1 Surround)"
-                        8 -> "8 Channels (7.1 Surround)"
-                        else -> "$ch Channels"
+                    // Dynamic HDR & Color Space Detection
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        val colorTransfer = if (format.containsKey(android.media.MediaFormat.KEY_COLOR_TRANSFER)) format.getInteger(android.media.MediaFormat.KEY_COLOR_TRANSFER) else -1
+                        val colorStandard = if (format.containsKey(android.media.MediaFormat.KEY_COLOR_STANDARD)) format.getInteger(android.media.MediaFormat.KEY_COLOR_STANDARD) else -1
+                        
+                        hdrInfo = when (colorTransfer) {
+                            android.media.MediaFormat.COLOR_TRANSFER_ST2084 -> "HDR10 (High Dynamic Range)"
+                            android.media.MediaFormat.COLOR_TRANSFER_HLG -> "HLG (Hybrid Log-Gamma)"
+                            else -> "SDR (Standard Dynamic Range)"
+                        }
+                        
+                        colorSpace = when (colorStandard) {
+                            android.media.MediaFormat.COLOR_STANDARD_BT2020 -> "BT.2020 / Wide Gamut"
+                            android.media.MediaFormat.COLOR_STANDARD_BT709 -> "BT.709 / Standard"
+                            else -> "BT.709 / Standard"
+                        }
                     }
-                }
-                if (format.containsKey(android.media.MediaFormat.KEY_SAMPLE_RATE)) {
-                    val sr = format.getInteger(android.media.MediaFormat.KEY_SAMPLE_RATE)
-                    if (sr > 0) aSampleRate = "${sr / 1000.0} kHz"
-                }
-                if (format.containsKey(android.media.MediaFormat.KEY_BIT_RATE)) {
-                    val br = format.getInteger(android.media.MediaFormat.KEY_BIT_RATE)
-                    if (br > 0) aBitrate = "${br / 1000} kbps"
+
+                    if (format.containsKey(android.media.MediaFormat.KEY_FRAME_RATE)) {
+                        val fr = try { format.getInteger(android.media.MediaFormat.KEY_FRAME_RATE) } catch (e: Exception) { try { format.getFloat(android.media.MediaFormat.KEY_FRAME_RATE).toInt() } catch(ex: Exception) { 30 } }
+                        if (fr > 0) fRate = "$fr fps"
+                    }
+                    if (format.containsKey(android.media.MediaFormat.KEY_BIT_RATE)) {
+                        val br = format.getInteger(android.media.MediaFormat.KEY_BIT_RATE)
+                        if (br > 0) {
+                            vBitrate = if (br >= 1_000_000) String.format(Locale.US, "%.2f Mbps", br / 1_000_000.0) else "${br / 1000} kbps"
+                        }
+                    }
+                } else if (mime.startsWith("audio/")) {
+                    audioTrackCount++
+                    val codec = mime.substringAfter("audio/").uppercase(Locale.US)
+                    aCodec = when {
+                        codec.contains("AAC") -> "AAC (Advanced Audio Coding)"
+                        codec.contains("MPEG") || codec.contains("MP3") -> "MP3 (MPEG Audio Layer III)"
+                        codec.contains("OPUS") -> "Opus"
+                        codec.contains("FLAC") -> "FLAC (Free Lossless Audio Codec)"
+                        codec.contains("AC3") || codec.contains("EAC3") -> "Dolby Digital (AC-3)"
+                        else -> codec
+                    }
+                    val lang = if (format.containsKey(android.media.MediaFormat.KEY_LANGUAGE)) format.getString(android.media.MediaFormat.KEY_LANGUAGE)?.uppercase(Locale.US) else "Default"
+                    trackList.add("Track $audioTrackCount: ${lang ?: "Primary"} ($codec)")
+
+                    if (format.containsKey(android.media.MediaFormat.KEY_CHANNEL_COUNT)) {
+                        val ch = format.getInteger(android.media.MediaFormat.KEY_CHANNEL_COUNT)
+                        aChannels = when (ch) {
+                            1 -> "1 Channel (Mono)"
+                            2 -> "2 Channels (Stereo)"
+                            6 -> "6 Channels (5.1 Surround)"
+                            8 -> "8 Channels (7.1 Surround)"
+                            else -> "$ch Channels"
+                        }
+                    }
+                    if (format.containsKey(android.media.MediaFormat.KEY_SAMPLE_RATE)) {
+                        val sr = format.getInteger(android.media.MediaFormat.KEY_SAMPLE_RATE)
+                        if (sr > 0) aSampleRate = "${sr / 1000.0} kHz"
+                    }
+                    if (format.containsKey(android.media.MediaFormat.KEY_BIT_RATE)) {
+                        val br = format.getInteger(android.media.MediaFormat.KEY_BIT_RATE)
+                        if (br > 0) aBitrate = "${br / 1000} kbps"
+                    }
                 }
             }
+        } finally {
+            extractor.release()
         }
-        extractor.release()
     } catch (e: Exception) {
         e.printStackTrace()
     }
@@ -207,10 +232,10 @@ internal fun extractRealStreamDetails(context: Context, item: MediaItem): RealVi
         containerFormat = containerStr,
         videoCodec = vCodec,
         frameRate = fRate,
-        colorSpace = "BT.709 / Standard",
+        colorSpace = colorSpace,
         aspectRatio = "16:9",
         videoBitrate = vBitrate,
-        hdrInfo = "SDR (Standard Dynamic Range)",
+        hdrInfo = hdrInfo,
         audioFormat = aCodec,
         audioBitrate = if (aBitrate.isNotBlank()) aBitrate else "192 kbps",
         audioChannels = aChannels,

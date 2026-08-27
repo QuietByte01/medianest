@@ -31,33 +31,36 @@ fun DragToDismissContainer(
     modifier: Modifier = Modifier,
     backgroundColor: Color = Color.Black,
     enabled: Boolean = true,
+    onSwipeUp: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     val offsetY = remember { Animatable(0f) }
-    val dismissThreshold = 300f // pixels required to trigger dismiss
+    val dismissThreshold = 250f // pixels required to trigger dismiss
+    val swipeUpThreshold = -180f
 
     val progress = (abs(offsetY.value) / 1000f).coerceIn(0f, 1f)
-    val backgroundAlpha = (1f - progress * 1.2f).coerceIn(0f, 1f)
-    val scale = (1f - progress * 0.3f).coerceIn(0.7f, 1f)
+    val backgroundAlpha = if (offsetY.value >= 0) (1f - progress * 1.2f).coerceIn(0f, 1f) else 1f
+    val scale = if (offsetY.value >= 0) (1f - progress * 0.3f).coerceIn(0.7f, 1f) else 1f
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(backgroundColor.copy(alpha = backgroundAlpha))
-            .pointerInput(enabled) {
-                if (!enabled) return@pointerInput
-                detectVerticalDragGestures(
-                    onVerticalDrag = { change, dragAmount ->
-                        // Only allow dragging downwards or returning from downward pull
-                        if (offsetY.value >= 0 || dragAmount > 0) {
-                            change.consume()
-                            coroutineScope.launch {
-                                offsetY.snapTo(offsetY.value + dragAmount)
-                            }
+        .pointerInput(enabled) {
+            if (!enabled) return@pointerInput
+            detectVerticalDragGestures(
+                onDragStart = {},
+                onVerticalDrag = { change, dragAmount ->
+                    // Only consume vertical drag when there is actual movement
+                    if (kotlin.math.abs(dragAmount) > 0.5f) {
+                        change.consume()
+                        coroutineScope.launch {
+                            offsetY.snapTo(offsetY.value + dragAmount)
                         }
-                    },
-                    onDragEnd = {
+                    }
+                },
+                onDragEnd = {
                         coroutineScope.launch {
                             if (offsetY.value > dismissThreshold) {
                                 offsetY.animateTo(
@@ -65,6 +68,15 @@ fun DragToDismissContainer(
                                     animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
                                 )
                                 onDismiss()
+                            } else if (offsetY.value < swipeUpThreshold && onSwipeUp != null) {
+                                offsetY.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessLow
+                                    )
+                                )
+                                onSwipeUp()
                             } else {
                                 offsetY.animateTo(
                                     targetValue = 0f,

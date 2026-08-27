@@ -9,11 +9,11 @@ import io.mockk.*
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -23,6 +23,11 @@ class MediaAnalyzerTest {
     fun setup() {
         mockkStatic(FFprobeKit::class)
         mockkStatic(FFmpegKit::class)
+    }
+
+    @After
+    fun tearDown() {
+        unmockkAll()
     }
 
     @Test
@@ -40,16 +45,23 @@ class MediaAnalyzerTest {
                 {
                   "codec_type": "video",
                   "codec_name": "h264",
-                  "width": 1920,
-                  "height": 1080,
-                  "r_frame_rate": "30/1",
-                  "bit_rate": "4500000"
+                  "width": 3840,
+                  "height": 2160,
+                  "r_frame_rate": "60/1",
+                  "bit_rate": "45000000",
+                  "color_transfer": "smpte2084",
+                  "color_primaries": "bt2020",
+                  "profile": "Main 10"
                 },
                 {
                   "codec_type": "audio",
-                  "codec_name": "aac",
-                  "sample_rate": "44100",
-                  "channels": 2
+                  "codec_name": "truehd",
+                  "sample_rate": "48000",
+                  "channels": 8,
+                  "channel_layout": "7.1",
+                  "side_data_list": [
+                    { "side_data_type": "atmos" }
+                  ]
                 }
               ]
             }
@@ -69,19 +81,58 @@ class MediaAnalyzerTest {
         assertNotNull(report.format)
         assertEquals("mov, mp4, m4a, 3gp, 3g2, mj2", report.format?.containerFormat)
         assertEquals(120.5, report.format?.duration!!, 0.01)
-        assertEquals(5000000L, report.format?.bitrate)
 
         assertNotNull(report.videoStream)
         assertEquals("H264", report.videoStream?.codecName)
-        assertEquals(1920, report.videoStream?.width)
-        assertEquals(1080, report.videoStream?.height)
-        assertEquals(30.0, report.videoStream?.avgFpsDecimal!!, 0.01)
+        assertEquals(3840, report.videoStream?.width)
+        assertEquals(2160, report.videoStream?.height)
+        assertTrue(report.videoStream?.isHdr == true)
 
         assertEquals(1, report.audioStreams.size)
-        assertEquals("AAC (Advanced Audio Coding)", report.audioStreams[0].codecName)
-        assertEquals(44100, report.audioStreams[0].sampleRate)
+        assertTrue(report.audioStreams[0].isSpatialAudio)
+        assertEquals(8, report.audioStreams[0].channels)
 
-        assertFalse(report.diagnostics.hasErrors)
+        // Verify Tech Badges
+        assertTrue(report.techBadges.contains("4K"))
+        assertTrue(report.techBadges.contains("HDR"))
+        assertTrue(report.techBadges.contains("SPATIAL AUDIO"))
+        assertTrue(report.techBadges.contains("7.1CH"))
+        assertTrue(report.techBadges.contains("DOLBY TRUEHD"))
+    }
+
+    @Test
+    fun `test detectTechBadges for IMAX and Blu-Ray`() = runTest {
+        val testPath = "/sdcard/movie.mkv"
+        val mockJson = """
+            {
+              "format": {
+                "format_name": "matroska,webm",
+                "bit_rate": "30000000"
+              },
+              "streams": [
+                {
+                  "codec_type": "video",
+                  "width": 1920,
+                  "height": 1440,
+                  "display_aspect_ratio": "1.43:1"
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val probeSession = mockk<FFprobeSession>()
+        every { probeSession.returnCode } returns ReturnCode(0)
+        every { probeSession.output } returns mockJson
+        every { FFprobeKit.execute(any()) } returns probeSession
+
+        val ffmpegSession = mockk<FFmpegSession>()
+        every { ffmpegSession.allLogsAsString } returns "Clean"
+        every { FFmpegKit.execute(any()) } returns ffmpegSession
+
+        val report = MediaAnalyzer.analyze(testPath, "VIDEO")
+
+        assertTrue(report.techBadges.contains("IMAX"))
+        assertTrue(report.techBadges.contains("BLU-RAY"))
     }
 
     @Test

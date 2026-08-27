@@ -76,9 +76,10 @@ class AudioPlayerActivity : ComponentActivity() {
         val exoPlayerManager = ExoPlayerManager.getInstance(applicationContext)
         val isBgPlayEnabled = exoPlayerManager.playerState.value.isAudioBackgroundPlayEnabled
         
-        if (exoPlayerManager.exoPlayer.isPlaying && !isFinishing && !isChangingConfigurations) {
+        val player = exoPlayerManager.exoPlayer
+        if (player != null && player.isPlaying && !isFinishing && !isChangingConfigurations) {
             if (!isBgPlayEnabled) {
-                exoPlayerManager.exoPlayer.pause()
+                player.pause()
             }
         }
     }

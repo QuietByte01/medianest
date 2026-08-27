@@ -66,6 +66,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import com.medianest.ui.image.hybrid.HybridImageViewer
 import com.medianest.ui.image.hybrid.ImageSource
+import com.medianest.ui.components.debug.ImageDebugOverlay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,11 +88,14 @@ fun QuickViewScreen(
     var showControls by remember { mutableStateOf(true) }
     var controlsTimerKey by remember { mutableIntStateOf(0) }
     var showInfoBottomSheet by remember { mutableStateOf(false) }
+    var showOverflowMenu by remember { mutableStateOf(false) }
+    var showBgColorPicker by remember { mutableStateOf(false) }
+    var showPictureModeDialog by remember { mutableStateOf(false) }
 
     // Auto-hide controls timer
-    LaunchedEffect(showControls, controlsTimerKey) {
-        if (showControls) {
-            delay(3500)
+    LaunchedEffect(showControls, controlsTimerKey, showInfoBottomSheet, showOverflowMenu, showBgColorPicker, showPictureModeDialog, showDeleteDialog) {
+        if (showControls && !showInfoBottomSheet && !showOverflowMenu && !showBgColorPicker && !showPictureModeDialog && !showDeleteDialog) {
+            delay(5000)
             showControls = false
         }
     }
@@ -112,10 +116,10 @@ fun QuickViewScreen(
     val settingsManager = com.medianest.MediaNestApp.instance.settingsManager
     val pictureModeEnabled by settingsManager.pictureModeEnabled.collectAsState(initial = true)
     val pictureMode by settingsManager.pictureMode.collectAsState(initial = "BALANCED")
+    val showImageDebug by settingsManager.showImageDebugInfo.collectAsState(initial = false)
     val customSat by settingsManager.customSaturation.collectAsState(initial = 1.18f)
     val customCon by settingsManager.customContrast.collectAsState(initial = 1.06f)
     val customWarmth by settingsManager.customWarmth.collectAsState(initial = 0.03f)
-    var showPictureModeDialog by remember { mutableStateOf(false) }
 
     val pagerState = rememberPagerState(
         initialPage = initialIndex.coerceIn(0, (mutableMediaList.size - 1).coerceAtLeast(0))
@@ -188,66 +192,73 @@ fun QuickViewScreen(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(imageBgBrush) // Dynamic ambient gradient
-            .blur(if (viewerBgColor == Color.Transparent) 40.dp else 0.dp) // Frosted glass effect when transparent
-            .clickable(
-                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                indication = null
-            ) { 
-                // Only toggle if no items are shown or we're in video/audio
-                // Image viewer has its own cleaner toggle logic now.
-                if (mutableMediaList.isEmpty() || (currentItem != null && currentItem.type != MediaType.IMAGE)) {
-                    toggleControls()
-                }
-            }
-    ) {
-        if (isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                com.medianest.ui.components.MediaLoadingAnimation(
-                    mediaType = currentItem?.type ?: MediaType.IMAGE,
-                    iconSize = 52.dp
-                )
-            }
-        } else if (mutableMediaList.isNotEmpty()) {
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize(),
-                userScrollEnabled = !isCurrentPageZoomed
-            ) { page ->
-                val item = mutableMediaList[page]
-                when (item.type) {
-                    MediaType.IMAGE -> {
-                        val colorFilter = remember(pictureModeEnabled, pictureMode) {
-                            if (pictureModeEnabled) {
-                                val effect = try { com.medianest.ui.components.media.MediaEffect.fromString(pictureMode) } catch(e:Exception) { com.medianest.ui.components.media.MediaEffect.OFF }
-                                com.medianest.player.fx.MediaFxPipeline.getComposeColorFilter(effect)
-                            } else null
-                        }
-                        val zoomPadding = if (showControls) 150.dp else 24.dp
-                        
-                        HybridImageViewer(
-                            source = ImageSource.from(item.uri),
-                            colorFilter = colorFilter,
-                            backgroundColor = viewerBgColor ?: Color.Black, // Consistent black default
-                            zoomControlsBottomPadding = zoomPadding,
-                            onInteraction = { resetControlsTimer() },
-                            onZoomChanged = { zoomed ->
-                                if (pagerState.currentPage == page) {
-                                    isCurrentPageZoomed = zoomed
-                                }
-                            },
-                            onToggleControls = { toggleControls() },
-                            onSwipeUpForInfo = { showInfoBottomSheet = true }
-                        )
-                    }
+    val effectiveBgColor = viewerBgColor ?: Color.Black
 
-                    MediaType.VIDEO -> QuickVideoPreview(item = item, onOpenFullPlayer = { onOpenFullPlayer(item) })
+    com.medianest.ui.image.gallery.DragToDismissContainer(
+        onDismiss = onClose,
+        onSwipeUp = { showInfoBottomSheet = true },
+        enabled = !isCurrentPageZoomed,
+        backgroundColor = if (effectiveBgColor == Color.Transparent) Color.Black else effectiveBgColor,
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    if (viewerBgColor == Color.Transparent) {
+                        imageBgBrush
+                    } else {
+                        androidx.compose.ui.graphics.SolidColor(effectiveBgColor)
+                    }
+                )
+        ) {
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    com.medianest.ui.components.MediaLoadingAnimation(
+                        mediaType = currentItem?.type ?: MediaType.IMAGE,
+                        iconSize = 52.dp
+                    )
+                }
+            } else if (mutableMediaList.isNotEmpty()) {
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize(),
+                    userScrollEnabled = !isCurrentPageZoomed
+                ) { page ->
+                    val item = mutableMediaList[page]
+                    when (item.type) {
+                        MediaType.IMAGE -> {
+                            val colorFilter = remember(pictureModeEnabled, pictureMode) {
+                                if (pictureModeEnabled) {
+                                    val effect = try { com.medianest.ui.components.media.MediaEffect.fromString(pictureMode) } catch(e:Exception) { com.medianest.ui.components.media.MediaEffect.OFF }
+                                    com.medianest.player.fx.MediaFxPipeline.getComposeColorFilter(effect)
+                                } else null
+                            }
+                            val zoomPadding = if (showControls) 150.dp else 24.dp
+                            
+                            HybridImageViewer(
+                                source = ImageSource.from(item.uri),
+                                colorFilter = colorFilter,
+                                backgroundColor = Color.Transparent,
+                                zoomControlsBottomPadding = zoomPadding,
+                                onInteraction = { resetControlsTimer() },
+                                onZoomChanged = { zoomed ->
+                                    if (pagerState.currentPage == page) {
+                                        isCurrentPageZoomed = zoomed
+                                        if (zoomed) {
+                                            showControls = false
+                                        }
+                                    }
+                                },
+                                onToggleControls = { toggleControls() },
+                                onSwipeUpForInfo = { showInfoBottomSheet = true }
+                            )
+                        }
+
+                        MediaType.VIDEO -> QuickVideoPreview(item = item, onOpenFullPlayer = { onOpenFullPlayer(item) })
                     MediaType.AUDIO -> QuickAudioPreview(
                         item = item,
                         mediaList = mutableMediaList,
@@ -394,6 +405,35 @@ fun QuickViewScreen(
                         }
                     }
 
+                    // Picture Mode Direct Button
+                    if (currentItem?.type == MediaType.IMAGE) {
+                        Box(
+                            modifier = Modifier
+                                .height(40.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color.Black.copy(alpha = 0.55f))
+                                .clickable { 
+                                    resetControlsTimer()
+                                    showPictureModeDialog = true 
+                                }
+                                .padding(horizontal = 14.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Default.Tune, contentDescription = "Picture Mode", tint = Color.White, modifier = Modifier.size(16.dp))
+                                Text(
+                                    text = pictureMode.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() },
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+
                     var showOverflowMenu by remember { mutableStateOf(false) }
                     Box {
                         Box(
@@ -453,8 +493,6 @@ fun QuickViewScreen(
                 }
             }
         }
-
-        // Bottom Action Bar with Filmstrip Carousel
         AnimatedVisibility(
             visible = showControls && currentItem != null,
             enter = fadeIn(),
@@ -796,7 +834,18 @@ fun QuickViewScreen(
                 }
             )
         }
+
+        if (showImageDebug && currentItem?.type == MediaType.IMAGE) {
+            ImageDebugOverlay(
+                item = currentItem,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(16.dp)
+                    .padding(bottom = if (showControls) 120.dp else 24.dp)
+            )
+        }
     }
+}
 }
 
 fun getFilePathFromUri(context: android.content.Context, uri: Uri): String {
@@ -1053,7 +1102,7 @@ fun QuickAudioPreview(
     DisposableEffect(Unit) {
         onDispose {
             try {
-                exoPlayerManager.exoPlayer.pause()
+                exoPlayerManager.exoPlayer?.pause()
             } catch (e: Exception) {
                 e.printStackTrace()
             }

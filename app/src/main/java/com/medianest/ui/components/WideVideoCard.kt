@@ -34,6 +34,8 @@ import com.medianest.data.model.MediaItem
 import com.medianest.ui.theme.LocalDarkTheme
 import com.medianest.util.formatBytesReport
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -129,7 +131,12 @@ fun WideVideoCard(
                             onError = {
                                 if (fallbackBitmap == null) {
                                     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                                        fallbackBitmap = extractVideoThumbnailWide(context, item)
+                                        val bmp = wideVideoCardSemaphore.withPermit {
+                                            extractVideoThumbnailWide(context, item)
+                                        }
+                                        withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            fallbackBitmap = bmp
+                                        }
                                     }
                                 }
                             }
@@ -307,13 +314,16 @@ fun WideVideoCard(
     }
 }
 
+private val wideVideoCardSemaphore = kotlinx.coroutines.sync.Semaphore(1)
+
 private fun extractVideoThumbnailWide(
     context: android.content.Context,
     item: com.medianest.data.model.MediaItem,
     attemptOffset: Int = 0
 ): android.graphics.Bitmap? {
+    var retriever: android.media.MediaMetadataRetriever? = null
     return try {
-        val retriever = android.media.MediaMetadataRetriever()
+        retriever = android.media.MediaMetadataRetriever()
         retriever.setDataSource(context, item.uri)
         val durationMs = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
             ?.toLongOrNull() ?: item.durationMs
@@ -331,43 +341,46 @@ private fun extractVideoThumbnailWide(
         }.distinct()
 
         var result: android.graphics.Bitmap? = null
-        for (seekMicros in candidates) {
-            val frame = retriever.getFrameAtTime(seekMicros, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-            if (frame != null) {
-                val readableBitmap = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
-                    frame.config == android.graphics.Bitmap.Config.HARDWARE) {
-                    frame.copy(android.graphics.Bitmap.Config.ARGB_8888, false) ?: frame
-                } else {
-                    frame
-                }
-
-                var darkCount = 0
-                var total = 0
-                val step = (readableBitmap.width / 5).coerceAtLeast(1)
-                val stepY = (readableBitmap.height / 5).coerceAtLeast(1)
-                var xi = 0
-                while (xi < readableBitmap.width) {
-                    var yi = 0
-                    while (yi < readableBitmap.height) {
-                        val px = readableBitmap.getPixel(xi, yi)
-                        val luma = 0.299 * android.graphics.Color.red(px) + 0.587 * android.graphics.Color.green(px) + 0.114 * android.graphics.Color.blue(px)
-                        if (luma < 15.0) darkCount++
-                        total++
-                        yi += stepY
+        try {
+            for (seekMicros in candidates) {
+                val frame = retriever.getFrameAtTime(seekMicros, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                if (frame != null) {
+                    val readableBitmap = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
+                        frame.config == android.graphics.Bitmap.Config.HARDWARE) {
+                        frame.copy(android.graphics.Bitmap.Config.ARGB_8888, false) ?: frame
+                    } else {
+                        frame
                     }
-                    xi += step
-                }
 
-                val isBlack = total > 0 && (darkCount.toFloat() / total) > 0.88f
-                if (!isBlack) {
-                    result = frame
-                    break
+                    var darkCount = 0
+                    var total = 0
+                    val step = (readableBitmap.width / 5).coerceAtLeast(1)
+                    val stepY = (readableBitmap.height / 5).coerceAtLeast(1)
+                    var xi = 0
+                    while (xi < readableBitmap.width) {
+                        var yi = 0
+                        while (yi < readableBitmap.height) {
+                            val px = readableBitmap.getPixel(xi, yi)
+                            val luma = 0.299 * android.graphics.Color.red(px) + 0.587 * android.graphics.Color.green(px) + 0.114 * android.graphics.Color.blue(px)
+                            if (luma < 15.0) darkCount++
+                            total++
+                            yi += stepY
+                        }
+                        xi += step
+                    }
+
+                    val isBlack = total > 0 && (darkCount.toFloat() / total) > 0.88f
+                    if (!isBlack) {
+                        result = frame
+                        break
+                    }
+                    if (result == null) result = frame
                 }
-                if (result == null) result = frame
             }
-        }
-        retriever.release()
+        } catch (_: Exception) {}
         result
-    } catch (_: Exception) { null }
+    } catch (_: Exception) { null } finally {
+        try { retriever?.release() } catch (_: Exception) {}
+    }
 }
 

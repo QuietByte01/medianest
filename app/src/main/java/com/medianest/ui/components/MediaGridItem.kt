@@ -39,11 +39,12 @@ import coil.request.videoFrameMicros
 import coil.size.Precision
 import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
+import com.medianest.util.ThumbnailManager
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import java.util.Locale
 import java.util.concurrent.TimeUnit
-
-
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 
@@ -193,10 +194,13 @@ fun MediaGridItem(
                     }
                 },
                 onError = {
-                    // Coil VideoFrameDecoder failed — fall back to MediaMetadataRetriever
+                    // Coil VideoFrameDecoder failed — fall back to our ThumbnailManager
                     if (item.type == MediaType.VIDEO && fallbackBitmap == null) {
-                        coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                            fallbackBitmap = extractVideoThumbnail(context, item, rebuildToken)
+                        coroutineScope.launch {
+                            val bitmap = ThumbnailManager.getThumbnail(context, item.uri, rebuildToken)
+                            if (bitmap != null) {
+                                fallbackBitmap = bitmap
+                            }
                         }
                     }
                 }
@@ -328,9 +332,9 @@ fun MediaGridItem(
                                     fallbackBitmap = null
                                     val nextToken = rebuildToken + 1
                                     rebuildToken = nextToken
-                                    // Proactively extract non-black progressive frame on background thread
-                                    coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                        val newFrame = extractVideoThumbnail(context, item, nextToken)
+                                    // Proactively extract non-black progressive frame
+                                    coroutineScope.launch {
+                                        val newFrame = ThumbnailManager.getThumbnail(context, item.uri, nextToken)
                                         if (newFrame != null) {
                                             fallbackBitmap = newFrame
                                         }
@@ -391,84 +395,6 @@ fun MediaGridItem(
                 }
             }
         }
-    }
-}
-
-private fun extractVideoThumbnail(
-    context: android.content.Context,
-    item: MediaItem,
-    attemptOffset: Int = 0
-): android.graphics.Bitmap? {
-    return try {
-        val retriever = android.media.MediaMetadataRetriever()
-        retriever.setDataSource(context, item.uri)
-
-        // Read actual duration from retriever if item.durationMs is unreliable
-        val durationMs = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
-            ?.toLongOrNull() ?: item.durationMs
-
-        val baseOffsets = listOf(0.15f, 0.35f, 0.55f, 0.75f, 0.25f, 0.05f)
-        val shiftedOffsets = if (attemptOffset > 0) {
-            val shift = attemptOffset % baseOffsets.size
-            baseOffsets.drop(shift) + baseOffsets.take(shift)
-        } else {
-            baseOffsets
-        }
-
-        val candidates = shiftedOffsets.map { factor ->
-            if (durationMs > 1_000) (durationMs * 1000L * factor).toLong() else 0L
-        }.distinct()
-
-        var result: android.graphics.Bitmap? = null
-        for (seekMicros in candidates) {
-            val frame = retriever.getFrameAtTime(seekMicros, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-            if (frame != null && !isFrameBlack(frame)) {
-                result = frame
-                break
-            }
-            // Keep last non-null frame as fallback even if dark
-            if (frame != null && result == null) result = frame
-        }
-
-        retriever.release()
-        result
-    } catch (_: Exception) { null }
-}
-
-/**
- * Returns true when a bitmap is essentially all-black (e.g. the frame decoder decoded a blank frame).
- * Safely handles Hardware Bitmaps and samples luminance across a grid.
- */
-private fun isFrameBlack(bitmap: android.graphics.Bitmap): Boolean {
-    return try {
-        val readableBitmap = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
-            bitmap.config == android.graphics.Bitmap.Config.HARDWARE) {
-            bitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false) ?: return false
-        } else {
-            bitmap
-        }
-        if (readableBitmap.width < 4 || readableBitmap.height < 4) return true
-        val step = (readableBitmap.width / 5).coerceAtLeast(1)
-        val stepY = (readableBitmap.height / 5).coerceAtLeast(1)
-        var darkCount = 0
-        var total = 0
-        var x = 0
-        while (x < readableBitmap.width) {
-            var y = 0
-            while (y < readableBitmap.height) {
-                val pixel = readableBitmap.getPixel(x, y)
-                val luma = (0.299 * android.graphics.Color.red(pixel) +
-                            0.587 * android.graphics.Color.green(pixel) +
-                            0.114 * android.graphics.Color.blue(pixel))
-                if (luma < 15.0) darkCount++
-                total++
-                y += stepY
-            }
-            x += step
-        }
-        total > 0 && (darkCount.toFloat() / total) > 0.88f
-    } catch (_: Exception) {
-        false
     }
 }
 

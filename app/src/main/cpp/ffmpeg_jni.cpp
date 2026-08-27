@@ -15,6 +15,7 @@
 
 #define TAG "FFmpegNativePlayer"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, TAG, __VA_ARGS__)
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN, TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
 
@@ -36,23 +37,15 @@ static JavaVM *g_jvm = nullptr;
 
 // Lock-free atomic ring buffer for audio samples (zero allocations, zero mutexes in high-priority audio callback)
 struct AudioBuffer {
-    static constexpr size_t RING_SIZE = 192000; // 2 seconds of 48kHz stereo PCM
+    static constexpr size_t RING_SIZE = 768000; // 8 seconds of 48kHz stereo PCM for ultra stability
     std::array<int16_t, RING_SIZE> ring_buffer{};
     std::atomic<size_t> write_pos{0};
     std::atomic<size_t> read_pos{0};
 
     void push(const int16_t* data, size_t count) {
         if (!data || count == 0) return;
-        size_t w = write_pos.load(std::memory_order_relaxed);
-        size_t r = read_pos.load(std::memory_order_acquire);
-        
-        size_t free_space = (r > w) ? (r - w - 1) : (RING_SIZE - (w - r) - 1);
-        if (count > free_space) {
-            // Buffer overrun protection: advance read position to drop oldest samples
-            size_t drop = count - free_space;
-            read_pos.store((r + drop) % RING_SIZE, std::memory_order_release);
-        }
 
+        size_t w = write_pos.load(std::memory_order_relaxed);
         for (size_t i = 0; i < count; ++i) {
             ring_buffer[w] = data[i];
             w = (w + 1) % RING_SIZE;
@@ -76,6 +69,16 @@ struct AudioBuffer {
         return to_read;
     }
 
+    size_t get_available() const {
+        size_t w = write_pos.load(std::memory_order_acquire);
+        size_t r = read_pos.load(std::memory_order_acquire);
+        return (w >= r) ? (w - r) : (RING_SIZE - (r - w));
+    }
+
+    size_t get_free() const {
+        return RING_SIZE - get_available() - 1;
+    }
+
     void clear() {
         write_pos.store(0, std::memory_order_relaxed);
         read_pos.store(0, std::memory_order_relaxed);
@@ -95,6 +98,7 @@ struct PlayerContext {
     jobject java_ref = nullptr;
     jmethodID on_stats_mid = nullptr;
     jmethodID on_ended_mid = nullptr;
+    jmethodID on_hdr_mid = nullptr; // New callback for HDR
     std::atomic<int> repeat_mode{0};
 
     std::recursive_mutex mutex;
@@ -105,11 +109,17 @@ struct PlayerContext {
     AVCodecContext *a_codec_ctx = nullptr;
     ANativeWindow *native_window = nullptr;
 
-    // Filter Graph for DSP
-    AVFilterGraph *filter_graph = nullptr;
-    AVFilterContext *buffersrc_ctx = nullptr;
-    AVFilterContext *buffersink_ctx = nullptr;
-    std::string current_filter_desc = "anull"; // Default no-op filter
+    // Audio Filter Graph for DSP
+    AVFilterGraph *a_filter_graph = nullptr;
+    AVFilterContext *a_buffersrc_ctx = nullptr;
+    AVFilterContext *a_buffersink_ctx = nullptr;
+    std::string current_a_filter_desc = "anull";
+
+    // Video Filter Graph for Tonemapping/FX
+    AVFilterGraph *v_filter_graph = nullptr;
+    AVFilterContext *v_buffersrc_ctx = nullptr;
+    AVFilterContext *v_buffersink_ctx = nullptr;
+    std::string current_v_filter_desc = "null";
 
     // Oboe Audio
     std::shared_ptr<oboe::AudioStream> audio_stream;
@@ -120,6 +130,7 @@ struct PlayerContext {
     int source_fd = -1;
     std::atomic<bool> is_playing{false};
     std::atomic<bool> is_released{false};
+    std::atomic<bool> is_stopping{false};
     int64_t duration = 0;
     std::atomic<int64_t> current_position{0};
 
@@ -141,10 +152,16 @@ struct PlayerContext {
     }
 
     void reset_playback() {
-        is_released = true;
+        LOGI("reset_playback: Initiating reset. is_playing=%d", is_playing.load());
+        is_stopping = true;
         is_playing = false;
+
+        // Wait for thread to finish using resources
         if (playback_thread.joinable()) {
+            LOGD("reset_playback: Waiting for playback thread to join...");
+            is_released = true;
             playback_thread.join();
+            LOGD("reset_playback: Playback thread joined.");
         }
 
         if (audio_stream) {
@@ -153,13 +170,21 @@ struct PlayerContext {
             audio_stream.reset();
         }
         audio_initialized = false;
+        is_stopping = false;
+        is_released = false;
 
         std::lock_guard<std::recursive_mutex> lock(mutex);
-        if (filter_graph) {
-            avfilter_graph_free(&filter_graph);
-            filter_graph = nullptr;
-            buffersrc_ctx = nullptr;
-            buffersink_ctx = nullptr;
+        if (a_filter_graph) {
+            avfilter_graph_free(&a_filter_graph);
+            a_filter_graph = nullptr;
+            a_buffersrc_ctx = nullptr;
+            a_buffersink_ctx = nullptr;
+        }
+        if (v_filter_graph) {
+            avfilter_graph_free(&v_filter_graph);
+            v_filter_graph = nullptr;
+            v_buffersrc_ctx = nullptr;
+            v_buffersink_ctx = nullptr;
         }
         if (v_codec_ctx) {
             avcodec_free_context(&v_codec_ctx);
@@ -187,13 +212,12 @@ struct PlayerContext {
         audio_errors = 0;
         ts_recoveries = 0;
         audio_buffer.clear();
-        is_released = false;
+        // Keep is_released=true until we are ready for a new session in nativePrepare
     }
 
     void cleanup(JNIEnv *env) {
         LOGI("cleanup: Releasing all resources");
         reset_playback();
-        is_released = true;
 
         std::lock_guard<std::recursive_mutex> lock(mutex);
         if (native_window) {
@@ -220,18 +244,18 @@ struct PlayerContext {
         }
     }
 
-    int init_filter_graph(const std::string& filters_desc) {
+    int init_audio_filter_graph(const std::string& filters_desc) {
         std::lock_guard<std::recursive_mutex> lock(mutex);
-        if (filter_graph) {
-            avfilter_graph_free(&filter_graph);
-            filter_graph = nullptr;
-            buffersrc_ctx = nullptr;
-            buffersink_ctx = nullptr;
+        if (a_filter_graph) {
+            avfilter_graph_free(&a_filter_graph);
+            a_filter_graph = nullptr;
+            a_buffersrc_ctx = nullptr;
+            a_buffersink_ctx = nullptr;
         }
         if (!a_codec_ctx) return -1;
 
-        filter_graph = avfilter_graph_alloc();
-        if (!filter_graph) return -1;
+        a_filter_graph = avfilter_graph_alloc();
+        if (!a_filter_graph) return -1;
 
         const AVFilter *abuffersrc = avfilter_get_by_name("abuffer");
         const AVFilter *abuffersink = avfilter_get_by_name("abuffersink");
@@ -263,23 +287,23 @@ struct PlayerContext {
                  sample_rate, fmt_name,
                  tb.num, tb.den, in_layout_str);
 
-        ret = avfilter_graph_create_filter(&buffersrc_ctx, abuffersrc, "in", args, nullptr, filter_graph);
+        ret = avfilter_graph_create_filter(&a_buffersrc_ctx, abuffersrc, "in", args, nullptr, a_filter_graph);
         if (ret < 0) goto end;
 
-        ret = avfilter_graph_create_filter(&buffersink_ctx, abuffersink, "out", nullptr, nullptr, filter_graph);
+        ret = avfilter_graph_create_filter(&a_buffersink_ctx, abuffersink, "out", nullptr, nullptr, a_filter_graph);
         if (ret < 0) goto end;
 
         static const enum AVSampleFormat out_sample_fmts[] = { AV_SAMPLE_FMT_S16, AV_SAMPLE_FMT_NONE };
-        ret = av_opt_set_int_list(buffersink_ctx, "sample_fmts", out_sample_fmts, -1, AV_OPT_SEARCH_CHILDREN);
+        ret = av_opt_set_int_list(a_buffersink_ctx, "sample_fmts", out_sample_fmts, -1, AV_OPT_SEARCH_CHILDREN);
         if (ret < 0) goto end;
 
         outputs->name = av_strdup("in");
-        outputs->filter_ctx = buffersrc_ctx;
+        outputs->filter_ctx = a_buffersrc_ctx;
         outputs->pad_idx = 0;
         outputs->next = nullptr;
 
         inputs->name = av_strdup("out");
-        inputs->filter_ctx = buffersink_ctx;
+        inputs->filter_ctx = a_buffersink_ctx;
         inputs->pad_idx = 0;
         inputs->next = nullptr;
 
@@ -287,9 +311,67 @@ struct PlayerContext {
             std::string full_filters = filters_desc.empty() ? "anull" : filters_desc;
             full_filters += ",aformat=sample_fmts=s16:channel_layouts=stereo";
 
-            if ((ret = avfilter_graph_parse_ptr(filter_graph, full_filters.c_str(), &inputs, &outputs, nullptr)) < 0) goto end;
-            if ((ret = avfilter_graph_config(filter_graph, nullptr)) < 0) goto end;
+            if ((ret = avfilter_graph_parse_ptr(a_filter_graph, full_filters.c_str(), &inputs, &outputs, nullptr)) < 0) goto end;
+            if ((ret = avfilter_graph_config(a_filter_graph, nullptr)) < 0) goto end;
         }
+
+    end:
+        avfilter_inout_free(&inputs);
+        avfilter_inout_free(&outputs);
+        return ret;
+    }
+
+    int init_video_filter_graph(const std::string& filters_desc) {
+        std::lock_guard<std::recursive_mutex> lock(mutex);
+        if (v_filter_graph) {
+            avfilter_graph_free(&v_filter_graph);
+            v_filter_graph = nullptr;
+            v_buffersrc_ctx = nullptr;
+            v_buffersink_ctx = nullptr;
+        }
+        if (!v_codec_ctx) return -1;
+
+        v_filter_graph = avfilter_graph_alloc();
+        if (!v_filter_graph) return -1;
+
+        const AVFilter *buffersrc = avfilter_get_by_name("buffer");
+        const AVFilter *buffersink = avfilter_get_by_name("buffersink");
+        if (!buffersrc || !buffersink) return -1;
+
+        AVFilterInOut *outputs = avfilter_inout_alloc();
+        AVFilterInOut *inputs = avfilter_inout_alloc();
+        int ret = 0;
+
+        char args[512];
+        AVRational tb = {1, 30};
+        if (fmt_ctx && video_stream_idx >= 0 && fmt_ctx->streams[video_stream_idx]) {
+            tb = fmt_ctx->streams[video_stream_idx]->time_base;
+        }
+
+        snprintf(args, sizeof(args),
+                 "video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:pixel_aspect=%d/%d",
+                 v_codec_ctx->width, v_codec_ctx->height, v_codec_ctx->pix_fmt,
+                 tb.num, tb.den,
+                 v_codec_ctx->sample_aspect_ratio.num, v_codec_ctx->sample_aspect_ratio.den);
+
+        ret = avfilter_graph_create_filter(&v_buffersrc_ctx, buffersrc, "in", args, nullptr, v_filter_graph);
+        if (ret < 0) goto end;
+
+        ret = avfilter_graph_create_filter(&v_buffersink_ctx, buffersink, "out", nullptr, nullptr, v_filter_graph);
+        if (ret < 0) goto end;
+
+        outputs->name = av_strdup("in");
+        outputs->filter_ctx = v_buffersrc_ctx;
+        outputs->pad_idx = 0;
+        outputs->next = nullptr;
+
+        inputs->name = av_strdup("out");
+        inputs->filter_ctx = v_buffersink_ctx;
+        inputs->pad_idx = 0;
+        inputs->next = nullptr;
+
+        if ((ret = avfilter_graph_parse_ptr(v_filter_graph, filters_desc.c_str(), &inputs, &outputs, nullptr)) < 0) goto end;
+        if ((ret = avfilter_graph_config(v_filter_graph, nullptr)) < 0) goto end;
 
     end:
         avfilter_inout_free(&inputs);
@@ -299,7 +381,7 @@ struct PlayerContext {
 };
 
 oboe::DataCallbackResult OboeAudioCallback::onAudioReady(oboe::AudioStream *audioStream, void *audioData, int32_t numFrames) {
-    if (!audioStream || !audioData || !ctx) return oboe::DataCallbackResult::Continue;
+    if (!audioStream || !audioData || !ctx || ctx->is_stopping.load()) return oboe::DataCallbackResult::Stop;
     auto *outputData = static_cast<int16_t *>(audioData);
     size_t samplesNeeded = numFrames * audioStream->getChannelCount();
     size_t pulled = ctx->audio_buffer.pull(outputData, samplesNeeded);
@@ -324,6 +406,7 @@ Java_com_medianest_player_FFmpegPlaybackEngine_nativeInit(JNIEnv *env, jobject t
         jclass clazz = env->GetObjectClass(thiz);
         ctx->on_stats_mid = env->GetMethodID(clazz, "onNativeStatsUpdate", "(III)V");
         ctx->on_ended_mid = env->GetMethodID(clazz, "onNativePlaybackEnded", "()V");
+        ctx->on_hdr_mid = env->GetMethodID(clazz, "onNativeHdrUpdate", "(ZLjava/lang/String;Ljava/lang/String;)V");
         return reinterpret_cast<jlong>(ctx);
     } catch (...) {
         return 0;
@@ -338,8 +421,8 @@ Java_com_medianest_player_FFmpegPlaybackEngine_nativeProbe(JNIEnv *env, jobject 
     lseek(dup_fd, 0, SEEK_SET);
     sprintf(path, "/proc/self/fd/%d", dup_fd);
 
-    probe_fmt_ctx->probesize = 1000000;
-    probe_fmt_ctx->max_analyze_duration = 1000000;
+    probe_fmt_ctx->probesize = 5000000;
+    probe_fmt_ctx->max_analyze_duration = 5000000;
 
     if (avformat_open_input(&probe_fmt_ctx, path, nullptr, nullptr) != 0) {
         avformat_free_context(probe_fmt_ctx);
@@ -388,7 +471,7 @@ void playback_loop(PlayerContext *ctx) {
         int ret = av_read_frame(ctx->fmt_ctx, packet);
         if (ret < 0) {
             if (ret == AVERROR_EOF) {
-                LOGI("playback_loop: EOFReached");
+                LOGI("playback_loop: EOF Reached");
                 if (ctx->repeat_mode.load() == 1) { // Player.REPEAT_MODE_ONE
                     std::lock_guard<std::recursive_mutex> lock(ctx->mutex);
                     if (ctx->fmt_ctx) {
@@ -418,9 +501,12 @@ void playback_loop(PlayerContext *ctx) {
         }
 
         if (packet->stream_index == ctx->video_stream_idx && ctx->v_codec_ctx) {
-            if (avcodec_send_packet(ctx->v_codec_ctx, packet) >= 0) {
-                while (avcodec_receive_frame(ctx->v_codec_ctx, frame) >= 0) {
+            int send_res = avcodec_send_packet(ctx->v_codec_ctx, packet);
+            if (send_res >= 0) {
+                while (avcodec_receive_frame(ctx->v_codec_ctx, frame) >= 0 && !ctx->is_released) {
                     ctx->video_frame_count++;
+                    // ... rest of video handling ...
+
                     int64_t pts = frame->best_effort_timestamp;
                     if (pts == AV_NOPTS_VALUE) pts = frame->pts;
                     if (pts == AV_NOPTS_VALUE) pts = ctx->video_frame_count;
@@ -444,39 +530,78 @@ void playback_loop(PlayerContext *ctx) {
                     if (pts_ms > now_ms + 5) {
                         int64_t wait = pts_ms - now_ms;
                         if (wait > 100) wait = 100;
-                        std::this_thread::sleep_for(std::chrono::milliseconds(wait));
-                    }
-
-                    std::lock_guard<std::recursive_mutex> lock(ctx->mutex);
-                    if (ctx->native_window && frame->width > 0 && frame->height > 0) {
-                        ANativeWindow_Buffer buffer;
-                        if (ANativeWindow_lock(ctx->native_window, &buffer, nullptr) == 0) {
-                            if (buffer.bits != nullptr && buffer.width > 0 && buffer.height > 0) {
-                                sws_ctx = sws_getCachedContext(sws_ctx,
-                                    frame->width, frame->height, (AVPixelFormat)frame->format,
-                                    buffer.width, buffer.height, AV_PIX_FMT_RGBA,
-                                    SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
-                                if (sws_ctx) {
-                                    uint8_t *dest[4] = {(uint8_t *)buffer.bits, nullptr, nullptr, nullptr};
-                                    int dest_linesize[4] = {buffer.stride * 4, 0, 0, 0};
-                                    sws_scale(sws_ctx, frame->data, frame->linesize, 0, frame->height, dest, dest_linesize);
-                                }
-                            }
-                            ANativeWindow_unlockAndPost(ctx->native_window);
+                        for (int k = 0; k < wait / 10; k++) {
+                            if (ctx->is_released || !ctx->is_playing) break;
+                            std::this_thread::sleep_for(std::chrono::milliseconds(10));
                         }
                     }
+
+                    bool skip_render = (now_ms > pts_ms + 120);
+
+                    AVFrame *out_frame = frame;
+                    {
+                        std::lock_guard<std::recursive_mutex> lock(ctx->mutex);
+                        if (ctx->v_filter_graph && ctx->v_buffersrc_ctx && ctx->v_buffersink_ctx) {
+                            if (av_buffersrc_add_frame_flags(ctx->v_buffersrc_ctx, frame, AV_BUFFERSRC_FLAG_KEEP_REF) >= 0) {
+                                if (av_buffersink_get_frame(ctx->v_buffersink_ctx, filter_frame) >= 0) {
+                                    out_frame = filter_frame;
+                                }
+                            }
+                        }
+                    }
+
+                    if (!skip_render) {
+                        ANativeWindow* win = nullptr;
+                        {
+                            std::lock_guard<std::recursive_mutex> lock(ctx->mutex);
+                            if (ctx->native_window) {
+                                win = ctx->native_window;
+                                ANativeWindow_acquire(win);
+                            }
+                        }
+
+                        if (win && out_frame->width > 0 && out_frame->height > 0) {
+                            ANativeWindow_Buffer buffer;
+                            if (ANativeWindow_lock(win, &buffer, nullptr) == 0) {
+                                if (buffer.bits != nullptr && buffer.width > 0 && buffer.height > 0) {
+                                    sws_ctx = sws_getCachedContext(sws_ctx,
+                                        out_frame->width, out_frame->height, (AVPixelFormat)out_frame->format,
+                                        buffer.width, buffer.height, AV_PIX_FMT_RGBA,
+                                        SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
+                                    if (sws_ctx) {
+                                        uint8_t *dest[4] = {(uint8_t *)buffer.bits, nullptr, nullptr, nullptr};
+                                        int dest_linesize[4] = {buffer.stride * 4, 0, 0, 0};
+                                        sws_scale(sws_ctx, out_frame->data, out_frame->linesize, 0, out_frame->height, dest, dest_linesize);
+                                    }
+                                }
+                                ANativeWindow_unlockAndPost(win);
+                            }
+                            ANativeWindow_release(win);
+                        }
+                    } else {
+                        ctx->dropped_frames++;
+                    }
+
+                    if (out_frame == filter_frame) av_frame_unref(filter_frame);
                     ctx->current_position = pts_ms;
                 }
             } else {
                 ctx->dropped_frames++;
             }
         } else if (packet->stream_index == ctx->audio_stream_idx && ctx->a_codec_ctx) {
-            if (avcodec_send_packet(ctx->a_codec_ctx, packet) >= 0) {
-                while (avcodec_receive_frame(ctx->a_codec_ctx, frame) >= 0) {
+            // Throttle audio decoding if buffer is getting full to prevent spin-loop
+            while (ctx->audio_buffer.get_free() < 4096 && !ctx->is_released && ctx->is_playing) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
+            int send_res = avcodec_send_packet(ctx->a_codec_ctx, packet);
+            if (send_res >= 0) {
+                while (avcodec_receive_frame(ctx->a_codec_ctx, frame) >= 0 && !ctx->is_released) {
                     std::lock_guard<std::recursive_mutex> lock(ctx->mutex);
                     
                     if (!ctx->audio_initialized.load() && ctx->a_codec_ctx->sample_rate > 0 && ctx->a_codec_ctx->sample_fmt != AV_SAMPLE_FMT_NONE) {
-                        if (ctx->init_filter_graph(ctx->current_filter_desc) >= 0) {
+                        LOGI("playback_loop: Initializing audio for stream %d, rate=%d", ctx->audio_stream_idx, ctx->a_codec_ctx->sample_rate);
+                        if (ctx->init_audio_filter_graph(ctx->current_a_filter_desc) >= 0) {
                             oboe::AudioStreamBuilder builder;
                             builder.setDirection(oboe::Direction::Output);
                             builder.setPerformanceMode(oboe::PerformanceMode::LowLatency);
@@ -492,16 +617,22 @@ void playback_loop(PlayerContext *ctx) {
                                     ctx->audio_stream->requestStart();
                                 }
                                 ctx->audio_initialized = true;
+                                LOGI("playback_loop: Oboe stream opened successfully");
+                            } else {
+                                LOGE("playback_loop: Failed to open Oboe stream");
                             }
                         }
                     }
 
-                    if (ctx->filter_graph && ctx->buffersrc_ctx && ctx->buffersink_ctx) {
-                        if (av_buffersrc_add_frame_flags(ctx->buffersrc_ctx, frame, AV_BUFFERSRC_FLAG_KEEP_REF) >= 0) {
-                            while (av_buffersink_get_frame(ctx->buffersink_ctx, filter_frame) >= 0) {
+                    if (ctx->a_filter_graph && ctx->a_buffersrc_ctx && ctx->a_buffersink_ctx) {
+                        int filter_res = av_buffersrc_add_frame_flags(ctx->a_buffersrc_ctx, frame, AV_BUFFERSRC_FLAG_KEEP_REF);
+                        if (filter_res >= 0) {
+                            while (av_buffersink_get_frame(ctx->a_buffersink_ctx, filter_frame) >= 0) {
                                 ctx->audio_buffer.push(reinterpret_cast<int16_t*>(filter_frame->data[0]), filter_frame->nb_samples * 2);
                                 av_frame_unref(filter_frame);
                             }
+                        } else {
+                            LOGW("playback_loop: Audio buffer source add error: %d", filter_res);
                         }
                     }
                     // For audio-only, update position from audio frames
@@ -518,6 +649,7 @@ void playback_loop(PlayerContext *ctx) {
                 }
             } else {
                 ctx->audio_errors++;
+                LOGW("playback_loop: Audio codec send error: %d", send_res);
             }
         }
         av_packet_unref(packet);
@@ -549,13 +681,21 @@ Java_com_medianest_player_FFmpegPlaybackEngine_nativePrepare(JNIEnv *env, jobjec
     lseek(ctx->source_fd, 0, SEEK_SET);
     sprintf(path, "/proc/self/fd/%d", ctx->source_fd);
 
+    jboolean is_prepared = JNI_FALSE;
     if (avformat_open_input(&ctx->fmt_ctx, path, nullptr, nullptr) != 0) {
+        LOGE("nativePrepare: Could not open input for FD %d", fd);
         close(ctx->source_fd);
         ctx->source_fd = -1;
         return JNI_FALSE;
     }
 
-    avformat_find_stream_info(ctx->fmt_ctx, nullptr);
+    if (avformat_find_stream_info(ctx->fmt_ctx, nullptr) < 0) {
+        LOGE("nativePrepare: Could not find stream info");
+        ctx->reset_playback();
+        return JNI_FALSE;
+    }
+
+    LOGI("nativePrepare: Opened %s, duration %lld ms, %d streams", ctx->fmt_ctx->iformat->name, (long long)ctx->duration, ctx->fmt_ctx->nb_streams);
     for (unsigned int i = 0; i < ctx->fmt_ctx->nb_streams; i++) {
         auto cp = ctx->fmt_ctx->streams[i]->codecpar;
         if (cp->codec_type == AVMEDIA_TYPE_VIDEO && ctx->video_stream_idx == -1) ctx->video_stream_idx = i;
@@ -564,11 +704,23 @@ Java_com_medianest_player_FFmpegPlaybackEngine_nativePrepare(JNIEnv *env, jobjec
 
     auto setup = [&](int idx, AVCodecContext **c) {
         if (idx < 0 || !ctx->fmt_ctx || !ctx->fmt_ctx->streams[idx]) return;
-        auto codec = avcodec_find_decoder(ctx->fmt_ctx->streams[idx]->codecpar->codec_id);
+        auto cp = ctx->fmt_ctx->streams[idx]->codecpar;
+        auto codec = avcodec_find_decoder(cp->codec_id);
         if (!codec) return;
         *c = avcodec_alloc_context3(codec);
         if (!*c) return;
-        avcodec_parameters_to_context(*c, ctx->fmt_ctx->streams[idx]->codecpar);
+        avcodec_parameters_to_context(*c, cp);
+
+        // Multi-threaded decoding for software fallback performance
+        if (cp->codec_type == AVMEDIA_TYPE_VIDEO) {
+            (*c)->thread_count = 4;
+            (*c)->thread_type = FF_THREAD_SLICE;
+        } else if (cp->codec_type == AVMEDIA_TYPE_AUDIO) {
+            // AS REQUESTED: Enhanced resilience for AVI with corrupted audio frames
+            (*c)->err_recognition = AV_EF_IGNORE_ERR;
+            (*c)->request_sample_fmt = AV_SAMPLE_FMT_S16;
+        }
+
         if (avcodec_open2(*c, codec, nullptr) < 0) {
             avcodec_free_context(c);
             *c = nullptr;
@@ -580,13 +732,51 @@ Java_com_medianest_player_FFmpegPlaybackEngine_nativePrepare(JNIEnv *env, jobjec
     setup(ctx->audio_stream_idx, &ctx->a_codec_ctx);
     if (!ctx->a_codec_ctx) ctx->audio_stream_idx = -1;
 
+    // Detect HDR and notify Java
+    if (ctx->v_codec_ctx) {
+        bool is_hdr = (ctx->v_codec_ctx->color_trc == AVCOL_TRC_SMPTE2084 || ctx->v_codec_ctx->color_trc == AVCOL_TRC_ARIB_STD_B67);
+        const char* hdr_type = "SDR";
+        if (is_hdr) {
+            if (ctx->v_codec_ctx->color_trc == AVCOL_TRC_ARIB_STD_B67) hdr_type = "HLG";
+            else if (ctx->v_codec_ctx->color_trc == AVCOL_TRC_SMPTE2084) hdr_type = "HDR10";
+        }
+
+        // Check for HDR10+ or Dolby Vision in side data
+        if (ctx->fmt_ctx && ctx->video_stream_idx >= 0) {
+            AVStream *st = ctx->fmt_ctx->streams[ctx->video_stream_idx];
+            if (st && st->codecpar) {
+                if (av_packet_side_data_get(st->codecpar->coded_side_data, st->codecpar->nb_coded_side_data, AV_PKT_DATA_DYNAMIC_HDR10_PLUS)) {
+                    hdr_type = "HDR10+";
+                }
+                if (av_packet_side_data_get(st->codecpar->coded_side_data, st->codecpar->nb_coded_side_data, AV_PKT_DATA_DOVI_CONF)) {
+                    hdr_type = "Dolby Vision";
+                }
+            }
+        }
+
+        const char* cs_name = "SDR";
+        if (ctx->v_codec_ctx->colorspace == AVCOL_SPC_BT2020_NCL || ctx->v_codec_ctx->colorspace == AVCOL_SPC_BT2020_CL) {
+            cs_name = "BT.2020";
+        } else if (ctx->v_codec_ctx->colorspace == AVCOL_SPC_BT709) {
+            cs_name = "BT.709";
+        }
+
+        if (ctx->on_hdr_mid) {
+            jstring jhdr = env->NewStringUTF(hdr_type);
+            jstring jcs = env->NewStringUTF(cs_name);
+            env->CallVoidMethod(ctx->java_ref, ctx->on_hdr_mid, (jboolean)is_hdr, jhdr, jcs);
+            env->DeleteLocalRef(jhdr);
+            env->DeleteLocalRef(jcs);
+        }
+    }
+
     if (ctx->video_stream_idx == -1 && ctx->audio_stream_idx == -1) {
         ctx->reset_playback();
         return JNI_FALSE;
     }
 
     if (ctx->audio_stream_idx >= 0 && ctx->a_codec_ctx && ctx->a_codec_ctx->sample_rate > 0 && ctx->a_codec_ctx->sample_fmt != AV_SAMPLE_FMT_NONE) {
-        if (ctx->init_filter_graph(ctx->current_filter_desc) >= 0) {
+        if (ctx->init_audio_filter_graph(ctx->current_a_filter_desc) >= 0) {
             oboe::AudioStreamBuilder builder;
             builder.setDirection(oboe::Direction::Output);
             builder.setPerformanceMode(oboe::PerformanceMode::LowLatency);
@@ -602,6 +792,10 @@ Java_com_medianest_player_FFmpegPlaybackEngine_nativePrepare(JNIEnv *env, jobjec
                 ctx->audio_initialized = true;
             }
         }
+    }
+
+    if (ctx->v_codec_ctx && ctx->current_v_filter_desc != "null") {
+        ctx->init_video_filter_graph(ctx->current_v_filter_desc);
     }
 
     ctx->duration = (ctx->fmt_ctx->duration != AV_NOPTS_VALUE) ? (ctx->fmt_ctx->duration / AV_TIME_BASE) * 1000 : 0;
@@ -675,9 +869,22 @@ extern "C" JNIEXPORT void JNICALL Java_com_medianest_player_FFmpegPlaybackEngine
     if (auto ctx = reinterpret_cast<PlayerContext *>(ptr)) {
         const char* f = env->GetStringUTFChars(filters, nullptr);
         if (f) {
-            ctx->current_filter_desc = f;
+            ctx->current_a_filter_desc = f;
             if (ctx->fmt_ctx && ctx->audio_initialized.load()) {
-                ctx->init_filter_graph(f);
+                ctx->init_audio_filter_graph(f);
+            }
+            env->ReleaseStringUTFChars(filters, f);
+        }
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_medianest_player_FFmpegPlaybackEngine_nativeSetVideoFilters(JNIEnv *env, jobject thiz, jlong ptr, jstring filters) {
+    if (auto ctx = reinterpret_cast<PlayerContext *>(ptr)) {
+        const char* f = env->GetStringUTFChars(filters, nullptr);
+        if (f) {
+            ctx->current_v_filter_desc = f;
+            if (ctx->v_codec_ctx) {
+                ctx->init_video_filter_graph(f);
             }
             env->ReleaseStringUTFChars(filters, f);
         }
