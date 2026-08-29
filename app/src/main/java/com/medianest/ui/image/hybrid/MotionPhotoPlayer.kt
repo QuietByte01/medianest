@@ -6,6 +6,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
 import android.view.Surface
+import com.medianest.util.setDataSourceSafe
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,7 +34,7 @@ class MotionPhotoPlayer(
                 
                 extractor = MediaExtractor().apply {
                     // This assumes we have a specialized FileDescriptor offset
-                    setDataSource(context, uri, null)
+                    setDataSourceSafe(context, uri)
                 }
                 
                 var videoTrackIndex = -1

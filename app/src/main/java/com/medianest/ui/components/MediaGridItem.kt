@@ -7,18 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Audiotrack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -67,6 +56,8 @@ fun MediaGridItem(
     showRemoveOption: Boolean = false,
     onOpenFolder: ((String, String?) -> Unit)? = null,
     onRename: (() -> Unit)? = null,
+    onMove: (() -> Unit)? = null,
+    onCopy: (() -> Unit)? = null,
     showInGallery: Boolean = false
 ) {
     val context = LocalContext.current
@@ -349,6 +340,26 @@ fun MediaGridItem(
                                 onClick = {
                                     showMenu = false
                                     onRename()
+                                }
+                            )
+                        }
+                        if (onMove != null) {
+                            DropdownMenuItem(
+                                text = { Text("Move to Folder", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                onClick = {
+                                    showMenu = false
+                                    onMove()
+                                }
+                            )
+                        }
+                        if (onCopy != null) {
+                            DropdownMenuItem(
+                                text = { Text("Copy to Folder", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                onClick = {
+                                    showMenu = false
+                                    onCopy()
                                 }
                             )
                         }

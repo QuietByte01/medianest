@@ -55,6 +55,8 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
     override val diagnosticState: StateFlow<EngineDiagnosticState> = _diagnosticState.asStateFlow()
 
     private var currentSurface: Surface? = null
+    internal val _isSurfaceReady = MutableStateFlow(false)
+    val isSurfaceReady: StateFlow<Boolean> = _isSurfaceReady.asStateFlow()
 
     init {
         if (isLibLoaded) {
@@ -137,8 +139,10 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
     }
 
     override fun stop() {
-        pause()
-        seekTo(0L)
+        // NOTE: Do NOT seekTo(0L) here — it forces an expensive native FFmpeg demuxer
+        // reset on every stop() call, causing AV1 lag. Position resets happen when
+        // prepare() is called with a new URI.
+        if (nativeContextPtr != 0L) try { nativePause(nativeContextPtr) } catch (e: Throwable) {}
     }
 
     override fun setPlaybackSpeed(speed: Float) {}
@@ -147,7 +151,9 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
     }
 
     override fun setSurface(surface: Surface?) {
+        Logger.i(TAG, "setSurface: $surface")
         currentSurface = surface
+        _isSurfaceReady.value = surface != null
         if (nativeContextPtr != 0L) try { nativeUpdateSurface(nativeContextPtr, surface) } catch (e: Throwable) {}
     }
 

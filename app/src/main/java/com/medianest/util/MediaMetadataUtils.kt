@@ -64,7 +64,7 @@ object MediaMetadataUtils {
         if (!isImage) {
             val retriever = MediaMetadataRetriever()
             try {
-                retriever.setDataSource(context, uri)
+                retriever.setDataSourceSafe(context, uri)
                 title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
                 durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
                 width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
@@ -149,4 +149,70 @@ object MediaMetadataUtils {
         metadataCache.put(cacheKey, result.copy(embeddedPicture = null))
         return result
     }
+}
+
+/**
+ * Safely sets the data source for a MediaMetadataRetriever, preferring FileDescriptors via ContentResolver
+ * to prevent permission and cross-process mediaserver failures (0x80000000).
+ */
+fun MediaMetadataRetriever.setDataSourceSafe(context: Context, uri: Uri) {
+    val path = uri.path
+    if (uri.scheme == "file" && path != null) {
+        setDataSource(path)
+        return
+    }
+
+    val pfd = try {
+        context.contentResolver.openFileDescriptor(uri, "r")
+    } catch (e: Exception) {
+        null
+    }
+
+    if (pfd != null) {
+        try {
+            setDataSource(pfd.fileDescriptor)
+            return
+        } catch (e: Exception) {
+            Logger.w("MediaMetadataUtils", "setDataSource via FileDescriptor failed for $uri, falling back", e)
+        } finally {
+            try {
+                pfd.close()
+            } catch (_: Exception) {}
+        }
+    }
+
+    // Fallback to standard setDataSource
+    setDataSource(context, uri)
+}
+
+/**
+ * Safely sets the data source for a MediaExtractor, preferring FileDescriptors via ContentResolver.
+ */
+fun android.media.MediaExtractor.setDataSourceSafe(context: Context, uri: Uri) {
+    val path = uri.path
+    if (uri.scheme == "file" && path != null) {
+        setDataSource(path)
+        return
+    }
+
+    val pfd = try {
+        context.contentResolver.openFileDescriptor(uri, "r")
+    } catch (e: Exception) {
+        null
+    }
+
+    if (pfd != null) {
+        try {
+            setDataSource(pfd.fileDescriptor)
+            return
+        } catch (e: Exception) {
+            Logger.w("MediaMetadataUtils", "MediaExtractor setDataSource via FileDescriptor failed for $uri", e)
+        } finally {
+            try {
+                pfd.close()
+            } catch (_: Exception) {}
+        }
+    }
+
+    setDataSource(context, uri, null)
 }

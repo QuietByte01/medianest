@@ -38,6 +38,7 @@ import com.medianest.ui.components.AlphabetScroller
 import com.medianest.ui.components.MediaInfoBottomSheet
 import com.medianest.ui.components.MediaLoadingAnimation
 import com.medianest.ui.components.formatDuration
+import com.medianest.ui.library.MoveOrCopyFileDialog
 import com.medianest.ui.components.translucentScrollBar
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.GlassDropdownMenu
@@ -71,6 +72,8 @@ fun SongsList(
 
     var infoItem by remember { mutableStateOf<MediaItem?>(null) }
     var editMetadataItem by remember { mutableStateOf<MediaItem?>(null) }
+    var itemToMove by remember { mutableStateOf<MediaItem?>(null) }
+    var itemToCopy by remember { mutableStateOf<MediaItem?>(null) }
     var songToDelete by remember { mutableStateOf<MediaItem?>(null) }
     var highlightedSongUri by remember { mutableStateOf<String?>(null) }
 
@@ -139,6 +142,8 @@ fun SongsList(
                         onRemoveFromPlaylist = onRemoveFromPlaylist,
                         onInfoClick = { infoItem = it },
                         onEditMetadataClick = { editMetadataItem = it },
+                        onMoveClick = { itemToMove = it },
+                        onCopyClick = { itemToCopy = it },
                         onDeleteClick = { songToDelete = it },
                         onNavigateSubTab = onNavigateSubTab,
                         showDeleteOption = showDeleteOption,
@@ -158,6 +163,24 @@ fun SongsList(
                 }
             }
         }
+    }
+
+    if (itemToMove != null) {
+        MoveOrCopyFileDialog(
+            item = itemToMove!!,
+            allItems = songs,
+            isCopy = false,
+            onDismiss = { itemToMove = null }
+        )
+    }
+
+    if (itemToCopy != null) {
+        MoveOrCopyFileDialog(
+            item = itemToCopy!!,
+            allItems = songs,
+            isCopy = true,
+            onDismiss = { itemToCopy = null }
+        )
     }
 
     if (infoItem != null) {
@@ -186,7 +209,7 @@ fun SongsList(
                         songToDelete = null
                         scope.launch(Dispatchers.IO) {
                             try {
-                                FolderHiddenUtils.deleteMediaUri(context, target.uri)
+                                com.medianest.util.FolderHiddenUtils.deleteMediaUri(context, target.uri)
                             } catch (e: Exception) {
                                 e.printStackTrace()
                             }
@@ -225,6 +248,8 @@ private fun SongRow(
     onRemoveFromPlaylist: ((MediaItem) -> Unit)?,
     onInfoClick: (MediaItem) -> Unit,
     onEditMetadataClick: (MediaItem) -> Unit,
+    onMoveClick: (MediaItem) -> Unit = {},
+    onCopyClick: (MediaItem) -> Unit = {},
     onDeleteClick: (MediaItem) -> Unit,
     onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?, targetSongUri: String?) -> Unit,
     showDeleteOption: Boolean,
@@ -412,6 +437,22 @@ private fun SongRow(
                         onClick = {
                             showMenu = false
                             onEditMetadataClick(item)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Move to Folder") },
+                        leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = Color.White) },
+                        onClick = {
+                            showMenu = false
+                            onMoveClick(item)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Copy to Folder") },
+                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.White) },
+                        onClick = {
+                            showMenu = false
+                            onCopyClick(item)
                         }
                     )
                     DropdownMenuItem(

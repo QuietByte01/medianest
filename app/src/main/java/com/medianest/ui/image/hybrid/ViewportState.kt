@@ -100,13 +100,14 @@ class ViewportState(
         animationJob?.cancel()
         isDismissing = true
         
-        val newY = offset.y + dragAmount.y
-        val progress = (newY / (viewportSize.height * 0.45f)).coerceIn(0f, 1f)
+        val newY = (offset.y + dragAmount.y).coerceAtLeast(0f)
+        val progress = (newY / (viewportSize.height * 0.40f)).coerceIn(0f, 1f)
         
         dismissFraction = progress
-        offset = Offset(offset.x + dragAmount.x * 0.5f, newY)
-        // Scale decay from 1.0x down to 0.75x
-        scale = 1f - (progress * 0.25f)
+        // Smooth horizontal drift alongside natural vertical drag
+        offset = Offset(offset.x + dragAmount.x * 0.4f, newY)
+        // Gentle, natural scale contraction down to 0.78x
+        scale = 1f - (progress * 0.22f)
     }
 
     /**
@@ -115,36 +116,62 @@ class ViewportState(
     fun onDragDismissEnd(velocity: Offset, onDismiss: () -> Unit) {
         animationJob?.cancel()
         animationJob = scope.launch {
-            if (dismissFraction > 0.35f || velocity.y > 1200f) {
-                // Complete dismiss animation
-                dismissFractionAnim.snapTo(dismissFraction)
-                dismissFractionAnim.animateTo(1f, spring(stiffness = Spring.StiffnessMedium)) {
-                    dismissFraction = value
+            if (dismissFraction > 0.25f || velocity.y > 800f) {
+                // Smooth fluid exit animation (flying down off screen while fading)
+                launch {
+                    dismissFractionAnim.snapTo(dismissFraction)
+                    dismissFractionAnim.animateTo(
+                        1f,
+                        spring(stiffness = Spring.StiffnessMedium, dampingRatio = Spring.DampingRatioNoBouncy)
+                    ) {
+                        dismissFraction = value
+                    }
+                }
+                launch {
+                    offsetYAnim.snapTo(offset.y)
+                    offsetYAnim.animateTo(
+                        viewportSize.height * 0.8f,
+                        spring(stiffness = Spring.StiffnessMedium, dampingRatio = Spring.DampingRatioNoBouncy)
+                    ) {
+                        offset = offset.copy(y = value)
+                    }
+                }
+                launch {
+                    scaleAnim.snapTo(scale)
+                    scaleAnim.animateTo(
+                        0.65f,
+                        spring(stiffness = Spring.StiffnessMedium, dampingRatio = Spring.DampingRatioNoBouncy)
+                    ) {
+                        scale = value
+                    }
                 }
                 onDismiss()
             } else {
-                // Spring back cleanly
+                // Ultra-smooth spring snap-back to center
                 launch {
                     dismissFractionAnim.snapTo(dismissFraction)
-                    dismissFractionAnim.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioLowBouncy)) {
+                    dismissFractionAnim.animateTo(
+                        0f,
+                        spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)
+                    ) {
                         dismissFraction = value
                     }
                 }
                 launch {
                     scaleAnim.snapTo(scale)
-                    scaleAnim.animateTo(1f, spring(stiffness = Spring.StiffnessMediumLow)) {
+                    scaleAnim.animateTo(1f, spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)) {
                         scale = value
                     }
                 }
                 launch {
                     offsetXAnim.snapTo(offset.x)
-                    offsetXAnim.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)) {
+                    offsetXAnim.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)) {
                         offset = offset.copy(x = value)
                     }
                 }
                 launch {
                     offsetYAnim.snapTo(offset.y)
-                    offsetYAnim.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)) {
+                    offsetYAnim.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)) {
                         offset = offset.copy(y = value)
                     }
                 }

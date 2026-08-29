@@ -554,89 +554,61 @@ fun VideoPlayerScreen(
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    androidx.compose.runtime.key(playerState.activeEngineName, playerState.media3InstanceId) {
-                                        when {
-                                            playerState.activeEngineName.contains("Media3") -> {
-                                                AndroidView(
-                                                    factory = { ctx ->
-                                                        Logger.i("VideoPlayerScreen", "Creating NEW TextureView for Media3 (Instance: ${playerState.media3InstanceId})")
-                                                        android.view.TextureView(ctx).apply {
-                                                            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                                                            playerManager.exoPlayer?.setVideoTextureView(this)
+                                    androidx.compose.runtime.key(playerState.activeEngineName, playerState.media3InstanceId, playerState.currentItem?.uri) {
+                                        AndroidView(
+                                            factory = { ctx ->
+                                                Logger.i("VideoPlayerScreen", "Creating TextureView for ${playerState.activeEngineName}")
+                                                android.view.TextureView(ctx).apply {
+                                                    surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
+                                                        private var activeSurface: android.view.Surface? = null
+                                                        override fun onSurfaceTextureAvailable(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
+                                                            Logger.i("VideoPlayerScreen", "SurfaceTexture Available for ${playerState.activeEngineName} (${w}x${h})")
+                                                            if (w <= 0 || h <= 0) return
+                                                            activeSurface?.release()
+                                                            activeSurface = android.view.Surface(st)
+                                                            playerManager.setVideoSurface(activeSurface)
                                                         }
-                                                    },
-                                                    update = { view ->
-                                                        playerManager.exoPlayer?.setVideoTextureView(view)
-                                                    },
-                                                    onRelease = { view ->
-                                                        Logger.i("VideoPlayerScreen", "Media3 TextureView Disposed (Instance: ${playerState.media3InstanceId})")
-                                                        playerManager.exoPlayer?.setVideoTextureView(null)
-                                                    },
-                                                    modifier = Modifier.fillMaxSize()
-                                                )
-                                            }
-                                            playerState.activeEngineName.contains("FFmpeg") -> {
-                                                // FFmpeg Rendering Path (TextureView)
-                                                AndroidView(
-                                                    factory = { ctx ->
-                                                        Logger.i("VideoPlayerScreen", "Creating TextureView for FFmpeg")
-                                                        android.view.TextureView(ctx).apply {
-                                                            surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
-                                                                private var activeSurface: android.view.Surface? = null
-                                                                override fun onSurfaceTextureAvailable(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
-                                                                    Logger.i("VideoPlayerScreen", "FFmpeg SurfaceTexture Available")
-                                                                    activeSurface?.release()
-                                                                    activeSurface = android.view.Surface(st)
-                                                                    playerManager.setVideoSurface(activeSurface)
-                                                                }
-                                                                override fun onSurfaceTextureSizeChanged(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
-                                                                    if (activeSurface == null) {
-                                                                        activeSurface = android.view.Surface(st)
-                                                                    }
-                                                                    playerManager.setVideoSurface(activeSurface)
-                                                                }
-                                                                override fun onSurfaceTextureDestroyed(st: android.graphics.SurfaceTexture): Boolean {
-                                                                    Logger.i("VideoPlayerScreen", "FFmpeg SurfaceTexture Destroyed")
-                                                                    playerManager.setVideoSurface(null)
-                                                                    activeSurface?.release()
-                                                                    activeSurface = null
-                                                                    return true
-                                                                }
-                                                                override fun onSurfaceTextureUpdated(st: android.graphics.SurfaceTexture) {}
+                                                        override fun onSurfaceTextureSizeChanged(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
+                                                            if (w <= 0 || h <= 0) return
+                                                            if (activeSurface == null) {
+                                                                activeSurface = android.view.Surface(st)
                                                             }
-                                                            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                                                            playerManager.setVideoSurface(activeSurface)
                                                         }
-                                                    },
-                                                    update = { view ->
-                                                        try {
-                                                            val activeFx = if (!pictureModeEnabled || pictureMode == "DEVICE_DEFAULT" || pictureMode == "OFF") {
-                                                                com.medianest.ui.components.media.MediaEffect.OFF
-                                                            } else {
-                                                                com.medianest.ui.components.media.MediaEffect.fromString(pictureMode)
-                                                            }
-                                                            val androidFilter = com.medianest.player.fx.MediaFxPipeline.getAndroidColorFilter(activeFx)
-                                                            if (androidFilter != null) {
-                                                                val paint = android.graphics.Paint().apply { colorFilter = androidFilter }
-                                                                view.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, paint)
-                                                            } else {
-                                                                view.setLayerType(android.view.View.LAYER_TYPE_NONE, null)
-                                                            }
-                                                        } catch (_: Exception) {}
-                                                    },
-                                                    onRelease = { view ->
-                                                        view.surfaceTextureListener = null
-                                                        playerManager.setVideoSurface(null)
-                                                    },
-                                                    modifier = Modifier.fillMaxSize()
-                                                )
-                                            }
-                                            else -> {
-                                                // Rebooting or Idle state - show nothing or a subtle loader
-                                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                                    CircularProgressIndicator(color = Color.White.copy(alpha = 0.5f))
+                                                        override fun onSurfaceTextureDestroyed(st: android.graphics.SurfaceTexture): Boolean {
+                                                            Logger.i("VideoPlayerScreen", "SurfaceTexture Destroyed for ${playerState.activeEngineName}")
+                                                            playerManager.setVideoSurface(null)
+                                                            activeSurface?.release()
+                                                            activeSurface = null
+                                                            return true
+                                                        }
+                                                        override fun onSurfaceTextureUpdated(st: android.graphics.SurfaceTexture) {}
+                                                    }
+                                                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                                                 }
-                                            }
-                                        }
+                                            },
+                                            update = { view ->
+                                                try {
+                                                    val activeFx = if (!pictureModeEnabled || pictureMode == "DEVICE_DEFAULT" || pictureMode == "OFF") {
+                                                        com.medianest.ui.components.media.MediaEffect.OFF
+                                                    } else {
+                                                        com.medianest.ui.components.media.MediaEffect.fromString(pictureMode)
+                                                    }
+                                                    val androidFilter = com.medianest.player.fx.MediaFxPipeline.getAndroidColorFilter(activeFx)
+                                                    if (androidFilter != null) {
+                                                        val paint = android.graphics.Paint().apply { colorFilter = androidFilter }
+                                                        view.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, paint)
+                                                    } else {
+                                                        view.setLayerType(android.view.View.LAYER_TYPE_NONE, null)
+                                                    }
+                                                } catch (_: Exception) {}
+                                            },
+                                            onRelease = { view ->
+                                                view.surfaceTextureListener = null
+                                                playerManager.setVideoSurface(null)
+                                            },
+                                            modifier = Modifier.fillMaxSize()
+                                        )
                                     }
                                 }
 

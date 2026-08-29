@@ -154,12 +154,12 @@ struct PlayerContext {
     void reset_playback() {
         LOGI("reset_playback: Initiating reset. is_playing=%d", is_playing.load());
         is_stopping = true;
+        is_released = true;
         is_playing = false;
 
         // Wait for thread to finish using resources
         if (playback_thread.joinable()) {
             LOGD("reset_playback: Waiting for playback thread to join...");
-            is_released = true;
             playback_thread.join();
             LOGD("reset_playback: Playback thread joined.");
         }
@@ -455,7 +455,9 @@ void playback_loop(PlayerContext *ctx) {
     while (!ctx->is_released) {
         if (!ctx->is_playing) {
             ctx->start_time = 0;
-            std::this_thread::sleep_for(std::chrono::milliseconds(30));
+            for (int i = 0; i < 3 && !ctx->is_released; ++i) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
             continue;
         }
 
@@ -463,12 +465,15 @@ void playback_loop(PlayerContext *ctx) {
             ctx->start_time = av_gettime() - (ctx->current_position * 1000);
         }
 
-        if (!ctx->fmt_ctx) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(30));
-            continue;
+        int ret;
+        {
+            std::lock_guard<std::recursive_mutex> lock(ctx->mutex);
+            if (!ctx->fmt_ctx) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(30));
+                continue;
+            }
+            ret = av_read_frame(ctx->fmt_ctx, packet);
         }
-
-        int ret = av_read_frame(ctx->fmt_ctx, packet);
         if (ret < 0) {
             if (ret == AVERROR_EOF) {
                 LOGI("playback_loop: EOF Reached");
@@ -521,7 +526,7 @@ void playback_loop(PlayerContext *ctx) {
                     int64_t pts_ms = (int64_t)(pts * time_base * 1000);
 
                     int64_t now_ms = (av_gettime() - ctx->start_time.load()) / 1000;
-                    if (abs(pts_ms - now_ms) > 1000 || pts_ms < ctx->current_position) {
+                    if (abs(pts_ms - now_ms) > 1000) {
                         ctx->start_time = av_gettime() - (pts_ms * 1000);
                         ctx->ts_recoveries++;
                         now_ms = pts_ms;
@@ -561,6 +566,7 @@ void playback_loop(PlayerContext *ctx) {
                         }
 
                         if (win && out_frame->width > 0 && out_frame->height > 0) {
+                            ANativeWindow_setBuffersGeometry(win, out_frame->width, out_frame->height, WINDOW_FORMAT_RGBA_8888);
                             ANativeWindow_Buffer buffer;
                             if (ANativeWindow_lock(win, &buffer, nullptr) == 0) {
                                 if (buffer.bits != nullptr && buffer.width > 0 && buffer.height > 0) {
@@ -593,15 +599,22 @@ void playback_loop(PlayerContext *ctx) {
             while (ctx->audio_buffer.get_free() < 4096 && !ctx->is_released && ctx->is_playing) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
+            if (ctx->is_released) {
+                av_packet_unref(packet);
+                break;
+            }
 
             int send_res = avcodec_send_packet(ctx->a_codec_ctx, packet);
             if (send_res >= 0) {
                 while (avcodec_receive_frame(ctx->a_codec_ctx, frame) >= 0 && !ctx->is_released) {
-                    std::lock_guard<std::recursive_mutex> lock(ctx->mutex);
-                    
                     if (!ctx->audio_initialized.load() && ctx->a_codec_ctx->sample_rate > 0 && ctx->a_codec_ctx->sample_fmt != AV_SAMPLE_FMT_NONE) {
                         LOGI("playback_loop: Initializing audio for stream %d, rate=%d", ctx->audio_stream_idx, ctx->a_codec_ctx->sample_rate);
-                        if (ctx->init_audio_filter_graph(ctx->current_a_filter_desc) >= 0) {
+                        bool filter_ok = false;
+                        {
+                            std::lock_guard<std::recursive_mutex> lock(ctx->mutex);
+                            filter_ok = (ctx->init_audio_filter_graph(ctx->current_a_filter_desc) >= 0);
+                        }
+                        if (filter_ok) {
                             oboe::AudioStreamBuilder builder;
                             builder.setDirection(oboe::Direction::Output);
                             builder.setPerformanceMode(oboe::PerformanceMode::LowLatency);
@@ -624,15 +637,18 @@ void playback_loop(PlayerContext *ctx) {
                         }
                     }
 
-                    if (ctx->a_filter_graph && ctx->a_buffersrc_ctx && ctx->a_buffersink_ctx) {
-                        int filter_res = av_buffersrc_add_frame_flags(ctx->a_buffersrc_ctx, frame, AV_BUFFERSRC_FLAG_KEEP_REF);
-                        if (filter_res >= 0) {
-                            while (av_buffersink_get_frame(ctx->a_buffersink_ctx, filter_frame) >= 0) {
-                                ctx->audio_buffer.push(reinterpret_cast<int16_t*>(filter_frame->data[0]), filter_frame->nb_samples * 2);
-                                av_frame_unref(filter_frame);
+                    {
+                        std::lock_guard<std::recursive_mutex> lock(ctx->mutex);
+                        if (ctx->a_filter_graph && ctx->a_buffersrc_ctx && ctx->a_buffersink_ctx) {
+                            int filter_res = av_buffersrc_add_frame_flags(ctx->a_buffersrc_ctx, frame, AV_BUFFERSRC_FLAG_KEEP_REF);
+                            if (filter_res >= 0) {
+                                while (av_buffersink_get_frame(ctx->a_buffersink_ctx, filter_frame) >= 0) {
+                                    ctx->audio_buffer.push(reinterpret_cast<int16_t*>(filter_frame->data[0]), filter_frame->nb_samples * 2);
+                                    av_frame_unref(filter_frame);
+                                }
+                            } else {
+                                LOGW("playback_loop: Audio buffer source add error: %d", filter_res);
                             }
-                        } else {
-                            LOGW("playback_loop: Audio buffer source add error: %d", filter_res);
                         }
                     }
                     // For audio-only, update position from audio frames
@@ -826,10 +842,14 @@ extern "C" JNIEXPORT void JNICALL Java_com_medianest_player_FFmpegPlaybackEngine
             av_seek_frame(ctx->fmt_ctx, -1, pos * AV_TIME_BASE / 1000, AVSEEK_FLAG_BACKWARD);
         }
         ctx->current_position = pos;
-        ctx->start_time = 0;
+        ctx->start_time = av_gettime() - (pos * 1000);
         ctx->audio_buffer.clear();
+        if (ctx->audio_stream) {
+            ctx->audio_stream->flush();
+        }
         if (ctx->v_codec_ctx) avcodec_flush_buffers(ctx->v_codec_ctx);
         if (ctx->a_codec_ctx) avcodec_flush_buffers(ctx->a_codec_ctx);
+        LOGI("nativeSeek: seeked to %lld ms, start_time synced", (long long)pos);
     }
 }
 

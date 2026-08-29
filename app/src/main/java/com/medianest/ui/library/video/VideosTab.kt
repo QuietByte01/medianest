@@ -70,6 +70,10 @@ import com.medianest.MediaNestApp
 import com.medianest.data.db.MediaCategory
 import com.medianest.data.db.MediaType
 import com.medianest.data.db.SelectiveHiddenFolder
+import com.medianest.ui.library.FolderPickerDialog
+import com.medianest.ui.library.MoveFolderDialog
+import com.medianest.ui.library.MoveOrCopyFileDialog
+import com.medianest.ui.library.RenameFolderDialog
 import com.medianest.data.model.MediaItem
 import com.medianest.data.settings.SettingsManager
 import com.medianest.ui.components.GlassSurface
@@ -165,11 +169,14 @@ fun VideosTab(
     var selectedSeasonName by remember { mutableStateOf<String?>(null) }
 
     // Folder Actions State
+    var folderToRename by remember { mutableStateOf<String?>(null) }
     var folderToMove by remember { mutableStateOf<String?>(null) }
     var folderToDelete by remember { mutableStateOf<String?>(null) }
     var folderForInfo by remember { mutableStateOf<String?>(null) }
     var showAddVideosToCategoryDialog by remember { mutableStateOf(false) }
     var itemToRename by remember { mutableStateOf<MediaItem?>(null) }
+    var itemToMove by remember { mutableStateOf<MediaItem?>(null) }
+    var itemToCopy by remember { mutableStateOf<MediaItem?>(null) }
 
     // Category options state
     var categoryForOptions by remember { mutableStateOf<MediaCategory?>(null) }
@@ -528,6 +535,8 @@ fun VideosTab(
                 sortField = sortField,
                 isAscending = isAscending,
                 onFolderClick = { selectedFolder = it },
+                onFolderRename = { folderToRename = it },
+                onFolderMove = { folderToMove = it },
                 onFolderDelete = { folderToDelete = it },
                 onFolderInfo = { folderForInfo = it },
                 onCreateCategoryClick = onCreateCategoryClick,
@@ -589,6 +598,8 @@ fun VideosTab(
                     if (targetUri != null) targetVideoUri = targetUri
                 },
                 onRename = { itemToRename = it },
+                onMove = { itemToMove = it },
+                onCopy = { itemToCopy = it },
                 selectedFolder = selectedFolder,
                 targetVideoUri = targetVideoUri,
                 isFolderViewActive = isFolderViewActive,
@@ -603,6 +614,24 @@ fun VideosTab(
                 item = itemToRename!!,
                 onDismiss = { itemToRename = null },
                 onRenameSuccess = { itemToRename = null }
+            )
+        }
+
+        if (itemToMove != null) {
+            MoveOrCopyFileDialog(
+                item = itemToMove!!,
+                allItems = videosList,
+                isCopy = false,
+                onDismiss = { itemToMove = null }
+            )
+        }
+
+        if (itemToCopy != null) {
+            MoveOrCopyFileDialog(
+                item = itemToCopy!!,
+                allItems = videosList,
+                isCopy = true,
+                onDismiss = { itemToCopy = null }
             )
         }
 
@@ -670,10 +699,24 @@ fun VideosTab(
             )
         }
 
+        if (folderToRename != null) {
+            val srcFolder = folderToRename!!
+            val itemsInFolder = videoFolderGroups[srcFolder] ?: emptyList()
+            RenameFolderDialog(
+                folderName = srcFolder,
+                itemsInFolder = itemsInFolder,
+                defaultMediaType = MediaType.VIDEO,
+                scope = scope,
+                onDismiss = { folderToRename = null },
+                onRenameComplete = { folderToRename = null }
+            )
+        }
+
         if (folderToMove != null) {
             MoveFolderDialog(
                 folderName = folderToMove!!,
-                folderGroups = folderGroups,
+                folderGroups = videoFolderGroups,
+                mediaType = MediaType.VIDEO,
                 scope = scope,
                 onDismiss = { folderToMove = null }
             )

@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.widget.Toast
+import com.medianest.util.setDataSourceSafe
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -218,7 +219,7 @@ fun VideoEditorStudioSheet(
             val retriever = MediaMetadataRetriever()
             val extractedList = mutableListOf<Bitmap>()
             try {
-                retriever.setDataSource(context, currentActiveClip.uri)
+                retriever.setDataSourceSafe(context, currentActiveClip.uri)
                 val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                 val durationUs = (durationStr?.toLongOrNull() ?: 5000L) * 1000L
                 val frameCount = 10

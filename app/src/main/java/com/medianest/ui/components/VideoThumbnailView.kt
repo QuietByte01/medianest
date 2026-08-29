@@ -6,6 +6,7 @@ import android.graphics.Color as AndroidColor
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
+import com.medianest.util.setDataSourceSafe
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -150,7 +151,7 @@ fun extractNonBlackVideoThumbnail(
     var retriever: MediaMetadataRetriever? = null
     return try {
         retriever = MediaMetadataRetriever()
-        retriever.setDataSource(context, uri)
+        retriever.setDataSourceSafe(context, uri)
 
         val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
             ?.toLongOrNull() ?: hintDurationMs

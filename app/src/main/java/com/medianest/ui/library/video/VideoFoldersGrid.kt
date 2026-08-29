@@ -46,6 +46,8 @@ fun VideoFoldersGrid(
     roundedCornersEnabled: Boolean,
     cornerRadiusDp: Int,
     onFolderClick: (String) -> Unit,
+    onFolderRename: (String) -> Unit = {},
+    onFolderMove: (String) -> Unit = {},
     onFolderDelete: (String) -> Unit,
     onFolderInfo: (String) -> Unit,
     onCreateCategoryClick: () -> Unit,
@@ -279,6 +281,22 @@ fun VideoFoldersGrid(
                                         onDismissRequest = { showFolderMenu = false },
                                         backgroundImage = folderItems.firstOrNull()?.uri
                                     ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Rename Folder", color = Color.White) },
+                                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White) },
+                                            onClick = {
+                                                showFolderMenu = false
+                                                onFolderRename(folderName)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Move Folder", color = Color.White) },
+                                            leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = Color.White) },
+                                            onClick = {
+                                                showFolderMenu = false
+                                                onFolderMove(folderName)
+                                            }
+                                        )
                                         DropdownMenuItem(
                                             text = { Text("Folder Info", color = Color.White) },
                                             leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = Color.White) },

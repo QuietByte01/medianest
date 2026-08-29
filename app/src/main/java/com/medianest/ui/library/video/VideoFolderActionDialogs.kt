@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.mediainfo.getFilePathFromUri
+import com.medianest.ui.library.FolderPickerDialog
 import com.medianest.ui.theme.LocalDarkTheme
 import com.medianest.util.FolderHiddenUtils
 import com.medianest.util.formatBytesReport
@@ -28,60 +29,12 @@ fun MoveFolderDialog(
     scope: CoroutineScope,
     onDismiss: () -> Unit
 ) {
-    var targetName by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-        shape = RoundedCornerShape(24.dp),
-        title = { Text("Move Folder: $folderName") },
-        text = {
-            Column {
-                Text("Enter target folder name to move all items from '$folderName':")
-                Spacer(modifier = Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = targetName,
-                    onValueChange = { targetName = it },
-                    label = { Text("Destination Folder Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                enabled = targetName.isNotBlank(),
-                onClick = {
-                    val target = targetName.trim()
-                    onDismiss()
-                    if (target.isNotBlank()) {
-                        val itemsToMove = folderGroups[folderName] ?: emptyList()
-                        scope.launch(Dispatchers.IO) {
-                            val root = Environment.getExternalStorageDirectory()
-                            val destDir = File(root, "Movies/$target")
-                            destDir.mkdirs()
-                            itemsToMove.forEach { item ->
-                                try {
-                                    val file = File(item.uri.path ?: "")
-                                    if (file.exists()) {
-                                        file.copyTo(File(destDir, file.name), overwrite = true)
-                                        file.delete()
-                                    }
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                }
-                            }
-                        }
-                    }
-                }
-            ) {
-                Text("Move")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
+    com.medianest.ui.library.MoveFolderDialog(
+        folderName = folderName,
+        folderGroups = folderGroups,
+        mediaType = com.medianest.data.db.MediaType.VIDEO,
+        scope = scope,
+        onDismiss = onDismiss
     )
 }
 

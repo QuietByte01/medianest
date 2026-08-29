@@ -1,26 +1,17 @@
 package com.medianest.ui.quickview
 
+import android.app.WallpaperManager
 import android.content.Intent
-import java.util.Locale
-import android.net.Uri
-import android.os.Build
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.gestures.calculateCentroid
-import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.awaitEachGesture
-import coil.compose.AsyncImagePainter
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -28,61 +19,50 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.medianest.ui.components.AdaptiveBottomSheet
-import com.medianest.ui.components.BubblingHeartButton
-import com.medianest.ui.components.GlassDropdownMenu
-import com.medianest.ui.components.MediaInfoBottomSheet
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
-import com.medianest.ui.components.GlassSurface
-import com.medianest.ui.theme.LocalDarkTheme
-import com.medianest.ui.components.formatDuration
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
+import com.medianest.data.db.MediaType
+import com.medianest.ui.components.GlassDropdownMenu
+import com.medianest.ui.components.MediaInfoBottomSheet
 import com.medianest.ui.image.hybrid.HybridImageViewer
 import com.medianest.ui.image.hybrid.ImageSource
-import com.medianest.ui.components.debug.ImageDebugOverlay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun QuickViewScreen(
     mediaList: List<MediaItem>,
-    initialIndex: Int,
+    initialIndex: Int = 0,
     isLoading: Boolean = false,
     onClose: () -> Unit,
-    onOpenFullPlayer: (MediaItem) -> Unit
+    onOpenFullPlayer: (MediaItem) -> Unit = {},
+    onDelete: (MediaItem) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var mutableMediaList by remember(mediaList) { mutableStateOf(mediaList) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showWallpaperDialog by remember { mutableStateOf(false) }
     var viewerBgColor by remember { mutableStateOf<Color?>(null) }
 
     var showControls by remember { mutableStateOf(true) }
@@ -93,8 +73,8 @@ fun QuickViewScreen(
     var showPictureModeDialog by remember { mutableStateOf(false) }
 
     // Auto-hide controls timer
-    LaunchedEffect(showControls, controlsTimerKey, showInfoBottomSheet, showOverflowMenu, showBgColorPicker, showPictureModeDialog, showDeleteDialog) {
-        if (showControls && !showInfoBottomSheet && !showOverflowMenu && !showBgColorPicker && !showPictureModeDialog && !showDeleteDialog) {
+    LaunchedEffect(showControls, controlsTimerKey, showInfoBottomSheet, showOverflowMenu, showBgColorPicker, showPictureModeDialog, showDeleteDialog, showWallpaperDialog) {
+        if (showControls && !showInfoBottomSheet && !showOverflowMenu && !showBgColorPicker && !showPictureModeDialog && !showDeleteDialog && !showWallpaperDialog) {
             delay(5000)
             showControls = false
         }
@@ -113,29 +93,25 @@ fun QuickViewScreen(
         }
     }
 
-    val settingsManager = com.medianest.MediaNestApp.instance.settingsManager
-    val pictureModeEnabled by settingsManager.pictureModeEnabled.collectAsState(initial = true)
-    val pictureMode by settingsManager.pictureMode.collectAsState(initial = "BALANCED")
-    val showImageDebug by settingsManager.showImageDebugInfo.collectAsState(initial = false)
-    val customSat by settingsManager.customSaturation.collectAsState(initial = 1.18f)
-    val customCon by settingsManager.customContrast.collectAsState(initial = 1.06f)
-    val customWarmth by settingsManager.customWarmth.collectAsState(initial = 0.03f)
+    var pictureMode by remember { mutableStateOf("OFF") }
+    var pictureModeEnabled by remember { mutableStateOf(false) }
 
-    val pagerState = rememberPagerState(
-        initialPage = initialIndex.coerceIn(0, (mutableMediaList.size - 1).coerceAtLeast(0))
-    ) {
-        mutableMediaList.size
-    }
-    val filmstripListState = rememberLazyListState()
-
-    androidx.activity.compose.BackHandler(enabled = true) {
-        when {
-            showPictureModeDialog -> showPictureModeDialog = false
-            showDeleteDialog -> showDeleteDialog = false
-            showInfoBottomSheet -> showInfoBottomSheet = false
-            else -> onClose()
+    val app = com.medianest.MediaNestApp.instance
+    val coroutineScope = rememberCoroutineScope()
+    LaunchedEffect(Unit) {
+        coroutineScope.launch {
+            app.settingsManager.pictureMode.collect { mode ->
+                pictureMode = mode
+                pictureModeEnabled = mode != "OFF"
+            }
         }
     }
+
+    val pagerState = rememberPagerState(
+        initialPage = initialIndex.coerceIn(0, (mutableMediaList.size - 1).coerceAtLeast(0)),
+        pageCount = { mutableMediaList.size }
+    )
+    val filmstripListState = rememberLazyListState()
 
     var isInitialScrollDone by remember { mutableStateOf(false) }
     var isCurrentPageZoomed by remember { mutableStateOf(false) }
@@ -192,359 +168,442 @@ fun QuickViewScreen(
         }
     }
 
+    var currentDismissProgress by remember { mutableFloatStateOf(0f) }
+    val effectiveBgAlpha = (1f - currentDismissProgress).coerceIn(0f, 1f)
+
     val effectiveBgColor = viewerBgColor ?: Color.Black
 
-    com.medianest.ui.image.gallery.DragToDismissContainer(
-        onDismiss = onClose,
-        onSwipeUp = { showInfoBottomSheet = true },
-        enabled = !isCurrentPageZoomed,
-        backgroundColor = if (effectiveBgColor == Color.Transparent) Color.Black else effectiveBgColor,
-        modifier = Modifier.fillMaxSize()
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    if (viewerBgColor == Color.Transparent) {
-                        imageBgBrush
-                    } else {
-                        androidx.compose.ui.graphics.SolidColor(effectiveBgColor)
-                    }
-                )
-        ) {
-            if (isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    com.medianest.ui.components.MediaLoadingAnimation(
-                        mediaType = currentItem?.type ?: MediaType.IMAGE,
-                        iconSize = 52.dp
-                    )
-                }
-            } else if (mutableMediaList.isNotEmpty()) {
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize(),
-                    userScrollEnabled = !isCurrentPageZoomed
-                ) { page ->
-                    val item = mutableMediaList[page]
-                    when (item.type) {
-                        MediaType.IMAGE -> {
-                            val colorFilter = remember(pictureModeEnabled, pictureMode) {
-                                if (pictureModeEnabled) {
-                                    val effect = try { com.medianest.ui.components.media.MediaEffect.fromString(pictureMode) } catch(e:Exception) { com.medianest.ui.components.media.MediaEffect.OFF }
-                                    com.medianest.player.fx.MediaFxPipeline.getComposeColorFilter(effect)
-                                } else null
-                            }
-                            val zoomPadding = if (showControls) 150.dp else 24.dp
-                            
-                            HybridImageViewer(
-                                source = ImageSource.from(item.uri),
-                                colorFilter = colorFilter,
-                                backgroundColor = Color.Transparent,
-                                zoomControlsBottomPadding = zoomPadding,
-                                onDismiss = { onClose() },
-                                onInteraction = { resetControlsTimer() },
-                                onZoomChanged = { zoomed ->
-                                    if (pagerState.currentPage == page) {
-                                        isCurrentPageZoomed = zoomed
-                                        if (zoomed) {
-                                            showControls = false
-                                        }
-                                    }
-                                },
-                                onToggleControls = { toggleControls() },
-                                onSwipeUpForInfo = { showInfoBottomSheet = true }
-                            )
-                        }
+    BackHandler {
+        onClose()
+    }
 
-                        MediaType.VIDEO -> QuickVideoPreview(item = item, onOpenFullPlayer = { onOpenFullPlayer(item) })
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                if (viewerBgColor == Color.Transparent) {
+                    imageBgBrush
+                } else {
+                    androidx.compose.ui.graphics.SolidColor(effectiveBgColor.copy(alpha = effectiveBgAlpha))
+                }
+            )
+    ) {
+        if (mutableMediaList.isNotEmpty()) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+                userScrollEnabled = !isCurrentPageZoomed
+            ) { page ->
+                val item = mutableMediaList[page]
+                when (item.type) {
+                    MediaType.IMAGE -> {
+                        val colorFilter = remember(pictureModeEnabled, pictureMode) {
+                            if (pictureModeEnabled) {
+                                val effect = try { com.medianest.ui.components.media.MediaEffect.fromString(pictureMode) } catch(e:Exception) { com.medianest.ui.components.media.MediaEffect.OFF }
+                                com.medianest.player.fx.MediaFxPipeline.getComposeColorFilter(effect)
+                            } else null
+                        }
+                        val zoomPadding = if (showControls) 150.dp else 24.dp
+                        
+                        HybridImageViewer(
+                            source = ImageSource.from(item.uri),
+                            colorFilter = colorFilter,
+                            backgroundColor = Color.Transparent,
+                            zoomControlsBottomPadding = zoomPadding,
+                            onDismiss = { onClose() },
+                            onInteraction = { resetControlsTimer() },
+                            onZoomChanged = { zoomed ->
+                                if (pagerState.currentPage == page) {
+                                    isCurrentPageZoomed = zoomed
+                                    if (zoomed) {
+                                        showControls = false
+                                    }
+                                }
+                            },
+                            onDismissProgress = { progress ->
+                                if (pagerState.currentPage == page) {
+                                    currentDismissProgress = progress
+                                }
+                            },
+                            onToggleControls = { toggleControls() },
+                            onSwipeUpForInfo = { showInfoBottomSheet = true }
+                        )
+                    }
+
+                    MediaType.VIDEO -> QuickVideoPreview(item = item, onOpenFullPlayer = { onOpenFullPlayer(item) })
                     MediaType.AUDIO -> QuickAudioPreview(
                         item = item,
                         mediaList = mutableMediaList,
                         currentIndex = page,
-                        onClose = onClose,
+                        onIndexChange = { newIdx ->
+                            scope.launch { pagerState.animateScrollToPage(newIdx) }
+                        },
                         onOpenFullPlayer = { onOpenFullPlayer(item) }
                     )
                 }
             }
-        } else {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("No Media Found", color = Color.White)
-            }
         }
 
-        // Top Floating Action Buttons (Back on TopStart, Picture Mode on TopEnd)
+        // Overlay Controls (Top App Bar & Bottom Bar)
         AnimatedVisibility(
             visible = showControls,
             enter = fadeIn(),
             exit = fadeOut(),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 24.dp, start = 16.dp, end = 16.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .clickable { onClose() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Color.White
-                    )
-                }
-
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Top Bar
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)
+                            )
+                        )
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    var showBgColorPicker by remember { mutableStateOf(false) }
-                    val colorOptions = listOf(
-                        Color.Transparent, // Dynamic Frosted
-                        Color.Black,
-                        Color.White,
-                        Color(0xFF1A1C1E), // Dark Gray
-                        Color(0xFF2D2D2D), // Medium Gray
-                        Color(0xFFE0E0E0), // Light Gray
-                        Color(0xFFFDF6E3), // Cream
-                        Color(0xFF0D1117), // Deep Navy
-                        Color(0xFF1E1E1E), // Slate
-                        Color(0xFF2C3E50), // Midnight Blue / Charcoal
-                        Color(0xFF34495E), // Wet Asphalt
-                        Color(0xFF7F8C8D), // Asbestos Gray
-                        Color(0xFFE67E22), // Pumpkin
-                        Color(0xFF27AE60)  // Emerald
-                    )
-
-                    // Inline Expanding Background Color Bar (No Circular Border, Text Label)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.5f))
+                            .clickable { onClose() },
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .height(40.dp)
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(Color.Black.copy(alpha = 0.55f))
-                                .clickable { showBgColorPicker = !showBgColorPicker }
-                                .padding(horizontal = 14.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(Icons.Default.Palette, contentDescription = "Background", tint = Color.White, modifier = Modifier.size(16.dp))
-                                Text("Background", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
 
-                        androidx.compose.animation.AnimatedVisibility(visible = showBgColorPicker) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val colorOptions = listOf(
+                            Color.Transparent, // Dynamic Frosted
+                            Color.Black,
+                            Color.White,
+                            Color(0xFF1A1C1E), // Dark Gray
+                            Color(0xFF2D2D2D), // Medium Gray
+                            Color(0xFFE0E0E0), // Light Gray
+                            Color(0xFFFDF6E3), // Cream
+                            Color(0xFF0D1117), // Deep Navy
+                            Color(0xFF1E1E1E), // Slate
+                            Color(0xFF2C3E50), // Midnight Blue
+                            Color(0xFF34495E), // Wet Asphalt
+                            Color(0xFF7F8C8D), // Asbestos Gray
+                            Color(0xFFE67E22), // Pumpkin
+                            Color(0xFF27AE60)  // Emerald
+                        )
+
+                        // Color Indicator & Selection Button
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            // Circular preview indicator of current background color
+                            Box(
                                 modifier = Modifier
-                                    .widthIn(max = 280.dp) // Bound the width for scrolling
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(Color.Black.copy(alpha = 0.65f))
-                                    .horizontalScroll(rememberScrollState())
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.55f))
+                                    .clickable { 
+                                        resetControlsTimer()
+                                        showBgColorPicker = !showBgColorPicker 
+                                    },
+                                contentAlignment = Alignment.Center
                             ) {
-                                colorOptions.forEach { color ->
-                                    val isTransparent = color == Color.Transparent
-                                    
-                                    Box(
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .clip(CircleShape)
-                                            .then(
-                                                if (isTransparent) {
-                                                    Modifier.background(
-                                                        Brush.sweepGradient(
-                                                            colors = listOf(
-                                                                Color.Cyan.copy(alpha = 0.6f),
-                                                                Color.Magenta.copy(alpha = 0.6f),
-                                                                Color.Yellow.copy(alpha = 0.6f),
-                                                                Color.Cyan.copy(alpha = 0.6f)
-                                                            )
+                                val currentSelectedColor = viewerBgColor ?: Color.Black
+                                val isDynamic = viewerBgColor == Color.Transparent
+                                
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .then(
+                                            if (isDynamic) {
+                                                Modifier.background(
+                                                    Brush.sweepGradient(
+                                                        colors = listOf(
+                                                            Color.Cyan,
+                                                            Color.Magenta,
+                                                            Color.Yellow,
+                                                            Color.Cyan
                                                         )
-                                                    ).border(1.dp, Color.White.copy(alpha = 0.5f), CircleShape)
-                                                } else {
-                                                    Modifier.background(color)
-                                                }
-                                            )
-                                            .clickable {
-                                                viewerBgColor = color
-                                                showBgColorPicker = false
-                                            },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        if (isTransparent) {
-                                            Icon(
-                                                Icons.Default.AutoAwesome,
-                                                contentDescription = null,
-                                                tint = Color.White,
-                                                modifier = Modifier.size(14.dp)
-                                            )
+                                                    )
+                                                ).border(1.dp, Color.White, CircleShape)
+                                            } else {
+                                                Modifier.background(currentSelectedColor).border(1.dp, Color.White.copy(alpha = 0.6f), CircleShape)
+                                            }
+                                        )
+                                )
+                            }
+
+                            androidx.compose.animation.AnimatedVisibility(visible = showBgColorPicker) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .widthIn(max = 240.dp)
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .background(Color.Black.copy(alpha = 0.65f))
+                                        .horizontalScroll(rememberScrollState())
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    colorOptions.forEach { color ->
+                                        val isTransparent = color == Color.Transparent
+                                        val isSelected = viewerBgColor == color || (viewerBgColor == null && color == Color.Black)
+                                        
+                                        Box(
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .clip(CircleShape)
+                                                .then(
+                                                    if (isTransparent) {
+                                                        Modifier.background(
+                                                            Brush.sweepGradient(
+                                                                colors = listOf(
+                                                                    Color.Cyan.copy(alpha = 0.6f),
+                                                                    Color.Magenta.copy(alpha = 0.6f),
+                                                                    Color.Yellow.copy(alpha = 0.6f),
+                                                                    Color.Cyan.copy(alpha = 0.6f)
+                                                                )
+                                                            )
+                                                        ).border(if (isSelected) 2.dp else 1.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.5f), CircleShape)
+                                                    } else {
+                                                        Modifier.background(color).border(if (isSelected) 2.dp else 0.dp, Color.White, CircleShape)
+                                                    }
+                                                )
+                                                .clickable {
+                                                    resetControlsTimer()
+                                                    viewerBgColor = color
+                                                    showBgColorPicker = false
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (isTransparent) {
+                                                Icon(
+                                                    Icons.Default.AutoAwesome,
+                                                    contentDescription = null,
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    // Picture Mode Direct Button
-                    if (currentItem?.type == MediaType.IMAGE) {
-                        Box(
-                            modifier = Modifier
-                                .height(40.dp)
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(Color.Black.copy(alpha = 0.55f))
-                                .clickable { 
-                                    resetControlsTimer()
-                                    showPictureModeDialog = true 
-                                }
-                                .padding(horizontal = 14.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        // Overflow Options Menu
+                        Box {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.5f))
+                                    .clickable { 
+                                        resetControlsTimer()
+                                        showOverflowMenu = true 
+                                    },
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.Tune, contentDescription = "Picture Mode", tint = Color.White, modifier = Modifier.size(16.dp))
-                                Text(
-                                    text = pictureMode.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() },
-                                    color = Color.White,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "More Options",
+                                    tint = Color.White
                                 )
                             }
-                        }
-                    }
 
-                    var showOverflowMenu by remember { mutableStateOf(false) }
-                    Box {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.5f))
-                                .clickable { showOverflowMenu = true },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "More Options",
-                                tint = Color.White
-                            )
-                        }
-
-                        GlassDropdownMenu(
-                            expanded = showOverflowMenu,
-                            onDismissRequest = { showOverflowMenu = false },
-                            backgroundImage = currentItem?.albumArtUri ?: currentItem?.uri,
-                            hue = imageHue
-                        ) {
-                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                                if (pictureModeEnabled) {
+                            GlassDropdownMenu(
+                                expanded = showOverflowMenu,
+                                onDismissRequest = { showOverflowMenu = false },
+                                backgroundImage = currentItem?.albumArtUri ?: currentItem?.uri,
+                                hue = imageHue
+                            ) {
+                                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                    if (currentItem?.type == MediaType.IMAGE) {
+                                        DropdownMenuItem(
+                                            text = { Text("Picture Mode (${pictureMode})", color = Color.White) },
+                                            leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, tint = Color.White) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                showPictureModeDialog = true
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Set as wallpaper", color = Color.White) },
+                                            leadingIcon = { Icon(Icons.Default.Wallpaper, contentDescription = null, tint = Color.White) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                showWallpaperDialog = true
+                                            }
+                                        )
+                                    }
                                     DropdownMenuItem(
-                                        text = { Text("Picture Mode", color = Color.White) },
-                                        leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, tint = Color.White) },
+                                        text = { Text("Open with", color = Color.White) },
+                                        leadingIcon = { Icon(Icons.Default.OpenInNew, contentDescription = null, tint = Color.White) },
                                         onClick = {
                                             showOverflowMenu = false
-                                            showPictureModeDialog = true
+                                            currentItem?.let { item ->
+                                                val sharingUri = com.medianest.util.ContentUriUtils.getSharingUri(context, item.uri)
+                                                val openIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                    setDataAndType(sharingUri, item.mimeType.ifEmpty { "image/*" })
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                                try {
+                                                    context.startActivity(Intent.createChooser(openIntent, "Open with"))
+                                                } catch (e: Exception) {
+                                                    e.printStackTrace()
+                                                }
+                                            }
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Set as...", color = Color.White) },
+                                        leadingIcon = { Icon(Icons.Default.Image, contentDescription = null, tint = Color.White) },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            currentItem?.let { item ->
+                                                val sharingUri = com.medianest.util.ContentUriUtils.getSharingUri(context, item.uri)
+                                                val setAsIntent = Intent(Intent.ACTION_ATTACH_DATA).apply {
+                                                    setDataAndType(sharingUri, item.mimeType.ifEmpty { "image/*" })
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                                try {
+                                                    context.startActivity(Intent.createChooser(setAsIntent, "Set as"))
+                                                } catch (e: Exception) {
+                                                    e.printStackTrace()
+                                                }
+                                            }
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Share", color = Color.White) },
+                                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null, tint = Color.White) },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            currentItem?.let { item ->
+                                                val sharingUri = com.medianest.util.ContentUriUtils.getSharingUri(context, item.uri)
+                                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                    putExtra(Intent.EXTRA_STREAM, sharingUri)
+                                                    type = item.mimeType.ifEmpty { "image/*" }
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                                try {
+                                                    context.startActivity(Intent.createChooser(shareIntent, "Share Media"))
+                                                } catch (e: Exception) {
+                                                    e.printStackTrace()
+                                                }
+                                            }
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete", color = Color.Red) },
+                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red) },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            showDeleteDialog = true
                                         }
                                     )
                                 }
-                                DropdownMenuItem(
-                                    text = { Text("Open with", color = Color.White) },
-                                    leadingIcon = { Icon(Icons.Default.OpenInNew, contentDescription = null, tint = Color.White) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        currentItem?.let { item ->
-                                            val sharingUri = com.medianest.util.ContentUriUtils.getSharingUri(context, item.uri)
-                                            val openIntent = Intent(Intent.ACTION_VIEW).apply {
-                                                setDataAndType(sharingUri, item.mimeType.ifEmpty { "image/*" })
-                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                            }
-                                            runCatching {
-                                                context.startActivity(openIntent)
-                                            }.onFailure {
-                                                android.widget.Toast.makeText(context, "No app available to open image", android.widget.Toast.LENGTH_SHORT).show()
-                                            }
-                                        }
-                                    }
-                                )
                             }
                         }
                     }
                 }
-            }
-        }
-        AnimatedVisibility(
-            visible = showControls && currentItem != null,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier.align(Alignment.BottomCenter)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 24.dp, start = 12.dp, end = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Horizontal Filmstrip / Thumbnail Carousel (Centered, transparent background)
-                if (mutableMediaList.size > 1) {
-                    Box(
+
+                // Bottom Filmstrip & Info Bar
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                            )
+                        )
+                        .navigationBarsPadding()
+                        .padding(bottom = 8.dp)
+                ) {
+                    // Action Buttons Row
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 12.dp),
-                        contentAlignment = Alignment.Center
+                            .padding(horizontal = 24.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        IconButton(onClick = {
+                            resetControlsTimer()
+                            showInfoBottomSheet = true
+                        }) {
+                            Icon(Icons.Default.Info, contentDescription = "Info", tint = Color.White)
+                        }
+
+                        IconButton(onClick = {
+                            resetControlsTimer()
+                            currentItem?.let { item ->
+                                val sharingUri = com.medianest.util.ContentUriUtils.getSharingUri(context, item.uri)
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    putExtra(Intent.EXTRA_STREAM, sharingUri)
+                                    type = item.mimeType.ifEmpty { "image/*" }
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                try {
+                                    context.startActivity(Intent.createChooser(shareIntent, "Share"))
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Default.Share, contentDescription = "Share", tint = Color.White)
+                        }
+
+                        IconButton(onClick = {
+                            resetControlsTimer()
+                            showDeleteDialog = true
+                        }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White)
+                        }
+                    }
+
+                    // Filmstrip thumbnail scroll
+                    if (mutableMediaList.size > 1) {
                         LazyRow(
                             state = filmstripListState,
-                            contentPadding = PaddingValues(horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterHorizontally),
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.wrapContentWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp)
                         ) {
                             itemsIndexed(mutableMediaList) { index, item ->
                                 val isSelected = index == pagerState.currentPage
                                 Box(
                                     modifier = Modifier
-                                        .size(if (isSelected) 50.dp else 40.dp)
-                                        .clip(RoundedCornerShape(4.dp))
+                                        .size(48.dp)
+                                        .clip(RoundedCornerShape(8.dp))
                                         .border(
-                                            width = if (isSelected) 2.dp else 1.dp,
-                                            color = if (isSelected) Color.White.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.15f),
-                                            shape = RoundedCornerShape(4.dp)
+                                            width = if (isSelected) 2.dp else 0.dp,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                            shape = RoundedCornerShape(8.dp)
                                         )
                                         .clickable {
                                             resetControlsTimer()
-                                            scope.launch {
-                                                pagerState.animateScrollToPage(index)
-                                            }
+                                            scope.launch { pagerState.animateScrollToPage(index) }
                                         }
                                 ) {
                                     AsyncImage(
-                                        model = ImageRequest.Builder(LocalContext.current)
-                                            .data(item.uri)
-                                            .crossfade(true)
-                                            .build(),
-                                        contentDescription = item.title,
+                                        model = item.albumArtUri ?: item.uri,
+                                        contentDescription = null,
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier.fillMaxSize()
                                     )
@@ -554,574 +613,280 @@ fun QuickViewScreen(
                     }
                 }
 
-                // Floating Pill Container Bar (Glass translucent capsule bar)
-                GlassSurface(
-                    shape = CircleShape,
-                    backgroundColor = Color.Black.copy(alpha = 0.50f),
-                    borderColor = Color.White.copy(alpha = 0.3f),
-                    enableBlur = true,
-                    modifier = Modifier
-                        .widthIn(max = 380.dp)
-                        .fillMaxWidth(0.92f)
-                ) {
-                    Row(
+            }
+        }
+    if (showWallpaperDialog && currentItem != null) {
+        AlertDialog(
+            onDismissRequest = { showWallpaperDialog = false },
+            title = { Text("Set as wallpaper", color = Color.White, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Choose where to set this image:", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    
+                    fun applyWallpaper(flag: Int, label: String) {
+                        scope.launch {
+                            try {
+                                val wallpaperManager = WallpaperManager.getInstance(context)
+                                val sharingUri = com.medianest.util.ContentUriUtils.getSharingUri(context, currentItem.uri)
+                                withContext(Dispatchers.IO) {
+                                    val bitmap = try {
+                                        android.graphics.BitmapFactory.decodeStream(
+                                            context.contentResolver.openInputStream(sharingUri)
+                                                ?: context.contentResolver.openInputStream(currentItem.uri)
+                                        )
+                                    } catch (e: Exception) {
+                                        null
+                                    }
+
+                                    if (bitmap != null) {
+                                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                                            wallpaperManager.setBitmap(bitmap, null, true, flag)
+                                        } else {
+                                            wallpaperManager.setBitmap(bitmap)
+                                        }
+                                    } else {
+                                        val stream = context.contentResolver.openInputStream(sharingUri)
+                                            ?: context.contentResolver.openInputStream(currentItem.uri)
+                                        stream?.use { inputStream ->
+                                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                                                wallpaperManager.setStream(inputStream, null, true, flag)
+                                            } else {
+                                                wallpaperManager.setStream(inputStream)
+                                            }
+                                        }
+                                    }
+                                }
+                                Toast.makeText(context, "$label updated successfully", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                Toast.makeText(context, "Failed to set wallpaper: ${e.localizedMessage ?: "Access denied"}", Toast.LENGTH_LONG).show()
+                            }
+                            showWallpaperDialog = false
+                        }
+                    }
+
+                    ListItem(
+                        headlineContent = { Text("Home Screen", color = Color.White) },
+                        leadingContent = { Icon(Icons.Default.Home, contentDescription = null, tint = Color.White) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        var isFavorite by remember(currentItem?.uri) { mutableStateOf(false) }
-
-                        LaunchedEffect(currentItem?.uri) {
-                            val uri = currentItem?.uri?.toString() ?: return@LaunchedEffect
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                val db = com.medianest.MediaNestApp.instance.database
-                                val dao = db.categoryDao()
-                                val categories = dao.getCategoriesByType("IMAGE").first()
-                                val fav = categories.find { it.name.equals("Favorites", ignoreCase = true) }
-                                if (fav != null) {
-                                    val uris = dao.getMediaUrisForCategory(fav.id).first()
-                                    isFavorite = uris.contains(uri)
-                                }
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                val flag = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                                    WallpaperManager.FLAG_SYSTEM
+                                } else 0
+                                applyWallpaper(flag, "Home Screen wallpaper")
                             }
-                        }
+                    )
 
-                        val actionIconTint = Color.White
-
-                        // 1. Favorite
-                        BubblingHeartButton(
-                            isFavorite = isFavorite,
-                            onClick = {
-                                resetControlsTimer()
-                                isFavorite = !isFavorite
-                                val item = currentItem ?: return@BubblingHeartButton
-                                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                    val db = com.medianest.MediaNestApp.instance.database
-                                    val dao = db.categoryDao()
-                                    val categories = dao.getCategoriesByType("IMAGE").first()
-                                    val fav = categories.find { it.name.equals("Favorites", ignoreCase = true) }
-                                    val favId = if (fav != null) fav.id else {
-                                        dao.insertCategory(com.medianest.data.db.MediaCategory(name = "Favorites", type = "IMAGE"))
-                                    }
-                                    if (isFavorite) {
-                                        dao.insertCategoryCrossRef(com.medianest.data.db.CategoryMediaCrossRef(categoryId = favId, mediaUri = item.uri.toString()))
-                                    } else {
-                                        dao.removeMediaFromCategory(favId, item.uri.toString())
-                                    }
-                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            if (isFavorite) "Added to Favorites" else "Removed from Favorites",
-                                            android.widget.Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                }
-                            },
-                            hue = imageHue,
-                            inactiveColor = actionIconTint
-                        )
-
-                        // 2. Edit / Pencil
-                        var showEditDialog by remember { mutableStateOf(false) }
-                        IconButton(onClick = {
-                            resetControlsTimer()
-                            currentItem?.let { item ->
-                                val editIntent = Intent(Intent.ACTION_EDIT).apply {
-                                    setDataAndType(item.uri, item.mimeType.ifEmpty { "image/*" })
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                                }
-                                runCatching {
-                                    context.startActivity(Intent.createChooser(editIntent, "Edit Image"))
-                                }.onFailure {
-                                    showEditDialog = true
-                                }
+                    ListItem(
+                        headlineContent = { Text("Lock Screen", color = Color.White) },
+                        leadingContent = { Icon(Icons.Default.Lock, contentDescription = null, tint = Color.White) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                val flag = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                                    WallpaperManager.FLAG_LOCK
+                                } else 0
+                                applyWallpaper(flag, "Lock Screen wallpaper")
                             }
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Edit Image",
-                                tint = actionIconTint
-                            )
-                        }
+                    )
 
-                        // 3. Info Details Icon
-                        IconButton(onClick = { 
-                            resetControlsTimer()
-                            showInfoBottomSheet = true 
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = "Info Details",
-                                tint = actionIconTint
-                            )
-                        }
-
-                        // 4. Share
-                        IconButton(onClick = {
-                            resetControlsTimer()
-                            currentItem?.let { item ->
-                                val sharingUri = com.medianest.util.ContentUriUtils.getSharingUri(context, item.uri)
-                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = item.mimeType
-                                    putExtra(Intent.EXTRA_STREAM, sharingUri)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                context.startActivity(Intent.createChooser(shareIntent, "Share Media"))
+                    ListItem(
+                        headlineContent = { Text("Both (Home & Lock Screen)", color = Color.White) },
+                        leadingContent = { Icon(Icons.Default.Wallpaper, contentDescription = null, tint = Color.White) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                val flag = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                                    WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK
+                                } else 0
+                                applyWallpaper(flag, "Wallpaper")
                             }
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Share,
-                                contentDescription = "Share",
-                                tint = actionIconTint
-                            )
-                        }
-
-                        // 5. Delete / Trash
-                        IconButton(onClick = { 
-                            resetControlsTimer()
-                            showDeleteDialog = true 
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.DeleteOutline,
-                                contentDescription = "Delete",
-                                tint = actionIconTint
-                            )
-                        }
-
-                        if (showEditDialog && currentItem != null) {
-                            ImageEditModal(
-                                currentItem = currentItem,
-                                onDismiss = { showEditDialog = false }
-                            )
-                        }
-                    }
+                    )
                 }
-            }
-        }
-
-        // Delete confirmation dialog
-        if (showDeleteDialog && currentItem != null) {
-            AlertDialog(
-                onDismissRequest = { showDeleteDialog = false },
-                containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-                shape = RoundedCornerShape(24.dp),
-                title = { Text("Delete File?") },
-                text = { Text("Are you sure you want to delete '${currentItem.title}'?") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        showDeleteDialog = false
-                        try {
-                            com.medianest.util.FolderHiddenUtils.deleteMediaUri(context, currentItem.uri)
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                        val newList = mutableMediaList.filter { it.uri != currentItem.uri }
-                        if (newList.isEmpty()) {
-                            onClose()
-                        } else {
-                            mutableMediaList = newList
-                        }
-                    }) {
-                        Text("Delete", color = MaterialTheme.colorScheme.error)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDeleteDialog = false }) {
-                        Text("Cancel")
-                    }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showWallpaperDialog = false }) {
+                    Text("Cancel", color = Color.White.copy(alpha = 0.7f))
                 }
-            )
-        }
-
-        // Picture Mode Quick Chooser Dialog
-        if (showPictureModeDialog) {
-            AlertDialog(
-                onDismissRequest = { showPictureModeDialog = false },
-                containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-                shape = RoundedCornerShape(24.dp),
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(Icons.Default.Palette, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Text("Select Picture Mode")
-                    }
-                },
-                text = {
-                    Column(
-                        modifier = Modifier.verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        com.medianest.ui.components.media.MediaEffect.entries.forEach { mode ->
-                            val isSelected = pictureMode.equals(mode.name, ignoreCase = true)
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable {
-                                        scope.launch {
-                                            settingsManager.setPictureMode(mode.name)
-                                        }
-                                        showPictureModeDialog = false
-                                    },
-                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                                border = null,
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    RadioButton(
-                                        selected = isSelected,
-                                        onClick = {
-                                            scope.launch {
-                                                settingsManager.setPictureMode(mode.name)
-                                            }
-                                            showPictureModeDialog = false
-                                        }
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = mode.label,
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 14.sp
-                                        )
-                                        Text(
-                                            text = mode.label,
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = { showPictureModeDialog = false }) {
-                        Text("Close")
-                    }
-                }
-            )
-        }
-
-        // Info Bottom Sheet
-        if (showInfoBottomSheet && currentItem != null) {
-            MediaInfoBottomSheet(
-                item = currentItem,
-                onDismiss = { showInfoBottomSheet = false },
-                onShowFileLocation = { item ->
-                    showInfoBottomSheet = false
-                    val folderKey = item.relativePath?.trim('/') ?: item.bucketName ?: "Pictures"
-                    val targetScreen = when (item.type) {
-                        MediaType.AUDIO -> "AUDIO_FOLDER"
-                        MediaType.VIDEO -> "VIDEOS_FOLDER"
-                        MediaType.IMAGE -> "IMAGES_FOLDER"
-                    }
-                    val mainIntent = android.content.Intent(context, com.medianest.MainActivity::class.java).apply {
-                        putExtra("open_screen", targetScreen)
-                        putExtra("folder_name", folderKey)
-                        putExtra("target_media_uri", item.uri.toString())
-                        addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                    }
-                    context.startActivity(mainIntent)
-                    onClose()
-                }
-            )
-        }
-
-        if (showImageDebug && currentItem?.type == MediaType.IMAGE) {
-            ImageDebugOverlay(
-                item = currentItem,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(16.dp)
-                    .padding(bottom = if (showControls) 120.dp else 24.dp)
-            )
-        }
-    }
-}
-}
-
-fun getFilePathFromUri(context: android.content.Context, uri: Uri): String {
-    if (uri.scheme == "file") return uri.path ?: uri.toString()
-    var path: String? = null
-    try {
-        val projection = arrayOf(android.provider.MediaStore.MediaColumns.DATA)
-        context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val index = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DATA)
-                if (index != -1) {
-                    path = cursor.getString(index)
-                }
-            }
-        }
-    } catch (e: Exception) {
-        e.printStackTrace()
-    }
-    return path ?: uri.path ?: uri.toString()
-}
-
-fun formatFileSize(size: Long): String {
-    if (size <= 0) return "0 B"
-    val units = arrayOf("B", "KB", "MB", "GB")
-    val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt().coerceIn(0, 3)
-    return String.format(Locale.getDefault(), "%.2f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ImageEditModal(
-    currentItem: MediaItem,
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var rotationDegrees by remember { mutableFloatStateOf(0f) }
-    var isFlippedHorizontally by remember { mutableStateOf(false) }
-    var selectedFilter by remember { mutableStateOf("Normal") }
-
-    AdaptiveBottomSheet(
-        onDismissRequest = onDismiss,
-        backgroundImage = currentItem.uri
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("Edit Image", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Live Preview with rotation/flip
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.DarkGray),
-                contentAlignment = Alignment.Center
-            ) {
-                AsyncImage(
-                    model = currentItem.uri,
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer(
-                            rotationZ = rotationDegrees,
-                            scaleX = if (isFlippedHorizontally) -1f else 1f
-                        )
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Editing Controls
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                OutlinedButton(onClick = { rotationDegrees = (rotationDegrees - 90f) % 360f }) {
-                    Text("Rotate -90°")
-                }
-                OutlinedButton(onClick = { rotationDegrees = (rotationDegrees + 90f) % 360f }) {
-                    Text("Rotate +90°")
-                }
-                OutlinedButton(onClick = { isFlippedHorizontally = !isFlippedHorizontally }) {
-                    Text("Flip")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                FilterChip(
-                    selected = selectedFilter == "Normal",
-                    onClick = { selectedFilter = "Normal" },
-                    label = { Text("Normal") }
-                )
-                FilterChip(
-                    selected = selectedFilter == "Grayscale",
-                    onClick = { selectedFilter = "Grayscale" },
-                    label = { Text("B&W") }
-                )
-                FilterChip(
-                    selected = selectedFilter == "Sepia",
-                    onClick = { selectedFilter = "Sepia" },
-                    label = { Text("Sepia") }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Button(
-                onClick = {
-                    onDismiss()
-                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                        try {
-                            val inputStream = context.contentResolver.openInputStream(currentItem.uri)
-                            val originalBitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
-                            inputStream?.close()
-                            if (originalBitmap != null) {
-                                val matrix = android.graphics.Matrix()
-                                if (rotationDegrees != 0f) matrix.postRotate(rotationDegrees)
-                                if (isFlippedHorizontally) matrix.postScale(-1f, 1f)
-
-                                val transformedBitmap = android.graphics.Bitmap.createBitmap(
-                                    originalBitmap, 0, 0, originalBitmap.width, originalBitmap.height, matrix, true
-                                )
-
-                                val filename = "Edited_${System.currentTimeMillis()}.jpg"
-                                val values = android.content.ContentValues().apply {
-                                    put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, filename)
-                                    put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                                        put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/Edited")
-                                    }
-                                }
-                                val newUri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                                if (newUri != null) {
-                                    context.contentResolver.openOutputStream(newUri)?.use { out ->
-                                        transformedBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
-                                    }
-                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                        android.widget.Toast.makeText(context, "Edited copy saved to gallery!", android.widget.Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Save Copy")
-            }
-        }
-    }
-}
-
-private fun gcd(a: Int, b: Int): Int {
-    return if (b == 0) a else gcd(b, a % b)
-}
-
-@Composable
-fun DetailRow(
-    label: String,
-    value: String,
-    isMonospaceOrPath: Boolean = false
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp)
-    ) {
-        Text(
-            text = label,
-            color = MaterialTheme.colorScheme.primary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold
+            },
+            containerColor = Color(0xFF1E1E1E)
         )
-        Spacer(modifier = Modifier.height(2.dp))
-        SelectionContainer {
-            Text(
-                text = value,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Normal,
-                fontFamily = if (isMonospaceOrPath) androidx.compose.ui.text.font.FontFamily.Monospace else androidx.compose.ui.text.font.FontFamily.Default,
-                softWrap = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+    }
+
+    if (showInfoBottomSheet && currentItem != null) {
+        MediaInfoBottomSheet(
+            item = currentItem,
+            onDismiss = { showInfoBottomSheet = false }
+        )
+    }
+
+    if (showPictureModeDialog) {
+        val modes = listOf("OFF", "VIBRANT", "NATURAL", "AMOLED", "CINEMATIC", "WARM", "COOL")
+        AlertDialog(
+            onDismissRequest = { showPictureModeDialog = false },
+            title = { Text("Picture Mode", color = Color.White) },
+            text = {
+                Column {
+                    modes.forEach { mode ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    pictureMode = mode
+                                    pictureModeEnabled = mode != "OFF"
+                                    coroutineScope.launch {
+                                        app.settingsManager.setPictureMode(mode)
+                                    }
+                                    showPictureModeDialog = false
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = pictureMode == mode,
+                                onClick = {
+                                    pictureMode = mode
+                                    pictureModeEnabled = mode != "OFF"
+                                    coroutineScope.launch {
+                                        app.settingsManager.setPictureMode(mode)
+                                    }
+                                    showPictureModeDialog = false
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(mode, color = Color.White)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPictureModeDialog = false }) {
+                    Text("Close", color = MaterialTheme.colorScheme.primary)
+                }
+            },
+            containerColor = Color(0xFF1E1E1E)
+        )
+    }
+
+    if (showDeleteDialog && currentItem != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Media", color = Color.White) },
+            text = { Text("Are you sure you want to delete this media item?", color = Color.White.copy(alpha = 0.8f)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val toDelete = currentItem
+                        onDelete(toDelete)
+                        showDeleteDialog = false
+                    }
+                ) {
+                    Text("Delete", color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel", color = Color.White)
+                }
+            },
+            containerColor = Color(0xFF1E1E1E)
+        )
+    }
+
     }
 }
-
-
 @Composable
 fun QuickVideoPreview(item: MediaItem, onOpenFullPlayer: () -> Unit) {
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(onClick = onOpenFullPlayer),
         contentAlignment = Alignment.Center
     ) {
         AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(item.uri)
-                .crossfade(true)
-                .build(),
-            contentDescription = item.title,
+            model = item.uri,
+            contentDescription = null,
             contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxSize()
         )
-
         Box(
             modifier = Modifier
-                .size(72.dp)
+                .size(64.dp)
                 .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.65f))
-                .clickable(onClick = onOpenFullPlayer),
+                .background(Color.Black.copy(alpha = 0.6f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Default.PlayArrow,
-                contentDescription = "Play Video",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(48.dp)
+                contentDescription = "Play",
+                tint = Color.White,
+                modifier = Modifier.size(36.dp)
             )
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuickAudioPreview(
     item: MediaItem,
-    mediaList: List<MediaItem> = listOf(item),
-    currentIndex: Int = 0,
-    onClose: () -> Unit,
-    onOpenFullPlayer: ((MediaItem) -> Unit)? = null
+    mediaList: List<MediaItem>,
+    currentIndex: Int,
+    onIndexChange: (Int) -> Unit,
+    onOpenFullPlayer: () -> Unit
 ) {
-    val context = LocalContext.current
-    val exoPlayerManager = remember { com.medianest.player.ExoPlayerManager.getInstance(context) }
-
-    LaunchedEffect(item.uri) {
-        exoPlayerManager.playMediaList(mediaList, currentIndex)
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            try {
-                exoPlayerManager.exoPlayer?.pause()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.50f))
-            .padding(16.dp),
+            .clickable(onClick = onOpenFullPlayer),
         contentAlignment = Alignment.Center
     ) {
-        com.medianest.ui.components.MusicNotificationCard(
-            item = item,
-            exoPlayerManager = exoPlayerManager,
-            onClose = onClose,
-            onOpenFullPlayer = onOpenFullPlayer
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(24.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(240.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.DarkGray),
+                contentAlignment = Alignment.Center
+            ) {
+                if (item.albumArtUri != null) {
+                    AsyncImage(
+                        model = item.albumArtUri,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.MusicNote,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.size(72.dp)
+                    )
+                }
+            }
+
+            Text(
+                text = item.title,
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                text = item.artist ?: "Unknown Artist",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 14.sp
+            )
+        }
     }
 }

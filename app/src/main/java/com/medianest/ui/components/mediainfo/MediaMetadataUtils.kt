@@ -7,6 +7,7 @@ import android.os.Build
 import android.provider.MediaStore
 import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
+import com.medianest.util.setDataSourceSafe
 import java.util.Locale
 
 internal fun extractComprehensiveMetadata(context: Context, item: MediaItem): ComprehensiveMetadata {
@@ -25,7 +26,7 @@ internal fun extractComprehensiveMetadata(context: Context, item: MediaItem): Co
         var retriever: MediaMetadataRetriever? = null
         try {
             retriever = MediaMetadataRetriever()
-            retriever.setDataSource(context, item.uri)
+            retriever.setDataSourceSafe(context, item.uri)
 
             val durStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
             if (!durStr.isNullOrBlank()) duration = durStr.toLongOrNull() ?: 0L
@@ -137,7 +138,7 @@ internal fun extractRealStreamDetails(context: Context, item: MediaItem): RealVi
     try {
         val extractor = android.media.MediaExtractor()
         try {
-            extractor.setDataSource(context, item.uri, null)
+            extractor.setDataSourceSafe(context, item.uri)
             val numTracks = extractor.trackCount
             var audioTrackCount = 0
 

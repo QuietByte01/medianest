@@ -398,9 +398,9 @@ class ExoPlayerManager private constructor(private val context: Context) {
                 
                 Logger.d("ExoPlayerManager", "Surface wait finished. Ready: ${media3Engine?.isSurfaceReady?.value == true}")
 
-                activeEngine?.prepare(currentItem.uri, wasPlaying)
+                activeEngine?.prepare(currentItem.uri, true)
                 activeEngine?.seekTo(currentPos)
-                if (wasPlaying && requestAudioFocus()) {
+                if (requestAudioFocus()) {
                     activeEngine?.play()
                 }
             }
@@ -409,7 +409,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
         }
 
         // Background "Hopeful" Cleanup
-        GlobalScope.launch(Dispatchers.IO) {
+        GlobalScope.launch(Dispatchers.Main) {
             delay(30000) // Wait 30s before trying to touch the dead ones
             synchronized(brokenEngines) {
                 val iterator = brokenEngines.iterator()
@@ -589,7 +589,12 @@ class ExoPlayerManager private constructor(private val context: Context) {
             .setMp4ExtractorFlags(androidx.media3.extractor.mp4.Mp4Extractor.FLAG_WORKAROUND_IGNORE_EDIT_LISTS)
         val mediaSourceFactory = DefaultMediaSourceFactory(context, extractorsFactory)
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(15000, 50000, 2000, 5000)
+            .setBufferDurationsMs(
+                /* minBufferMs = */ 2_500,
+                /* maxBufferMs = */ 30_000,
+                /* bufferForPlaybackMs = */ 250,
+                /* bufferForPlaybackAfterRebufferMs = */ 500
+            )
             .build()
         val renderersFactory = DefaultRenderersFactory(context)
             .setEnableDecoderFallback(true)
@@ -684,18 +689,26 @@ class ExoPlayerManager private constructor(private val context: Context) {
         
         Logger.v("ExoPlayerManager", "Notification Update Check: title=${currentItem.title}, isPlaying=${state.isPlaying}, pos=${engine.currentPositionMs}, dur=${engine.durationMs}")
 
-        if (engine.currentPositionMs < engine.durationMs || state.isPlaying) {
+        // Guard: if Media3 is BUFFERING (playWhenReady=true but not yet playing), treat it as playing
+        // to avoid killing the service during the startup phase
+        val isBufferingStartup = engine is Media3PlaybackEngine &&
+            engine.player.playWhenReady &&
+            engine.player.playbackState == androidx.media3.common.Player.STATE_BUFFERING
+
+        val isEffectivelyPlaying = state.isPlaying || isBufferingStartup
+
+        if (engine.currentPositionMs < engine.durationMs || isEffectivelyPlaying) {
             val isVideo = currentItem.mimeType.startsWith("video") || currentItem.type == com.medianest.data.db.MediaType.VIDEO
             val bgPlayEnabled = if (isVideo) state.isVideoBackgroundPlayEnabled else state.isAudioBackgroundPlayEnabled
             
-            if (!bgPlayEnabled && !state.isPlaying) { 
+            if (!bgPlayEnabled && !isEffectivelyPlaying) { 
                 Logger.d("ExoPlayerManager", "Notification: Background play disabled and not playing for ${currentItem.title}. Stopping service.")
                 FloatingPlayerService.stopService(context)
                 return 
             }
             
             if (if (isVideo) videoNotif else audioNotif) {
-                Logger.v("ExoPlayerManager", "Notification: Updating service for ${currentItem.title} (isPlaying=${state.isPlaying})")
+                Logger.v("ExoPlayerManager", "Notification: Updating service for ${currentItem.title} (isPlaying=${state.isPlaying}, buffering=$isBufferingStartup)")
                 FloatingPlayerService.startOrUpdateService(context, currentItem.title, currentItem.artist ?: currentItem.album ?: "MediaNest", state.isPlaying, currentItem.albumArtUri?.toString() ?: currentItem.uri.toString(), isVideo)
             } else {
                 Logger.d("ExoPlayerManager", "Notification: Hidden by user settings for ${currentItem.title}. Stopping service.")
@@ -800,16 +813,22 @@ class ExoPlayerManager private constructor(private val context: Context) {
     private var playbackJob: kotlinx.coroutines.Job? = null
 
     private fun stopAllEnginesExcept(active: PlaybackEngine?) {
-        // 1. Mute, pause and stop Media3 if not active
+        // 1. Mute, pause and stop Media3 only if it's NOT the active (continuing) engine
         if (media3Engine != null && media3Engine != active) {
             try {
                 media3Engine?.player?.volume = 0f
                 media3Engine?.player?.playWhenReady = false
                 media3Engine?.pause()
+                // Only call stop() when Media3 is truly being replaced (not just track-switching on same engine)
                 media3Engine?.stop()
+                Logger.d("ExoPlayerManager", "stopAllEnginesExcept: Media3 paused+stopped (not active)")
             } catch (e: Exception) {
-                Logger.w("ExoPlayerManager", "Error muting inactive Media3 engine: ${e.message}")
+                Logger.w("ExoPlayerManager", "Error stopping inactive Media3 engine: ${e.message}")
             }
+        } else if (active == media3Engine && media3Engine != null) {
+            // Same engine continues — only mute briefly to prevent double-audio, do NOT stop
+            // The volume will be restored to 1f before prepare() is called
+            Logger.d("ExoPlayerManager", "stopAllEnginesExcept: Media3 is continuing — muting only (no stop)")
         }
         
         // 2. Pause/stop FFmpeg if not active
@@ -817,6 +836,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
             try {
                 ffmpegEngine.pause()
                 ffmpegEngine.stop()
+                Logger.d("ExoPlayerManager", "stopAllEnginesExcept: FFmpeg paused+stopped (not active)")
             } catch (e: Exception) {
                 Logger.w("ExoPlayerManager", "Error stopping inactive FFmpeg engine: ${e.message}")
             }
@@ -881,8 +901,11 @@ class ExoPlayerManager private constructor(private val context: Context) {
                     val newEngineName = if (newEngine == ffmpegEngine) "FFmpeg" else "Media3"
                     
                     val oldEngine = activeEngine
-                    if (oldEngine != null && oldEngine != newEngine) {
-                        Logger.i("ExoPlayerManager", "ENGINE SWAP: Stopping old engine (${oldEngine.diagnosticState.value.engineName}) before starting $newEngineName")
+                    val isSameEngine = (oldEngine == newEngine)
+
+                    if (oldEngine != null && !isSameEngine) {
+                        // REAL ENGINE SWITCH: Synchronously silence and stop the old engine
+                        Logger.i("ExoPlayerManager", "ENGINE SWAP: Stopping old engine (${oldEngine.diagnosticState.value.engineName}) -> $newEngineName")
                         try {
                             if (oldEngine is Media3PlaybackEngine) {
                                 oldEngine.player.volume = 0f
@@ -893,6 +916,10 @@ class ExoPlayerManager private constructor(private val context: Context) {
                         } catch (e: Exception) {
                             Logger.w("ExoPlayerManager", "Error stopping old engine synchronously: ${e.message}")
                         }
+                    } else if (isSameEngine && oldEngine != null) {
+                        // SAME ENGINE, NEXT TRACK: Only pause — do NOT stop or clear surface
+                        Logger.i("ExoPlayerManager", "TRACK CHANGE: Same engine ($newEngineName) continues — pausing only")
+                        try { oldEngine.pause() } catch (_: Exception) {}
                     }
 
                     stopAllEnginesExcept(newEngine)
@@ -931,9 +958,21 @@ class ExoPlayerManager private constructor(private val context: Context) {
                         try { media3Engine?.player?.volume = 1.0f } catch (_: Exception) {}
                     } else if (newEngine == ffmpegEngine) {
                         try { ffmpegEngine.setVolume(1.0f) } catch (_: Exception) {}
+                        updateNativeFilters() // Apply DSP settings to FFmpeg
+
+                        // Wait for onSurfaceTextureAvailable of the new video TextureView (up to 1500ms)
+                        ffmpegEngine._isSurfaceReady.value = (lastSurface != null)
+                        if (!ffmpegEngine.isSurfaceReady.value) {
+                            Logger.w("ExoPlayerManager", "FFmpeg surface not ready yet — waiting for new TextureView (up to 1500ms)...")
+                            var waitCount = 0
+                            while (!ffmpegEngine.isSurfaceReady.value && waitCount < 15) {
+                                delay(100)
+                                waitCount++
+                            }
+                            Logger.d("ExoPlayerManager", "FFmpeg surface wait done. Ready=${ffmpegEngine.isSurfaceReady.value}, surface=$lastSurface (waited ${waitCount * 100}ms)")
+                        }
                         Logger.d("ExoPlayerManager", "Setting surface for FFmpeg: $lastSurface")
                         activeEngine?.setSurface(lastSurface)
-                        updateNativeFilters() // Apply DSP settings to FFmpeg
                     }
                     Logger.d("ExoPlayerManager", "Preparing engine ($newEngineName) for URI: ${currentTarget.uri}")
                     activeEngine?.prepare(currentTarget.uri, true)
@@ -1009,14 +1048,18 @@ class ExoPlayerManager private constructor(private val context: Context) {
     }
 
     fun stop() {
+        Logger.i("ExoPlayerManager", "stop() called — full playback teardown")
         watchdogJob?.cancel()
         playbackJob?.cancel()
         
         try {
-            media3Engine?.setSurface(null)
+            // On explicit stop (user closes player), we DO clear media items
+            // since we're actually shutting down, not just switching tracks
             media3Engine?.player?.volume = 0f
             media3Engine?.player?.playWhenReady = false
-            media3Engine?.stop()
+            media3Engine?.player?.stop()
+            media3Engine?.player?.clearMediaItems()
+            // Do NOT call setVideoSurface(null) — the TextureView lifecycle cleans that up
         } catch (_: Exception) {}
         try {
             ffmpegEngine.setSurface(null)
@@ -1124,11 +1167,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
     
     fun setVideoSurface(surface: Surface?) { 
         lastSurface = surface
-        // Manual surface steering is only for FFmpeg.
-        // Media3 handles its surface internally via PlayerView.
-        if (activeEngine == ffmpegEngine) {
-            activeEngine?.setSurface(surface)
-        }
+        activeEngine?.setSurface(surface)
     }
     
     @OptIn(DelicateCoroutinesApi::class)

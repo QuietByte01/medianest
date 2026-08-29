@@ -286,9 +286,13 @@ class Media3PlaybackEngine(
     override fun stop() {
         try {
             Logger.i("Media3PlaybackEngine", "stop() requested")
-            player.setVideoSurface(null) // Unblock hardware before stopping
+            // NOTE: Do NOT call setVideoSurface(null) here — it detaches the TextureView
+            // and causes a race condition where prepare() runs with no surface (black screen).
+            // The surface lifecycle is managed exclusively by setSurface().
+            // NOTE: Do NOT call clearMediaItems() here — it puts ExoPlayer into STATE_IDLE
+            // which races with prepare() on the next track. Only clear on actual release.
+            player.pause()
             player.stop()
-            player.clearMediaItems()
         } catch (e: Exception) {
             Logger.e("Media3PlaybackEngine", "Error during stop: ${e.message}")
         }

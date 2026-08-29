@@ -6,14 +6,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.medianest.util.setDataSourceSafe
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.request.videoFrameMicros
@@ -54,6 +48,8 @@ fun WideVideoCard(
     onDelete: () -> Unit,
     onRemoveFromCategory: (() -> Unit)? = null,
     onRename: (() -> Unit)? = null,
+    onMove: (() -> Unit)? = null,
+    onCopy: (() -> Unit)? = null,
     onShowInfo: (() -> Unit)? = null,
     useRealRatio: Boolean = false
 ) {
@@ -288,6 +284,26 @@ fun WideVideoCard(
                             }
                         )
                     }
+                    if (onMove != null) {
+                        DropdownMenuItem(
+                            text = { Text("Move to Folder") },
+                            leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null) },
+                            onClick = { 
+                                menuExpanded = false
+                                onMove() 
+                            }
+                        )
+                    }
+                    if (onCopy != null) {
+                        DropdownMenuItem(
+                            text = { Text("Copy to Folder") },
+                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                            onClick = { 
+                                menuExpanded = false
+                                onCopy() 
+                            }
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
                         leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
@@ -324,7 +340,7 @@ private fun extractVideoThumbnailWide(
     var retriever: android.media.MediaMetadataRetriever? = null
     return try {
         retriever = android.media.MediaMetadataRetriever()
-        retriever.setDataSource(context, item.uri)
+        retriever.setDataSourceSafe(context, item.uri)
         val durationMs = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
             ?.toLongOrNull() ?: item.durationMs
 

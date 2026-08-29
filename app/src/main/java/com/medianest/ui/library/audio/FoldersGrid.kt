@@ -25,6 +25,8 @@ import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.mediainfo.getFilePathFromUri
+import com.medianest.ui.library.MoveFolderDialog
+import com.medianest.ui.library.RenameFolderDialog
 import com.medianest.util.formatBytesReport
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -50,6 +52,7 @@ fun FoldersGrid(
     val subfoldersListState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     // Folder Actions State
+    var folderToRename by remember { mutableStateOf<String?>(null) }
     var folderToMove by remember { mutableStateOf<String?>(null) }
     var folderToDelete by remember { mutableStateOf<String?>(null) }
     var folderForInfo by remember { mutableStateOf<String?>(null) }
@@ -339,6 +342,14 @@ fun FoldersGrid(
                                     backgroundImage = folderSongs.firstOrNull()?.let { it.albumArtUri ?: it.uri }
                                 ) {
                                     DropdownMenuItem(
+                                        text = { Text("Rename Folder", color = Color.White) },
+                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White) },
+                                        onClick = {
+                                            showFolderMenu = false
+                                            folderToRename = folderName
+                                        }
+                                    )
+                                    DropdownMenuItem(
                                         text = { Text("Move Folder", color = Color.White) },
                                         leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = Color.White) },
                                         onClick = {
@@ -580,70 +591,28 @@ fun FoldersGrid(
         }
     }
 
+            // Folder Action Dialog: Rename Folder
+            if (folderToRename != null) {
+                val srcFolder = folderToRename!!
+                val itemsInFolder = folderMap[srcFolder] ?: emptyList()
+                RenameFolderDialog(
+                    folderName = srcFolder,
+                    itemsInFolder = itemsInFolder,
+                    defaultMediaType = com.medianest.data.db.MediaType.AUDIO,
+                    scope = scope,
+                    onDismiss = { folderToRename = null },
+                    onRenameComplete = { folderToRename = null }
+                )
+            }
+
             // Folder Action Dialog: Move Folder
             if (folderToMove != null) {
-                var targetName by remember { mutableStateOf("") }
-                AlertDialog(
-                    onDismissRequest = { folderToMove = null },
-                    containerColor = if (com.medianest.ui.theme.LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-                shape = RoundedCornerShape(24.dp),
-                    title = { Text("Move Folder: $folderToMove") },
-                    text = {
-                        Column {
-                            Text("Enter target folder name to move all items from '$folderToMove':")
-                            Spacer(modifier = Modifier.height(12.dp))
-                            OutlinedTextField(
-                                value = targetName,
-                                onValueChange = { targetName = it },
-                                label = { Text("Destination Folder Name") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    },
-                    confirmButton = {
-                        Button(
-                            enabled = targetName.isNotBlank(),
-                            onClick = {
-                                val target = targetName.trim()
-                                val srcFolder = folderToMove
-                                folderToMove = null
-                                if (target.isNotBlank() && srcFolder != null) {
-                                    val itemsToMove = folderMap[srcFolder] ?: emptyList()
-                                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                        itemsToMove.forEach { item ->
-                                            try {
-                                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                                                    val values = android.content.ContentValues().apply {
-                                                        put(android.provider.MediaStore.Audio.Media.RELATIVE_PATH, "Music/$target/")
-                                                    }
-                                                    context.contentResolver.update(item.uri, values, null, null)
-                                                } else {
-                                                    val root = android.os.Environment.getExternalStorageDirectory()
-                                                    val destDir = java.io.File(root, "Music/$target")
-                                                    destDir.mkdirs()
-                                                    val file = java.io.File(item.uri.path ?: "")
-                                                    if (file.exists()) {
-                                                        file.copyTo(java.io.File(destDir, file.name), overwrite = true)
-                                                        file.delete()
-                                                    }
-                                                }
-                                            } catch (e: Exception) {
-                                                e.printStackTrace()
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        ) {
-                            Text("Move")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { folderToMove = null }) {
-                            Text("Cancel")
-                        }
-                    }
+                MoveFolderDialog(
+                    folderName = folderToMove!!,
+                    folderGroups = folderMap,
+                    mediaType = com.medianest.data.db.MediaType.AUDIO,
+                    scope = scope,
+                    onDismiss = { folderToMove = null }
                 )
             }
 

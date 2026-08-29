@@ -21,6 +21,7 @@ import android.util.Size
 import androidx.core.app.NotificationCompat
 import androidx.media3.common.Player
 import com.medianest.MainActivity
+import com.medianest.util.setDataSourceSafe
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -247,7 +248,7 @@ class FloatingPlayerService : Service() {
                     // 1. Try MediaMetadataRetriever embedded picture for audio
                     val mmr = android.media.MediaMetadataRetriever()
                     try {
-                        mmr.setDataSource(applicationContext, uri)
+                        mmr.setDataSourceSafe(applicationContext, uri)
                         val artBytes = mmr.embeddedPicture
                         if (artBytes != null) {
                             bitmap = BitmapFactory.decodeByteArray(artBytes, 0, artBytes.size)
@@ -500,9 +501,12 @@ private fun extractHueFromBitmap(bitmap: Bitmap): Float? {
     override fun onDestroy() {
         super.onDestroy()
         serviceJob.cancel()
+        // NOTE: Do NOT call stopPlayback() or stop() here.
+        // The notification service being destroyed does NOT mean the user wants playback to stop.
+        // Calling stopPlayback() here was killing ExoPlayer mid-startup whenever the
+        // notification service was briefly stopped and restarted (e.g. during track change).
         try {
             val mgr = ExoPlayerManager.getInstance(applicationContext)
-            mgr.stopPlayback()
             mgr.releaseSurface()
         } catch (_: Exception) {}
         try {

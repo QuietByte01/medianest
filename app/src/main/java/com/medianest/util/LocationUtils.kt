@@ -44,7 +44,7 @@ object LocationUtils {
         var locationString: String? = null
 
         try {
-            retriever.setDataSource(context, uri)
+            retriever.setDataSourceSafe(context, uri)
             // Extract ISO-6709 location string (e.g. "+37.7510-122.4200/" or "+37.7510-122.4200+010.000/")
             locationString = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_LOCATION)
         } catch (e: Exception) {

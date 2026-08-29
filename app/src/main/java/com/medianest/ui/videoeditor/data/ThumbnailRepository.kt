@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import com.medianest.ui.videoeditor.model.VideoThumbnail
+import com.medianest.util.setDataSourceSafe
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -65,7 +66,7 @@ class ThumbnailRepository(
         retrieverMutex.withLock {
             if (retriever == null) {
                 retriever = MediaMetadataRetriever().apply {
-                    setDataSource(context, videoUri)
+                    setDataSourceSafe(context, videoUri)
                 }
             }
             try {

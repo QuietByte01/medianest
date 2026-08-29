@@ -35,6 +35,9 @@ import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.MediaInfoBottomSheet
 import com.medianest.ui.components.RenameFileDialog
 import com.medianest.ui.components.SortRow
+import com.medianest.ui.library.MoveFolderDialog
+import com.medianest.ui.library.MoveOrCopyFileDialog
+import com.medianest.ui.library.RenameFolderDialog
 import com.medianest.ui.theme.LocalDarkTheme
 import com.medianest.util.FolderHiddenUtils
 import kotlinx.coroutines.Dispatchers
@@ -125,11 +128,14 @@ fun ImagesTab(
     var isFolderSelectionActive by remember { mutableStateOf(false) }
     var selectedFolderNames by remember { mutableStateOf<Set<String>>(emptySet()) }
 
+    var folderToRename by remember { mutableStateOf<String?>(null) }
     var folderToMove by remember { mutableStateOf<String?>(null) }
     var folderToDelete by remember { mutableStateOf<String?>(null) }
     var folderForInfo by remember { mutableStateOf<String?>(null) }
     var imageToDelete by remember { mutableStateOf<MediaItem?>(null) }
     var itemToRename by remember { mutableStateOf<MediaItem?>(null) }
+    var itemToMove by remember { mutableStateOf<MediaItem?>(null) }
+    var itemToCopy by remember { mutableStateOf<MediaItem?>(null) }
     var infoItem by remember { mutableStateOf<MediaItem?>(null) }
     var contextSheetItem by remember { mutableStateOf<MediaItem?>(null) }
     var showFolderBatchInfoModal by remember { mutableStateOf(false) }
@@ -402,6 +408,8 @@ fun ImagesTab(
                             isScanningHidden = isScanningHidden,
                             activeFilterTab = activeFilterTab,
                             onSelectedFolderChange = { selectedFolder = it },
+                            onFolderRenameRequest = { folderToRename = it },
+                            onFolderMoveRequest = { folderToMove = it },
                             onFolderDeleteRequest = { folderToDelete = it },
                             onFolderInfoRequest = { folderForInfo = it },
                             isFolderHidden = ::isFolderHidden,
@@ -477,9 +485,10 @@ fun ImagesTab(
         )
 
         if (folderToMove != null) {
-            MoveImageFolderDialog(
+            MoveFolderDialog(
                 folderName = folderToMove!!,
                 folderGroups = folderGroups,
+                mediaType = MediaType.IMAGE,
                 scope = scope,
                 onDismiss = { folderToMove = null }
             )
@@ -494,6 +503,37 @@ fun ImagesTab(
                 context = currentContext,
                 scope = scope,
                 onDismiss = { folderToDelete = null }
+            )
+        }
+
+        if (folderToRename != null) {
+            val srcFolder = folderToRename!!
+            val itemsInFolder = folderGroups[srcFolder] ?: emptyList()
+            RenameFolderDialog(
+                folderName = srcFolder,
+                itemsInFolder = itemsInFolder,
+                defaultMediaType = MediaType.IMAGE,
+                scope = scope,
+                onDismiss = { folderToRename = null },
+                onRenameComplete = { folderToRename = null }
+            )
+        }
+
+        if (itemToMove != null) {
+            MoveOrCopyFileDialog(
+                item = itemToMove!!,
+                allItems = imagesList,
+                isCopy = false,
+                onDismiss = { itemToMove = null }
+            )
+        }
+
+        if (itemToCopy != null) {
+            MoveOrCopyFileDialog(
+                item = itemToCopy!!,
+                allItems = imagesList,
+                isCopy = true,
+                onDismiss = { itemToCopy = null }
             )
         }
 
@@ -548,6 +588,33 @@ fun ImagesTab(
                             else -> imagesList
                         }
                         onImageClick(target, listForContext)
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Rename", color = if (isDark) Color.White else Color.Black) },
+                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                    onClick = {
+                        val target = activeItem
+                        contextSheetItem = null
+                        itemToRename = target
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Move to Folder", color = if (isDark) Color.White else Color.Black) },
+                    leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                    onClick = {
+                        val target = activeItem
+                        contextSheetItem = null
+                        itemToMove = target
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Copy to Folder", color = if (isDark) Color.White else Color.Black) },
+                    leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                    onClick = {
+                        val target = activeItem
+                        contextSheetItem = null
+                        itemToCopy = target
                     }
                 )
                 DropdownMenuItem(

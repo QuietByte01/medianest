@@ -57,7 +57,7 @@ object ThumbnailManager {
         var retriever: MediaMetadataRetriever? = null
         return try {
             retriever = MediaMetadataRetriever()
-            retriever.setDataSource(context, uri)
+            retriever.setDataSourceSafe(context, uri)
 
             val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                 ?.toLongOrNull() ?: 0L

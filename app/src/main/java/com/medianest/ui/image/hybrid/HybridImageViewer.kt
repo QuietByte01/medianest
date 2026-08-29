@@ -26,12 +26,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -52,10 +50,11 @@ import kotlinx.coroutines.launch
 
 /**
  * Google Photos / Pixel standard Image Viewer:
- * - RenderThread / Skia accelerated Base overview for 1.0x.
- * - Dynamic BitmapRegionDecoder + 2-Tier LRU Tile Cache for deep zoom > 1.0x.
+ * - Flicker-free high-resolution tiling pipeline with seamless crossfade & cache retention.
+ * - Single-tap controls toggle without immediate-hide collisions.
+ * - Dynamic BitmapRegionDecoder + 2-Tier LRU Tile Cache for deep zoom > 1.0x up to 25x.
  * - Full Ultra HDR / Display P3 color accuracy.
- * - 120Hz smooth multi-touch pinch up to 10x, double-tap, and physical drag-to-dismiss.
+ * - 120Hz smooth multi-touch pinch, double-tap, and physical drag-to-dismiss.
  * - Floating auto-hiding zoom percentage pill (e.g., "150%").
  */
 @Composable
@@ -69,6 +68,7 @@ fun HybridImageViewer(
     onInteraction: () -> Unit = {},
     onToggleControls: () -> Unit = {},
     onZoomChanged: (Boolean) -> Unit = {},
+    onDismissProgress: (Float) -> Unit = {},
     onSwipeUpForInfo: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -85,6 +85,10 @@ fun HybridImageViewer(
     val isZoomed = viewportState.isZoomed
     LaunchedEffect(isZoomed) {
         onZoomChanged(isZoomed)
+    }
+
+    LaunchedEffect(viewportState.dismissFraction) {
+        onDismissProgress(viewportState.dismissFraction)
     }
 
     // Decoder & Tile Cache engine for zoom levels > 1.0x
@@ -139,8 +143,9 @@ fun HybridImageViewer(
             .pointerInput(Unit) {
                 detectGooglePhotosGestures(
                     isZoomed = { viewportState.isZoomed },
-                    onGestureStart = { onInteraction() },
+                    onGestureStart = { /* Don't reset hide timer on down */ },
                     onGesture = { centroid, pan, zoom ->
+                        onInteraction()
                         viewportState.onGesture(centroid, pan, zoom)
                     },
                     onGestureEnd = { velocity ->
@@ -183,9 +188,9 @@ fun HybridImageViewer(
             }
         }
 
-        // Active Tile Scheduler for Zoom > 1.0x
+        // Active Tile Scheduler for Deep Zoom > 1.8x
         LaunchedEffect(viewportState.scale, viewportState.offset, intrinsicImageSize, viewportState.viewportSize) {
-            if (viewportState.scale > 1.05f && intrinsicImageSize.width > 0 && viewportState.viewportSize.width > 0) {
+            if (viewportState.scale > 1.8f && intrinsicImageSize.width > 0 && viewportState.viewportSize.width > 0) {
                 val fitScaleX = viewportState.contentSize.width / tileManager.imageSize.width
                 val fitScaleY = viewportState.contentSize.height / tileManager.imageSize.height
                 val fitScale = minOf(fitScaleX, fitScaleY).takeIf { !it.isNaN() && it > 0f } ?: 1f
@@ -224,8 +229,11 @@ fun HybridImageViewer(
                         }
                     }
                 }
-            } else if (viewportState.scale <= 1.0f && activeTileBitmaps.isNotEmpty()) {
-                activeTileBitmaps.clear()
+            } else if (viewportState.scale <= 1.2f && activeTileBitmaps.isNotEmpty()) {
+                delay(250)
+                if (viewportState.scale <= 1.2f) {
+                    activeTileBitmaps.clear()
+                }
             }
         }
 
@@ -238,7 +246,7 @@ fun HybridImageViewer(
                 .build()
         }
 
-        // Layer 1: Downsampled / Base Layer
+        // Layer 1: Base original full-resolution RenderThread image
         AsyncImage(
             model = request,
             contentDescription = null,
@@ -259,8 +267,8 @@ fun HybridImageViewer(
                 }
         )
 
-        // Layer 2: Native BitmapRegionDecoder Ultra High-Res Tiles for Zoom > 1.0x
-        if (viewportState.scale > 1.05f && activeTileBitmaps.isNotEmpty() && intrinsicImageSize.width > 0) {
+        // Layer 2: Native BitmapRegionDecoder Ultra High-Res Tiles for Deep Zoom > 1.8x
+        if (viewportState.scale > 1.8f && activeTileBitmaps.isNotEmpty() && intrinsicImageSize.width > 0) {
             Canvas(
                 modifier = Modifier
                     .fillMaxSize()

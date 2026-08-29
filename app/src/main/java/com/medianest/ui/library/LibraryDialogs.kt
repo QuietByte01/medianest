@@ -187,57 +187,39 @@ fun BatchMoveDialog(
     onComplete: () -> Unit,
     coroutineScope: CoroutineScope
 ) {
-    var targetFolder by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-        shape = RoundedCornerShape(24.dp),
-        title = { Text("Move ${selectedUris.size} File(s)", color = Color.White, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Enter target folder name:", color = Color.White)
-                OutlinedTextField(
-                    value = targetFolder,
-                    onValueChange = { targetFolder = it },
-                    label = { Text("Target Folder") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                enabled = targetFolder.isNotBlank(),
-                onClick = {
-                    val dest = targetFolder.trim()
-                    onDismiss()
-                    if (dest.isNotBlank()) {
-                        coroutineScope.launch(Dispatchers.IO) {
-                            val selectedItems = currentTabItems.filter { selectedUris.contains(it.uri.toString()) }
-                            val root = android.os.Environment.getExternalStorageDirectory()
-                            val destDir = File(root, "MediaNest/$dest")
-                            destDir.mkdirs()
-                            selectedItems.forEach { item ->
-                                try {
-                                    val srcFile = File(item.uri.path ?: "")
-                                    if (srcFile.exists()) {
-                                        val destFile = File(destDir, srcFile.name)
-                                        srcFile.renameTo(destFile)
-                                    }
-                                } catch (e: Exception) { e.printStackTrace() }
+    val availableFolders = remember(currentTabItems) {
+        currentTabItems.mapNotNull { it.relativePath?.trim('/')?.takeIf { p -> p.isNotBlank() } ?: it.bucketName }.distinct()
+    }
+    val folderItemCounts = remember(currentTabItems) {
+        currentTabItems.groupingBy { it.relativePath?.trim('/')?.takeIf { p -> p.isNotBlank() } ?: (it.bucketName ?: "Media") }.eachCount()
+    }
+
+    FolderPickerDialog(
+        title = "Move ${selectedUris.size} File(s)",
+        actionButtonText = "Move Here",
+        availableFolders = availableFolders,
+        folderItemCounts = folderItemCounts,
+        onDismiss = onDismiss,
+        onFolderSelected = { targetFolder ->
+            onDismiss()
+            val dest = targetFolder.trim()
+            if (dest.isNotBlank()) {
+                coroutineScope.launch(Dispatchers.IO) {
+                    val selectedItems = currentTabItems.filter { selectedUris.contains(it.uri.toString()) }
+                    val root = android.os.Environment.getExternalStorageDirectory()
+                    val destDir = File(root, "MediaNest/$dest")
+                    destDir.mkdirs()
+                    selectedItems.forEach { item ->
+                        try {
+                            val srcFile = File(item.uri.path ?: "")
+                            if (srcFile.exists()) {
+                                val destFile = File(destDir, srcFile.name)
+                                srcFile.renameTo(destFile)
                             }
-                            launch(Dispatchers.Main) { onComplete() }
-                        }
+                        } catch (e: Exception) { e.printStackTrace() }
                     }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1))
-            ) {
-                Text("Move", color = Color.White)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color(0xFF9EA3B0))
+                    launch(Dispatchers.Main) { onComplete() }
+                }
             }
         }
     )
@@ -251,58 +233,41 @@ fun BatchCopyDialog(
     onComplete: () -> Unit,
     coroutineScope: CoroutineScope
 ) {
-    var targetFolder by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-        shape = RoundedCornerShape(24.dp),
-        title = { Text("Copy ${selectedUris.size} File(s)", color = Color.White, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Enter target folder name:", color = Color.White)
-                OutlinedTextField(
-                    value = targetFolder,
-                    onValueChange = { targetFolder = it },
-                    label = { Text("Target Folder") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                enabled = targetFolder.isNotBlank(),
-                onClick = {
-                    val dest = targetFolder.trim()
-                    onDismiss()
-                    if (dest.isNotBlank()) {
-                        coroutineScope.launch(Dispatchers.IO) {
-                            val selectedItems = currentTabItems.filter { selectedUris.contains(it.uri.toString()) }
-                            val root = android.os.Environment.getExternalStorageDirectory()
-                            val destDir = File(root, "MediaNest/$dest")
-                            destDir.mkdirs()
-                            selectedItems.forEach { item ->
-                                try {
-                                    val srcFile = File(item.uri.path ?: "")
-                                    if (srcFile.exists()) {
-                                        val destFile = File(destDir, srcFile.name)
-                                        srcFile.copyTo(destFile, overwrite = true)
-                                    }
-                                } catch (e: Exception) { e.printStackTrace() }
+    val availableFolders = remember(currentTabItems) {
+        currentTabItems.mapNotNull { it.relativePath?.trim('/')?.takeIf { p -> p.isNotBlank() } ?: it.bucketName }.distinct()
+    }
+    val folderItemCounts = remember(currentTabItems) {
+        currentTabItems.groupingBy { it.relativePath?.trim('/')?.takeIf { p -> p.isNotBlank() } ?: (it.bucketName ?: "Media") }.eachCount()
+    }
+
+    FolderPickerDialog(
+        title = "Copy ${selectedUris.size} File(s)",
+        actionButtonText = "Copy Here",
+        availableFolders = availableFolders,
+        folderItemCounts = folderItemCounts,
+        onDismiss = onDismiss,
+        onFolderSelected = { targetFolder ->
+            onDismiss()
+            val dest = targetFolder.trim()
+            if (dest.isNotBlank()) {
+                coroutineScope.launch(Dispatchers.IO) {
+                    val selectedItems = currentTabItems.filter { selectedUris.contains(it.uri.toString()) }
+                    val root = android.os.Environment.getExternalStorageDirectory()
+                    val destDir = File(root, "MediaNest/$dest")
+                    destDir.mkdirs()
+                    selectedItems.forEach { item ->
+                        try {
+                            val srcFile = File(item.uri.path ?: "")
+                            if (srcFile.exists()) {
+                                val destFile = File(destDir, srcFile.name)
+                                srcFile.copyTo(destFile, overwrite = true)
                             }
-                            launch(Dispatchers.Main) { onComplete() }
-                        }
+                        } catch (e: Exception) { e.printStackTrace() }
                     }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1))
-            ) {
-                Text("Copy", color = Color.White)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color(0xFF9EA3B0))
+                    launch(Dispatchers.Main) { onComplete() }
+                }
             }
         }
     )
 }
+

@@ -11,6 +11,7 @@ import android.provider.MediaStore
 import android.widget.Toast
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.formatDuration
+import com.medianest.util.setDataSourceSafe
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -20,7 +21,7 @@ fun safeFormatDuration(context: Context, item: MediaItem): String {
     var retriever: MediaMetadataRetriever? = null
     return try {
         retriever = MediaMetadataRetriever()
-        retriever.setDataSource(context, item.uri)
+        retriever.setDataSourceSafe(context, item.uri)
         val timeStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
         val duration = timeStr?.toLongOrNull() ?: 0L
         if (duration > 0) formatDuration(duration) else "00:00"
@@ -41,7 +42,7 @@ fun captureVideoFrame(
         var retriever: MediaMetadataRetriever? = null
         try {
             retriever = MediaMetadataRetriever()
-            retriever.setDataSource(context, item.uri)
+            retriever.setDataSourceSafe(context, item.uri)
             val positionUs = currentPositionMs * 1000L
             val bitmap = retriever.getFrameAtTime(
                 positionUs,

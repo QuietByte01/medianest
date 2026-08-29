@@ -46,6 +46,8 @@ fun ImagesFolderGrid(
     isScanningHidden: Boolean = false,
     activeFilterTab: String,
     onSelectedFolderChange: (String?) -> Unit,
+    onFolderRenameRequest: (String) -> Unit = {},
+    onFolderMoveRequest: (String) -> Unit = {},
     onFolderDeleteRequest: (String) -> Unit,
     onFolderInfoRequest: (String) -> Unit,
     onToggleFolderHidden: (String, List<MediaItem>, Boolean) -> Unit,
@@ -364,6 +366,22 @@ fun ImagesFolderGrid(
                                         onDismissRequest = { showFolderMenu = false },
                                         backgroundImage = folderItems.firstOrNull()?.uri
                                     ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Rename Folder", color = Color.White) },
+                                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White) },
+                                            onClick = {
+                                                showFolderMenu = false
+                                                onFolderRenameRequest(folderName)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Move Folder", color = Color.White) },
+                                            leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = Color.White) },
+                                            onClick = {
+                                                showFolderMenu = false
+                                                onFolderMoveRequest(folderName)
+                                            }
+                                        )
                                         DropdownMenuItem(
                                             text = { Text("Folder Info", color = Color.White) },
                                             leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = Color.White) },

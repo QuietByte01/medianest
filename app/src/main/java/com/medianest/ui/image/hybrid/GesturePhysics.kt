@@ -20,9 +20,9 @@ import kotlin.math.abs
 
 /**
  * Google Photos gesture coordinator:
- * - Clean Single Tap with 250ms double-tap disambiguation.
- * - Double Tap centered precisely on tap coordinate.
- * - Multi-touch Pinch-to-Zoom up to 10.0x.
+ * - Clean Single Tap with 260ms double-tap disambiguation.
+ * - Instant Double Tap centered precisely on tap coordinate (no pre-pan or pre-dismiss).
+ * - Multi-touch Pinch-to-Zoom up to 25.0x.
  * - Single-finger Pan when scale > 1.0f.
  * - Physical Drag-to-Dismiss on vertical drag down when scale == 1.0f.
  * - Swipe-up for info bottom sheet.
@@ -74,12 +74,14 @@ suspend fun PointerInputScope.detectGooglePhotosGestures(
                 val panDist = pan.getDistance()
                 val zoomDist = abs(1f - zoom) * centroidSize
 
-                if (panDist > touchSlop || zoomDist > touchSlop) {
+                // Only start translating/dismissing once touch motion passes slop threshold
+                if (panDist > touchSlop * 1.5f || zoomDist > touchSlop) {
                     pastTouchSlop = true
                     singleTapJob?.cancel()
                     singleTapJob = null
 
-                    if (!isZoomed() && pointerCount == 1 && pan.y > 0 && abs(pan.y) > abs(pan.x) * 1.5f) {
+                    // If NOT zoomed, only vertical downward drag is dismiss
+                    if (!isZoomed() && pointerCount == 1 && pan.y > 0 && abs(pan.y) > abs(pan.x) * 2.0f) {
                         isDismissing = true
                     }
                 }
@@ -97,15 +99,19 @@ suspend fun PointerInputScope.detectGooglePhotosGestures(
                     onDragDismiss(panChange)
                     event.changes.forEach { if (it.positionChanged()) it.consume() }
                 } else {
-                    if (zoomChange != 1f || panChange != Offset.Zero) {
-                        onGesture(centroid, panChange, zoomChange)
-                        if (pointerCount > 1 || isZoomed()) {
+                    // When not dismissing:
+                    // If pinch-zooming OR already zoomed, handle zoom & 2D pan
+                    if (pointerCount > 1 || isZoomed()) {
+                        if (zoomChange != 1f || panChange != Offset.Zero) {
+                            onGesture(centroid, panChange, zoomChange)
                             event.changes.forEach { if (it.positionChanged()) it.consume() }
-                        } else {
-                            if (panChange.y < -12f && abs(panChange.y) > abs(panChange.x) * 1.5f) {
-                                onSwipeUp()
-                                event.changes.forEach { if (it.positionChanged()) it.consume() }
-                            }
+                        }
+                    } else {
+                        // At 1x scale single-finger: do NOT move/pan the image!
+                        // Only detect intentional swipe up for info bottom sheet
+                        if (pan.y < 0 && abs(pan.y) > touchSlop * 2f && abs(pan.y) > abs(pan.x) * 2.0f) {
+                            onSwipeUp()
+                            event.changes.forEach { if (it.positionChanged()) it.consume() }
                         }
                     }
                 }
@@ -116,8 +122,8 @@ suspend fun PointerInputScope.detectGooglePhotosGestures(
             val timeSinceLastTap = downTime - lastTapTime
             val distSinceLastTap = (downPos - lastTapPosition).getDistance()
 
-            if (timeSinceLastTap < 260L && distSinceLastTap < touchSlop * 4) {
-                // Cancel pending single tap and fire Double Tap
+            if (timeSinceLastTap < 280L && distSinceLastTap < touchSlop * 4) {
+                // Cancel pending single tap and trigger instant Double Tap
                 singleTapJob?.cancel()
                 singleTapJob = null
                 lastTapTime = 0L
@@ -125,10 +131,10 @@ suspend fun PointerInputScope.detectGooglePhotosGestures(
             } else {
                 lastTapTime = downTime
                 lastTapPosition = downPos
-                // Wait for double-tap window to expire before firing single tap
+                // Disambiguate single tap vs double tap
                 singleTapJob?.cancel()
                 singleTapJob = launch {
-                    delay(260L)
+                    delay(280L)
                     onTap()
                 }
             }

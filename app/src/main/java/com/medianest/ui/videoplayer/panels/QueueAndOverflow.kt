@@ -2,6 +2,7 @@ package com.medianest.ui.videoplayer.panels
 
 import android.graphics.Bitmap
 import android.net.Uri
+import com.medianest.util.setDataSourceSafe
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -387,7 +388,7 @@ internal fun VideoTrimmerBottomSheet(
             val list = mutableListOf<Bitmap>()
             val retriever = android.media.MediaMetadataRetriever()
             try {
-                retriever.setDataSource(context, videoUri)
+                retriever.setDataSourceSafe(context, videoUri)
                 val count = 9
                 val stepUs = (videoDurationMs * 1000L) / count
                 for (i in 0 until count) {

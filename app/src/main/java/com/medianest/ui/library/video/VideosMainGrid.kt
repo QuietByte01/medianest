@@ -49,6 +49,8 @@ fun VideosMainGrid(
     onRemoveFromCategory: (MediaItem) -> Unit,
     onOpenFolder: (String, String?) -> Unit,
     onRename: (MediaItem) -> Unit,
+    onMove: ((MediaItem) -> Unit)? = null,
+    onCopy: ((MediaItem) -> Unit)? = null,
     selectedFolder: String? = null,
     targetVideoUri: String? = null,
     isFolderViewActive: Boolean = false,
@@ -98,6 +100,8 @@ fun VideosMainGrid(
                         onDelete = { onVideoDelete(item) },
                         onRemoveFromCategory = if (selectedCategory != null) { { onRemoveFromCategory(item) } } else null,
                         onRename = { onRename(item) },
+                        onMove = if (onMove != null) { { onMove(item) } } else null,
+                        onCopy = if (onCopy != null) { { onCopy(item) } } else null,
                         onShowInfo = { onInfoItem(item) },
                         useRealRatio = true
                     )
@@ -125,6 +129,8 @@ fun VideosMainGrid(
                         onDelete = { onVideoDelete(item) },
                         onRemoveFromCategory = if (selectedCategory != null) { { onRemoveFromCategory(item) } } else null,
                         onRename = { onRename(item) },
+                        onMove = if (onMove != null) { { onMove(item) } } else null,
+                        onCopy = if (onCopy != null) { { onCopy(item) } } else null,
                         onShowInfo = { onInfoItem(item) }
                     )
                 }
@@ -171,6 +177,8 @@ fun VideosMainGrid(
                         onOpenFolder(matchedKey, targetUri)
                     },
                     onRename = { onRename(item) },
+                    onMove = if (onMove != null) { { onMove(item) } } else null,
+                    onCopy = if (onCopy != null) { { onCopy(item) } } else null,
                     showInGallery = (isFolderViewActive && selectedFolder != null)
                 )
             }
