@@ -45,7 +45,10 @@ import androidx.compose.ui.unit.toSize
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.size.Precision
+import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 /**
@@ -57,6 +60,7 @@ import kotlinx.coroutines.launch
  * - 120Hz smooth multi-touch pinch, double-tap, and physical drag-to-dismiss.
  * - Floating auto-hiding zoom percentage pill (e.g., "150%").
  */
+@OptIn(kotlinx.coroutines.FlowPreview::class)
 @Composable
 fun HybridImageViewer(
     source: ImageSource,
@@ -188,73 +192,78 @@ fun HybridImageViewer(
             }
         }
 
-        // Active Tile Scheduler — runs off-main-thread with slight debounce to maintain silky 120fps gesture smoothness
-        LaunchedEffect(viewportState.scale, viewportState.offset, intrinsicImageSize, viewportState.viewportSize) {
-            if (viewportState.scale > 1.05f && intrinsicImageSize.width > 0 && viewportState.viewportSize.width > 0) {
-                // Yield briefly during fast pinch gestures so UI render thread maintains steady 120 FPS
-                delay(16)
 
-                val fitScaleX = viewportState.contentSize.width / tileManager.imageSize.width
-                val fitScaleY = viewportState.contentSize.height / tileManager.imageSize.height
-                val fitScale = minOf(fitScaleX, fitScaleY).takeIf { !it.isNaN() && it > 0f } ?: 1f
+        // Tile Scheduler — uses snapshotFlow+debounce so the 120Hz gesture render loop is NEVER blocked.
+        // During active pinch the flow emits but debounce suppresses tile work until the gesture pauses.
+        LaunchedEffect(Unit) {
+            snapshotFlow {
+                // Only read the values needed as keys; Compose reads these only once per emission
+                Triple(viewportState.scale, viewportState.offset, intrinsicImageSize)
+            }
+            .distinctUntilChanged()
+            .debounce(80L) // Suppress tile scheduling while fingers are moving fast
+            .collect { (scale, _, imageSize) ->
+                if (scale > 1.05f && imageSize.width > 0 && viewportState.viewportSize.width > 0) {
+                    val fitScaleX = viewportState.contentSize.width / tileManager.imageSize.width
+                    val fitScaleY = viewportState.contentSize.height / tileManager.imageSize.height
+                    val fitScale = minOf(fitScaleX, fitScaleY).takeIf { !it.isNaN() && it > 0f } ?: 1f
 
-                val imageLeft = (viewportState.viewportSize.width - viewportState.contentSize.width) / 2f
-                val imageTop = (viewportState.viewportSize.height - viewportState.contentSize.height) / 2f
-                val originX = viewportState.viewportSize.width / 2f
-                val originY = viewportState.viewportSize.height / 2f
+                    val imageLeft = (viewportState.viewportSize.width - viewportState.contentSize.width) / 2f
+                    val imageTop = (viewportState.viewportSize.height - viewportState.contentSize.height) / 2f
+                    val originX = viewportState.viewportSize.width / 2f
+                    val originY = viewportState.viewportSize.height / 2f
 
-                val left1x = (0f - viewportState.offset.x - originX) / viewportState.scale + originX
-                val top1x = (0f - viewportState.offset.y - originY) / viewportState.scale + originY
-                val right1x = (viewportState.viewportSize.width - viewportState.offset.x - originX) / viewportState.scale + originX
-                val bottom1x = (viewportState.viewportSize.height - viewportState.offset.y - originY) / viewportState.scale + originY
+                    val currentScale = viewportState.scale
+                    val currentOffset = viewportState.offset
 
-                val intrinsicViewportBounds = Rect(
-                    (left1x - imageLeft) / fitScale,
-                    (top1x - imageTop) / fitScale,
-                    (right1x - imageLeft) / fitScale,
-                    (bottom1x - imageTop) / fitScale
-                )
+                    val left1x = (0f - currentOffset.x - originX) / currentScale + originX
+                    val top1x = (0f - currentOffset.y - originY) / currentScale + originY
+                    val right1x = (viewportState.viewportSize.width - currentOffset.x - originX) / currentScale + originX
+                    val bottom1x = (viewportState.viewportSize.height - currentOffset.y - originY) / currentScale + originY
 
-                val currentEffectiveScale = viewportState.scale * fitScale
-                val tiles = tileManager.calculateVisibleTiles(intrinsicViewportBounds, currentEffectiveScale)
-                for (tile in tiles) {
-                    val tileId = "${tile.sampleSize}_${tile.x}_${tile.y}"
-                    if (!activeTileBitmaps.containsKey(tileId)) {
-                        val cached = tileCache.getL2(tileId)
-                        if (cached != null && !cached.isRecycled) {
-                            activeTileBitmaps[tileId] = cached
-                        } else {
-                            decoderEngine.decodeTileAsync(tile) { bitmap ->
-                                scope.launch {
-                                    tileCache.putL2(tileId, bitmap)
+                    val intrinsicViewportBounds = Rect(
+                        (left1x - imageLeft) / fitScale,
+                        (top1x - imageTop) / fitScale,
+                        (right1x - imageLeft) / fitScale,
+                        (bottom1x - imageTop) / fitScale
+                    )
+
+                    val currentEffectiveScale = currentScale * fitScale
+                    val tiles = tileManager.calculateVisibleTiles(intrinsicViewportBounds, currentEffectiveScale)
+                    for (tile in tiles) {
+                        val tileId = "${tile.sampleSize}_${tile.x}_${tile.y}"
+                        if (!activeTileBitmaps.containsKey(tileId)) {
+                            val cached = tileCache.getL2(tileId)
+                            if (cached != null && !cached.isRecycled) {
+                                activeTileBitmaps[tileId] = cached
+                            } else {
+                                decoderEngine.decodeTileAsync(tile) { bitmap ->
+                                    scope.launch { tileCache.putL2(tileId, bitmap) }
+                                    activeTileBitmaps[tileId] = bitmap
                                 }
-                                activeTileBitmaps[tileId] = bitmap
                             }
                         }
                     }
-                }
 
-                // Evict stale tiles for outdated sample sizes safely
-                var idealSampleSize = 1
-                while (idealSampleSize * 2 < (1f / currentEffectiveScale)) {
-                    idealSampleSize *= 2
-                }
-                val staleKeys = activeTileBitmaps.keys.filter { tileId ->
-                    val s = tileId.split("_").firstOrNull()?.toIntOrNull() ?: 0
-                    s != idealSampleSize && s != idealSampleSize * 2
-                }
-                val currentTileIds = tiles.map { "${it.sampleSize}_${it.x}_${it.y}" }.toSet()
-                val allCurrentLoaded = currentTileIds.all { activeTileBitmaps.containsKey(it) }
-                if (allCurrentLoaded && staleKeys.isNotEmpty()) {
-                    staleKeys.forEach { activeTileBitmaps.remove(it) }
-                }
-            } else if (viewportState.scale <= 1.05f && activeTileBitmaps.isNotEmpty()) {
-                delay(200)
-                if (viewportState.scale <= 1.05f) {
-                    activeTileBitmaps.clear()
+                    // Safe stale eviction — only once all current-resolution tiles are loaded
+                    var idealSampleSize = 1
+                    while (idealSampleSize * 2 < (1f / currentEffectiveScale)) idealSampleSize *= 2
+                    val staleKeys = activeTileBitmaps.keys.filter { tileId ->
+                        val s = tileId.split("_").firstOrNull()?.toIntOrNull() ?: 0
+                        s != idealSampleSize && s != idealSampleSize * 2
+                    }
+                    val currentTileIds = tiles.map { "${it.sampleSize}_${it.x}_${it.y}" }.toSet()
+                    if (staleKeys.isNotEmpty() && currentTileIds.all { activeTileBitmaps.containsKey(it) }) {
+                        staleKeys.forEach { activeTileBitmaps.remove(it) }
+                    }
+                } else if (scale <= 1.05f && activeTileBitmaps.isNotEmpty()) {
+                    delay(200)
+                    if (viewportState.scale <= 1.05f) activeTileBitmaps.clear()
                 }
             }
         }
+
+
 
         val request = remember(source, context) {
             ImageRequest.Builder(context)
