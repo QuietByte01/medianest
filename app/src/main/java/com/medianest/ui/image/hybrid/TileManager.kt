@@ -14,18 +14,21 @@ data class Tile(
 
 class TileManager(
     var imageSize: Size,
-    val tileSize: Int = 512
+    val tileSize: Int = 1024
 ) {
     fun calculateVisibleTiles(
         viewportBounds: Rect,
         currentScale: Float,
         panVelocity: Offset = Offset.Zero
     ): List<Tile> {
-        // Determine optimal sample size (1, 2, 4, 8)
-        val idealScale = 1f / currentScale
+        // When zoomed in (currentScale >= 1.0f), always decode native 1:1 full-resolution tiles (sampleSize = 1)
+        // for maximum clarity matching Samsung Gallery. Only downsample when zoomed out (currentScale < 1.0f).
         var sampleSize = 1
-        while (sampleSize * 2 < idealScale) {
-            sampleSize *= 2
+        if (currentScale < 1f) {
+            val idealScale = 1f / currentScale
+            while (sampleSize * 2 <= idealScale) {
+                sampleSize *= 2
+            }
         }
 
         // Project viewport into the future based on velocity (150ms trajectory)

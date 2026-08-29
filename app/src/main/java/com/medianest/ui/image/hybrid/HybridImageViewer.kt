@@ -188,9 +188,12 @@ fun HybridImageViewer(
             }
         }
 
-        // Active Tile Scheduler for Deep Zoom > 1.8x
+        // Active Tile Scheduler — runs off-main-thread with slight debounce to maintain silky 120fps gesture smoothness
         LaunchedEffect(viewportState.scale, viewportState.offset, intrinsicImageSize, viewportState.viewportSize) {
-            if (viewportState.scale > 1.8f && intrinsicImageSize.width > 0 && viewportState.viewportSize.width > 0) {
+            if (viewportState.scale > 1.05f && intrinsicImageSize.width > 0 && viewportState.viewportSize.width > 0) {
+                // Yield briefly during fast pinch gestures so UI render thread maintains steady 120 FPS
+                delay(16)
+
                 val fitScaleX = viewportState.contentSize.width / tileManager.imageSize.width
                 val fitScaleY = viewportState.contentSize.height / tileManager.imageSize.height
                 val fitScale = minOf(fitScaleX, fitScaleY).takeIf { !it.isNaN() && it > 0f } ?: 1f
@@ -212,7 +215,8 @@ fun HybridImageViewer(
                     (bottom1x - imageTop) / fitScale
                 )
 
-                val tiles = tileManager.calculateVisibleTiles(intrinsicViewportBounds, viewportState.scale * fitScale)
+                val currentEffectiveScale = viewportState.scale * fitScale
+                val tiles = tileManager.calculateVisibleTiles(intrinsicViewportBounds, currentEffectiveScale)
                 for (tile in tiles) {
                     val tileId = "${tile.sampleSize}_${tile.x}_${tile.y}"
                     if (!activeTileBitmaps.containsKey(tileId)) {
@@ -229,9 +233,24 @@ fun HybridImageViewer(
                         }
                     }
                 }
-            } else if (viewportState.scale <= 1.2f && activeTileBitmaps.isNotEmpty()) {
-                delay(250)
-                if (viewportState.scale <= 1.2f) {
+
+                // Evict stale tiles for outdated sample sizes safely
+                var idealSampleSize = 1
+                while (idealSampleSize * 2 < (1f / currentEffectiveScale)) {
+                    idealSampleSize *= 2
+                }
+                val staleKeys = activeTileBitmaps.keys.filter { tileId ->
+                    val s = tileId.split("_").firstOrNull()?.toIntOrNull() ?: 0
+                    s != idealSampleSize && s != idealSampleSize * 2
+                }
+                val currentTileIds = tiles.map { "${it.sampleSize}_${it.x}_${it.y}" }.toSet()
+                val allCurrentLoaded = currentTileIds.all { activeTileBitmaps.containsKey(it) }
+                if (allCurrentLoaded && staleKeys.isNotEmpty()) {
+                    staleKeys.forEach { activeTileBitmaps.remove(it) }
+                }
+            } else if (viewportState.scale <= 1.05f && activeTileBitmaps.isNotEmpty()) {
+                delay(200)
+                if (viewportState.scale <= 1.05f) {
                     activeTileBitmaps.clear()
                 }
             }
@@ -242,11 +261,12 @@ fun HybridImageViewer(
                 .data(uri ?: source.key)
                 .size(coil.size.Size.ORIGINAL)
                 .precision(Precision.EXACT)
+                .allowHardware(false)
                 .crossfade(true)
                 .build()
         }
 
-        // Layer 1: Base original full-resolution RenderThread image
+        // Layer 1: Base full-resolution image (always visible — tiles crossfade over this)
         AsyncImage(
             model = request,
             contentDescription = null,
@@ -267,8 +287,8 @@ fun HybridImageViewer(
                 }
         )
 
-        // Layer 2: Native BitmapRegionDecoder Ultra High-Res Tiles for Deep Zoom > 1.8x
-        if (viewportState.scale > 1.8f && activeTileBitmaps.isNotEmpty() && intrinsicImageSize.width > 0) {
+        // Layer 2: Native BitmapRegionDecoder Ultra High-Res Tiles for deep zoom clarity
+        if (activeTileBitmaps.isNotEmpty() && intrinsicImageSize.width > 0 && viewportState.scale > 1.05f) {
             Canvas(
                 modifier = Modifier
                     .fillMaxSize()
@@ -307,7 +327,8 @@ fun HybridImageViewer(
                     drawImage(
                         image = bitmap.asImageBitmap(),
                         dstOffset = IntOffset(left1x.toInt(), top1x.toInt()),
-                        dstSize = IntSize(dstW.toInt(), dstH.toInt())
+                        dstSize = IntSize(dstW.toInt(), dstH.toInt()),
+                        filterQuality = androidx.compose.ui.graphics.FilterQuality.High
                     )
                 }
             }

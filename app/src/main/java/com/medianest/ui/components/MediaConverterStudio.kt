@@ -1005,18 +1005,17 @@ private fun GlossyActionButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit
 ) {
-    val bgBrush = Brush.horizontalGradient(
+    val bgBrush = Brush.verticalGradient(
         colors = listOf(
-            Color(0xFF2563EB),
-            Color(0xFF3B82F6),
-            Color(0xFF1D4ED8)
+            Color(0x3DFFFFFF), // Glossy specular top sheen
+            Color(0x22FFFFFF),
+            Color(0x14FFFFFF)  // Translucent body
         )
     )
     val borderBrush = Brush.verticalGradient(
         colors = listOf(
-            Color(0x9993C5FD),
-            Color(0x4060A5FA),
-            Color(0x261E40AF)
+            Color(0x5EFFFFFF), // Crisp top rim highlight
+            Color(0x1AFFFFFF)  // Soft bottom rim
         )
     )
 
@@ -1030,21 +1029,6 @@ private fun GlossyActionButton(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        // Top highlight sheen for true glossy ambient glass appearance
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(26.dp)
-                .align(Alignment.TopCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0x55FFFFFF),
-                            Color(0x00FFFFFF)
-                        )
-                    )
-                )
-        )
 
         Row(
             modifier = Modifier.fillMaxSize(),

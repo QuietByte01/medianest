@@ -2,26 +2,35 @@ package com.medianest.ui.components.debug
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.player.PlayerState
 import com.medianest.ui.components.GlassSurface
+import kotlin.math.roundToInt
 
 /**
  * Shared logic for Developer Mode debug overlays.
@@ -30,10 +39,24 @@ import com.medianest.ui.components.GlassSurface
 @Composable
 fun PlayerDebugOverlay(
     playerState: PlayerState,
+    videoAspectRatio: Float = 0f,
+    playingAspectRatio: Float = 0f,
     modifier: Modifier = Modifier
 ) {
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    var offsetY by remember { mutableFloatStateOf(0f) }
+
     GlassSurface(
-        modifier = modifier.width(280.dp),
+        modifier = modifier
+            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+            .pointerInput(Unit) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    offsetX += dragAmount.x
+                    offsetY += dragAmount.y
+                }
+            }
+            .width(280.dp),
         shape = RoundedCornerShape(12.dp),
         backgroundColor = Color(0xCC0F1015),
         borderColor = Color(0x336366F1),
@@ -49,12 +72,23 @@ fun PlayerDebugOverlay(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "VIDEO / PLAYER DEBUG",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFA5B4FC)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        Icons.Default.DragHandle,
+                        contentDescription = "Drag overlay",
+                        tint = Color(0xFFA5B4FC).copy(alpha = 0.7f),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = "VIDEO / PLAYER DEBUG",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFA5B4FC)
+                    )
+                }
                 Icon(
                     Icons.Default.Terminal,
                     contentDescription = null,
@@ -92,6 +126,27 @@ fun PlayerDebugOverlay(
 
             DebugStatRow("HDR Type", playerState.hdrType)
             DebugStatRow("Color Space", playerState.colorSpace)
+
+            if (videoAspectRatio > 0f) {
+                val effectivePlayingRatio = if (playingAspectRatio > 0f) playingAspectRatio else videoAspectRatio
+                val isRatioDifferent = kotlin.math.abs(effectivePlayingRatio - videoAspectRatio) > 0.04f
+                val videoRatioStr = formatRatio(videoAspectRatio)
+                val playingRatioStr = formatRatio(effectivePlayingRatio)
+
+                if (isRatioDifferent) {
+                    DebugStatRow(
+                        label = "Aspect Ratio",
+                        value = "$videoRatioStr -> $playingRatioStr",
+                        valueColor = Color(0xFFEF4444)
+                    )
+                } else {
+                    DebugStatRow(
+                        label = "Aspect Ratio",
+                        value = videoRatioStr,
+                        valueColor = Color(0xFF34D399)
+                    )
+                }
+            }
             
             if (playerState.decoderFallbackReason != null) {
                 Text(
@@ -179,8 +234,20 @@ fun ImageDebugOverlay(
     item: com.medianest.data.model.MediaItem?,
     modifier: Modifier = Modifier
 ) {
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    var offsetY by remember { mutableFloatStateOf(0f) }
+
     GlassSurface(
-        modifier = modifier.width(260.dp),
+        modifier = modifier
+            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+            .pointerInput(Unit) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    offsetX += dragAmount.x
+                    offsetY += dragAmount.y
+                }
+            }
+            .width(260.dp),
         shape = RoundedCornerShape(12.dp),
         backgroundColor = Color(0xCC0F1015),
         borderColor = Color(0x3334D399),
@@ -196,12 +263,23 @@ fun ImageDebugOverlay(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "IMAGE DEBUG",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF34D399)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        Icons.Default.DragHandle,
+                        contentDescription = "Drag overlay",
+                        tint = Color(0xFF34D399).copy(alpha = 0.7f),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = "IMAGE DEBUG",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF34D399)
+                    )
+                }
                 Icon(
                     Icons.Default.Terminal,
                     contentDescription = null,
@@ -230,8 +308,20 @@ fun AudioDebugOverlay(
     playerState: PlayerState,
     modifier: Modifier = Modifier
 ) {
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    var offsetY by remember { mutableFloatStateOf(0f) }
+
     GlassSurface(
-        modifier = modifier.width(260.dp),
+        modifier = modifier
+            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+            .pointerInput(Unit) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    offsetX += dragAmount.x
+                    offsetY += dragAmount.y
+                }
+            }
+            .width(260.dp),
         shape = RoundedCornerShape(12.dp),
         backgroundColor = Color(0xCC0F1015),
         borderColor = Color(0x33FB7185),
@@ -247,12 +337,23 @@ fun AudioDebugOverlay(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "AUDIO DEBUG",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFFB7185)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        Icons.Default.DragHandle,
+                        contentDescription = "Drag overlay",
+                        tint = Color(0xFFFB7185).copy(alpha = 0.7f),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = "AUDIO DEBUG",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFFB7185)
+                    )
+                }
                 Icon(
                     Icons.Default.Terminal,
                     contentDescription = null,
@@ -360,5 +461,20 @@ private fun DebugStatRow(label: String, value: String, valueColor: Color = Color
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).padding(start = 8.dp)
         )
+    }
+}
+
+private fun formatRatio(ratio: Float): String {
+    if (ratio <= 0f) return "Auto"
+    return when {
+        kotlin.math.abs(ratio - 16f / 9f) < 0.03f -> "16:9"
+        kotlin.math.abs(ratio - 9f / 16f) < 0.03f -> "9:16"
+        kotlin.math.abs(ratio - 4f / 3f) < 0.03f -> "4:3"
+        kotlin.math.abs(ratio - 3f / 4f) < 0.03f -> "3:4"
+        kotlin.math.abs(ratio - 16f / 10f) < 0.03f -> "16:10"
+        kotlin.math.abs(ratio - 1f) < 0.03f -> "1:1"
+        kotlin.math.abs(ratio - 21f / 9f) < 0.05f -> "21:9"
+        kotlin.math.abs(ratio - 4f / 5f) < 0.03f -> "4:5"
+        else -> String.format(java.util.Locale.US, "%.2f:1", ratio)
     }
 }

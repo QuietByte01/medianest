@@ -299,27 +299,6 @@ class ExoPlayerManager private constructor(private val context: Context) {
 
     private fun startWatchdog() {
         watchdogJob?.cancel()
-        watchdogJob = scope.launch {
-            delay(25000) // 25s timeout
-            val state = _playerState.value
-            val isMedia3 = activeEngine == media3Engine
-            
-            // STUCK CHECK: isPlaying is true but position is 0, or playWhenReady is true but not playing
-            val isBufferingForever = isMedia3 && !state.isPlaying && media3Engine?.player?.playWhenReady == true
-            
-            if (isBufferingForever) {
-                val reason = "Buffering deadlock"
-                Logger.w("ExoPlayerManager", "Watchdog: $reason detected. Triggering recovery.")
-                
-                if (av1FailureCount >= 2 || isHardwareFaulty) {
-                    Logger.e("ExoPlayerManager", "Watchdog: Hardware persistent failure. Forcing FFmpeg fallback.")
-                    switchToFFmpegFallback("Persistent hardware hang: $reason")
-                } else {
-                    Logger.w("ExoPlayerManager", "Watchdog: Triggering isolated engine rebirth for $reason")
-                    rebuildEngineDueToDeadlock("Watchdog: $reason")
-                }
-            }
-        }
     }
 
     private var isRebirthing = false
@@ -590,10 +569,10 @@ class ExoPlayerManager private constructor(private val context: Context) {
         val mediaSourceFactory = DefaultMediaSourceFactory(context, extractorsFactory)
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                /* minBufferMs = */ 2_500,
-                /* maxBufferMs = */ 30_000,
-                /* bufferForPlaybackMs = */ 250,
-                /* bufferForPlaybackAfterRebufferMs = */ 500
+                /* minBufferMs = */ 15_000,
+                /* maxBufferMs = */ 50_000,
+                /* bufferForPlaybackMs = */ 1_500,
+                /* bufferForPlaybackAfterRebufferMs = */ 3_000
             )
             .build()
         val renderersFactory = DefaultRenderersFactory(context)
@@ -882,19 +861,27 @@ class ExoPlayerManager private constructor(private val context: Context) {
                         abRepeatB = null,
                         isAbRepeatActive = false
                     )
-                    val probeResult = withContext(Dispatchers.IO) { ffmpegEngine.probe(currentTarget.uri) }
+                    val uriString = currentTarget.uri.toString().lowercase(java.util.Locale.ROOT)
+                    val fileName = currentTarget.title.lowercase(java.util.Locale.ROOT)
+                    val isStandardFastPath = fileName.endsWith(".mp4") || fileName.endsWith(".mkv") || fileName.endsWith(".webm") ||
+                                             fileName.endsWith(".mov") || fileName.endsWith(".3gp") || fileName.endsWith(".m4v") ||
+                                             uriString.endsWith(".mp4") || uriString.endsWith(".mkv") || uriString.endsWith(".webm")
+                    
+                    val probeResult = if (isStandardFastPath) {
+                        null
+                    } else {
+                        withContext(Dispatchers.IO) { ffmpegEngine.probe(currentTarget.uri) }
+                    }
                     Logger.d("ExoPlayerManager", "Probe result for ${currentTarget.title}: $probeResult")
                     val profile = MediaCapabilityInspector.inspect(currentTarget.uri, probeResult)
                     Logger.i("ExoPlayerManager", "Media Profile for ${currentTarget.title}: $profile")
                     val forceHW = currentDecoderPreference == "HARDWARE"
                     
-                    val isAv1 = profile.videoCodec.contains("AV1", ignoreCase = true)
                     val isAvi = profile.container.contains("AVI", ignoreCase = true)
-                    
-                    val needsFFmpeg = profile.requiresFFmpegFallback || isAv1 || isAvi
+                    val needsFFmpeg = profile.requiresFFmpegFallback || isAvi
                     
                     if (needsFFmpeg && !forceHW) {
-                        Logger.w("ExoPlayerManager", "Avoiding hardware engine (needsFFmpeg=true, isAv1=$isAv1, isAvi=$isAvi, GlobalFault=$isHardwareFaulty)")
+                        Logger.w("ExoPlayerManager", "Using FFmpeg software fallback (needsFFmpeg=true, isAvi=$isAvi)")
                     }
 
                     val newEngine = if (needsFFmpeg && !forceHW) ffmpegEngine else media3Engine
@@ -958,25 +945,11 @@ class ExoPlayerManager private constructor(private val context: Context) {
                         try { media3Engine?.player?.volume = 1.0f } catch (_: Exception) {}
                     } else if (newEngine == ffmpegEngine) {
                         try { ffmpegEngine.setVolume(1.0f) } catch (_: Exception) {}
-                        updateNativeFilters() // Apply DSP settings to FFmpeg
-
-                        // Wait for onSurfaceTextureAvailable of the new video TextureView (up to 1500ms)
-                        ffmpegEngine._isSurfaceReady.value = (lastSurface != null)
-                        if (!ffmpegEngine.isSurfaceReady.value) {
-                            Logger.w("ExoPlayerManager", "FFmpeg surface not ready yet — waiting for new TextureView (up to 1500ms)...")
-                            var waitCount = 0
-                            while (!ffmpegEngine.isSurfaceReady.value && waitCount < 15) {
-                                delay(100)
-                                waitCount++
-                            }
-                            Logger.d("ExoPlayerManager", "FFmpeg surface wait done. Ready=${ffmpegEngine.isSurfaceReady.value}, surface=$lastSurface (waited ${waitCount * 100}ms)")
-                        }
-                        Logger.d("ExoPlayerManager", "Setting surface for FFmpeg: $lastSurface")
                         activeEngine?.setSurface(lastSurface)
+                        updateNativeFilters() // Apply DSP settings to FFmpeg
                     }
                     Logger.d("ExoPlayerManager", "Preparing engine ($newEngineName) for URI: ${currentTarget.uri}")
                     activeEngine?.prepare(currentTarget.uri, true)
-                    startWatchdog()
                     if (startPosMs > 0) activeEngine?.seekTo(startPosMs)
                     if (requestAudioFocus()) {
                         Logger.d("ExoPlayerManager", "Audio focus granted, starting playback on $newEngineName")
@@ -1041,7 +1014,6 @@ class ExoPlayerManager private constructor(private val context: Context) {
     fun pause() {
         Logger.d("ExoPlayerManager", "pause() called")
         try { activeEngine?.pause() } catch (_: Exception) {}
-        stopAllEnginesExcept(null)
         _playerState.value = _playerState.value.copy(isPlaying = false)
         savePlaybackProgress()
         abandonAudioFocus()
@@ -1167,7 +1139,9 @@ class ExoPlayerManager private constructor(private val context: Context) {
     
     fun setVideoSurface(surface: Surface?) { 
         lastSurface = surface
-        activeEngine?.setSurface(surface)
+        if (activeEngine == ffmpegEngine) {
+            activeEngine?.setSurface(surface)
+        }
     }
     
     @OptIn(DelicateCoroutinesApi::class)
@@ -1404,17 +1378,6 @@ class ExoPlayerManager private constructor(private val context: Context) {
     }
 
     fun setVideoEffect(effect: com.medianest.ui.components.media.MediaEffect) {
-        try {
-            if (effect == com.medianest.ui.components.media.MediaEffect.OFF || 
-                effect == com.medianest.ui.components.media.MediaEffect.NORMAL ||
-                effect == com.medianest.ui.components.media.MediaEffect.ORIGINAL) {
-                exoPlayer?.setVideoEffects(emptyList())
-            } else {
-                val glEffect = com.medianest.player.fx.ColorGradingGlEffect(effect)
-                exoPlayer?.setVideoEffects(listOf(glEffect))
-            }
-        } catch (e: Exception) {
-            Logger.e("ExoPlayerManager", "Failed to set video effect", e)
-        }
+        // Handled directly via hardware layer color filter on PlayerView / TextureView in VideoPlayerScreen
     }
 }

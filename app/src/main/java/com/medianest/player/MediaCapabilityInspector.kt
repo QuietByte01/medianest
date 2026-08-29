@@ -29,15 +29,11 @@ object MediaCapabilityInspector {
                 
                 // Force FFmpeg for formats hardware definitively struggles with
                 val isAvi = container.contains("AVI", ignoreCase = true)
-                val isAv1 = vcodec.contains("av1") || vcodec.contains("dav1d")
+                val isMpeg4 = vcodec.contains("mpeg4") || vcodec.contains("xvid") || vcodec.contains("msmpeg4")
+                val isWmv = vcodec.contains("wmv") || acodec.contains("wma")
+                val isFlv = vcodec.contains("flv") || container.contains("FLV")
                 
-                val needsFFmpeg = isAvi || 
-                                  vcodec.contains("mpeg4") || vcodec.contains("xvid") || vcodec.contains("msmpeg4") ||
-                                  vcodec.contains("flv") || 
-                                  vcodec.contains("wmv") ||
-                                  acodec.contains("wma") ||
-                                  acodec.contains("ac3") ||
-                                  isAv1 // Default AV1 to FFmpeg for stability
+                val needsFFmpeg = isAvi || isMpeg4 || isWmv || isFlv
                 
                 if (needsFFmpeg) {
                     Logger.i("MediaInspector", "FFmpeg fallback triggered by probe for $fileName. Reason: container=$container, vcodec=$vcodec, acodec=$acodec")

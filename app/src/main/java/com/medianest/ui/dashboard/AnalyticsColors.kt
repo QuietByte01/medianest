@@ -9,7 +9,7 @@ object AnalyticsColors {
     val CategoryVideos = Color(0xFF06A77D)
     val CategoryAudio = Color(0xFFFF006E)
 
-    val Jpg = Color(0xFFD62828)
+    val Jpg = Color(0xFF00B4D8)
     val Png = Color(0xFFF77F00)
     val Webp = Color(0xEFE0A96D)
     val Gif = Color(0xFF9B5DE5)

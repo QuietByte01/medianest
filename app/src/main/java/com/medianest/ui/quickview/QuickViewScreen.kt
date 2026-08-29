@@ -40,6 +40,7 @@ import com.medianest.data.model.MediaItem
 import com.medianest.data.db.MediaType
 import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.MediaInfoBottomSheet
+import com.medianest.ui.components.debug.ImageDebugOverlay
 import com.medianest.ui.image.hybrid.HybridImageViewer
 import com.medianest.ui.image.hybrid.ImageSource
 import kotlinx.coroutines.Dispatchers
@@ -97,6 +98,7 @@ fun QuickViewScreen(
     var pictureModeEnabled by remember { mutableStateOf(false) }
 
     val app = com.medianest.MediaNestApp.instance
+    val showImageDebugOverlay by app.settingsManager.showImageDebugInfo.collectAsState(initial = false)
     val coroutineScope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
         coroutineScope.launch {
@@ -116,12 +118,16 @@ fun QuickViewScreen(
     var isInitialScrollDone by remember { mutableStateOf(false) }
     var isCurrentPageZoomed by remember { mutableStateOf(false) }
 
+    // Scroll filmstrip to center the selected thumbnail
+    fun getCenterScrollOffset(layoutWidthPx: Int, itemWidthPx: Int): Int {
+        return -((layoutWidthPx - itemWidthPx) / 2).coerceAtLeast(0)
+    }
+
     // Scroll pager & filmstrip to initial index on initial load
     LaunchedEffect(mutableMediaList, initialIndex) {
         if (mutableMediaList.isNotEmpty() && !isInitialScrollDone) {
             val targetPage = initialIndex.coerceIn(0, mutableMediaList.size - 1)
             pagerState.scrollToPage(targetPage)
-            filmstripListState.scrollToItem(targetPage)
             isInitialScrollDone = true
         }
     }
@@ -130,11 +136,15 @@ fun QuickViewScreen(
         mutableMediaList[pagerState.currentPage]
     } else null
 
-    // Scroll filmstrip when page changes
-    LaunchedEffect(pagerState.currentPage) {
+    // Centered smooth scroll on page changes
+    LaunchedEffect(pagerState.currentPage, filmstripListState.layoutInfo.viewportSize.width) {
         isCurrentPageZoomed = false
         if (mutableMediaList.isNotEmpty() && pagerState.currentPage in mutableMediaList.indices) {
-            filmstripListState.animateScrollToItem(pagerState.currentPage)
+            val viewportWidth = filmstripListState.layoutInfo.viewportSize.width
+            val targetPage = pagerState.currentPage
+            val itemWidthPx = (48 * context.resources.displayMetrics.density).toInt()
+            val offset = getCenterScrollOffset(viewportWidth, itemWidthPx)
+            filmstripListState.animateScrollToItem(index = targetPage, scrollOffset = offset)
         }
     }
 
@@ -168,9 +178,11 @@ fun QuickViewScreen(
         }
     }
 
-    var currentDismissProgress by remember { mutableFloatStateOf(0f) }
+    var currentDismissProgress by remember { mutableStateOf(0f) }
     val effectiveBgAlpha = (1f - currentDismissProgress).coerceIn(0f, 1f)
 
+    // viewerBgColor: null or Color.Transparent -> dynamic image hue gradient; specific Color -> solid background color
+    val isDynamicGradient = viewerBgColor == null || viewerBgColor == Color.Transparent
     val effectiveBgColor = viewerBgColor ?: Color.Black
 
     BackHandler {
@@ -181,7 +193,7 @@ fun QuickViewScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                if (viewerBgColor == Color.Transparent) {
+                if (isDynamicGradient) {
                     imageBgBrush
                 } else {
                     androidx.compose.ui.graphics.SolidColor(effectiveBgColor.copy(alpha = effectiveBgAlpha))
@@ -208,7 +220,7 @@ fun QuickViewScreen(
                         HybridImageViewer(
                             source = ImageSource.from(item.uri),
                             colorFilter = colorFilter,
-                            backgroundColor = Color.Transparent,
+                            backgroundColor = if (isDynamicGradient) Color.Transparent else effectiveBgColor,
                             zoomControlsBottomPadding = zoomPadding,
                             onDismiss = { onClose() },
                             onInteraction = { resetControlsTimer() },
@@ -242,6 +254,17 @@ fun QuickViewScreen(
                     )
                 }
             }
+        }
+
+        // Image Debug Overlay (Developer Settings)
+        if (showImageDebugOverlay && currentItem?.type == MediaType.IMAGE) {
+            ImageDebugOverlay(
+                item = currentItem,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(16.dp)
+                    .padding(bottom = if (showControls) 120.dp else 40.dp)
+            )
         }
 
         // Overlay Controls (Top App Bar & Bottom Bar)
@@ -286,6 +309,28 @@ fun QuickViewScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // Picture Mode Quick Action Button (for images)
+                        if (currentItem?.type == MediaType.IMAGE) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(if (pictureModeEnabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.8f) else Color.Black.copy(alpha = 0.55f))
+                                    .clickable {
+                                        resetControlsTimer()
+                                        showPictureModeDialog = true
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Tune,
+                                    contentDescription = "Picture Mode",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
                         val colorOptions = listOf(
                             Color.Transparent, // Dynamic Frosted
                             Color.Black,
@@ -320,8 +365,8 @@ fun QuickViewScreen(
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
-                                val currentSelectedColor = viewerBgColor ?: Color.Black
-                                val isDynamic = viewerBgColor == Color.Transparent
+                                val isDynamic = isDynamicGradient
+                                val currentSelectedColor = viewerBgColor ?: Color.Transparent
                                 
                                 Box(
                                     modifier = Modifier
@@ -359,7 +404,11 @@ fun QuickViewScreen(
                                 ) {
                                     colorOptions.forEach { color ->
                                         val isTransparent = color == Color.Transparent
-                                        val isSelected = viewerBgColor == color || (viewerBgColor == null && color == Color.Black)
+                                        val isSelected = if (isTransparent) {
+                                            isDynamicGradient
+                                        } else {
+                                            viewerBgColor == color
+                                        }
                                         
                                         Box(
                                             modifier = Modifier
@@ -429,24 +478,6 @@ fun QuickViewScreen(
                                 hue = imageHue
                             ) {
                                 Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                                    if (currentItem?.type == MediaType.IMAGE) {
-                                        DropdownMenuItem(
-                                            text = { Text("Picture Mode (${pictureMode})", color = Color.White) },
-                                            leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, tint = Color.White) },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                showPictureModeDialog = true
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Set as wallpaper", color = Color.White) },
-                                            leadingIcon = { Icon(Icons.Default.Wallpaper, contentDescription = null, tint = Color.White) },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                showWallpaperDialog = true
-                                            }
-                                        )
-                                    }
                                     DropdownMenuItem(
                                         text = { Text("Open with", color = Color.White) },
                                         leadingIcon = { Icon(Icons.Default.OpenInNew, contentDescription = null, tint = Color.White) },
@@ -485,26 +516,16 @@ fun QuickViewScreen(
                                             }
                                         }
                                     )
-                                    DropdownMenuItem(
-                                        text = { Text("Share", color = Color.White) },
-                                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null, tint = Color.White) },
-                                        onClick = {
-                                            showOverflowMenu = false
-                                            currentItem?.let { item ->
-                                                val sharingUri = com.medianest.util.ContentUriUtils.getSharingUri(context, item.uri)
-                                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                                    putExtra(Intent.EXTRA_STREAM, sharingUri)
-                                                    type = item.mimeType.ifEmpty { "image/*" }
-                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                }
-                                                try {
-                                                    context.startActivity(Intent.createChooser(shareIntent, "Share Media"))
-                                                } catch (e: Exception) {
-                                                    e.printStackTrace()
-                                                }
+                                    if (currentItem?.type == MediaType.IMAGE) {
+                                        DropdownMenuItem(
+                                            text = { Text("Set as wallpaper", color = Color.White) },
+                                            leadingIcon = { Icon(Icons.Default.Wallpaper, contentDescription = null, tint = Color.White) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                showWallpaperDialog = true
                                             }
-                                        }
-                                    )
+                                        )
+                                    }
                                     DropdownMenuItem(
                                         text = { Text("Delete", color = Color.Red) },
                                         leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red) },
@@ -526,17 +547,79 @@ fun QuickViewScreen(
                         .align(Alignment.BottomCenter)
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
                             )
                         )
                         .navigationBarsPadding()
-                        .padding(bottom = 8.dp)
+                        .padding(bottom = 6.dp)
                 ) {
-                    // Action Buttons Row
+                    // Filmstrip thumbnail scroll (positioned ABOVE action bar)
+                    if (mutableMediaList.size > 1) {
+                        BoxWithConstraints(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                        ) {
+                            val halfScreenWidth = maxWidth / 2
+                            val halfThumbWidth = 24.dp
+                            val horizontalPad = (halfScreenWidth - halfThumbWidth).coerceAtLeast(12.dp)
+
+                            LazyRow(
+                                state = filmstripListState,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(vertical = 2.dp),
+                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                contentPadding = PaddingValues(horizontal = horizontalPad),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                itemsIndexed(mutableMediaList) { index, item ->
+                                    val isSelected = index == pagerState.currentPage
+                                    val thumbSize = if (isSelected) 48.dp else 40.dp
+                                    val cornerRadius = if (isSelected) 6.dp else 4.dp
+                                    
+                                    Box(
+                                        modifier = Modifier
+                                            .size(thumbSize)
+                                            .clip(RoundedCornerShape(cornerRadius))
+                                            .then(
+                                                if (isSelected) {
+                                                    Modifier.border(
+                                                        width = 2.dp,
+                                                        color = Color.White,
+                                                        shape = RoundedCornerShape(cornerRadius)
+                                                    )
+                                                } else {
+                                                    Modifier.border(
+                                                        width = 0.5.dp,
+                                                        color = Color.White.copy(alpha = 0.2f),
+                                                        shape = RoundedCornerShape(cornerRadius)
+                                                    )
+                                                }
+                                            )
+                                            .clickable {
+                                                resetControlsTimer()
+                                                scope.launch { pagerState.animateScrollToPage(index) }
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        AsyncImage(
+                                            model = item.albumArtUri ?: item.uri,
+                                            contentDescription = null,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Action Buttons Row (positioned BELOW filmstrip)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 8.dp),
+                            .padding(horizontal = 24.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -571,44 +654,6 @@ fun QuickViewScreen(
                             showDeleteDialog = true
                         }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White)
-                        }
-                    }
-
-                    // Filmstrip thumbnail scroll
-                    if (mutableMediaList.size > 1) {
-                        LazyRow(
-                            state = filmstripListState,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp)
-                                .padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = PaddingValues(horizontal = 16.dp)
-                        ) {
-                            itemsIndexed(mutableMediaList) { index, item ->
-                                val isSelected = index == pagerState.currentPage
-                                Box(
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .border(
-                                            width = if (isSelected) 2.dp else 0.dp,
-                                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                            shape = RoundedCornerShape(8.dp)
-                                        )
-                                        .clickable {
-                                            resetControlsTimer()
-                                            scope.launch { pagerState.animateScrollToPage(index) }
-                                        }
-                                ) {
-                                    AsyncImage(
-                                        model = item.albumArtUri ?: item.uri,
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
-                            }
                         }
                     }
                 }

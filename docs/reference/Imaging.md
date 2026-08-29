@@ -108,151 +108,80 @@ val bitmap = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
 
 ---
 
-## 4. Implementation Options for Zoomable Image Viewers
+## 4. MediaNest Production Hybrid Image Viewer Architecture
 
-### Option 1: Modern Jetpack Compose via Telephoto (`ZoomableImage`)
+MediaNest implements a Google Photos / Samsung Gallery-grade **Hybrid 2-Layer Image Viewer** (`com.medianest.ui.image.hybrid`) designed for smooth pan/pinch, pull-to-dismiss physics, deep zoom up to 25x, and crystal-clear tile rendering without memory bloat or visual flickering.
 
-Telephoto is a pure Compose library engineered for deep zoom, pan, double-tap gestures, and automatic `BitmapRegionDecoder` subsampling.
-
-#### 1. Dependency
-
-```groovy
-implementation("me.saket.telephoto:zoomable-image-coil:0.14.0")
+### Core Architecture (`HybridImageViewer`)
 
 ```
-
-#### 2. Compose Implementation
-
-```kotlin
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import me.saket.telephoto.zoomable.coil.ZoomableAsyncImage
-import me.saket.telephoto.zoomable.rememberZoomableImageState
-
-@Composable
-fun FullscreenImageViewer(
-    imageUrl: String,
-    contentDescription: String? = null
-) {
-    val state = rememberZoomableImageState()
-
-    ZoomableAsyncImage(
-        model = imageUrl,
-        contentDescription = contentDescription,
-        state = state,
-        modifier = Modifier.fillMaxSize()
-    )
-}
-
+                      [ User Touch Gestures ]
+                                │
+                 [ GooglePhotosPhysics / ViewportState ]
+                                │
+         ┌──────────────────────┴──────────────────────┐
+         ▼                                             ▼
+  [ Layer 1: Base Image ]                   [ Layer 2: Deep Zoom Tiles ]
+  - Coil AsyncImage                         - BitmapRegionDecoder Engine
+  - Full-res render (software bitmap)       - 1024px dynamic visible tiles
+  - graphicsLayer (scale, offset)           - TileCache (2-tier L1/L2)
+  - Always active for instant render        - FilterQuality.High (Bicubic)
+                                            - Preloads at 1.0x, fades in at 1.1x
 ```
+
+### Subsystems & Responsibilities
+
+1. **`ViewportState`**:
+   - Manages interactive transforms (`scale`, `offset`, `contentSize`, `viewportSize`).
+   - Supports fluid double-tap zoom toggles (smart fit vs 2.5x zoom centroid targeting).
+   - Handles pull-to-dismiss physics with spring animations (`DampingRatioNoBouncy`).
+   - Clamps pan translation to image bounds when zoomed in.
+
+2. **`GesturePhysics` (`detectGooglePhotosGestures`)**:
+   - Single-pointer at 1.0x: Restricts gestures so lateral movements pass directly to parent `HorizontalPager`, downward drag triggers pull-to-dismiss, and upward swipe opens the info bottom sheet.
+   - Multi-touch or zoomed state (`scale > 1.05x`): Transitions smoothly to 2D pan and pinch-to-zoom with inertia and velocity decay.
+
+3. **`RegionDecoderEngine`**:
+   - Asynchronously decodes high-res sub-rectangles via Android native `BitmapRegionDecoder`.
+   - Direct `ARGB_8888` decode configuration with Display P3 color space preservation.
+   - Mutex-protected thread-safe decoding dispatched onto `Dispatchers.IO`.
+
+4. **`TileManager`**:
+   - Calculates visible grid tiles based on intrinsic image coordinates and current scale factor.
+   - Uses `1024px` tile sizing to minimize tile seam overhead and maximize GPU cache efficiency.
+   - Computes optimal power-of-two `inSampleSize` (1, 2, 4, 8) dynamically.
+
+5. **`TileCache`**:
+   - 2-Tier memory caching:
+     - **L1 Cache**: `HardwareBuffer` / GraphicBuffers for zero-copy GPU texturing.
+     - **L2 Cache**: High-resolution `Bitmap` cache using 1/8th of total app memory.
+
+6. **Zero-Flicker Sharpness Optimizations**:
+   - **Immediate Preload at 1.0x**: Pre-decodes tiles as soon as zoom begins.
+   - **Crossfade at 1.1x**: Animates tile layer alpha smoothly over 120ms (`Animatable`) once tiles arrive, preventing hard cut pop-in.
+   - **Safe Stale Eviction**: Retains previous resolution tiles until all new sample-size tiles are fully decoded and ready.
+   - **Bicubic Rendering (`FilterQuality.High`)**: Ensures sub-pixel sharpness matching Samsung Gallery and Google Photos.
 
 ---
 
-### Option 2: Classic Android View via `SubsamplingScaleImageView`
+## 5. Implementation Options & Comparison
 
-A robust, legacy View-based solution embedded within Compose using `AndroidView`.
-
-#### 1. Dependency
-
-```groovy
-implementation("com.davemorrissey.labs:subsampling-scale-image-view-androidx:3.10.0")
-
-```
-
-#### 2. Compose Wrapper
-
-```kotlin
-import android.net.Uri
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.viewinterop.AndroidView
-import com.davemorrissey.labs.subscaleview.ImageSource
-import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
-
-@Composable
-fun SubsamplingImageViewer(
-    imageUri: Uri,
-    modifier: Modifier = Modifier
-) {
-    AndroidView(
-        factory = { context ->
-            SubsamplingScaleImageView(context).apply {
-                setDoubleTapZoomScale(2.5f)
-                setMinimumTileDpi(160)
-            }
-        },
-        update = { view ->
-            view.setImage(ImageSource.uri(imageUri))
-        },
-        modifier = modifier.fillMaxSize()
-    )
-}
-
-```
-
----
-
-## 5. Multi-Page Swipeable Gallery (ViewPager in Compose)
-
-A swipeable multi-page gallery integrates Compose's `HorizontalPager` with zoomable viewers.
-
-### Gesture Conflict Resolution
-
-1. **Zoomed Out:** Horizontal drag must navigate pages.
-2. **Zoomed In:** Horizontal drag must pan across the image canvas without triggering page changes.
-3. **Edge Panning:** When panning reaches the horizontal boundary of a zoomed-in image, continued dragging must transition to the adjacent page smoothly.
-
-> Telephoto integrates directly with `HorizontalPager` to automate this drag-lock boundary handling.
-
-### Multi-Page Gallery Implementation
-
-```kotlin
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import me.saket.telephoto.zoomable.coil.ZoomableAsyncImage
-import me.saket.telephoto.zoomable.rememberZoomableImageState
-
-@Composable
-fun MultiPageGallery(imageUrls: List<String>) {
-    val pagerState = rememberPagerState(pageCount = { imageUrls.size })
-
-    HorizontalPager(
-        state = pagerState,
-        modifier = Modifier.fillMaxSize(),
-        beyondViewportPageCount = 1
-    ) { page ->
-        val zoomState = rememberZoomableImageState()
-
-        ZoomableAsyncImage(
-            model = imageUrls[page],
-            contentDescription = "Photo $page",
-            state = zoomState,
-            modifier = Modifier.fillMaxSize()
-        )
-    }
-}
-
-```
-
----
-
-## 6. Comparison of Android Image Zooming Approaches
+### Comparison of Android Image Zooming Approaches
 
 | Approach | Max Clarity on Zoom | Memory Usage (RAM) | Gesture / Pager Handling | Compose Native? | Best For |
-| --- | --- | --- | --- | --- | --- |
-| **Standard Compose `Image` + `Modifier.transformable` / `graphicsLayer**` | ❌ **Poor (Blurry)** (Scales downsampled preview) | High (if uncompressed) / Low (if downsampled) | Requires manual gesture implementation | ✔️ Yes | Basic icons, small static images, avatars |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **MediaNest `HybridImageViewer`** | ✔️ **Crystal Clear (Bicubic 1024px Tiles)** | Minimal (5–15 MB active tile buffer) | Full Google Photos-style physics + Pager lock + Pull-to-dismiss | ✔️ Yes (Pure Compose) | Production gallery apps with deep zoom (up to 25x) |
+| **Standard Compose `Image` + `graphicsLayer`** | ❌ **Poor (Blurry)** (Scales downsampled preview) | High (if uncompressed) / Low (if downsampled) | Requires manual gesture implementation | ✔️ Yes | Basic icons, avatars, small static images |
 | **`SubsamplingScaleImageView` (via `AndroidView`)** | ✔️ **Crystal Clear** (Dynamic regional tiles) | Minimal (5–15 MB active buffer) | Built-in gestures; requires custom bridge for pagers | ❌ No (Legacy Android View) | Legacy View-based applications |
-| **Telephoto (`ZoomableAsyncImage`)** | ✔️ **Crystal Clear** (Native Compose subsampling) | Minimal (Visible tiles only) | Built-in gesture locking with `HorizontalPager` | ✔️ Yes (Pure Compose) | Modern Jetpack Compose apps, camera galleries |
-| **Pre-sliced Tile Pyramid (Deep Zoom / DZI / OpenSeadragon)** | ✔️ **Crystal Clear** (Pre-rendered web tiles) | Minimal | Requires custom canvas/stitching logic | ❌ Custom Canvas / WebView | Gigapixel assets (>100MP–10GP+), complex interactive maps |
+| **Telephoto (`ZoomableAsyncImage`)** | ✔️ **Crystal Clear** (Native Compose subsampling) | Minimal (Visible tiles only) | Built-in gesture locking with `HorizontalPager` | ✔️ Yes (Pure Compose) | Modern Jetpack Compose apps |
+| **Pre-sliced Tile Pyramid (DZI / OpenSeadragon)** | ✔️ **Crystal Clear** (Pre-rendered web tiles) | Minimal | Requires custom canvas/stitching logic | ❌ Custom Canvas / WebView | Gigapixel assets (>100MP–10GP+), interactive maps |
 
 ---
 
-## 7. Decision Guide: Selecting the Right Solution
+## 6. QuickView & Gallery Integration
 
-* **Standard High-Res Photos (Up to ~100MP):** Use **Telephoto `ZoomableAsyncImage**` (for Jetpack Compose) or **`SubsamplingScaleImageView`** (for classic Views). Both deliver 1:1 pixel clarity upon zoom while maintaining a 5–15 MB RAM footprint without requiring pre-processed assets.
-* **Ultra-Gigapixel & Large Map Assets (>200MP, Blueprints, GIS):** Use **Pre-sliced Tile Pyramids (Deep Zoom / DZI)**. Decoding massive raw files on the fly overwhelms mobile CPU/decoders; serving pre-tiled $256 \times 256\text{ px}$ image chunks delivers significantly better performance.
+The `HybridImageViewer` is integrated directly with `QuickViewScreen` and `GalleryViewerScreen`:
+
+- **Background Styling**: Supports solid color selection and dynamic ambient hue gradient extraction from the active image.
+- **Top Controls**: Includes quick-access Picture Mode (effects/filters) toggle and wallpaper configuration.
+- **Hierarchical Back Navigation**: Swiping back from sub-filters/folders transitions back to the primary "All Images" grid before navigating to the dashboard.

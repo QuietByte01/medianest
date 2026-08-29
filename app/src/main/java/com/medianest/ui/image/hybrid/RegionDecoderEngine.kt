@@ -81,11 +81,8 @@ class RegionDecoderEngine(
                     inPreferredColorSpace = ColorSpace.get(ColorSpace.Named.DISPLAY_P3)
                 }
                 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    inPreferredConfig = Bitmap.Config.RGBA_1010102
-                } else {
-                    inPreferredConfig = Bitmap.Config.ARGB_8888
-                }
+                // Always use ARGB_8888 — RGBA_1010102 can cause visual artifacts with BitmapRegionDecoder
+                inPreferredConfig = Bitmap.Config.ARGB_8888
             }
 
             val bitmap = try {

@@ -3,13 +3,19 @@ package com.medianest.ui.settings
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -185,20 +191,53 @@ fun DeviceInfoRow(label: String, value: String) {
     }
 }
 
+enum class LogSource {
+    APP_LOGS,
+    ADB_LOGCAT
+}
+
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun LogViewerDialog(onDismiss: () -> Unit) {
     val logs by Logger.logs.collectAsState()
+    var currentSource by remember { mutableStateOf(LogSource.APP_LOGS) }
     var selectedFilter by remember { mutableStateOf<LogLevel?>(null) } // null = ALL
+    var adbFilterText by remember { mutableStateOf("") }
 
-    val filteredLogs = remember(logs, selectedFilter) {
+    var adbLogs by remember { mutableStateOf<List<String>>(emptyList()) }
+    var isLoadingAdb by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    fun reloadAdbLogs() {
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            isLoadingAdb = true
+            val newAdbLogs = Logger.getProcessLogcatLogs(
+                filterTagOrKeyword = adbFilterText,
+                minLevel = selectedFilter
+            )
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                adbLogs = newAdbLogs
+                isLoadingAdb = false
+            }
+        }
+    }
+
+    LaunchedEffect(currentSource, selectedFilter, adbFilterText) {
+        if (currentSource == LogSource.ADB_LOGCAT) {
+            reloadAdbLogs()
+        }
+    }
+
+    val filteredAppLogs = remember(logs, selectedFilter) {
         if (selectedFilter == null) logs else logs.filter { it.level == selectedFilter }
     }
 
-    val groupedLogs = remember(filteredLogs) {
-        filteredLogs.groupBy { it.dateGroup }
+    val groupedAppLogs = remember(filteredAppLogs) {
+        filteredAppLogs.groupBy { it.dateGroup }
     }
-    
+
+    val collapsedDateGroups = remember { mutableStateMapOf<String, Boolean>() }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = Color(0xFF0F1015),
@@ -209,6 +248,7 @@ fun LogViewerDialog(onDismiss: () -> Unit) {
                 .fillMaxSize()
                 .padding(bottom = 16.dp)
         ) {
+            // Header Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -217,14 +257,127 @@ fun LogViewerDialog(onDismiss: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Application Logs",
+                    text = if (currentSource == LogSource.APP_LOGS) "Application Logs" else "ADB Process Logcat",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
-                IconButton(onClick = { Logger.clear() }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Clear Logs", tint = Color.LightGray)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (currentSource == LogSource.ADB_LOGCAT) {
+                        IconButton(onClick = { reloadAdbLogs() }, enabled = !isLoadingAdb) {
+                            if (isLoadingAdb) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = Color(0xFF818CF8),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Refresh ADB Logs",
+                                    tint = Color.LightGray
+                                )
+                            }
+                        }
+                    }
+                    IconButton(onClick = {
+                        if (currentSource == LogSource.APP_LOGS) {
+                            Logger.clear()
+                        } else {
+                            Logger.clearLogcatBuffer()
+                            reloadAdbLogs()
+                        }
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Clear Logs",
+                            tint = Color.LightGray
+                        )
+                    }
                 }
+            }
+
+            // Log Source Selector (App Logs vs ADB / Logcat)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = currentSource == LogSource.APP_LOGS,
+                    onClick = { currentSource = LogSource.APP_LOGS },
+                    label = { Text("App Logs (${logs.size})", fontSize = 12.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = Color(0x1AFFFFFF),
+                        labelColor = Color.White.copy(alpha = 0.7f),
+                        selectedContainerColor = Color(0xFF6366F1).copy(alpha = 0.3f),
+                        selectedLabelColor = Color(0xFF818CF8)
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = currentSource == LogSource.APP_LOGS,
+                        borderColor = Color(0x33FFFFFF),
+                        selectedBorderColor = Color(0xFF818CF8)
+                    )
+                )
+
+                FilterChip(
+                    selected = currentSource == LogSource.ADB_LOGCAT,
+                    onClick = { currentSource = LogSource.ADB_LOGCAT },
+                    label = { Text("ADB / Logcat", fontSize = 12.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = Color(0x1AFFFFFF),
+                        labelColor = Color.White.copy(alpha = 0.7f),
+                        selectedContainerColor = Color(0xFF10B981).copy(alpha = 0.3f),
+                        selectedLabelColor = Color(0xFF34D399)
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = currentSource == LogSource.ADB_LOGCAT,
+                        borderColor = Color(0x33FFFFFF),
+                        selectedBorderColor = Color(0xFF34D399)
+                    )
+                )
+            }
+
+            // ADB Filter TextField (when ADB Logcat is selected)
+            if (currentSource == LogSource.ADB_LOGCAT) {
+                OutlinedTextField(
+                    value = adbFilterText,
+                    onValueChange = { adbFilterText = it },
+                    placeholder = { Text("Filter tag / keyword (e.g. FFmpeg, Media3)...", fontSize = 12.sp, color = Color.Gray) },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    trailingIcon = {
+                        if (adbFilterText.isNotEmpty()) {
+                            IconButton(onClick = { adbFilterText = "" }) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Clear Filter",
+                                    tint = Color.Gray
+                                )
+                            }
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search Filter",
+                                tint = Color.Gray
+                            )
+                        }
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF34D399),
+                        unfocusedBorderColor = Color(0x33FFFFFF),
+                        focusedContainerColor = Color(0x1AFFFFFF),
+                        unfocusedContainerColor = Color(0x0DFFFFFF),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                )
             }
 
             // Log Level Filter Chips
@@ -280,71 +433,154 @@ fun LogViewerDialog(onDismiss: () -> Unit) {
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                groupedLogs.forEach { (dateGroup, entries) ->
-                    stickyHeader {
-                        Surface(
-                            color = Color(0xFF1E293B),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Text(
-                                text = dateGroup,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF38BDF8),
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                fontFamily = FontFamily.Monospace
-                            )
+            if (currentSource == LogSource.APP_LOGS) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    groupedAppLogs.forEach { (dateGroup, entries) ->
+                        val isCollapsed = collapsedDateGroups[dateGroup] == true
+
+                        stickyHeader {
+                            Surface(
+                                color = Color(0xFF1E293B),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clickable {
+                                        collapsedDateGroups[dateGroup] = !isCollapsed
+                                    },
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isCollapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                                            contentDescription = if (isCollapsed) "Expand" else "Collapse",
+                                            tint = Color(0xFF38BDF8),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Text(
+                                            text = dateGroup,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF38BDF8),
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                    Text(
+                                        text = "${entries.size} logs",
+                                        fontSize = 11.sp,
+                                        color = Color.White.copy(alpha = 0.6f),
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
+                        }
+
+                        if (!isCollapsed) {
+                            items(entries) { log ->
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0x1AFFFFFF))
+                                        .padding(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "[${log.timestamp}] ${log.level}",
+                                            fontSize = 10.sp,
+                                            color = when (log.level) {
+                                                LogLevel.ERROR -> Color(0xFFEF4444)
+                                                LogLevel.WARN -> Color(0xFFFBBF24)
+                                                LogLevel.INFO -> Color(0xFF60A5FA)
+                                                LogLevel.DEBUG -> Color(0xFF94A3B8)
+                                            },
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                        Text(
+                                            text = log.tag,
+                                            fontSize = 10.sp,
+                                            color = Color(0xFF818CF8),
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                    Text(
+                                        text = log.message,
+                                        fontSize = 12.sp,
+                                        color = Color.White.copy(alpha = 0.9f),
+                                        fontFamily = FontFamily.Monospace,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+                            }
                         }
                     }
+                }
+            } else {
+                // ADB Logcat View
+                if (adbLogs.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (isLoadingAdb) "Loading ADB logcat..." else "No logcat entries match filter",
+                            color = Color.Gray,
+                            fontSize = 13.sp
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        items(adbLogs) { line ->
+                            val lineColor = when {
+                                line.contains(" E ") || line.contains(" E/") -> Color(0xFFEF4444)
+                                line.contains(" W ") || line.contains(" W/") -> Color(0xFFFBBF24)
+                                line.contains(" I ") || line.contains(" I/") -> Color(0xFF60A5FA)
+                                line.contains(" D ") || line.contains(" D/") -> Color(0xFF94A3B8)
+                                else -> Color.White.copy(alpha = 0.85f)
+                            }
 
-                    items(entries) { log ->
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0x1AFFFFFF))
-                                .padding(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0x1AFFFFFF))
+                                    .padding(6.dp)
                             ) {
                                 Text(
-                                    text = "[${log.timestamp}] ${log.level}",
-                                    fontSize = 10.sp,
-                                    color = when (log.level) {
-                                        LogLevel.ERROR -> Color(0xFFEF4444)
-                                        LogLevel.WARN -> Color(0xFFFBBF24)
-                                        LogLevel.INFO -> Color(0xFF60A5FA)
-                                        LogLevel.DEBUG -> Color(0xFF94A3B8)
-                                    },
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                                Text(
-                                    text = log.tag,
-                                    fontSize = 10.sp,
-                                    color = Color(0xFF818CF8),
-                                    fontFamily = FontFamily.Monospace
+                                    text = line,
+                                    fontSize = 10.5.sp,
+                                    color = lineColor,
+                                    fontFamily = FontFamily.Monospace,
+                                    lineHeight = 14.sp
                                 )
                             }
-                            Text(
-                                text = log.message,
-                                fontSize = 12.sp,
-                                color = Color.White.copy(alpha = 0.9f),
-                                fontFamily = FontFamily.Monospace,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
                         }
                     }
                 }

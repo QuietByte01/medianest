@@ -167,7 +167,7 @@ fun ImagesTab(
     }
 
     BackHandler(
-        enabled = isFolderSelectionActive || selectedFolder != null || viewMode != 0
+        enabled = isFolderSelectionActive || selectedFolder != null || viewMode != 0 || activeFilterTab != "ALL"
     ) {
         when {
             isFolderSelectionActive -> {
@@ -175,7 +175,11 @@ fun ImagesTab(
                 selectedFolderNames = emptySet()
             }
             selectedFolder != null -> selectedFolder = null
-            viewMode != 0 -> viewMode = 0
+            viewMode != 0 -> {
+                viewMode = 0
+                activeFilterTab = "ALL"
+            }
+            activeFilterTab != "ALL" -> activeFilterTab = "ALL"
         }
     }
 

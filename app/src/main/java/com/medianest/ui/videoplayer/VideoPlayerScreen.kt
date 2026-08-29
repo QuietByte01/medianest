@@ -253,11 +253,33 @@ fun VideoPlayerScreen(
         }
     }
 
-    var activeVideoSize by remember(playerState.media3InstanceId) {
-        mutableStateOf(playerManager.exoPlayer?.videoSize ?: androidx.media3.common.VideoSize.UNKNOWN)
+    var containerSizePx by remember { mutableStateOf(IntSize.Zero) }
+
+    var activeVideoSize by remember(currentItem?.id, playerState.activeEngineName, playerState.media3InstanceId) {
+        mutableStateOf(androidx.media3.common.VideoSize.UNKNOWN)
     }
 
-    DisposableEffect(playerState.media3InstanceId) {
+    val isMedia3 = playerState.activeEngineName.contains("Media3")
+    val rawEncodedWidth = if (isMedia3 && activeVideoSize.width > 0) activeVideoSize.width.toFloat() else 0f
+    val rawEncodedHeight = if (isMedia3 && activeVideoSize.height > 0) activeVideoSize.height.toFloat() else 0f
+    val rotation = if (isMedia3) activeVideoSize.unappliedRotationDegrees else 0
+    val isRotated = rotation == 90 || rotation == 270
+    val pixelRatio = if (isMedia3 && activeVideoSize.pixelWidthHeightRatio > 0f) activeVideoSize.pixelWidthHeightRatio else 1f
+
+    val videoAspectRatio: Float = if (rawEncodedWidth > 0f && rawEncodedHeight > 0f) {
+        val displayWidth = (if (isRotated) rawEncodedHeight else rawEncodedWidth) * pixelRatio
+        val displayHeight = if (isRotated) rawEncodedWidth else rawEncodedHeight
+        (displayWidth / displayHeight.coerceAtLeast(1f)).coerceIn(0.1f, 10.0f)
+    } else {
+        val itemW = (currentItem?.width?.takeIf { it > 0 } ?: 1920).toFloat()
+        val itemH = (currentItem?.height?.takeIf { it > 0 } ?: 1080).toFloat()
+        (itemW / itemH.coerceAtLeast(1f)).coerceIn(0.1f, 10.0f)
+    }
+
+    DisposableEffect(currentItem?.id, playerState.activeEngineName, playerState.media3InstanceId) {
+        if (!playerState.activeEngineName.contains("Media3")) {
+            return@DisposableEffect onDispose {}
+        }
         val player = playerManager.exoPlayer
         if (player == null) return@DisposableEffect onDispose {}
 
@@ -268,7 +290,6 @@ fun VideoPlayerScreen(
                 }
             }
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
-                // Safeguard against null exoPlayer during rapid engine transitions
                 val currentM3 = playerManager.exoPlayer ?: return
                 val vs = currentM3.videoSize
                 if (vs.width > 0 && vs.height > 0) {
@@ -284,10 +305,6 @@ fun VideoPlayerScreen(
             }
         }
         player.addListener(listener)
-        val initialVs = player.videoSize
-        if (initialVs.width > 0 && initialVs.height > 0) {
-            activeVideoSize = initialVs
-        }
         onDispose { player.removeListener(listener) }
     }
 
@@ -416,40 +433,6 @@ fun VideoPlayerScreen(
                 // Video Surface Container with Aspect Ratio Bounds
                 val density = LocalDensity.current
 
-                // ExoPlayer VideoSize reports the *encoded* width/height plus any unapplied rotation.
-                // We need to compute the *display* aspect ratio (what the user actually sees).
-                // pixelWidthHeightRatio compensates for non-square pixels (mostly = 1.0 for modern content).
-                val rotation = activeVideoSize.unappliedRotationDegrees
-                val isRotated = rotation == 90 || rotation == 270
-                val pixelRatio = if (activeVideoSize.pixelWidthHeightRatio > 0f) activeVideoSize.pixelWidthHeightRatio else 1f
-
-                val rawEncodedWidth = if (activeVideoSize.width > 0) activeVideoSize.width.toFloat() else 0f
-                val rawEncodedHeight = if (activeVideoSize.height > 0) activeVideoSize.height.toFloat() else 0f
-
-                val videoAspectRatio: Float
-                if (rawEncodedWidth > 0f && rawEncodedHeight > 0f) {
-                    // Player told us the actual dimensions — swap if needed for rotated videos
-                    val displayWidth = (if (isRotated) rawEncodedHeight else rawEncodedWidth) * pixelRatio
-                    val displayHeight = if (isRotated) rawEncodedWidth else rawEncodedHeight
-                    videoAspectRatio = (displayWidth / displayHeight.coerceAtLeast(1f)).coerceIn(0.1f, 10.0f)
-                } else {
-                    // Player hasn't reported size yet — use MediaStore dimensions directly.
-                    // Note: MediaStoreRepository already swapped width/height for rotated videos,
-                    // so currentItem.width/height represent the correct *display* dimensions.
-                    val itemW = (currentItem?.width?.takeIf { it > 0 } ?: 1920).toFloat()
-                    val itemH = (currentItem?.height?.takeIf { it > 0 } ?: 1080).toFloat()
-                    videoAspectRatio = (itemW / itemH.coerceAtLeast(1f)).coerceIn(0.1f, 10.0f)
-                }
-
-                // Using a plain Box + Modifier.onSizeChanged instead of BoxWithConstraints here.
-                // BoxWithConstraints is implemented on top of SubcomposeLayout, which can lag behind a
-                // real orientation change — its maxWidth/maxHeight don't always refresh in sync with a
-                // rotation, especially nested inside other layout modifiers + AndroidView interop like
-                // this screen has. That reproduces exactly the "works in portrait, breaks for several
-                // presets in landscape" symptom. onSizeChanged is a plain layout callback (no
-                // subcomposition) and fires reliably and immediately on every real layout size change.
-                var containerSizePx by remember { mutableStateOf(IntSize.Zero) }
-
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -461,35 +444,14 @@ fun VideoPlayerScreen(
                         val maxHeight = with(density) { containerSizePx.height.toDp() }
                         val containerRatio = containerSizePx.width.toFloat() / containerSizePx.height.toFloat().coerceAtLeast(1f)
 
-                        // surfaceModifier defines the shape/size of the "video content area":
-                        // - FIT: shows the ENTIRE video at its own aspect ratio, letterboxed/pillarboxed
-                        //   (black bars) within the screen as needed. No cropping.
-                        // - Fixed presets (16:9, 16:10, 4:3, 1:1, 9:16, 4:5, 21:9): crop the VIDEO CONTENT
-                        //   (trim excess off the top/bottom or sides) so its shape matches the chosen ratio,
-                        //   then that reshaped result is fit (letterboxed) within the screen like any other
-                        //   video — exactly like VLC's aspect-ratio selector. If the screen's own ratio
-                        //   doesn't match the chosen ratio, bars are the correct, expected result.
-                        // - CROP: crops the video to completely fill the screen using the SCREEN's own
-                        //   current shape (no target ratio, no bars) — a distinct "always fill" mode.
-                        // - STRETCH: fills the screen exactly, distorting the video (the only mode allowed to).
-                        // - ORIGINAL: exact native display pixel size (rotation + pixel-ratio corrected),
-                        //   centered, bars if the video is smaller than the screen.
-                        // Grain below is sized to match this same box, so it only ever covers actual video
-                        // pixels and never bleeds onto any letterbox/pillarbox bars.
-                        //
-                        // FIT and the fixed presets both need a "contain" (letterbox-fit) box size, computed
-                        // with direct dp arithmetic against the real onSizeChanged-measured container.
                         fun containBoxSize(targetRatio: Float): Pair<androidx.compose.ui.unit.Dp, androidx.compose.ui.unit.Dp> {
                             return if (targetRatio >= containerRatio) {
-                                // Relatively wide content -> width-bound, letterboxed top/bottom.
                                 maxWidth to (maxWidth / targetRatio)
                             } else {
-                                // Relatively tall content -> height-bound, pillarboxed left/right.
                                 (maxHeight * targetRatio) to maxHeight
                             }
                         }
 
-                        // Calculate viewport letterbox container bounds:
                         val (boxWidthDp, boxHeightDp) = when (cropMode) {
                             MediaAspectRatio.FIT -> containBoxSize(videoAspectRatio)
                             MediaAspectRatio.CROP, MediaAspectRatio.STRETCH -> maxWidth to maxHeight
@@ -514,35 +476,27 @@ fun VideoPlayerScreen(
 
                         val surfaceModifier = Modifier.requiredSize(boxWidthDp, boxHeightDp)
 
-                        // Calculate exact un-distorted video render dimensions:
-                        // The video view ALWAYS maintains exact videoAspectRatio (so stretching is impossible).
-                        // In CROP or fixed aspect ratio presets, it expands to fill the viewport and is clipped by surfaceModifier.
                         val (videoWidthDp, videoHeightDp) = when (cropMode) {
                             MediaAspectRatio.FIT, MediaAspectRatio.ORIGINAL -> boxWidthDp to boxHeightDp
                             MediaAspectRatio.STRETCH -> boxWidthDp to boxHeightDp
                             else -> {
                                 val boxRatio = boxWidthDp.value / boxHeightDp.value.coerceAtLeast(0.001f)
                                 if (videoAspectRatio >= boxRatio) {
-                                    // Video is wider than viewport -> match height, expand width (crops left & right)
                                     (boxHeightDp * videoAspectRatio) to boxHeightDp
                                 } else {
-                                    // Video is taller than viewport -> match width, expand height (crops top & bottom)
                                     boxWidthDp to (boxWidthDp / videoAspectRatio.coerceAtLeast(0.001f))
                                 }
                             }
                         }
 
-                        // Outer clip container: centers the letterboxed viewport
                         Box(
                             modifier = Modifier.fillMaxSize().clipToBounds(),
                             contentAlignment = Alignment.Center
                         ) {
-                            // Viewport box: defines the letterboxed window (e.g. 16:9, 4:3, 1:1, or full screen)
                             Box(
                                 modifier = surfaceModifier.clipToBounds(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                // Content container: sized to exact video geometry (maintains aspect ratio, crops overflow)
                                 Box(
                                     modifier = Modifier
                                         .requiredSize(videoWidthDp, videoHeightDp)
@@ -554,61 +508,73 @@ fun VideoPlayerScreen(
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    androidx.compose.runtime.key(playerState.activeEngineName, playerState.media3InstanceId, playerState.currentItem?.uri) {
-                                        AndroidView(
-                                            factory = { ctx ->
-                                                Logger.i("VideoPlayerScreen", "Creating TextureView for ${playerState.activeEngineName}")
-                                                android.view.TextureView(ctx).apply {
-                                                    surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
-                                                        private var activeSurface: android.view.Surface? = null
-                                                        override fun onSurfaceTextureAvailable(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
-                                                            Logger.i("VideoPlayerScreen", "SurfaceTexture Available for ${playerState.activeEngineName} (${w}x${h})")
-                                                            if (w <= 0 || h <= 0) return
-                                                            activeSurface?.release()
-                                                            activeSurface = android.view.Surface(st)
-                                                            playerManager.setVideoSurface(activeSurface)
+                                    androidx.compose.runtime.key(playerState.activeEngineName, playerState.media3InstanceId, currentItem?.id) {
+                                        if (playerState.activeEngineName.contains("Media3")) {
+                                            AndroidView(
+                                                factory = { ctx ->
+                                                    Logger.i("VideoPlayerScreen", "Creating NEW PlayerView for Media3 for item: ${currentItem?.id}")
+                                                    androidx.media3.ui.PlayerView(ctx).apply {
+                                                        useController = false
+                                                        try {
+                                                            this.player = playerManager.exoPlayer
+                                                        } catch (_: Exception) {}
+                                                        resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                                        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                                                    }
+                                                },
+                                                update = { view ->
+                                                    try {
+                                                        val currentExo = playerManager.exoPlayer
+                                                        if (view.player != currentExo) {
+                                                            Logger.i("VideoPlayerScreen", "Syncing PlayerView with new ExoPlayer instance")
+                                                            view.player = currentExo
                                                         }
-                                                        override fun onSurfaceTextureSizeChanged(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
-                                                            if (w <= 0 || h <= 0) return
-                                                            if (activeSurface == null) {
+                                                    } catch (e: Exception) {
+                                                        Logger.e("VideoPlayerScreen", "Error syncing player", e)
+                                                    }
+                                                    view.resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                                },
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        } else {
+                                            AndroidView(
+                                                factory = { ctx ->
+                                                    Logger.i("VideoPlayerScreen", "Creating TextureView for FFmpeg")
+                                                    android.view.TextureView(ctx).apply {
+                                                        surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
+                                                            private var activeSurface: android.view.Surface? = null
+                                                            override fun onSurfaceTextureAvailable(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
+                                                                Logger.i("VideoPlayerScreen", "FFmpeg SurfaceTexture Available ($w x $h)")
+                                                                activeSurface?.release()
                                                                 activeSurface = android.view.Surface(st)
+                                                                playerManager.setVideoSurface(activeSurface)
                                                             }
-                                                            playerManager.setVideoSurface(activeSurface)
+                                                            override fun onSurfaceTextureSizeChanged(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
+                                                                if (activeSurface == null) {
+                                                                    activeSurface = android.view.Surface(st)
+                                                                }
+                                                                playerManager.setVideoSurface(activeSurface)
+                                                            }
+                                                            override fun onSurfaceTextureDestroyed(st: android.graphics.SurfaceTexture): Boolean {
+                                                                Logger.i("VideoPlayerScreen", "FFmpeg SurfaceTexture Destroyed")
+                                                                playerManager.setVideoSurface(null)
+                                                                activeSurface?.release()
+                                                                activeSurface = null
+                                                                return true
+                                                            }
+                                                            override fun onSurfaceTextureUpdated(st: android.graphics.SurfaceTexture) {}
                                                         }
-                                                        override fun onSurfaceTextureDestroyed(st: android.graphics.SurfaceTexture): Boolean {
-                                                            Logger.i("VideoPlayerScreen", "SurfaceTexture Destroyed for ${playerState.activeEngineName}")
-                                                            playerManager.setVideoSurface(null)
-                                                            activeSurface?.release()
-                                                            activeSurface = null
-                                                            return true
-                                                        }
-                                                        override fun onSurfaceTextureUpdated(st: android.graphics.SurfaceTexture) {}
+                                                        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                                                     }
-                                                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                                                }
-                                            },
-                                            update = { view ->
-                                                try {
-                                                    val activeFx = if (!pictureModeEnabled || pictureMode == "DEVICE_DEFAULT" || pictureMode == "OFF") {
-                                                        com.medianest.ui.components.media.MediaEffect.OFF
-                                                    } else {
-                                                        com.medianest.ui.components.media.MediaEffect.fromString(pictureMode)
-                                                    }
-                                                    val androidFilter = com.medianest.player.fx.MediaFxPipeline.getAndroidColorFilter(activeFx)
-                                                    if (androidFilter != null) {
-                                                        val paint = android.graphics.Paint().apply { colorFilter = androidFilter }
-                                                        view.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, paint)
-                                                    } else {
-                                                        view.setLayerType(android.view.View.LAYER_TYPE_NONE, null)
-                                                    }
-                                                } catch (_: Exception) {}
-                                            },
-                                            onRelease = { view ->
-                                                view.surfaceTextureListener = null
-                                                playerManager.setVideoSurface(null)
-                                            },
-                                            modifier = Modifier.fillMaxSize()
-                                        )
+                                                },
+                                                update = {},
+                                                onRelease = { view ->
+                                                    view.surfaceTextureListener = null
+                                                    playerManager.setVideoSurface(null)
+                                                },
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
                                     }
                                 }
 
@@ -1015,8 +981,22 @@ fun VideoPlayerScreen(
         )
 
         if (showDebugOverlay) {
+            val currentPlayingAspectRatio = when (cropMode) {
+                MediaAspectRatio.FIT, MediaAspectRatio.ORIGINAL -> videoAspectRatio
+                MediaAspectRatio.CROP, MediaAspectRatio.STRETCH -> {
+                    if (containerSizePx.width > 0 && containerSizePx.height > 0) {
+                        containerSizePx.width.toFloat() / containerSizePx.height.toFloat().coerceAtLeast(1f)
+                    } else {
+                        videoAspectRatio
+                    }
+                }
+                else -> cropMode.ratio ?: videoAspectRatio
+            }
+
             PlayerDebugOverlay(
                 playerState = playerState,
+                videoAspectRatio = videoAspectRatio,
+                playingAspectRatio = currentPlayingAspectRatio,
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(top = 64.dp, start = 16.dp)

@@ -86,6 +86,7 @@ Components for displaying media metadata and previews efficiently.
 
 | Component Name | Visual Design Characteristics | Example Usages |
 | :--- | :--- | :--- |
+| **[`HybridImageViewer`](file:///Users/sachin/Lab/VibeCoded/medianest/app/src/main/java/com/medianest/ui/image/hybrid/HybridImageViewer.kt)** | **Google Photos Physics + 2-Layer Subsampling**: Base image + 1024px regional tiles with bicubic scaling, pull-to-dismiss springs, and zero-flicker crossfade. | Quick View photo viewer, full-screen gallery image viewer. |
 | **[`MediaGridItem`](file:///Users/sachin/Lab/VibeCoded/medianest/app/src/main/java/com/medianest/ui/components/MediaGridItem.kt)** | **Smart Thumbnail**: Hardware bitmap preview with type badges and duration overlays. | Library grid, folder views. |
 | **[`WideVideoCard`](file:///Users/sachin/Lab/VibeCoded/medianest/app/src/main/java/com/medianest/ui/components/WideVideoCard.kt)** | **Cinematic Preview**: 16:9 thumbnail with title, metadata, and format chips. | Featured videos, search results. |
 | **[`MusicNotificationCard`](file:///Users/sachin/Lab/VibeCoded/medianest/app/src/main/java/com/medianest/ui/components/MusicNotificationCard.kt)** | **Rich Control Card**: Album art background, playback controls, and synced lyrics snippet. | Notification panel, lock screen (via FloatingService). |
