@@ -438,7 +438,7 @@ fun ArtistsGrid(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(56.dp)
+                                        .size(68.dp)
                                         .clip(CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -465,22 +465,15 @@ fun ArtistsGrid(
                                 Spacer(modifier = Modifier.width(14.dp))
 
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(Color.White.copy(alpha = 0.12f))
-                                            .padding(horizontal = 7.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = badgeTitle,
-                                            fontSize = 9.5.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = Color.White.copy(alpha = 0.9f),
-                                            letterSpacing = 0.5.sp
-                                        )
-                                    }
+                                    Text(
+                                        text = badgeTitle,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF8E95A5),
+                                        letterSpacing = 0.5.sp
+                                    )
 
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Spacer(modifier = Modifier.height(2.dp))
 
                                     Text(
                                         text = artistName,
