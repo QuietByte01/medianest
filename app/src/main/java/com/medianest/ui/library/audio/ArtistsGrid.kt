@@ -1,5 +1,6 @@
 package com.medianest.ui.library.audio
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -8,6 +9,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -105,8 +108,47 @@ fun ArtistsGrid(
         sortField == "Name" && isAscending && sortedArtistNames.size >= 30
     }
 
-    val topArtistEntry = remember(artistsMap) {
+    val topArtistByTracks = remember(artistsMap) {
         artistsMap.maxByOrNull { it.value.size }
+    }
+
+    val db = remember { com.medianest.MediaNestApp.instance.database }
+    val mostPlayedStates by db.playbackStateDao().getMostPlayed("AUDIO").collectAsState(initial = emptyList())
+
+    val playCountMap = remember(mostPlayedStates) {
+        mostPlayedStates.associate { it.mediaUri to it.playCount }
+    }
+
+    val topArtistByPlays = remember(artistsMap, playCountMap) {
+        artistsMap.map { (artistName, songs) ->
+            val totalPlays = songs.sumOf { playCountMap[it.uri.toString()] ?: 0 }
+            artistName to totalPlays
+        }
+        .filter { it.second > 0 }
+        .maxByOrNull { it.second }
+        ?.let { (artistName, _) -> artistName to (artistsMap[artistName] ?: emptyList()) }
+    }
+
+    val carouselCards = remember(topArtistByTracks, topArtistByPlays, artistsMap, playCountMap) {
+        val list = mutableListOf<Pair<String, Pair<String, List<MediaItem>>>>()
+        if (topArtistByTracks != null) {
+            list.add("TOP ARTIST BY TRACKS" to (topArtistByTracks.key to topArtistByTracks.value))
+        }
+        if (topArtistByPlays != null && topArtistByPlays.first != topArtistByTracks?.key) {
+            list.add("TOP ARTIST BY MOST PLAYED" to (topArtistByPlays.first to topArtistByPlays.second))
+        } else if (topArtistByTracks != null) {
+            val secondPlayed = artistsMap.map { (artistName, songs) ->
+                artistName to songs.sumOf { playCountMap[it.uri.toString()] ?: 0 }
+            }
+            .filter { it.second > 0 && it.first != topArtistByTracks.key }
+            .maxByOrNull { it.second }
+
+            if (secondPlayed != null) {
+                val secondName = secondPlayed.first
+                list.add("TOP ARTIST BY MOST PLAYED" to (secondName to (artistsMap[secondName] ?: emptyList())))
+            }
+        }
+        list
     }
 
     if (selectedArtist != null) {
@@ -363,160 +405,130 @@ fun ArtistsGrid(
     } else {
 
         Column(modifier = Modifier.fillMaxSize()) {
-            // Top Featured Artist Header Banner
-            if (topArtistEntry != null) {
-                val topName = topArtistEntry!!.key
-                val topSongs = topArtistEntry!!.value
-                val topCover = topSongs.firstOrNull()?.albumArtUri
-                val albumCount = remember(topSongs) { topSongs.mapNotNull { it.album }.distinct().size }
+            // Top Slidable 2-Card Featured Artists Header Carousel
+            if (carouselCards.isNotEmpty()) {
+                val pagerState = rememberPagerState(pageCount = { carouselCards.size })
 
-                GlassSurface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                        .clickable { selectedArtist = topName },
-                    shape = RoundedCornerShape(22.dp),
-                    backgroundColor = Color(0x221C1F2B),
-                    borderColor = Color(0x2EFFFFFF)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val topArtistImgUrl = rememberArtistImageUrl(topName)
-                        Box(
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        pageSpacing = 12.dp
+                    ) { page ->
+                        val (badgeTitle, artistData) = carouselCards[page]
+                        val (artistName, songs) = artistData
+                        val coverUri = songs.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: songs.firstOrNull()?.uri
+                        val albumCount = remember(songs) { songs.mapNotNull { it.album }.distinct().size }
+                        val artistImgUrl = rememberArtistImageUrl(artistName)
+
+                        GlassSurface(
                             modifier = Modifier
-                                .size(56.dp)
-                                .clip(CircleShape),
-                            contentAlignment = Alignment.Center
+                                .fillMaxWidth()
+                                .clickable { selectedArtist = artistName },
+                            shape = RoundedCornerShape(22.dp),
+                            backgroundColor = Color(0x221C1F2B),
+                            borderColor = Color(0x2EFFFFFF)
                         ) {
-                            SubcomposeAsyncImage(
-                                model = ImageRequest.Builder(context).data(topArtistImgUrl).crossfade(true).build(),
-                                contentDescription = topName,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                val state = painter.state
-                                if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     SubcomposeAsyncImage(
-                                        model = ImageRequest.Builder(context).data(topCover).crossfade(true).build(),
-                                        contentDescription = null,
+                                        model = ImageRequest.Builder(context).data(artistImgUrl).crossfade(true).build(),
+                                        contentDescription = artistName,
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier.fillMaxSize()
                                     ) {
-                                        val coverState = painter.state
-                                        if (coverState is AsyncImagePainter.State.Loading || coverState is AsyncImagePainter.State.Error || topCover == null) {
-                                            GlassSurface(
-                                                modifier = Modifier.fillMaxSize(),
-                                                shape = CircleShape,
-                                                backgroundColor = Color.Transparent,
-                                                borderColor = Color(0x22FFFFFF)
-                                            ) {
-                                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                                    Icon(Icons.Default.Person, contentDescription = null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(28.dp))
-                                                }
-                                            }
+                                        val state = painter.state
+                                        if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
+                                            SubcomposeAsyncImage(
+                                                model = ImageRequest.Builder(context).data(coverUri ?: com.medianest.util.ArtistImageUtils.getFallbackArtistImageUrl(artistName)).crossfade(true).build(),
+                                                contentDescription = null,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
                                         } else {
                                             SubcomposeAsyncImageContent()
                                         }
                                     }
-                                } else {
-                                    SubcomposeAsyncImageContent()
                                 }
-                            }
-                        }
 
-                        Spacer(modifier = Modifier.width(14.dp))
+                                Spacer(modifier = Modifier.width(14.dp))
 
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("TOP ARTIST BY TRACKS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8E95A5), letterSpacing = 0.5.sp)
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(topName, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text("${if (albumCount == 0) "No Albums" else "$albumCount Albums"} • ${topSongs.size} Tracks in Library", fontSize = 12.sp, color = Color(0xFF9EA3B0))
-                        }
-
-                        val isTablet = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 600
-                        if (isTablet) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                GlassSurface(
-                                    modifier = Modifier.clickable {
-                                        if (topSongs.isNotEmpty()) onSongClick(topSongs, 0)
-                                    },
-                                    shape = RoundedCornerShape(20.dp),
-                                    backgroundColor = Color(0x33FFFFFF),
-                                    borderColor = Color(0x3DFFFFFF)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Color.White.copy(alpha = 0.12f))
+                                            .padding(horizontal = 7.dp, vertical = 2.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.PlayArrow,
-                                            contentDescription = "Play All",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(18.dp)
-                                        )
                                         Text(
-                                            text = "Play All",
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
+                                            text = badgeTitle,
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color.White.copy(alpha = 0.9f),
+                                            letterSpacing = 0.5.sp
                                         )
                                     }
-                                }
 
-                                GlassSurface(
-                                    modifier = Modifier.clickable {
-                                        if (topSongs.isNotEmpty()) {
-                                            val shuffled = topSongs.shuffled()
-                                            onSongClick(shuffled, 0)
-                                        }
-                                    },
-                                    shape = RoundedCornerShape(20.dp),
-                                    backgroundColor = Color(0x22FFFFFF),
-                                    borderColor = Color(0x28FFFFFF)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Shuffle,
-                                            contentDescription = "Shuffle",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Text(
-                                            text = "Shuffle",
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = Color.White
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            GlassSurface(
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clickable {
-                                        if (topSongs.isNotEmpty()) onSongClick(topSongs, 0)
-                                    },
-                                shape = CircleShape,
-                                backgroundColor = Color(0x3DFFFFFF),
-                                borderColor = Color(0x4DFFFFFF)
-                            ) {
-                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = "Play",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    Text(
+                                        text = artistName,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+
+                                    Spacer(modifier = Modifier.height(2.dp))
+
+                                    Text(
+                                        text = "${if (albumCount == 0) "No Albums" else "$albumCount Albums"} • ${songs.size} Tracks",
+                                        fontSize = 12.sp,
+                                        color = Color.White.copy(alpha = 0.6f),
+                                        fontWeight = FontWeight.Medium
                                     )
                                 }
+
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = "View Artist",
+                                    tint = Color.White.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (carouselCards.size > 1) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp, bottom = 4.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            repeat(carouselCards.size) { iteration ->
+                                val color = if (pagerState.currentPage == iteration) Color.White else Color.White.copy(alpha = 0.25f)
+                                val width = if (pagerState.currentPage == iteration) 16.dp else 6.dp
+                                Box(
+                                    modifier = Modifier
+                                        .padding(horizontal = 3.dp)
+                                        .clip(RoundedCornerShape(3.dp))
+                                        .background(color)
+                                        .size(width = width, height = 6.dp)
+                                )
                             }
                         }
                     }
