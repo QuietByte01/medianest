@@ -42,12 +42,16 @@ import coil.compose.AsyncImagePainter
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
+import android.widget.Toast
+import com.medianest.data.db.CategoryMediaCrossRef
+import com.medianest.data.db.MediaCategory
 import com.medianest.data.model.ArtistInfo
 import com.medianest.data.model.MediaItem
 import com.medianest.data.model.PopularAlbum
 import com.medianest.data.model.LocalAlbumInfo
 import com.medianest.data.model.SimilarArtist
 import com.medianest.data.model.GlobalTrack
+import kotlinx.coroutines.launch
 import com.medianest.data.model.LatestRelease
 import com.medianest.data.model.PersonalArtistStats
 import com.medianest.data.model.ArtistSocialLinks
@@ -194,6 +198,46 @@ fun ArtistInfoPanel(
     isLoading: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val db = remember { com.medianest.MediaNestApp.instance.database }
+
+    val allCrossRefs by db.categoryDao().getAllCrossRefs().collectAsState(initial = emptyList())
+    val artistCategories by db.categoryDao().getCategoriesByType("ARTIST").collectAsState(initial = emptyList())
+
+    val followedCategory = remember(artistCategories) {
+        artistCategories.find { it.name.equals("Followed Artists", ignoreCase = true) }
+    }
+
+    val isArtistFollowed = remember(allCrossRefs, followedCategory, artistInfo.name) {
+        if (followedCategory == null) false
+        else allCrossRefs.any { it.categoryId == followedCategory.id && it.mediaUri.equals(artistInfo.name, ignoreCase = true) }
+    }
+
+    val toggleFollowLambda = {
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val dao = db.categoryDao()
+            val cats = dao.getCategoriesByTypeSync("ARTIST")
+            var cat = cats.find { it.name.equals("Followed Artists", ignoreCase = true) }
+            if (cat == null) {
+                val newId = dao.insertCategory(MediaCategory(name = "Followed Artists", type = "ARTIST"))
+                cat = MediaCategory(id = newId, name = "Followed Artists", type = "ARTIST")
+            }
+
+            if (isArtistFollowed) {
+                dao.removeMediaFromCategory(cat.id, artistInfo.name)
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    Toast.makeText(context, "Unfollowed ${artistInfo.name}", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                dao.insertCategoryCrossRef(CategoryMediaCrossRef(categoryId = cat.id, mediaUri = artistInfo.name))
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    Toast.makeText(context, "Following ${artistInfo.name}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     GlassSurface(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
@@ -316,13 +360,20 @@ fun ArtistInfoPanel(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Action Buttons (Share, Favorite)
+                    // Action Buttons (Share, Follow)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         OutlinedButton(
-                            onClick = { /* Share Logic */ },
+                            onClick = {
+                                val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(android.content.Intent.EXTRA_SUBJECT, "Check out ${artistInfo.name} on MediaNest")
+                                    putExtra(android.content.Intent.EXTRA_TEXT, "Check out ${artistInfo.name} on MediaNest!\n${artistInfo.about?.take(150) ?: ""}")
+                                }
+                                context.startActivity(android.content.Intent.createChooser(shareIntent, "Share Artist"))
+                            },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
@@ -333,14 +384,27 @@ fun ArtistInfoPanel(
                             Text("Share", fontSize = 12.sp)
                         }
                         Button(
-                            onClick = { /* Favorite Logic */ },
+                            onClick = { toggleFollowLambda() },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE91E63).copy(alpha = 0.3f))
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isArtistFollowed) Color(0xFFE91E63) else Color(0xFFE91E63).copy(alpha = 0.25f)
+                            ),
+                            border = if (isArtistFollowed) null else BorderStroke(1.dp, Color(0xFFE91E63).copy(alpha = 0.5f))
                         ) {
-                            Icon(Icons.Default.Favorite, null, modifier = Modifier.size(16.dp))
+                            Icon(
+                                imageVector = if (isArtistFollowed) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = Color.White
+                            )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Follow", fontSize = 12.sp)
+                            Text(
+                                text = if (isArtistFollowed) "Following" else "Follow",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
                         }
                     }
 
@@ -493,7 +557,13 @@ fun ArtistInfoPanel(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             items(artistInfo.topGlobalTracks) { track ->
-                                GlobalTrackItem(track)
+                                GlobalTrackItem(
+                                    track = track,
+                                    artistName = artistInfo.name,
+                                    allAudioItems = allAudioItems,
+                                    playerManager = playerManager,
+                                    currentItem = playerManager?.playerState?.collectAsState()?.value?.currentItem
+                                )
                             }
                         }
                         Spacer(modifier = Modifier.height(24.dp))
@@ -507,7 +577,13 @@ fun ArtistInfoPanel(
                             Text("Latest Release", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF81C784))
                         }
                         Spacer(modifier = Modifier.height(10.dp))
-                        LatestReleaseItem(release)
+                        LatestReleaseItem(
+                            release = release,
+                            artistName = artistInfo.name,
+                            allAudioItems = allAudioItems,
+                            playerManager = playerManager,
+                            currentItem = playerManager?.playerState?.collectAsState()?.value?.currentItem
+                        )
                         Spacer(modifier = Modifier.height(24.dp))
                     }
 
@@ -601,6 +677,8 @@ private fun AlbumTracklistView(
     playerManager: ExoPlayerManager? = null,
     artistName: String? = null
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val artistMetadataRepo = remember { com.medianest.MediaNestApp.instance.artistMetadataRepository }
     var isLoadingOnlineTracks by remember(albumName, artistName) { mutableStateOf(true) }
     var onlineTracks by remember(albumName, artistName) { mutableStateOf<List<com.medianest.data.model.AlbumTrack>>(emptyList()) }
@@ -683,15 +761,28 @@ private fun AlbumTracklistView(
             ) {
                 itemsIndexed(onlineTracks) { idx, track ->
                     val cleanTrackTitle = normalizeName(track.title)
-                    val matchedLocal = remember(allAudioItems, cleanTrackTitle) {
-                        allAudioItems.firstOrNull { localItem ->
-                            val localTitle = normalizeName(localItem.title)
-                            localTitle == cleanTrackTitle ||
-                                (cleanTrackTitle.length >= 4 && (localTitle.contains(cleanTrackTitle) || cleanTrackTitle.contains(localTitle)))
+                    val cleanArtistName = normalizeName(track.artistName ?: artistName ?: "")
+
+                    // Match ONLY against localAlbumSongs (local songs in this specific album)
+                    val matchedLocal = remember(localAlbumSongs, cleanTrackTitle) {
+                        if (cleanTrackTitle.isBlank()) null
+                        else {
+                            localAlbumSongs.firstOrNull { localItem ->
+                                val localTitle = normalizeName(localItem.title)
+                                localTitle == cleanTrackTitle ||
+                                    (cleanTrackTitle.length >= 4 && (localTitle.contains(cleanTrackTitle) || cleanTrackTitle.contains(localTitle)))
+                            }
                         }
                     }
 
-                    val isPlayingThis = currentItem != null && matchedLocal != null && currentItem.uri == matchedLocal.uri
+                    val isPlayingThis = currentItem != null && (
+                        (matchedLocal != null && currentItem.uri == matchedLocal.uri) ||
+                        (
+                            normalizeName(currentItem.title) == cleanTrackTitle &&
+                            cleanArtistName.isNotBlank() &&
+                            normalizeName(currentItem.artist ?: "").contains(cleanArtistName)
+                        )
+                    )
 
                     Row(
                         modifier = Modifier
@@ -702,9 +793,48 @@ private fun AlbumTracklistView(
                                 else if (matchedLocal != null) Color.White.copy(alpha = 0.05f)
                                 else Color.Transparent
                             )
-                            .clickable(enabled = matchedLocal != null) {
+                            .clickable {
                                 if (matchedLocal != null) {
                                     playerManager?.playMediaList(listOf(matchedLocal), 0)
+                                } else {
+                                    val previewUrl = track.previewUrl
+                                    val targetArtist = track.artistName ?: artistName ?: "Unknown Artist"
+                                    if (!previewUrl.isNullOrBlank()) {
+                                        val onlineItem = MediaItem(
+                                            id = -(System.currentTimeMillis() + idx),
+                                            title = track.title,
+                                            artist = targetArtist,
+                                            album = albumName,
+                                            uri = android.net.Uri.parse(previewUrl),
+                                            albumArtUri = null,
+                                            durationMs = track.durationMs,
+                                            type = com.medianest.data.db.MediaType.AUDIO,
+                                            mimeType = "audio/mp4"
+                                        )
+                                        playerManager?.playMediaList(listOf(onlineItem), 0)
+                                    } else {
+                                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                            val (streamUrl, artUrl) = artistMetadataRepo.resolveTrackStream(targetArtist, track.title)
+                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                if (!streamUrl.isNullOrBlank()) {
+                                                    val onlineItem = MediaItem(
+                                                        id = -(System.currentTimeMillis() + idx),
+                                                        title = track.title,
+                                                        artist = targetArtist,
+                                                        album = albumName,
+                                                        uri = android.net.Uri.parse(streamUrl),
+                                                        albumArtUri = artUrl?.let { android.net.Uri.parse(it) },
+                                                        durationMs = track.durationMs,
+                                                        type = com.medianest.data.db.MediaType.AUDIO,
+                                                        mimeType = "audio/mp4"
+                                                    )
+                                                    playerManager?.playMediaList(listOf(onlineItem), 0)
+                                                } else {
+                                                    Toast.makeText(context, "No stream available for ${track.title}", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             .padding(vertical = 10.dp, horizontal = 12.dp),
@@ -744,6 +874,13 @@ private fun AlbumTracklistView(
                                 imageVector = Icons.Default.PlayCircleFilled,
                                 contentDescription = "In Library",
                                 tint = Color(0xFF81C784),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.PlayCircleOutline,
+                                contentDescription = "Online Stream Available",
+                                tint = Color(0xFF38BDF8),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -860,25 +997,150 @@ private fun ExternalLinkIcon(icon: androidx.compose.ui.graphics.vector.ImageVect
 }
 
 @Composable
-private fun GlobalTrackItem(track: GlobalTrack) {
-    Column(modifier = Modifier.width(110.dp)) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(track.artworkUrl)
-                .crossfade(true)
-                .build(),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
+private fun GlobalTrackItem(
+    track: GlobalTrack,
+    artistName: String,
+    allAudioItems: List<MediaItem>,
+    playerManager: ExoPlayerManager?,
+    currentItem: MediaItem?
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val cleanTrackTitle = remember(track.title) { normalizeName(track.title) }
+    val cleanArtistName = remember(track.artistName, artistName) { normalizeName(track.artistName ?: artistName) }
+
+    val matchedLocal = remember(allAudioItems, cleanTrackTitle, cleanArtistName) {
+        if (cleanTrackTitle.isBlank() || cleanArtistName.isBlank()) null
+        else {
+            allAudioItems.firstOrNull { localItem ->
+                val localTitle = normalizeName(localItem.title)
+                val localArtist = normalizeName(localItem.artist ?: "")
+
+                val isTitleMatch = localTitle == cleanTrackTitle ||
+                    (cleanTrackTitle.length >= 4 && (localTitle.contains(cleanTrackTitle) || cleanTrackTitle.contains(localTitle)))
+
+                val isArtistMatch = localArtist.isNotBlank() &&
+                    (localArtist.contains(cleanArtistName) || cleanArtistName.contains(localArtist))
+
+                isTitleMatch && isArtistMatch
+            }
+        }
+    }
+
+    val isPlayingThis = currentItem != null && (
+        (matchedLocal != null && currentItem.uri == matchedLocal.uri) ||
+        (
+            normalizeName(currentItem.title) == cleanTrackTitle &&
+            cleanArtistName.isNotBlank() &&
+            normalizeName(currentItem.artist ?: "").contains(cleanArtistName)
+        )
+    )
+
+    Column(
+        modifier = Modifier
+            .width(110.dp)
+            .clickable {
+                if (matchedLocal != null) {
+                    playerManager?.playMediaList(listOf(matchedLocal), 0)
+                } else {
+                    val previewUrl = track.previewUrl
+                    val targetArtist = track.artistName ?: artistName
+                    if (!previewUrl.isNullOrBlank()) {
+                        val onlineItem = MediaItem(
+                            id = -(System.currentTimeMillis()),
+                            title = track.title,
+                            artist = targetArtist,
+                            album = "Top Track",
+                            uri = android.net.Uri.parse(previewUrl),
+                            albumArtUri = track.artworkUrl?.let { android.net.Uri.parse(it) },
+                            durationMs = 0L,
+                            type = com.medianest.data.db.MediaType.AUDIO,
+                            mimeType = "audio/mp4"
+                        )
+                        playerManager?.playMediaList(listOf(onlineItem), 0)
+                    } else {
+                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            val repo = com.medianest.MediaNestApp.instance.artistMetadataRepository
+                            val (streamUrl, artUrl) = repo.resolveTrackStream(targetArtist, track.title)
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                if (!streamUrl.isNullOrBlank()) {
+                                    val onlineItem = MediaItem(
+                                        id = -(System.currentTimeMillis()),
+                                        title = track.title,
+                                        artist = targetArtist,
+                                        album = "Top Track",
+                                        uri = android.net.Uri.parse(streamUrl),
+                                        albumArtUri = (artUrl ?: track.artworkUrl)?.let { android.net.Uri.parse(it) },
+                                        durationMs = 0L,
+                                        type = com.medianest.data.db.MediaType.AUDIO,
+                                        mimeType = "audio/mp4"
+                                    )
+                                    playerManager?.playMediaList(listOf(onlineItem), 0)
+                                } else {
+                                    Toast.makeText(context, "No stream available for ${track.title}", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+    ) {
+        Box(
             modifier = Modifier
                 .size(110.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color.White.copy(alpha = 0.05f))
-        )
+        ) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(track.artworkUrl)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = track.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // Play / Status Icon Badge Overlay
+            Box(
+                modifier = Modifier
+                    .padding(6.dp)
+                    .align(Alignment.BottomEnd)
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.60f)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isPlayingThis) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                        contentDescription = "Playing",
+                        tint = Color(0xFF64B5F6),
+                        modifier = Modifier.size(16.dp)
+                    )
+                } else if (matchedLocal != null) {
+                    Icon(
+                        imageVector = Icons.Default.PlayCircleFilled,
+                        contentDescription = "In Library",
+                        tint = Color(0xFF81C784),
+                        modifier = Modifier.size(16.dp)
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.PlayCircleOutline,
+                        contentDescription = "Online Stream Available",
+                        tint = Color(0xFF38BDF8),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = track.title,
             fontSize = 11.sp,
             color = Color.White,
+            fontWeight = if (isPlayingThis) FontWeight.Bold else FontWeight.Normal,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -886,12 +1148,83 @@ private fun GlobalTrackItem(track: GlobalTrack) {
 }
 
 @Composable
-private fun LatestReleaseItem(release: LatestRelease) {
+private fun LatestReleaseItem(
+    release: LatestRelease,
+    artistName: String,
+    allAudioItems: List<MediaItem>,
+    playerManager: ExoPlayerManager?,
+    currentItem: MediaItem?
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val cleanTrackTitle = remember(release.title) { normalizeName(release.title) }
+    val cleanArtistName = remember(artistName) { normalizeName(artistName) }
+
+    val matchedLocal = remember(allAudioItems, cleanTrackTitle, cleanArtistName) {
+        if (cleanTrackTitle.isBlank() || cleanArtistName.isBlank()) null
+        else {
+            allAudioItems.firstOrNull { localItem ->
+                val localTitle = normalizeName(localItem.title)
+                val localArtist = normalizeName(localItem.artist ?: "")
+
+                val isTitleMatch = localTitle == cleanTrackTitle ||
+                    (cleanTrackTitle.length >= 4 && (localTitle.contains(cleanTrackTitle) || cleanTrackTitle.contains(localTitle)))
+
+                val isArtistMatch = localArtist.isNotBlank() &&
+                    (localArtist.contains(cleanArtistName) || cleanArtistName.contains(localArtist))
+
+                isTitleMatch && isArtistMatch
+            }
+        }
+    }
+
+    val isPlayingThis = currentItem != null && (
+        (matchedLocal != null && currentItem.uri == matchedLocal.uri) ||
+        (
+            normalizeName(currentItem.title) == cleanTrackTitle &&
+            cleanArtistName.isNotBlank() &&
+            normalizeName(currentItem.artist ?: "").contains(cleanArtistName)
+        )
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(0.06f))
+            .background(
+                if (isPlayingThis) Color.White.copy(alpha = 0.16f)
+                else if (matchedLocal != null) Color.White.copy(alpha = 0.08f)
+                else Color.White.copy(alpha = 0.05f)
+            )
+            .clickable {
+                if (matchedLocal != null) {
+                    playerManager?.playMediaList(listOf(matchedLocal), 0)
+                } else {
+                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        val repo = com.medianest.MediaNestApp.instance.artistMetadataRepository
+                        val (streamUrl, artUrl) = repo.resolveTrackStream(artistName, release.title)
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            if (!streamUrl.isNullOrBlank()) {
+                                val onlineItem = MediaItem(
+                                    id = -(System.currentTimeMillis()),
+                                    title = release.title,
+                                    artist = artistName,
+                                    album = "Latest Release",
+                                    uri = android.net.Uri.parse(streamUrl),
+                                    albumArtUri = (artUrl ?: release.artworkUrl)?.let { android.net.Uri.parse(it) },
+                                    durationMs = 0L,
+                                    type = com.medianest.data.db.MediaType.AUDIO,
+                                    mimeType = "audio/mp4"
+                                )
+                                playerManager?.playMediaList(listOf(onlineItem), 0)
+                            } else {
+                                Toast.makeText(context, "No stream available for ${release.title}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }
+            }
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -900,17 +1233,51 @@ private fun LatestReleaseItem(release: LatestRelease) {
                 .data(release.artworkUrl)
                 .crossfade(true)
                 .build(),
-            contentDescription = null,
+            contentDescription = release.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .size(60.dp)
                 .clip(RoundedCornerShape(8.dp))
         )
         Spacer(modifier = Modifier.width(14.dp))
-        Column {
-            Text(release.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = release.title,
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = if (isPlayingThis) FontWeight.Bold else FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             Spacer(modifier = Modifier.height(4.dp))
-            Text("Released: ${release.releaseDate}", color = Color.White.copy(0.6f), fontSize = 12.sp)
+            Text(
+                text = "Released: ${release.releaseDate}",
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 12.sp
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        if (isPlayingThis) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                contentDescription = "Playing",
+                tint = Color(0xFF64B5F6),
+                modifier = Modifier.size(22.dp)
+            )
+        } else if (matchedLocal != null) {
+            Icon(
+                imageVector = Icons.Default.PlayCircleFilled,
+                contentDescription = "In Library",
+                tint = Color(0xFF81C784),
+                modifier = Modifier.size(22.dp)
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.PlayCircleOutline,
+                contentDescription = "Online Stream Available",
+                tint = Color(0xFF38BDF8),
+                modifier = Modifier.size(22.dp)
+            )
         }
     }
 }

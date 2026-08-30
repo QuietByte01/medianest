@@ -23,7 +23,9 @@ data class LocalAlbumInfo(
 
 data class GlobalTrack(
     val title: String,
-    val artworkUrl: String?
+    val artworkUrl: String?,
+    val previewUrl: String? = null,
+    val artistName: String? = null
 )
 
 data class LatestRelease(

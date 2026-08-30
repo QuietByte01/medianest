@@ -163,6 +163,8 @@ class ExoPlayerManager private constructor(private val context: Context) {
     private var isCallActive = false
     private var playOnFocusGain = false
     private var isPausedByCall = false
+    private var isScrubbing = false
+    private var wasPlayingBeforeScrub = false
     private var focusRequest: AudioFocusRequest? = null
 
     // FIXME: Inefficient 200ms polling loop. Polling for position/duration is resource-intensive.
@@ -663,6 +665,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
         get() = media3Engine?.player
 
     private fun handleNotificationUpdate(audioNotif: Boolean, videoNotif: Boolean, state: PlayerState) {
+        if (isScrubbing) return
         val currentItem = state.currentItem ?: return
         val engine = activeEngine ?: return
         
@@ -863,7 +866,9 @@ class ExoPlayerManager private constructor(private val context: Context) {
                     )
                     val uriString = currentTarget.uri.toString().lowercase(java.util.Locale.ROOT)
                     val fileName = currentTarget.title.lowercase(java.util.Locale.ROOT)
-                    val isStandardFastPath = fileName.endsWith(".mp4") || fileName.endsWith(".mkv") || fileName.endsWith(".webm") ||
+                    val isNetworkUrl = uriString.startsWith("http://") || uriString.startsWith("https://")
+                    val isStandardFastPath = isNetworkUrl ||
+                                             fileName.endsWith(".mp4") || fileName.endsWith(".mkv") || fileName.endsWith(".webm") ||
                                              fileName.endsWith(".mov") || fileName.endsWith(".3gp") || fileName.endsWith(".m4v") ||
                                              uriString.endsWith(".mp4") || uriString.endsWith(".mkv") || uriString.endsWith(".webm")
                     
@@ -975,6 +980,54 @@ class ExoPlayerManager private constructor(private val context: Context) {
     }
 
     fun playSingleUri(ctx: Context, uri: Uri?, title: String = "Media", mimeType: String = "") = playSingleUri(uri, title, mimeType)
+    fun setFastSeek(fast: Boolean) {
+        if (activeEngine == media3Engine) {
+            try {
+                media3Engine?.player?.setSeekParameters(
+                    if (fast) androidx.media3.exoplayer.SeekParameters.CLOSEST_SYNC
+                    else androidx.media3.exoplayer.SeekParameters.EXACT
+                )
+            } catch (_: Exception) {}
+        }
+    }
+    /**
+     * Called when interactive scrubbing begins.
+     * Pauses the active engine so the video decoder renders single preview frames
+     * on each seek without audio contention, buffering delays, or decoder stalls.
+     */
+    fun scrubStart() {
+        isScrubbing = true
+        wasPlayingBeforeScrub = activeEngine?.isPlaying == true
+        setFastSeek(true)
+        try {
+            activeEngine?.pause()
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Called on each drag step to seek to the preview frame.
+     */
+    fun scrubSeek(positionMs: Long) {
+        try {
+            activeEngine?.seekTo(positionMs)
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Called when interactive scrubbing ends (user lifts finger).
+     * Restores exact seeking, seeks to final target position, and resumes playback
+     * cleanly if the video was playing prior to the scrub gesture.
+     */
+    fun scrubEnd(finalPositionMs: Long) {
+        setFastSeek(false)
+        try {
+            activeEngine?.seekTo(finalPositionMs)
+            if (wasPlayingBeforeScrub) {
+                activeEngine?.play()
+            }
+        } catch (_: Exception) {}
+        isScrubbing = false
+    }
     fun seekTo(positionMs: Long) = activeEngine?.seekTo(positionMs)
     fun seekForward(offsetMs: Long = 10000L) = seekTo(((activeEngine?.currentPositionMs ?: 0L) + offsetMs).coerceAtMost(activeEngine?.durationMs ?: 0L))
     fun seekBackward(offsetMs: Long = 10000L) = seekTo(((activeEngine?.currentPositionMs ?: 0L) - offsetMs).coerceAtLeast(0L))

@@ -254,7 +254,14 @@ class ArtistMetadataRepository(
             val array = JSONArray(json)
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
-                list.add(GlobalTrack(obj.getString("title"), obj.optString("artworkUrl")))
+                list.add(
+                    GlobalTrack(
+                        title = obj.getString("title"),
+                        artworkUrl = obj.optString("artworkUrl").takeIf { it.isNotBlank() },
+                        previewUrl = obj.optString("previewUrl").takeIf { it.isNotBlank() },
+                        artistName = obj.optString("artistName").takeIf { it.isNotBlank() }
+                    )
+                )
             }
         } catch (_: Exception) {}
         return list
@@ -266,6 +273,8 @@ class ArtistMetadataRepository(
             val obj = JSONObject()
             obj.put("title", it.title)
             obj.put("artworkUrl", it.artworkUrl)
+            obj.put("previewUrl", it.previewUrl)
+            obj.put("artistName", it.artistName)
             array.put(obj)
         }
         return array.toString()
@@ -454,11 +463,41 @@ class ArtistMetadataRepository(
                     for (i in 0 until data.length()) {
                         val t = data.getJSONObject(i)
                         val album = t.optJSONObject("album")
-                        outList.add(GlobalTrack(t.getString("title"), album?.optString("cover_medium")))
+                        val preview = t.optString("preview").takeIf { it.isNotBlank() }
+                        val itemArtist = t.optJSONObject("artist")?.optString("name")
+                        outList.add(
+                            GlobalTrack(
+                                title = t.getString("title"),
+                                artworkUrl = album?.optString("cover_medium"),
+                                previewUrl = preview,
+                                artistName = itemArtist
+                            )
+                        )
                     }
                 }
             }
         } catch (_: Exception) {}
+    }
+
+    suspend fun resolveTrackStream(artistName: String, trackTitle: String): Pair<String?, String?> = withContext(Dispatchers.IO) {
+        try {
+            val query = URLEncoder.encode("$artistName $trackTitle", "UTF-8")
+            val searchUrl = "https://itunes.apple.com/search?term=$query&entity=song&limit=1"
+            client.newCall(Request.Builder().url(searchUrl).header("User-Agent", userAgent).build()).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val json = JSONObject(resp.body?.string() ?: "")
+                    val results = json.optJSONArray("results")
+                    if (results != null && results.length() > 0) {
+                        val item = results.getJSONObject(0)
+                        val preview = item.optString("previewUrl").takeIf { it.isNotBlank() }
+                        val rawArt = item.optString("artworkUrl100", "")
+                        val highResArt = if (rawArt.isNotBlank()) rawArt.replace("100x100bb.jpg", "600x600bb.jpg") else null
+                        return@withContext Pair(preview, highResArt)
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        return@withContext Pair(null, null)
     }
 
     private data class WikiData(val about: String?, val yearsActive: String?, val origin: String?)

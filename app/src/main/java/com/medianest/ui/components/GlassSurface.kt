@@ -72,7 +72,6 @@ fun GlassSurface(
 
     Box(
         modifier = modifier
-            .clip(shape)
             .border(
                 width = borderWidth,
                 brush = Brush.verticalGradient(
@@ -87,10 +86,11 @@ fun GlassSurface(
         // 1. Background Image (Lower layer) - Instant synchronous rendering for drawable resources
         val imageModifier = Modifier
             .matchParentSize()
+            .clip(shape)
             .alpha(backgroundImageAlpha)
             .let { m ->
                 if (enableBlur && blurRadius > 0.dp) {
-                    m.blur(radius = blurRadius, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+                    m.blur(radius = blurRadius, edgeTreatment = BlurredEdgeTreatment.Rectangle)
                 } else {
                     m
                 }

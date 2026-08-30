@@ -169,14 +169,8 @@ fun RoundedSkipPreviousIcon(
         val w = size.width
         val h = size.height
         
-        // Target: Equilateral triangle with base 0.68h (matching Play icon)
-        // Triangle width = 0.68 * sqrt(3)/2 = 0.589
-        // Pill width = 0.08, Gap = 0.06
-        // Total width = 0.08 + 0.06 + 0.589 = 0.729
-        // Start x = (1 - 0.729) / 2 = 0.135
-        
-        val pillWidth = w * 0.08f
-        val pillHeight = h * 0.68f
+        val pillWidth = w * 0.065f
+        val pillHeight = h * 0.50f
         val capRadius = pillWidth / 2f
         val startX = w * 0.135f
         val startY = (h - pillHeight) / 2f
@@ -190,7 +184,7 @@ fun RoundedSkipPreviousIcon(
         )
 
         // 2. Left-pointing rounded equilateral triangle
-        val triRadius = w * 0.16f // Matching Play icon radius
+        val triRadius = w * 0.16f
         val triWidth = w * 0.589f
         val triBaseX = startX + pillWidth + w * 0.06f + triWidth
         val triTipX = startX + pillWidth + w * 0.06f
@@ -216,11 +210,8 @@ fun RoundedSkipNextIcon(
         val w = size.width
         val h = size.height
 
-        // Total width = 0.729 (matching Previous)
-        // Start x = 0.135
-        
-        val pillWidth = w * 0.08f
-        val pillHeight = h * 0.68f
+        val pillWidth = w * 0.065f
+        val pillHeight = h * 0.50f
         val capRadius = pillWidth / 2f
         val startX = w * 0.135f
         
@@ -231,7 +222,7 @@ fun RoundedSkipNextIcon(
         val pillY = (h - pillHeight) / 2f
 
         // 1. Right-pointing rounded equilateral triangle
-        val triRadius = w * 0.16f // Matching Play icon radius
+        val triRadius = w * 0.16f
         val triVertices = listOf(
             Offset(triBaseX, h * 0.16f), // Top-left
             Offset(triTipX, h * 0.50f),  // Right tip

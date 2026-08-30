@@ -117,13 +117,13 @@ fun CenterTransportControls(
 ) {
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(32.dp),
+        horizontalArrangement = Arrangement.spacedBy(28.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         CustomRoundedPreviousButton(
             onClick = onPrevious,
-            buttonSize = 56.dp,
-            iconSize = 34.dp,
+            buttonSize = 46.dp,
+            iconSize = 26.dp,
             style = ControlButtonStyle.TRANSPARENT_MINIMAL,
             tint = Color.White,
             useDoubleIcon = false
@@ -132,16 +132,16 @@ fun CenterTransportControls(
         CustomRoundedPlayPauseButton(
             isPlaying = isPlaying,
             onClick = onTogglePlayPause,
-            buttonSize = 68.dp,
-            iconSize = 40.dp,
+            buttonSize = 64.dp,
+            iconSize = 36.dp,
             style = ControlButtonStyle.TRANSPARENT_MINIMAL,
             tint = Color.White
         )
 
         CustomRoundedNextButton(
             onClick = onNext,
-            buttonSize = 56.dp,
-            iconSize = 34.dp,
+            buttonSize = 46.dp,
+            iconSize = 26.dp,
             style = ControlButtonStyle.TRANSPARENT_MINIMAL,
             tint = Color.White,
             useDoubleIcon = false
@@ -215,13 +215,13 @@ fun SeekHUD(
     GlassSurface(
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
-        backgroundColor = Color.Transparent,
-        borderColor = Color.Transparent
+        backgroundColor = Color(0xB3000000),
+        borderColor = Color(0x33FFFFFF)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Icon(
                 imageVector = if (deltaMs >= 0) Icons.Default.FastForward else Icons.Default.FastRewind,
@@ -231,16 +231,16 @@ fun SeekHUD(
             )
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = if (deltaMs >= 0) "+${formatDuration(deltaMs)}" else "-${formatDuration(-deltaMs)}",
+                    text = "${formatDuration(targetPositionMs)} / ${formatDuration(durationMs)}",
                     color = Color.White,
-                    fontSize = 18.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "${formatDuration(targetPositionMs)} / ${formatDuration(durationMs)}",
-                    color = Color(0xFF94A3B8),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
+                    text = if (deltaMs >= 0) "+${formatDuration(deltaMs)}" else "-${formatDuration(-deltaMs)}",
+                    color = if (deltaMs >= 0) Color(0xFF4ADE80) else Color(0xFFF87171),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }

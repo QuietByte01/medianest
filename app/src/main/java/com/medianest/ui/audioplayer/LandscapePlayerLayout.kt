@@ -561,19 +561,22 @@ private fun ImmersiveLandscapeLayout(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            IconButton(
-                onClick = onToggleVisualizer,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.15f))
-            ) {
-                Icon(
-                    imageVector = Icons.Default.GraphicEq,
-                    contentDescription = "Toggle Visualizer",
-                    tint = if (showAudioVisualizer) Color(0xFF64B5F6) else Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
+            // Hide visualizer button when artist info panel is open
+            if (!showArtistInfo) {
+                IconButton(
+                    onClick = onToggleVisualizer,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.15f))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.GraphicEq,
+                        contentDescription = "Toggle Visualizer",
+                        tint = if (showAudioVisualizer) Color(0xFF64B5F6) else Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
 
             if (showAudioVisualizer) {

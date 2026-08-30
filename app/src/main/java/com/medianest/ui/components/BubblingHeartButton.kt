@@ -12,17 +12,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.launch
 import kotlin.math.sin
@@ -30,8 +29,8 @@ import kotlin.random.Random
 
 data class HeartBubbleParticle(
     val id: Int,
-    val initialXOffset: Float,     // Horizontal starting spread (-24dp to +24dp)
-    val maxUpwardDistance: Float,  // Total vertical rise (80dp to 140dp)
+    val initialXOffset: Float,     // Horizontal starting spread
+    val maxUpwardDistance: Float,  // Total vertical rise
     val swayAmplitude: Float,      // Left-right horizontal sway amount
     val swayFrequency: Float,      // Sway speed / cycle count
     val size: Dp,
@@ -69,15 +68,63 @@ fun generateHarmonicHeartPalette(hue: Float?): List<Color> {
     )
 }
 
+private val baseHeartPath = Path().apply {
+    val width = 100f
+    val height = 100f
+    moveTo(width * 0.5f, height * 0.88f)
+    cubicTo(
+        width * 0.10f, height * 0.62f,
+        width * 0.02f, height * 0.32f,
+        width * 0.25f, height * 0.12f
+    )
+    cubicTo(
+        width * 0.42f, height * 0.02f,
+        width * 0.50f, height * 0.22f,
+        width * 0.50f, height * 0.25f
+    )
+    cubicTo(
+        width * 0.50f, height * 0.22f,
+        width * 0.58f, height * 0.02f,
+        width * 0.75f, height * 0.12f
+    )
+    cubicTo(
+        width * 0.98f, height * 0.32f,
+        width * 0.90f, height * 0.62f,
+        width * 0.5f, height * 0.88f
+    )
+    close()
+}
+
+private fun DrawScope.drawHeartParticle(
+    centerX: Float,
+    centerY: Float,
+    sizePx: Float,
+    color: Color,
+    alpha: Float,
+    scale: Float,
+    rotationDeg: Float
+) {
+    if (alpha <= 0.01f || scale <= 0.01f) return
+    val totalScale = (sizePx / 100f) * scale
+    withTransform({
+        translate(left = centerX, top = centerY)
+        rotate(degrees = rotationDeg, pivot = Offset.Zero)
+        scale(scaleX = totalScale, scaleY = totalScale, pivot = Offset.Zero)
+        translate(left = -50f, top = -50f)
+    }) {
+        drawPath(baseHeartPath, color = color.copy(alpha = alpha))
+    }
+}
+
 /**
  * BubblingHeartButton — Samsung Music-style favorite heart button.
  *
  * Features:
  * 1. Radiant fountain of bubbling hearts with dynamic hue extracted from album art.
- * 2. Hardware Canvas rendering that never gets clipped.
- * 3. Elastic bouncy spring on main heart.
- * 4. Soft radial halo glow pulse.
- * 5. 0ms instant optimistic response without delay.
+ * 2. Instant 0ms optimistic response on touch.
+ * 3. Pure Compose Canvas particle rendering.
+ * 4. Elastic bouncy spring on main heart.
+ * 5. Soft radial halo glow pulse.
  */
 @Composable
 fun BubblingHeartButton(
@@ -90,9 +137,9 @@ fun BubblingHeartButton(
     inactiveColor: Color = Color.White.copy(alpha = 0.85f),
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
 ) {
+    var optimisticFavorite by remember(isFavorite) { mutableStateOf(isFavorite) }
     val resolvedActiveColor = activeColor ?: hue?.let { Color.hsv(it, 0.90f, 1.0f) } ?: Color(0xFFFF2D55)
     val scope = rememberCoroutineScope()
-    val heartPainter = rememberVectorPainter(Icons.Default.Favorite)
 
     val mainHeartScale = remember { Animatable(1f) }
     val haloScale = remember { Animatable(0.5f) }
@@ -103,17 +150,17 @@ fun BubblingHeartButton(
 
     fun triggerBurst() {
         val palette = generateHarmonicHeartPalette(hue)
-        val list = ArrayList<HeartBubbleParticle>(16)
-        for (i in 0 until 16) {
-            val spreadFactor = ((i - 8) / 8f) * 38f
-            val initX = spreadFactor + (Random.nextFloat() * 16f - 8f)
-            val riseDist = Random.nextFloat() * 80f + 110f // 110dp to 190dp upward float
-            val swayAmp = Random.nextFloat() * 16f + 6f
+        val list = ArrayList<HeartBubbleParticle>(14)
+        for (i in 0 until 14) {
+            val spreadFactor = ((i - 7) / 7f) * 32f
+            val initX = spreadFactor + (Random.nextFloat() * 12f - 6f)
+            val riseDist = Random.nextFloat() * 60f + 85f // 85dp to 145dp upward
+            val swayAmp = Random.nextFloat() * 12f + 4f
             val swayFreq = Random.nextFloat() * 1.5f + 0.8f
-            val pSize = (Random.nextInt(18, 28)).dp // Prominent Samsung Music size
+            val pSize = (Random.nextInt(16, 24)).dp
             val col = palette[i % palette.size]
-            val rot = (spreadFactor * 0.8f) + (Random.nextFloat() * 24f - 12f)
-            val delayFrac = (Random.nextFloat() * 0.20f)
+            val rot = (spreadFactor * 0.6f) + (Random.nextFloat() * 20f - 10f)
+            val delayFrac = (Random.nextFloat() * 0.16f)
 
             list.add(
                 HeartBubbleParticle(
@@ -166,7 +213,7 @@ fun BubblingHeartButton(
             launch {
                 burstProgress.animateTo(
                     targetValue = 1f,
-                    animationSpec = tween(1200, easing = LinearOutSlowInEasing)
+                    animationSpec = tween(950, easing = LinearOutSlowInEasing)
                 )
                 particles = emptyList()
             }
@@ -180,63 +227,91 @@ fun BubblingHeartButton(
                 interactionSource = interactionSource,
                 indication = null
             ) {
-                if (!isFavorite) {
+                val willBeFavorite = !optimisticFavorite
+                optimisticFavorite = willBeFavorite
+                if (willBeFavorite) {
                     triggerBurst()
                 }
                 onClick()
             },
         contentAlignment = Alignment.Center
     ) {
-        // 1. Floating Bubbling Hearts (Hardware GPU-accelerated via graphicsLayer, unclipped)
+        // 1. Canvas Bubbling Hearts Fountain inside 320dp Popup Window with VSYNC frame sync
         if (particles.isNotEmpty()) {
-            Box(
-                modifier = Modifier
-                    .wrapContentSize(Alignment.Center, unbounded = true)
-                    .zIndex(999f),
-                contentAlignment = Alignment.Center
+            Popup(
+                alignment = Alignment.Center,
+                properties = PopupProperties(
+                    focusable = false,
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false,
+                    clippingEnabled = false,
+                    usePlatformDefaultWidth = false
+                )
             ) {
-                particles.forEach { particle ->
-                    Icon(
-                        imageVector = Icons.Default.Favorite,
-                        contentDescription = null,
-                        tint = particle.color,
-                        modifier = Modifier
-                            .size(particle.size)
-                            .graphicsLayer {
-                                val animValue = burstProgress.value
-                                val p = ((animValue - particle.delayFraction) / (1f - particle.delayFraction)).coerceIn(0f, 1f)
+                var frameProgress by remember { mutableStateOf(0f) }
 
-                                if (p <= 0.001f || p >= 0.999f) {
-                                    alpha = 0f
-                                } else {
-                                    val riseProgress = sin((p * Math.PI.toFloat()) / 2f)
-                                    val swayOffset = sin(p * Math.PI.toFloat() * particle.swayFrequency) * particle.swayAmplitude
-                                    translationY = -(riseProgress * particle.maxUpwardDistance) * density
-                                    translationX = (particle.initialXOffset + swayOffset) * density
+                LaunchedEffect(Unit) {
+                    val durationNanos = 950_000_000L
+                    val startTime = withFrameNanos { it }
+                    while (true) {
+                        val now = withFrameNanos { it }
+                        val elapsed = now - startTime
+                        val p = (elapsed.toFloat() / durationNanos).coerceIn(0f, 1f)
+                        frameProgress = p
+                        if (p >= 1f) {
+                            particles = emptyList()
+                            break
+                        }
+                    }
+                }
 
-                                    val scale = when {
-                                        p < 0.15f -> (p / 0.15f) * 1.35f
-                                        p < 0.70f -> 1.35f - ((p - 0.15f) / 0.55f) * 0.25f
-                                        else -> (1.10f - ((p - 0.70f) / 0.30f) * 0.85f).coerceAtLeast(0f)
-                                    }
-                                    scaleX = scale
-                                    scaleY = scale
+                Canvas(
+                    modifier = Modifier
+                        .size(320.dp, 320.dp)
+                        .zIndex(999f)
+                ) {
+                    val animVal = frameProgress
+                    val centerX = this.size.width / 2f
+                    val centerY = this.size.height / 2f
 
-                                    rotationZ = particle.initialRotation + (swayOffset * 1.5f)
+                    particles.forEach { particle ->
+                        val p = ((animVal - particle.delayFraction) / (1f - particle.delayFraction)).coerceIn(0f, 1f)
+                        if (p > 0.001f && p < 0.999f) {
+                            val riseProgress = sin((p * Math.PI.toFloat()) / 2f)
+                            val swayOffset = sin(p * Math.PI.toFloat() * particle.swayFrequency) * particle.swayAmplitude
+                            val px = centerX + (particle.initialXOffset + swayOffset) * density
+                            val py = centerY - (riseProgress * particle.maxUpwardDistance) * density
 
-                                    alpha = when {
-                                        p < 0.08f -> p / 0.08f
-                                        p < 0.75f -> 1.0f
-                                        else -> (1.0f - ((p - 0.75f) / 0.25f)).coerceIn(0f, 1f)
-                                    }
-                                }
+                            val scale = when {
+                                p < 0.20f -> (p / 0.20f) * 1.25f
+                                p < 0.65f -> 1.25f - ((p - 0.20f) / 0.45f) * 0.20f
+                                else -> (1.05f - ((p - 0.65f) / 0.35f) * 0.75f).coerceAtLeast(0f)
                             }
-                    )
+
+                            val alpha = when {
+                                p < 0.10f -> p / 0.10f
+                                p < 0.60f -> 1.0f
+                                else -> (1.0f - ((p - 0.60f) / 0.40f)).coerceIn(0f, 1f)
+                            }
+
+                            val rot = particle.initialRotation + (swayOffset * 1.5f)
+
+                            drawHeartParticle(
+                                centerX = px,
+                                centerY = py,
+                                sizePx = particle.size.toPx(),
+                                color = particle.color,
+                                alpha = alpha,
+                                scale = scale,
+                                rotationDeg = rot
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        // 2. Halo Radial Glow Ring (Rendered entirely on graphicsLayer without recomposition)
+        // 2. Halo Radial Glow Ring
         Box(
             modifier = Modifier
                 .size(size)
@@ -263,9 +338,9 @@ fun BubblingHeartButton(
             }
         ) {
             Icon(
-                imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                imageVector = if (optimisticFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                 contentDescription = "Favorite",
-                tint = if (isFavorite) resolvedActiveColor else inactiveColor,
+                tint = if (optimisticFavorite) resolvedActiveColor else inactiveColor,
                 modifier = Modifier.size(size)
             )
         }
@@ -274,7 +349,7 @@ fun BubblingHeartButton(
 
 /**
  * Reusable bubbling floating hearts burst effect.
- * Snappy, GPU-accelerated with zero end-of-animation stutter.
+ * Snappy, GPU-accelerated on pure Canvas.
  */
 @Composable
 fun BubblingHeartBurstEffect(
@@ -340,52 +415,74 @@ fun BubblingHeartBurstEffect(
     }
 
     if (currentParticles.isNotEmpty()) {
-        Box(
-            modifier = modifier.wrapContentSize(Alignment.Center, unbounded = true),
-            contentAlignment = Alignment.Center
+        Popup(
+            alignment = Alignment.Center,
+            properties = PopupProperties(
+                focusable = false,
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+                clippingEnabled = false,
+                usePlatformDefaultWidth = false
+            )
         ) {
-            currentParticles.forEach { particle ->
-                Icon(
-                    imageVector = Icons.Default.Favorite,
-                    contentDescription = null,
-                    tint = particle.color,
-                    modifier = Modifier
-                        .size(particle.size)
-                        .graphicsLayer {
-                            val animValue = progress.value
-                            val p = ((animValue - particle.delayFraction) / (1f - particle.delayFraction)).coerceIn(0f, 1f)
+            var frameProgress by remember { mutableStateOf(0f) }
 
-                            if (p <= 0f || p >= 0.99f) {
-                                alpha = 0f
-                            } else {
-                                val riseProgress = sin((p * Math.PI.toFloat()) / 2f)
-                                val swayOffset = sin(p * Math.PI.toFloat() * particle.swayFrequency) * particle.swayAmplitude
-                                translationY = -(riseProgress * particle.maxUpwardDistance) * density
-                                translationX = (particle.initialXOffset + swayOffset) * density
+            LaunchedEffect(Unit) {
+                val durationNanos = durationMs * 1_000_000L
+                val startTime = withFrameNanos { it }
+                while (true) {
+                    val now = withFrameNanos { it }
+                    val elapsed = now - startTime
+                    val p = (elapsed.toFloat() / durationNanos).coerceIn(0f, 1f)
+                    frameProgress = p
+                    if (p >= 1f) {
+                        currentParticles = emptyList()
+                        break
+                    }
+                }
+            }
 
-                                val scale = when {
-                                    p < 0.15f -> (p / 0.15f) * 1.3f
-                                    p < 0.65f -> 1.3f - ((p - 0.15f) / 0.50f) * 0.3f
-                                    else -> (1f - ((p - 0.65f) / 0.35f) * 0.5f)
-                                }
-                                scaleX = scale
-                                scaleY = scale
+            Canvas(
+                modifier = modifier.size(320.dp, 320.dp)
+            ) {
+                val animVal = frameProgress
+                val centerX = this.size.width / 2f
+                val centerY = this.size.height / 2f
 
-                                rotationZ = particle.initialRotation + (swayOffset * 1.5f)
+                currentParticles.forEach { particle ->
+                    val p = ((animVal - particle.delayFraction) / (1f - particle.delayFraction)).coerceIn(0f, 1f)
+                    if (p > 0.001f && p < 0.999f) {
+                        val riseProgress = sin((p * Math.PI.toFloat()) / 2f)
+                        val swayOffset = sin(p * Math.PI.toFloat() * particle.swayFrequency) * particle.swayAmplitude
+                        val px = centerX + (particle.initialXOffset + swayOffset) * density
+                        val py = centerY - (riseProgress * particle.maxUpwardDistance) * density
 
-                                alpha = when {
-                                    p < 0.08f -> p / 0.08f
-                                    p < 0.70f -> 1.0f
-                                    else -> (1.0f - ((p - 0.70f) / 0.30f)).coerceIn(0f, 1f)
-                                }
-                            }
+                        val scale = when {
+                            p < 0.20f -> (p / 0.20f) * 1.25f
+                            p < 0.65f -> 1.25f - ((p - 0.20f) / 0.45f) * 0.20f
+                            else -> (1.05f - ((p - 0.65f) / 0.35f) * 0.75f).coerceAtLeast(0f)
                         }
-                )
+
+                        val alpha = when {
+                            p < 0.10f -> p / 0.10f
+                            p < 0.60f -> 1.0f
+                            else -> (1.0f - ((p - 0.60f) / 0.40f)).coerceIn(0f, 1f)
+                        }
+
+                        val rot = particle.initialRotation + (swayOffset * 1.5f)
+
+                        drawHeartParticle(
+                            centerX = px,
+                            centerY = py,
+                            sizePx = particle.size.toPx(),
+                            color = particle.color,
+                            alpha = alpha,
+                            scale = scale,
+                            rotationDeg = rot
+                        )
+                    }
+                }
             }
         }
     }
-}
-
-private fun easeOutSine(t: Float): Float {
-    return sin((t * Math.PI.toFloat()) / 2f)
 }

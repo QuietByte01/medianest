@@ -37,7 +37,9 @@ import coil.request.ImageRequest
 import com.medianest.data.model.ArtistInfo
 import com.medianest.data.model.LyricLine
 import com.medianest.data.model.MediaItem
+import com.medianest.data.db.MediaType
 import com.medianest.player.ExoPlayerManager
+import com.medianest.ui.components.MediaLoadingAnimation
 import com.medianest.player.PlayerState
 import com.medianest.ui.components.*
 
@@ -91,19 +93,31 @@ fun PortraitPlayerLayout(
                 .fillMaxWidth(),
             contentAlignment = Alignment.Center
         ) {
-            if (showArtistInfo && artistInfo != null) {
-                ArtistInfoPanel(
-                    artistInfo = artistInfo,
-                    onPopularAlbumClick = onPopularAlbumClick,
-                    onLocalAlbumClick = onLocalAlbumClick,
-                    onArtistClick = onOpenArtist,
-                    browsingAlbumName = browsingAlbumName,
-                    allAudioItems = allAudioItems,
-                    onBackToArtist = onBackToArtist,
-                    playerManager = playerManager,
-                    isLoading = isScanningLibrary,
-                    modifier = Modifier.fillMaxSize()
-                )
+            if (showArtistInfo) {
+                if (artistInfo != null) {
+                    ArtistInfoPanel(
+                        artistInfo = artistInfo,
+                        onPopularAlbumClick = onPopularAlbumClick,
+                        onLocalAlbumClick = onLocalAlbumClick,
+                        onArtistClick = onOpenArtist,
+                        browsingAlbumName = browsingAlbumName,
+                        allAudioItems = allAudioItems,
+                        onBackToArtist = onBackToArtist,
+                        playerManager = playerManager,
+                        isLoading = isScanningLibrary,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        MediaLoadingAnimation(
+                            mediaType = MediaType.AUDIO,
+                            iconSize = 52.dp
+                        )
+                    }
+                }
             } else if (showLyricsView) {
                 LyricsView(
                     songTitle = currentItem?.title ?: "Unknown Track",

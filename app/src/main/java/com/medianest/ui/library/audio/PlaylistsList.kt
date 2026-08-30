@@ -31,11 +31,22 @@ import com.medianest.data.db.CategoryMediaCrossRef
 import com.medianest.data.db.MediaCategory
 import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
+import com.medianest.data.model.ArtistInfo
+import com.medianest.ui.components.ArtistInfoPanel
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.MediaLoadingAnimation
+import com.medianest.util.rememberArtistImageUrl
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
+import coil.compose.AsyncImagePainter
+import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
+import coil.request.ImageRequest
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistsList(
     playlists: List<MediaCategory>,
@@ -123,10 +134,116 @@ fun PlaylistsList(
 
     var showRecognizedPlaylistsSheet by remember { mutableStateOf(false) }
 
+    var selectedArtistForInfo by remember { mutableStateOf<String?>(null) }
+    var artistInfoObject by remember { mutableStateOf<ArtistInfo?>(null) }
+    var isArtistInfoLoading by remember { mutableStateOf(false) }
+
+    val artistRepo = remember { com.medianest.MediaNestApp.instance.artistMetadataRepository }
+
+    val db = remember { com.medianest.MediaNestApp.instance.database }
+    val allCrossRefs by db.categoryDao().getAllCrossRefs().collectAsState(initial = emptyList())
+    val artistCategories by db.categoryDao().getCategoriesByType("ARTIST").collectAsState(initial = emptyList())
+
+    val followedCategory = remember(artistCategories) {
+        artistCategories.find { it.name.equals("Followed Artists", ignoreCase = true) }
+    }
+
+    val followedArtistNames = remember(allCrossRefs, followedCategory) {
+        if (followedCategory == null) emptyList<String>()
+        else allCrossRefs.filter { it.categoryId == followedCategory.id }.map { it.mediaUri }
+    }
+
+    LaunchedEffect(selectedArtistForInfo) {
+        val name = selectedArtistForInfo
+        if (name != null) {
+            isArtistInfoLoading = true
+            val info = artistRepo.getArtistInfo(name)
+            val artistSongs = audioList.filter { it.artist.equals(name, ignoreCase = true) }
+            val localAlbums = artistSongs.groupBy { it.album ?: "Unknown Album" }.map { (title, songs) ->
+                com.medianest.data.model.LocalAlbumInfo(
+                    title = title,
+                    artworkUri = songs.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: songs.firstOrNull()?.uri,
+                    songCount = songs.size
+                )
+            }
+            artistInfoObject = info.copy(localAlbums = localAlbums)
+            isArtistInfoLoading = false
+        } else {
+            artistInfoObject = null
+            isArtistInfoLoading = false
+        }
+    }
+
     if (selectedPlaylist != null) {
         val playlistSongs = audioList.filter { playlistUris.contains(it.uri.toString()) }
 
+        val isFavoritesPlaylist = remember(selectedPlaylist) {
+            selectedPlaylist?.name.equals("Favourites", ignoreCase = true) ||
+            selectedPlaylist?.name.equals("Favorites", ignoreCase = true)
+        }
+
+        val followedArtistsWithCount = remember(followedArtistNames, playlistSongs, audioList, isFavoritesPlaylist) {
+            if (!isFavoritesPlaylist) emptyList()
+            else {
+                followedArtistNames.map { artistName ->
+                    val favCount = playlistSongs.count { song ->
+                        val rawArtist = song.artist ?: "Unknown Artist"
+                        rawArtist.contains(artistName, ignoreCase = true)
+                    }
+                    val artistSongs = audioList.filter { it.artist?.contains(artistName, ignoreCase = true) == true }
+                    val coverUri = artistSongs.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: artistSongs.firstOrNull()?.uri
+                    Triple(artistName, favCount, coverUri)
+                }.sortedByDescending { it.second } // Sort from most fav songs to least
+            }
+        }
+
         Column(modifier = Modifier.fillMaxSize()) {
+            if (isFavoritesPlaylist && followedArtistsWithCount.isNotEmpty()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Followed Artists",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "${followedArtistsWithCount.size} followed",
+                            fontSize = 12.sp,
+                            color = Color(0xFF38BDF8),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        items(followedArtistsWithCount, key = { it.first }) { (artistName, count, coverUri) ->
+                            FavoriteArtistCard(
+                                artistName = artistName,
+                                favCount = count,
+                                coverUri = coverUri,
+                                onClick = {
+                                    selectedArtistForInfo = artistName
+                                }
+                            )
+                        }
+                    }
+                    HorizontalDivider(
+                        color = Color.White.copy(alpha = 0.08f),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
             if (isPlaylistLoading || (isLoading && playlistSongs.isEmpty())) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     MediaLoadingAnimation(
@@ -139,21 +256,23 @@ fun PlaylistsList(
                     Text("No Songs in Playlist", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
-                SongsList(
-                    songs = playlistSongs,
-                    selectedUris = emptySet(),
-                    isSelectionMode = false,
-                    onSongClick = onSongClick,
-                    onSongLongClick = {},
-                    onNavigateSubTab = onNavigateSubTab,
-                    onAddToPlaylist = onAddToPlaylist,
-                    onRemoveFromPlaylist = { item ->
-                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                            val db = com.medianest.MediaNestApp.instance.database
-                            db.categoryDao().removeMediaFromCategory(selectedPlaylist!!.id, item.uri.toString())
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    SongsList(
+                        songs = playlistSongs,
+                        selectedUris = emptySet(),
+                        isSelectionMode = false,
+                        onSongClick = onSongClick,
+                        onSongLongClick = {},
+                        onNavigateSubTab = onNavigateSubTab,
+                        onAddToPlaylist = onAddToPlaylist,
+                        onRemoveFromPlaylist = { item ->
+                            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                val db = com.medianest.MediaNestApp.instance.database
+                                db.categoryDao().removeMediaFromCategory(selectedPlaylist!!.id, item.uri.toString())
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
         }
     } else {
@@ -331,5 +450,123 @@ fun PlaylistsList(
             audioList = audioList,
             onDismiss = { showRecognizedPlaylistsSheet = false }
         )
+    }
+
+    if (selectedArtistForInfo != null) {
+        ModalBottomSheet(
+            onDismissRequest = { selectedArtistForInfo = null },
+            containerColor = Color(0xFF0F1015),
+            dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.3f)) }
+        ) {
+            if (isArtistInfoLoading || artistInfoObject == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(300.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    MediaLoadingAnimation(mediaType = MediaType.AUDIO, iconSize = 48.dp)
+                }
+            } else {
+                ArtistInfoPanel(
+                    artistInfo = artistInfoObject!!,
+                    onPopularAlbumClick = { },
+                    onLocalAlbumClick = { albumName ->
+                        selectedArtistForInfo = null
+                        selectedPlaylist = null
+                        onSelectPlaylist(null)
+                        onNavigateSubTab(3, albumName, null, null, null)
+                    },
+                    onArtistClick = { newArtist ->
+                        selectedArtistForInfo = newArtist
+                    },
+                    allAudioItems = audioList,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.85f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FavoriteArtistCard(
+    artistName: String,
+    favCount: Int,
+    coverUri: Uri?,
+    onClick: () -> Unit
+) {
+    val artistImgUrl = rememberArtistImageUrl(artistName)
+
+    GlassSurface(
+        shape = RoundedCornerShape(18.dp),
+        backgroundColor = Color(0x1F24293A),
+        borderColor = Color(0x2BFFFFFF),
+        modifier = Modifier
+            .width(108.dp)
+            .clickable { onClick() }
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.08f)),
+                contentAlignment = Alignment.Center
+            ) {
+                SubcomposeAsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(artistImgUrl ?: coverUri)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = artistName,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    val state = painter.state
+                    if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.5f),
+                                modifier = Modifier.size(30.dp)
+                            )
+                        }
+                    } else {
+                        SubcomposeAsyncImageContent()
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = artistName,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Text(
+                text = if (favCount > 0) "$favCount ${if (favCount == 1) "fav song" else "fav songs"}" else "Followed",
+                fontSize = 10.5.sp,
+                color = Color(0xFF38BDF8),
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }

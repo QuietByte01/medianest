@@ -1,9 +1,13 @@
 package com.medianest.ui.audioplayer
 
+import android.app.Activity
 import android.content.Context
 import android.content.res.Configuration
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
@@ -112,6 +116,27 @@ fun AudioPlayerScreen(
     var browsingAlbumName by remember { mutableStateOf<String?>(null) }
     
     val context = LocalContext.current
+    val activity = context as? Activity
+    val hideNotificationPanelInPlayer = !showArtistInfoPanel && !showSidePanelLandscape && !showQueueInPortraitBox && !isVisualizerFullscreen && !showOverflowMenu && !showDetailsSheet && !showMetadataModal && !showDspSheet
+
+    DisposableEffect(hideNotificationPanelInPlayer) {
+        activity?.window?.let { window ->
+            val controller = WindowInsetsControllerCompat(window, window.decorView)
+            if (hideNotificationPanelInPlayer) {
+                controller.hide(WindowInsetsCompat.Type.statusBars())
+                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            } else {
+                controller.show(WindowInsetsCompat.Type.statusBars())
+            }
+        }
+        onDispose {
+            activity?.window?.let { window ->
+                val controller = WindowInsetsControllerCompat(window, window.decorView)
+                controller.show(WindowInsetsCompat.Type.statusBars())
+            }
+        }
+    }
+
     val db = MediaNestApp.instance.database
     
     val artistMetadataRepo = remember { MediaNestApp.instance.artistMetadataRepository }
@@ -149,8 +174,7 @@ fun AudioPlayerScreen(
         }
     }
 
-    LaunchedEffect(displayedArtistName, libraryAudioList, showArtistInfoPanel) {
-        if (!showArtistInfoPanel) return@LaunchedEffect
+    LaunchedEffect(displayedArtistName, libraryAudioList) {
         val artistName = displayedArtistName ?: currentItem?.artist ?: "Unknown Artist"
         val computedInfo = withContext(Dispatchers.IO) {
             val info = artistMetadataRepo.getArtistInfo(artistName)

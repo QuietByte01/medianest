@@ -165,6 +165,8 @@ fun VideoPlayerBottomBar(
                 activeTrackColor = Color.White,
                 inactiveTrackColor = Color.White.copy(alpha = 0.3f),
                 thumbColor = Color.White,
+                trackHeight = 2.5.dp,
+                thumbRadius = 4.5.dp,
                 abPointA = playerState.abRepeatA?.toFloat(),
                 abPointB = playerState.abRepeatB?.toFloat(),
                 isAbRepeatActive = playerState.isAbRepeatActive

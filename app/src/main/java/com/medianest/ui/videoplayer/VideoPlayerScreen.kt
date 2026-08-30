@@ -172,8 +172,11 @@ fun VideoPlayerScreen(
     var isDraggingBrightness by remember { mutableStateOf(false) }
     var isDraggingVolume by remember { mutableStateOf(false) }
     var isHorizontalDragging by remember { mutableStateOf(false) }
+    var initialSeekPositionMs by remember { mutableLongStateOf(0L) }
+    var wasPlayingBeforeSeek by remember { mutableStateOf(false) }
     var seekTargetPositionMs by remember { mutableLongStateOf(0L) }
     var seekDeltaMs by remember { mutableLongStateOf(0L) }
+    var lastScrubSeekTime by remember { mutableLongStateOf(0L) }
     var showOverflowMenu by remember { mutableStateOf(false) }
     var selectedSubtitleTrackIndex by remember { mutableIntStateOf(0) }
 
@@ -370,14 +373,40 @@ fun VideoPlayerScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .videoPlayerGestures(
-                        playerState = playerState,
+                        currentItemId = currentItem?.id,
                         isControlsLocked = isControlsLocked,
                         isZoomed = scale > 1.05f,
+                        coroutineScope = scope,
                         onToggleControls = { showControls = !showControls },
+                        onSeekStart = {
+                            if (!isControlsLocked) {
+                                isHorizontalDragging = true
+                                initialSeekPositionMs = playerState.currentPositionMs
+                                seekDeltaMs = 0L
+                                seekTargetPositionMs = playerState.currentPositionMs
+                                playerManager.scrubStart()
+                                lastScrubSeekTime = System.currentTimeMillis()
+                            }
+                        },
                         onSeekDelta = { delta ->
-                            isHorizontalDragging = true
-                            seekDeltaMs += delta
-                            seekTargetPositionMs = (playerState.currentPositionMs + seekDeltaMs).coerceIn(0L, playerState.durationMs)
+                            if (!isControlsLocked) {
+                                if (!isHorizontalDragging) {
+                                    isHorizontalDragging = true
+                                    initialSeekPositionMs = playerState.currentPositionMs
+                                    seekDeltaMs = 0L
+                                    seekTargetPositionMs = playerState.currentPositionMs
+                                    playerManager.scrubStart()
+                                    lastScrubSeekTime = System.currentTimeMillis()
+                                }
+                                seekDeltaMs += delta
+                                val newTarget = (initialSeekPositionMs + seekDeltaMs).coerceIn(0L, playerState.durationMs)
+                                seekTargetPositionMs = newTarget
+                                val now = System.currentTimeMillis()
+                                if (now - lastScrubSeekTime >= 60L) {
+                                    lastScrubSeekTime = now
+                                    playerManager.scrubSeek(newTarget)
+                                }
+                            }
                         },
                         onSeekTo = { playerManager.seekTo(it) },
                         onVolumeChange = { delta ->
@@ -419,7 +448,7 @@ fun VideoPlayerScreen(
                         onDragStarted = { showControls = true },
                         onDragEnded = {
                             if (isHorizontalDragging) {
-                                playerManager.seekTo(seekTargetPositionMs)
+                                playerManager.scrubEnd(seekTargetPositionMs)
                                 isHorizontalDragging = false
                                 seekDeltaMs = 0L
                             }
@@ -430,7 +459,6 @@ fun VideoPlayerScreen(
                             swipeEdgeState = edge
                             swipeProgressState = progress
                         },
-                        coroutineScope = scope
                     )
             ) {
                 // Video Surface Container with Aspect Ratio Bounds
@@ -621,6 +649,14 @@ fun VideoPlayerScreen(
                 gestureFeedbackText?.let { GestureFeedbackHUD(text = it) }
             }
 
+            AnimatedVisibility(visible = isHorizontalDragging, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut(), modifier = Modifier.align(Alignment.Center)) {
+                SeekHUD(
+                    deltaMs = seekDeltaMs,
+                    targetPositionMs = seekTargetPositionMs,
+                    durationMs = playerState.durationMs
+                )
+            }
+
             AnimatedVisibility(
                 visible = (showControls || showOverflowMenu || showDetailsSheet || showSubtitleSheet) && !isHorizontalDragging && !showDrawer && !showAbRepeatBar,
                 enter = fadeIn(animationSpec = controlsFadeSpec),
@@ -638,7 +674,7 @@ fun VideoPlayerScreen(
             }
 
             AnimatedVisibility(
-                visible = (showControls || isHorizontalDragging) && !showDrawer && !showSubtitleSheet && !showDetailsSheet && !showSettingsSheet && !showAudioTrackSheet && !showAbRepeatBar,
+                visible = showControls && !isHorizontalDragging && !showDrawer && !showSubtitleSheet && !showDetailsSheet && !showSettingsSheet && !showAudioTrackSheet && !showAbRepeatBar,
                 enter = fadeIn(animationSpec = controlsFadeSpec),
                 exit = fadeOut(animationSpec = controlsFadeSpec),
                 modifier = Modifier.align(Alignment.BottomCenter)
