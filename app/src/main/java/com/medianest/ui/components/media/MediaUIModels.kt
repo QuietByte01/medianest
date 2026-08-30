@@ -35,8 +35,10 @@ enum class MediaEffect(val label: String, val previewColor: Color = Color(0xFF33
     // Basic / Reset
     OFF("Off"),
     NORMAL("Off"),
-    TRUE_COLOR("Balanced"),
-    NATURAL("Natural"),
+    TRUE_COLOR("True Color", Color(0xFFE2B053)),
+    BALANCED("Balanced", Color(0xFF4CAF50)),
+    BRIGHT("Bright", Color(0xFFFFD700)),
+    NATURAL("Natural", Color(0xFF64B5F6)),
     
     // Artistic / Studio
     ORIGINAL("Original"),
@@ -50,7 +52,6 @@ enum class MediaEffect(val label: String, val previewColor: Color = Color(0xFF33
     DREAMY("Dreamy", Color(0xFFB388FF)),
     
     // Technical / Enhancement
-    BALANCED("Bright"),
     SHARPEN("Sharpen"),
     HIGH_CONTRAST("High Contrast"),
     SEPIA("Sepia Film"),
@@ -67,8 +68,9 @@ enum class MediaEffect(val label: String, val previewColor: Color = Color(0xFF33
                 (it == CINEMA && (value.equals("CINEMATIC", ignoreCase = true) || value.equals("CINEMA_35MM", ignoreCase = true))) ||
                 (it == BW && (value.equals("NOIR", ignoreCase = true) || value.equals("MONOCHROME", ignoreCase = true) || value.equals("B&W", ignoreCase = true) || value.equals("BLACK & WHITE", ignoreCase = true))) ||
                 (it == VINTAGE_CRT && (value.equals("VINTAGE", ignoreCase = true) || value.equals("RETRO", ignoreCase = true))) ||
-                (it == TRUE_COLOR && (value.equals("NATURAL_BALANCE", ignoreCase = true) || value.equals("REC709", ignoreCase = true) || value.equals("BALANCED", ignoreCase = true))) ||
-                (it == BALANCED && (value.equals("BRIGHT", ignoreCase = true) || value.equals("BRIGHTNESS", ignoreCase = true)))
+                (it == TRUE_COLOR && (value.equals("NATURAL_BALANCE", ignoreCase = true) || value.equals("REC709", ignoreCase = true) || value.equals("TRUE_COLOR", ignoreCase = true))) ||
+                (it == BALANCED && value.equals("BALANCED", ignoreCase = true)) ||
+                (it == BRIGHT && (value.equals("BRIGHT", ignoreCase = true) || value.equals("BRIGHTNESS", ignoreCase = true)))
             } ?: OFF
         }
     }

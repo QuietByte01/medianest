@@ -48,6 +48,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.asComposeRenderEffect
+import com.medianest.player.fx.MediaFxPipeline
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -136,13 +138,22 @@ fun VideoPlayerScreen(
 
     val pictureModeEnabled by settingsManager.pictureModeEnabled.collectAsState(initial = true)
     val pictureMode by settingsManager.pictureMode.collectAsState(initial = "BALANCED")
-    LaunchedEffect(pictureMode, pictureModeEnabled) {
-        val effect = if (!pictureModeEnabled || pictureMode == "DEVICE_DEFAULT") {
+    val activeMediaEffect = remember(pictureModeEnabled, pictureMode) {
+        if (!pictureModeEnabled || pictureMode == "DEVICE_DEFAULT" || pictureMode == "OFF") {
             com.medianest.ui.components.media.MediaEffect.OFF
         } else {
-            com.medianest.ui.components.media.MediaEffect.fromString(pictureMode)
+            try {
+                com.medianest.ui.components.media.MediaEffect.fromString(pictureMode)
+            } catch (_: Exception) {
+                com.medianest.ui.components.media.MediaEffect.OFF
+            }
         }
-        playerManager.setVideoEffect(effect)
+    }
+    val androidFxColorFilter = remember(activeMediaEffect) {
+        MediaFxPipeline.getAndroidColorFilter(activeMediaEffect)
+    }
+    LaunchedEffect(activeMediaEffect) {
+        playerManager.setVideoEffect(activeMediaEffect)
     }
     val customSat by settingsManager.customSaturation.collectAsState(initial = 1.18f)
     val customCon by settingsManager.customContrast.collectAsState(initial = 1.06f)
@@ -531,12 +542,15 @@ fun VideoPlayerScreen(
                                 Box(
                                     modifier = Modifier
                                         .requiredSize(videoWidthDp, videoHeightDp)
-                                        .graphicsLayer(
-                                            scaleX = scale,
-                                            scaleY = scale,
-                                            translationX = panOffset.x,
+                                        .graphicsLayer {
+                                            scaleX = scale
+                                            scaleY = scale
+                                            translationX = panOffset.x
                                             translationY = panOffset.y
-                                        ),
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && androidFxColorFilter != null) {
+                                                renderEffect = android.graphics.RenderEffect.createColorFilterEffect(androidFxColorFilter).asComposeRenderEffect()
+                                            }
+                                        },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     androidx.compose.runtime.key(playerState.activeEngineName, playerState.media3InstanceId, currentItem?.id) {
@@ -674,7 +688,7 @@ fun VideoPlayerScreen(
             }
 
             AnimatedVisibility(
-                visible = showControls && !isHorizontalDragging && !showDrawer && !showSubtitleSheet && !showDetailsSheet && !showSettingsSheet && !showAudioTrackSheet && !showAbRepeatBar,
+                visible = showControls && !isHorizontalDragging && !showDrawer && !showSubtitleSheet && !showDetailsSheet && !showSettingsSheet && !showAudioTrackSheet && !showAbRepeatBar && !showVideoFxSheet && !showAspectRatioMenu && !showSpeedMenu,
                 enter = fadeIn(animationSpec = controlsFadeSpec),
                 exit = fadeOut(animationSpec = controlsFadeSpec),
                 modifier = Modifier.align(Alignment.BottomCenter)
@@ -693,7 +707,12 @@ fun VideoPlayerScreen(
                         val nextSpeed = when (playerState.playbackSpeed) { 0.5f -> 0.75f; 0.75f -> 1.0f; 1.0f -> 1.25f; 1.25f -> 1.5f; 1.5f -> 2.0f; 2.0f -> 3.0f; 3.0f -> 0.5f; else -> 1.0f }
                         playerManager.setPlaybackSpeed(nextSpeed)
                     },
-                    onSpeedLongPress = { showSpeedMenu = true }, onPipClick = onEnterPip,
+                    onSpeedLongPress = {
+                        showSpeedMenu = true
+                        showAspectRatioMenu = false
+                        showVideoFxSheet = false
+                        showAbRepeatBar = false
+                    }, onPipClick = onEnterPip,
                     onAspectRatioClick = {
                         cropMode = when (cropMode) {
                             MediaAspectRatio.FIT -> MediaAspectRatio.CROP
@@ -712,13 +731,18 @@ fun VideoPlayerScreen(
                         panOffset = Offset.Zero
                         gestureFeedbackText = "Aspect Ratio: ${cropMode.label}"
                     },
-                    onAspectRatioLongPress = { showAspectRatioMenu = true }
+                    onAspectRatioLongPress = {
+                        showAspectRatioMenu = true
+                        showSpeedMenu = false
+                        showVideoFxSheet = false
+                        showAbRepeatBar = false
+                    }
                 )
             }
         }
 
         AnimatedVisibility(
-            visible = showAbRepeatBar && !isControlsLocked && !showDrawer && !showSubtitleSheet && !showDetailsSheet && !showSettingsSheet && !showAudioTrackSheet && !showVideoFxSheet && !showVideoEditorSheet,
+            visible = showAbRepeatBar && !isControlsLocked && !showDrawer && !showSubtitleSheet && !showDetailsSheet && !showSettingsSheet && !showAudioTrackSheet && !showVideoFxSheet && !showVideoEditorSheet && !showAspectRatioMenu && !showSpeedMenu,
             enter = fadeIn(animationSpec = controlsFadeSpec) + slideInVertically(initialOffsetY = { it / 2 }),
             exit = fadeOut(animationSpec = controlsFadeSpec) + slideOutVertically(targetOffsetY = { it / 2 }),
             modifier = Modifier
@@ -960,8 +984,17 @@ fun VideoPlayerScreen(
                 isAbRepeatActive = playerState.isAbRepeatActive,
                 onAbRepeat = {
                     showAbRepeatBar = true
+                    showVideoFxSheet = false
+                    showAspectRatioMenu = false
+                    showSpeedMenu = false
                 },
-                onVideoFx = { showVideoFxSheet = true },
+                onVideoFx = {
+                    showVideoFxSheet = true
+                    showAspectRatioMenu = false
+                    showSpeedMenu = false
+                    showAbRepeatBar = false
+                    showControls = false
+                },
                 onAudioTracks = { showAudioTrackSheet = true },
                 onCast = {
                     val castIntent = android.content.Intent(android.provider.Settings.ACTION_CAST_SETTINGS)

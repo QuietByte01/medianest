@@ -200,7 +200,6 @@ internal fun AspectRatioModal(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.3f))
             .clickable { onDismiss() },
         contentAlignment = Alignment.BottomCenter
     ) {
@@ -248,7 +247,6 @@ internal fun PlaybackSpeedModal(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.3f))
             .clickable { onDismiss() },
         contentAlignment = Alignment.BottomCenter
     ) {
@@ -304,7 +302,6 @@ internal fun VideoPostProcessingPanel(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.3f))
             .clickable { onDismiss() },
         contentAlignment = Alignment.BottomCenter
     ) {
@@ -344,7 +341,7 @@ internal fun VideoPostProcessingPanel(
 
                 MediaFilterCarousel(
                     filters = listOf(
-                        MediaEffect.OFF, MediaEffect.NATURAL, MediaEffect.TRUE_COLOR, MediaEffect.BALANCED,
+                        MediaEffect.OFF, MediaEffect.NATURAL, MediaEffect.TRUE_COLOR, MediaEffect.BALANCED, MediaEffect.BRIGHT,
                         MediaEffect.CINEMA, MediaEffect.VIVID, MediaEffect.WARM,
                         MediaEffect.COOL, MediaEffect.CYBERPUNK, MediaEffect.DREAMY,
                         MediaEffect.BW, MediaEffect.SEPIA, MediaEffect.SHARPEN,

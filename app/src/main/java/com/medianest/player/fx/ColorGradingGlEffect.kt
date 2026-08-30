@@ -87,10 +87,19 @@ class ColorGradingGlEffect(private val effectMode: MediaEffect) : RgbMatrix {
             MediaEffect.BALANCED -> {
                 // Balanced Natural Tone Equalization
                 floatArrayOf(
-                    1.08f, -0.04f, -0.04f, 0f,
-                    -0.04f, 1.08f, -0.04f, 0f,
-                    -0.04f, -0.04f, 1.08f, 0f,
-                    0.01f, 0.01f, 0.01f, 1f
+                    1.05f, -0.02f, -0.02f, 0f,
+                    -0.02f, 1.05f, -0.02f, 0f,
+                    -0.02f, -0.02f, 1.05f, 0f,
+                    0.02f, 0.02f, 0.02f, 1f
+                )
+            }
+            MediaEffect.BRIGHT -> {
+                // Bright Exposure & Shadow Lift
+                floatArrayOf(
+                    1.20f, 0f, 0f, 0f,
+                    0f, 1.20f, 0f, 0f,
+                    0f, 0f, 1.20f, 0f,
+                    0.10f, 0.10f, 0.10f, 1f
                 )
             }
             MediaEffect.NATURAL -> {

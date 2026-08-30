@@ -77,13 +77,23 @@ object MediaFxPipeline {
                 for (i in arr.indices) { matrix.values[i] = arr[i] }
             }
             MediaEffect.BALANCED -> {
-                // Balanced (S-Curve approximation using mild contrast reduction and brightness bump)
-                val contrast = 0.9f
-                val offset = (1f - contrast) * 255f / 2f + 5f
+                // Balanced (S-Curve natural tone equalized)
+                val contrast = 1.05f
+                val offset = (1f - contrast) * 255f / 2f + 4f
                 val arr = floatArrayOf(
                     contrast, 0f, 0f, 0f, offset,
                     0f, contrast, 0f, 0f, offset,
                     0f, 0f, contrast, 0f, offset,
+                    0f, 0f, 0f, 1f, 0f
+                )
+                for (i in arr.indices) { matrix.values[i] = arr[i] }
+            }
+            MediaEffect.BRIGHT -> {
+                // Bright: vibrant exposure & shadow lift (+20% scale + 25 shadow boost)
+                val arr = floatArrayOf(
+                    1.20f, 0f, 0f, 0f, 25f,
+                    0f, 1.20f, 0f, 0f, 25f,
+                    0f, 0f, 1.20f, 0f, 25f,
                     0f, 0f, 0f, 1f, 0f
                 )
                 for (i in arr.indices) { matrix.values[i] = arr[i] }

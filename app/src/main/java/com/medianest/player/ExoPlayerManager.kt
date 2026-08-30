@@ -955,6 +955,9 @@ class ExoPlayerManager private constructor(private val context: Context) {
                     }
                     Logger.d("ExoPlayerManager", "Preparing engine ($newEngineName) for URI: ${currentTarget.uri}")
                     activeEngine?.prepare(currentTarget.uri, true)
+                    if (newEngine == media3Engine && currentVideoEffect != com.medianest.ui.components.media.MediaEffect.OFF) {
+                        setVideoEffect(currentVideoEffect)
+                    }
                     if (startPosMs > 0) activeEngine?.seekTo(startPosMs)
                     if (requestAudioFocus()) {
                         Logger.d("ExoPlayerManager", "Audio focus granted, starting playback on $newEngineName")
@@ -1430,7 +1433,22 @@ class ExoPlayerManager private constructor(private val context: Context) {
         _playerState.value = PlayerState() 
     }
 
+    private var currentVideoEffect: com.medianest.ui.components.media.MediaEffect = com.medianest.ui.components.media.MediaEffect.OFF
+
     fun setVideoEffect(effect: com.medianest.ui.components.media.MediaEffect) {
-        // Handled directly via hardware layer color filter on PlayerView / TextureView in VideoPlayerScreen
+        currentVideoEffect = effect
+        if (activeEngine == media3Engine) {
+            try {
+                if (effect == com.medianest.ui.components.media.MediaEffect.OFF || 
+                    effect == com.medianest.ui.components.media.MediaEffect.NORMAL || 
+                    effect == com.medianest.ui.components.media.MediaEffect.ORIGINAL) {
+                    media3Engine?.player?.setVideoEffects(emptyList())
+                } else {
+                    media3Engine?.player?.setVideoEffects(listOf(com.medianest.player.fx.ColorGradingGlEffect(effect)))
+                }
+            } catch (e: Exception) {
+                Logger.e("ExoPlayerManager", "Failed to set video effect on Media3", e)
+            }
+        }
     }
 }
