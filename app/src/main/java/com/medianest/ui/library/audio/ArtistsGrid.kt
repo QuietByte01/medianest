@@ -150,16 +150,12 @@ fun ArtistsGrid(
                             ) {
                                 val coverState = painter.state
                                 if (coverState is AsyncImagePainter.State.Loading || coverState is AsyncImagePainter.State.Error || coverUri == null) {
-                                    GlassSurface(
-                                        modifier = Modifier.fillMaxSize(),
-                                        shape = RoundedCornerShape(16.dp),
-                                        backgroundColor = Color.Transparent,
-                                        borderColor = Color(0x22FFFFFF)
-                                    ) {
-                                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.Person, contentDescription = null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(52.dp))
-                                        }
-                                    }
+                                    SubcomposeAsyncImage(
+                                        model = ImageRequest.Builder(context).data(com.medianest.util.ArtistImageUtils.getFallbackArtistImageUrl(artistName)).crossfade(true).build(),
+                                        contentDescription = artistName,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
                                 } else {
                                     SubcomposeAsyncImageContent()
                                 }

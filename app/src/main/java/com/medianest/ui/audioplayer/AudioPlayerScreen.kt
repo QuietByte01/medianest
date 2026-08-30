@@ -119,7 +119,7 @@ fun AudioPlayerScreen(
     val activity = context as? Activity
     val hideNotificationPanelInPlayer = !showArtistInfoPanel && !showSidePanelLandscape && !showQueueInPortraitBox && !isVisualizerFullscreen && !showOverflowMenu && !showDetailsSheet && !showMetadataModal && !showDspSheet
 
-    DisposableEffect(hideNotificationPanelInPlayer) {
+    DisposableEffect(hideNotificationPanelInPlayer, isLandscape, configuration.orientation) {
         activity?.window?.let { window ->
             val controller = WindowInsetsControllerCompat(window, window.decorView)
             if (hideNotificationPanelInPlayer) {

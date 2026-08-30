@@ -66,9 +66,17 @@ object ArtistImageUtils {
 
         if (offlineMode) return@withContext null
         
+        val cleanArtist = artistName
+            .split(Regex("(?i)\\s+(feat\\.?|ft\\.?|featuring|with|x|&)\\s+")).first()
+            .split(",").first()
+            .split(";").first()
+            .split("/").first()
+            .replace(Regex("[\\[(].*?[\\])]"), "")
+            .trim()
+
         // Fallback fetch logic if repo didn't have it (redundant but safe)
         try {
-            val encodedName = URLEncoder.encode(artistName.trim(), "UTF-8")
+            val encodedName = URLEncoder.encode(cleanArtist, "UTF-8")
             val deezerUrl = "https://api.deezer.com/search/artist?q=$encodedName"
             val connection = (URL(deezerUrl).openConnection() as HttpURLConnection).apply {
                 connectTimeout = 3000
@@ -86,9 +94,71 @@ object ArtistImageUtils {
                     return@withContext imageUrl
                 }
             }
+
+            // Fallback 2: Wikipedia Summary API
+            val wikiUrl = fetchWikipediaArtistImage(cleanArtist)
+            if (!wikiUrl.isNullOrBlank()) {
+                cache[cleanKey] = wikiUrl
+                return@withContext wikiUrl
+            }
         } catch (_: Exception) {}
 
-        null
+        val fallbackUrl = getFallbackArtistImageUrl(cleanArtist)
+        cache[cleanKey] = fallbackUrl
+        fallbackUrl
+    }
+
+    private fun fetchWikipediaArtistImage(cleanArtist: String): String? {
+        try {
+            val encodedName = URLEncoder.encode(cleanArtist, "UTF-8")
+            val wikiSummaryUrl = "https://en.wikipedia.org/api/rest_v1/page/summary/$encodedName"
+            val conn = (URL(wikiSummaryUrl).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 3000
+                readTimeout = 3000
+                requestMethod = "GET"
+                setRequestProperty("User-Agent", "MediaNestApp/1.0 (admin@medianest.com)")
+            }
+            if (conn.responseCode == 200) {
+                val text = conn.inputStream.bufferedReader().use { it.readText() }
+                val match = Regex(""""thumbnail":\s*\{\s*"source":\s*"([^"]+)"""").find(text)
+                    ?: Regex(""""originalimage":\s*\{\s*"source":\s*"([^"]+)"""").find(text)
+                if (match != null) {
+                    return match.groupValues[1].replace("\\/", "/")
+                }
+            }
+
+            val searchUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=$encodedName&format=json"
+            val searchConn = (URL(searchUrl).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 3000
+                readTimeout = 3000
+                requestMethod = "GET"
+                setRequestProperty("User-Agent", "MediaNestApp/1.0 (admin@medianest.com)")
+            }
+            if (searchConn.responseCode == 200) {
+                val searchTxt = searchConn.inputStream.bufferedReader().use { it.readText() }
+                val titleMatch = Regex(""""title":"([^"]+)"""").find(searchTxt)
+                if (titleMatch != null) {
+                    val wikiTitle = titleMatch.groupValues[1]
+                    val encodedTitle = URLEncoder.encode(wikiTitle, "UTF-8")
+                    val titleSummaryUrl = "https://en.wikipedia.org/api/rest_v1/page/summary/$encodedTitle"
+                    val titleConn = (URL(titleSummaryUrl).openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 3000
+                        readTimeout = 3000
+                        requestMethod = "GET"
+                        setRequestProperty("User-Agent", "MediaNestApp/1.0 (admin@medianest.com)")
+                    }
+                    if (titleConn.responseCode == 200) {
+                        val titleTxt = titleConn.inputStream.bufferedReader().use { it.readText() }
+                        val match = Regex(""""thumbnail":\s*\{\s*"source":\s*"([^"]+)"""").find(titleTxt)
+                            ?: Regex(""""originalimage":\s*\{\s*"source":\s*"([^"]+)"""").find(titleTxt)
+                        if (match != null) {
+                            return match.groupValues[1].replace("\\/", "/")
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        return null
     }
 
     fun getSongwriterImageUrl(composerName: String?): String {
@@ -138,8 +208,10 @@ fun rememberArtistImageUrl(artistName: String?): String? {
         val fetched = ArtistImageUtils.fetchArtistImageUrl(clean, offlineMode)
         if (fetched != null) {
             imageUrl = fetched
+        } else if (imageUrl == null) {
+            imageUrl = ArtistImageUtils.getFallbackArtistImageUrl(clean)
         }
     }
 
-    return imageUrl
+    return imageUrl ?: ArtistImageUtils.getFallbackArtistImageUrl(clean)
 }

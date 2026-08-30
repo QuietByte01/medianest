@@ -180,7 +180,12 @@ class ArtistMetadataRepository(
     }
 
     private fun cleanArtistName(name: String): String {
-        return name.split(Regex("(?i)\\s+(feat\\.?|ft\\.?|featuring|with|&)\\s+")).first()
+        return name
+            .split(Regex("(?i)\\s+(feat\\.?|ft\\.?|featuring|with|x|&)\\s+")).first()
+            .split(",").first()
+            .split(";").first()
+            .split("/").first()
+            .split("\\").first()
             .replace(Regex("[\\[(].*?[\\])]"), "")
             .replace(Regex("- (Remastered|Radio Edit|Single|Live).*", RegexOption.IGNORE_CASE), "")
             .trim()
@@ -377,8 +382,11 @@ class ArtistMetadataRepository(
                 }
             }
 
-            // 2. Wikipedia: Proper search then extract (Bio, Origin, Years Active)
+            // 2. Wikipedia: Proper search then extract (Bio, Origin, Years Active, Image Fallback)
             val wikiInfo = fetchWikipediaData(artistName)
+            if (imageUrl.isNullOrBlank()) {
+                imageUrl = fetchWikipediaArtistImage(artistName)
+            }
 
             // 3. iTunes: Popular Albums, Latest Release, Genres
             val iTunesUrl = "https://itunes.apple.com/search?term=$encodedName&entity=album&limit=10"
@@ -501,6 +509,45 @@ class ArtistMetadataRepository(
     }
 
     private data class WikiData(val about: String?, val yearsActive: String?, val origin: String?)
+
+    private fun fetchWikipediaArtistImage(cleanArtist: String): String? {
+        try {
+            val encodedName = URLEncoder.encode(cleanArtist, "UTF-8")
+            val wikiSummaryUrl = "https://en.wikipedia.org/api/rest_v1/page/summary/$encodedName"
+            client.newCall(Request.Builder().url(wikiSummaryUrl).header("User-Agent", userAgent).build()).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val json = JSONObject(resp.body?.string() ?: "")
+                    val thumb = json.optJSONObject("thumbnail")?.optString("source")
+                        ?: json.optJSONObject("originalimage")?.optString("source")
+                    if (!thumb.isNullOrBlank()) return thumb
+                }
+            }
+
+            val searchUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=$encodedName&format=json"
+            client.newCall(Request.Builder().url(searchUrl).header("User-Agent", userAgent).build()).execute().use { searchResp ->
+                if (searchResp.isSuccessful) {
+                    val json = JSONObject(searchResp.body?.string() ?: "")
+                    val results = json.optJSONObject("query")?.optJSONArray("search")
+                    if (results != null && results.length() > 0) {
+                        val title = results.getJSONObject(0).optString("title")
+                        if (title.isNotBlank()) {
+                            val titleEncoded = URLEncoder.encode(title, "UTF-8")
+                            val titleSummaryUrl = "https://en.wikipedia.org/api/rest_v1/page/summary/$titleEncoded"
+                            client.newCall(Request.Builder().url(titleSummaryUrl).header("User-Agent", userAgent).build()).execute().use { summaryResp ->
+                                if (summaryResp.isSuccessful) {
+                                    val summaryJson = JSONObject(summaryResp.body?.string() ?: "")
+                                    val thumb = summaryJson.optJSONObject("thumbnail")?.optString("source")
+                                        ?: summaryJson.optJSONObject("originalimage")?.optString("source")
+                                    if (!thumb.isNullOrBlank()) return thumb
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        return null
+    }
 
     private fun fetchWikipediaData(artistName: String): WikiData? {
         val variations = listOf(artistName, "$artistName (musician)", "$artistName (band)")

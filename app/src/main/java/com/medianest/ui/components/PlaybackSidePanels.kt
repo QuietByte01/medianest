@@ -196,6 +196,7 @@ fun ArtistInfoPanel(
     onBackToArtist: () -> Unit = {},
     playerManager: ExoPlayerManager? = null,
     isLoading: Boolean = false,
+    useCardShape: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -238,12 +239,8 @@ fun ArtistInfoPanel(
         }
     }
 
-    GlassSurface(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        backgroundColor = Color(0x1F24293A),
-        borderColor = Color(0x2EFFFFFF)
-    ) {
+    @Composable
+    fun PanelContent() {
         Box(modifier = Modifier.fillMaxSize()) {
             if (browsingAlbumName != null) {
                 AlbumTracklistView(
@@ -665,6 +662,21 @@ fun ArtistInfoPanel(
                     }
                 }
             }
+        }
+    }
+
+    if (useCardShape) {
+        GlassSurface(
+            modifier = modifier,
+            shape = RoundedCornerShape(16.dp),
+            backgroundColor = Color(0x1F24293A),
+            borderColor = Color(0x2EFFFFFF)
+        ) {
+            PanelContent()
+        }
+    } else {
+        Box(modifier = modifier) {
+            PanelContent()
         }
     }
 }

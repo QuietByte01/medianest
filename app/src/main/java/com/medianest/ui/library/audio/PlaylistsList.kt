@@ -36,6 +36,7 @@ import com.medianest.data.model.ArtistInfo
 import com.medianest.ui.components.ArtistInfoPanel
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.MediaLoadingAnimation
+import com.medianest.util.ArtistImageUtils
 import com.medianest.util.rememberArtistImageUrl
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.layout.ContentScale
@@ -65,6 +66,10 @@ fun PlaylistsList(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var selectedPlaylist by remember(initialSelectedPlaylist) { mutableStateOf(initialSelectedPlaylist) }
+    var selectedArtistForInfo by remember { mutableStateOf<String?>(null) }
+    var artistInfoObject by remember { mutableStateOf<ArtistInfo?>(null) }
+    var isArtistInfoLoading by remember { mutableStateOf(false) }
+    var browsingAlbumName by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(initialSelectedPlaylist) {
         selectedPlaylist = initialSelectedPlaylist
@@ -73,7 +78,15 @@ fun PlaylistsList(
     var playlistUris by remember { mutableStateOf<List<String>>(emptyList()) }
     var playlistToDelete by remember { mutableStateOf<MediaCategory?>(null) }
 
-    BackHandler(enabled = selectedPlaylist != null) {
+    BackHandler(enabled = selectedArtistForInfo != null) {
+        if (browsingAlbumName != null) {
+            browsingAlbumName = null
+        } else {
+            selectedArtistForInfo = null
+        }
+    }
+
+    BackHandler(enabled = selectedPlaylist != null && selectedArtistForInfo == null) {
         selectedPlaylist = null
         onSelectPlaylist(null)
     }
@@ -135,10 +148,6 @@ fun PlaylistsList(
 
     var showRecognizedPlaylistsSheet by remember { mutableStateOf(false) }
 
-    var selectedArtistForInfo by remember { mutableStateOf<String?>(null) }
-    var artistInfoObject by remember { mutableStateOf<ArtistInfo?>(null) }
-    var isArtistInfoLoading by remember { mutableStateOf(false) }
-
     val artistRepo = remember { com.medianest.MediaNestApp.instance.artistMetadataRepository }
 
     val db = remember { com.medianest.MediaNestApp.instance.database }
@@ -155,6 +164,7 @@ fun PlaylistsList(
     }
 
     LaunchedEffect(selectedArtistForInfo) {
+        browsingAlbumName = null
         val name = selectedArtistForInfo
         if (name != null) {
             isArtistInfoLoading = true
@@ -175,7 +185,41 @@ fun PlaylistsList(
         }
     }
 
-    if (selectedPlaylist != null) {
+    if (selectedArtistForInfo != null) {
+        Box(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            if (isArtistInfoLoading || artistInfoObject == null) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    MediaLoadingAnimation(mediaType = MediaType.AUDIO, iconSize = 52.dp)
+                }
+            } else {
+                ArtistInfoPanel(
+                    artistInfo = artistInfoObject!!,
+                    browsingAlbumName = browsingAlbumName,
+                    onPopularAlbumClick = { albumName ->
+                        browsingAlbumName = albumName
+                    },
+                    onLocalAlbumClick = { albumName ->
+                        browsingAlbumName = albumName
+                    },
+                    onBackToArtist = {
+                        browsingAlbumName = null
+                    },
+                    onArtistClick = { newArtist ->
+                        browsingAlbumName = null
+                        selectedArtistForInfo = newArtist
+                    },
+                    allAudioItems = audioList,
+                    useCardShape = false,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+    } else if (selectedPlaylist != null) {
         val playlistSongs = audioList.filter { playlistUris.contains(it.uri.toString()) }
 
         val isFavoritesPlaylist = remember(selectedPlaylist) {
@@ -431,43 +475,6 @@ fun PlaylistsList(
             onDismiss = { showRecognizedPlaylistsSheet = false }
         )
     }
-
-    if (selectedArtistForInfo != null) {
-        ModalBottomSheet(
-            onDismissRequest = { selectedArtistForInfo = null },
-            containerColor = Color(0xFF0F1015),
-            dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.3f)) }
-        ) {
-            if (isArtistInfoLoading || artistInfoObject == null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(300.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    MediaLoadingAnimation(mediaType = MediaType.AUDIO, iconSize = 48.dp)
-                }
-            } else {
-                ArtistInfoPanel(
-                    artistInfo = artistInfoObject!!,
-                    onPopularAlbumClick = { },
-                    onLocalAlbumClick = { albumName ->
-                        selectedArtistForInfo = null
-                        selectedPlaylist = null
-                        onSelectPlaylist(null)
-                        onNavigateSubTab(3, albumName, null, null, null)
-                    },
-                    onArtistClick = { newArtist ->
-                        selectedArtistForInfo = newArtist
-                    },
-                    allAudioItems = audioList,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.85f)
-                )
-            }
-        }
-    }
 }
 
 @Composable
@@ -478,28 +485,30 @@ private fun FavoriteArtistCard(
     onClick: () -> Unit
 ) {
     val artistImgUrl = rememberArtistImageUrl(artistName)
+    val cardShape = RoundedCornerShape(16.dp)
 
     GlassSurface(
-        shape = RoundedCornerShape(16.dp),
+        shape = cardShape,
         backgroundColor = Color(0x1F24293A),
         borderColor = Color(0x2BFFFFFF),
         modifier = Modifier
             .width(110.dp)
             .height(120.dp)
+            .clip(cardShape)
             .clickable { onClick() }
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize().clip(cardShape)) {
             SubcomposeAsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
-                    .data(artistImgUrl ?: coverUri)
+                    .data(artistImgUrl ?: coverUri ?: ArtistImageUtils.getFallbackArtistImageUrl(artistName))
                     .crossfade(true)
                     .build(),
                 contentDescription = artistName,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize().clip(cardShape)
             ) {
                 val state = painter.state
-                if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
+                if (state is AsyncImagePainter.State.Loading) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -509,10 +518,20 @@ private fun FavoriteArtistCard(
                         Icon(
                             imageVector = Icons.Default.Person,
                             contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.5f),
+                            tint = Color.White.copy(alpha = 0.3f),
                             modifier = Modifier.size(36.dp)
                         )
                     }
+                } else if (state is AsyncImagePainter.State.Error) {
+                    SubcomposeAsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(ArtistImageUtils.getFallbackArtistImageUrl(artistName))
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = artistName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().clip(cardShape)
+                    )
                 } else {
                     SubcomposeAsyncImageContent()
                 }
