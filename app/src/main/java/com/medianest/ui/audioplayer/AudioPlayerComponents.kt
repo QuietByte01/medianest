@@ -152,8 +152,8 @@ internal fun FullscreenVisualizerDialog(
                 w.setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN, android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
                 androidx.core.view.WindowCompat.setDecorFitsSystemWindows(w, false)
                 androidx.core.view.WindowInsetsControllerCompat(w, w.decorView).let { controller ->
-                    controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-                    controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    controller.isAppearanceLightStatusBars = false
+                    controller.isAppearanceLightNavigationBars = false
                 }
             }
             onDispose {}

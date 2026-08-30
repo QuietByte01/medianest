@@ -4,9 +4,11 @@ package com.medianest.ui.settings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.layout.*
@@ -164,6 +166,7 @@ fun SettingsScreen(
         }
     }
     */
+
 
     BackHandler { onClose() }
 
@@ -349,6 +352,9 @@ fun SettingsScreen(
                             checked = showHiddenFiles,
                             onCheckedChange = { checked ->
                                 scope.launch { settingsManager.setShowHiddenFiles(checked) }
+                                if (checked && !com.medianest.util.PermissionUtils.hasAllFilesAccess()) {
+                                    com.medianest.util.PermissionUtils.openStorageAccessSettings(context)
+                                }
                             },
                             colors = customSwitchColors
                         )

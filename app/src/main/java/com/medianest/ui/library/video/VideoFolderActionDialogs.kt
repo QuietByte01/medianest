@@ -46,36 +46,20 @@ fun DeleteFolderDialog(
     scope: CoroutineScope,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-        shape = RoundedCornerShape(24.dp),
-        title = { Text("Delete Folder: $folderName") },
-        text = {
-            Text("Are you sure you want to delete this folder and all ${itemsToDelete.size} videos inside? This action cannot be undone.")
-        },
-        confirmButton = {
-            Button(
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                onClick = {
-                    onDismiss()
-                    scope.launch(Dispatchers.IO) {
-                        itemsToDelete.forEach { item ->
-                            try {
-                                FolderHiddenUtils.deleteMediaUri(context, item.uri)
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
-                        }
+    com.medianest.ui.components.DeleteConfirmationDialog(
+        title = "Delete Folder",
+        message = "Are you sure you want to delete '${folderName.substringAfterLast('/')}' and all ${itemsToDelete.size} videos inside? This action cannot be undone.",
+        onDismiss = onDismiss,
+        onConfirm = {
+            onDismiss()
+            scope.launch(Dispatchers.IO) {
+                itemsToDelete.forEach { item ->
+                    try {
+                        FolderHiddenUtils.deleteMediaUri(context, item.uri)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
                     }
                 }
-            ) {
-                Text("Delete", color = MaterialTheme.colorScheme.onError)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
             }
         }
     )

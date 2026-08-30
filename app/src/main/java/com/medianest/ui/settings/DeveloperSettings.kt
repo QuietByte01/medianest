@@ -443,10 +443,12 @@ fun LogViewerDialog(onDismiss: () -> Unit) {
                 ) {
                     groupedAppLogs.forEach { (dateGroup, entries) ->
                         val isCollapsed = collapsedDateGroups[dateGroup] == true
+                        val headerColor = Color(0xFF38BDF8)
+                        val headerBg = if (!isCollapsed) headerColor.copy(alpha = 0.3f) else Color(0xFF1E293B)
 
                         stickyHeader {
                             Surface(
-                                color = Color(0xFF1E293B),
+                                color = headerBg,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp)
@@ -469,21 +471,21 @@ fun LogViewerDialog(onDismiss: () -> Unit) {
                                         Icon(
                                             imageVector = if (isCollapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
                                             contentDescription = if (isCollapsed) "Expand" else "Collapse",
-                                            tint = Color(0xFF38BDF8),
+                                            tint = Color.White,
                                             modifier = Modifier.size(18.dp)
                                         )
                                         Text(
                                             text = dateGroup,
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF38BDF8),
+                                            color = Color.White,
                                             fontFamily = FontFamily.Monospace
                                         )
                                     }
                                     Text(
                                         text = "${entries.size} logs",
                                         fontSize = 11.sp,
-                                        color = Color.White.copy(alpha = 0.6f),
+                                        color = Color.White.copy(alpha = 0.7f),
                                         fontFamily = FontFamily.Monospace
                                     )
                                 }
@@ -496,7 +498,8 @@ fun LogViewerDialog(onDismiss: () -> Unit) {
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(Color(0x1AFFFFFF))
+                                        .background(Color.Black)
+                                        .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(8.dp))
                                         .padding(8.dp)
                                 ) {
                                     Row(
@@ -570,7 +573,8 @@ fun LogViewerDialog(onDismiss: () -> Unit) {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(Color(0x1AFFFFFF))
+                                    .background(Color.Black)
+                                    .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(4.dp))
                                     .padding(6.dp)
                             ) {
                                 Text(

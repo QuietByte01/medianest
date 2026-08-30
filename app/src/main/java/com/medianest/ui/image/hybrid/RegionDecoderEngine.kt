@@ -15,10 +15,13 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.InputStream
 
+import android.graphics.Matrix
+import androidx.exifinterface.media.ExifInterface
+
 /**
  * High-performance Region Decoder Engine (Google Photos Architecture).
- * Uses Android native BitmapRegionDecoder with Display P3 / Ultra HDR support
- * and neutral filtering without artificial edge halos.
+ * Uses Android native BitmapRegionDecoder with Display P3 / Ultra HDR support,
+ * EXIF orientation correction, and neutral filtering without artificial edge halos.
  */
 class RegionDecoderEngine(
     private val context: Context,
@@ -28,6 +31,8 @@ class RegionDecoderEngine(
     private val decodeMutex = Mutex()
     private val jobs = mutableMapOf<String, Job>()
     private var inputStream: InputStream? = null
+    var rotationDegrees: Int = 0
+        private set
 
     suspend fun initialize(uri: Uri) {
         decodeMutex.withLock {
@@ -36,6 +41,25 @@ class RegionDecoderEngine(
             } catch (ignored: Exception) {}
             
             try {
+                // Read EXIF orientation
+                try {
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        val exif = ExifInterface(stream)
+                        val orientation = exif.getAttributeInt(
+                            ExifInterface.TAG_ORIENTATION,
+                            ExifInterface.ORIENTATION_NORMAL
+                        )
+                        rotationDegrees = when (orientation) {
+                            ExifInterface.ORIENTATION_ROTATE_90 -> 90
+                            ExifInterface.ORIENTATION_ROTATE_180 -> 180
+                            ExifInterface.ORIENTATION_ROTATE_270 -> 270
+                            else -> 0
+                        }
+                    }
+                } catch (e: Exception) {
+                    rotationDegrees = 0
+                }
+
                 inputStream = context.contentResolver.openInputStream(uri)
                 inputStream?.let {
                     decoder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -52,7 +76,13 @@ class RegionDecoderEngine(
     }
 
     val imageDimensions: Pair<Int, Int>?
-        get() = decoder?.let { Pair(it.width, it.height) }
+        get() = decoder?.let {
+            if (rotationDegrees == 90 || rotationDegrees == 270) {
+                Pair(it.height, it.width)
+            } else {
+                Pair(it.width, it.height)
+            }
+        }
 
     fun decodeTileAsync(
         tile: Tile,
@@ -63,14 +93,46 @@ class RegionDecoderEngine(
 
         val job = scope.launch(Dispatchers.IO) {
             val currentDecoder = decoder ?: return@launch
-            val rect = android.graphics.Rect(
-                tile.bounds.left.toInt().coerceIn(0, currentDecoder.width),
-                tile.bounds.top.toInt().coerceIn(0, currentDecoder.height),
-                tile.bounds.right.toInt().coerceIn(0, currentDecoder.width),
-                tile.bounds.bottom.toInt().coerceIn(0, currentDecoder.height)
-            )
             
-            if (rect.width() <= 0 || rect.height() <= 0) return@launch
+            // Map visually oriented tile bounds to raw unrotated decoder coordinates
+            val rawRect = when (rotationDegrees) {
+                90 -> {
+                    // Visual (x, y) with dimensions (visualW, visualH) where visualW = rawH, visualH = rawW
+                    // Raw rect: left = visualTop, top = rawH - visualRight, right = visualBottom, bottom = rawH - visualLeft
+                    android.graphics.Rect(
+                        tile.bounds.top.toInt().coerceIn(0, currentDecoder.width),
+                        (currentDecoder.height - tile.bounds.right).toInt().coerceIn(0, currentDecoder.height),
+                        tile.bounds.bottom.toInt().coerceIn(0, currentDecoder.width),
+                        (currentDecoder.height - tile.bounds.left).toInt().coerceIn(0, currentDecoder.height)
+                    )
+                }
+                180 -> {
+                    android.graphics.Rect(
+                        (currentDecoder.width - tile.bounds.right).toInt().coerceIn(0, currentDecoder.width),
+                        (currentDecoder.height - tile.bounds.bottom).toInt().coerceIn(0, currentDecoder.height),
+                        (currentDecoder.width - tile.bounds.left).toInt().coerceIn(0, currentDecoder.width),
+                        (currentDecoder.height - tile.bounds.top).toInt().coerceIn(0, currentDecoder.height)
+                    )
+                }
+                270 -> {
+                    android.graphics.Rect(
+                        (currentDecoder.width - tile.bounds.bottom).toInt().coerceIn(0, currentDecoder.width),
+                        tile.bounds.left.toInt().coerceIn(0, currentDecoder.height),
+                        (currentDecoder.width - tile.bounds.top).toInt().coerceIn(0, currentDecoder.width),
+                        tile.bounds.right.toInt().coerceIn(0, currentDecoder.height)
+                    )
+                }
+                else -> {
+                    android.graphics.Rect(
+                        tile.bounds.left.toInt().coerceIn(0, currentDecoder.width),
+                        tile.bounds.top.toInt().coerceIn(0, currentDecoder.height),
+                        tile.bounds.right.toInt().coerceIn(0, currentDecoder.width),
+                        tile.bounds.bottom.toInt().coerceIn(0, currentDecoder.height)
+                    )
+                }
+            }
+            
+            if (rawRect.width() <= 0 || rawRect.height() <= 0) return@launch
 
             val options = BitmapFactory.Options().apply {
                 inSampleSize = tile.sampleSize
@@ -85,18 +147,37 @@ class RegionDecoderEngine(
                 inPreferredConfig = Bitmap.Config.ARGB_8888
             }
 
-            val bitmap = try {
+            val decodedRaw = try {
                 decodeMutex.withLock {
-                    currentDecoder.decodeRegion(rect, options)
+                    currentDecoder.decodeRegion(rawRect, options)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 null
             }
 
-            if (bitmap != null) {
+            val finalBitmap = if (decodedRaw != null && rotationDegrees != 0) {
+                try {
+                    val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+                    val rotated = Bitmap.createBitmap(
+                        decodedRaw, 0, 0,
+                        decodedRaw.width, decodedRaw.height,
+                        matrix, true
+                    )
+                    if (rotated != decodedRaw) {
+                        decodedRaw.recycle()
+                    }
+                    rotated
+                } catch (e: Exception) {
+                    decodedRaw
+                }
+            } else {
+                decodedRaw
+            }
+
+            if (finalBitmap != null) {
                 launch(Dispatchers.Main) {
-                    onDecoded(bitmap)
+                    onDecoded(finalBitmap)
                 }
             }
             jobs.remove(tileId)

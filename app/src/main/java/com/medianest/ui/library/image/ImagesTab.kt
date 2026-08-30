@@ -117,7 +117,7 @@ fun ImagesTab(
         kotlinx.coroutines.delay(600)
         withContext(Dispatchers.Default) {
             val counts = mutableMapOf<String, Int>()
-            val ids = listOf("CAMERA", "FAVORITES", "NOTES", "SCREENSHOTS", "GIFS", "SOCIAL", "PNG_SVG", "EDITED", "AI_GENERATED", "ANIME", "COOKING", "GARDENING", "WALLPAPERS", "EXCLUDED")
+            val ids = listOf("CAMERA", "FAVORITES", "NOTES", "SCREENSHOTS", "GIFS", "SOCIAL", "PNG_SVG", "EDITED", "AI_GENERATED", "ANIME", "COOKING", "GARDENING", "WALLPAPERS", "EXCLUDED", "HIDDEN")
             ids.forEach { id ->
                 counts[id] = filterImageList(imagesList, id, favoriteUris).size
             }
@@ -189,7 +189,7 @@ fun ImagesTab(
         if (viewMode != 1 && activeFilterTab != "FOLDERS" && activeFilterTab != "HIDDEN" && activeFilterTab != "EXCLUDED" && selectedFolder == null) {
             emptyMap()
         } else {
-            val filteredList = if (showHiddenSetting) {
+            val filteredList = if (showHiddenSetting || activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED") {
                 imagesList
             } else {
                 imagesList.filter { item ->
@@ -224,13 +224,14 @@ fun ImagesTab(
         val folderName = lowerKey.substringAfterLast('/')
         if (com.medianest.util.FolderHiddenUtils.isFolderExcludedByDefault(folderKey, folderName)) return true
         if (lowerKey in allHiddenImageFolders || folderName in allHiddenImageFolders) return true
-        return items?.any { it.isExcluded } == true
+        return items?.any { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) } == true
     }
 
     fun isFolderSystemHidden(folderKey: String, items: List<MediaItem>?): Boolean {
         if (isFolderExcluded(folderKey, items)) return false
         val lowerKey = folderKey.lowercase().trim('/')
         val folderName = lowerKey.substringAfterLast('/')
+        if (items?.any { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) } == true) return true
         return lowerKey.split('/').any { it.startsWith(".") && it.length > 1 } || folderName.startsWith(".")
     }
 
@@ -240,14 +241,14 @@ fun ImagesTab(
 
     val searchQuery by viewModel.searchQuery.collectAsState()
 
-    val sortedFolderNames = remember(folderGroups, allHiddenImageFolders, sortField, isAscending) {
+    val sortedFolderNames = remember(folderGroups, allHiddenImageFolders, sortField, isAscending, activeFilterTab) {
         if (folderGroups.isEmpty()) emptyList()
         else {
             val keys = folderGroups.keys.toList()
             val comp = when (sortField) {
                 "Name" -> compareBy<String> { it.lowercase() }
                 "Date" -> compareBy<String> { folderName ->
-                    folderGroups[folderName]?.maxOfOrNull { maxOf(it.dateAdded, it.dateCreated) } ?: 0L
+                    folderGroups[folderName]?.maxOfOrNull { maxOf(it.dateAdded, it.dateCreated, it.dateModified) } ?: 0L
                 }
                 "Size" -> compareBy<String> { folderName ->
                     folderGroups[folderName]?.sumOf { it.size } ?: 0L
@@ -324,11 +325,11 @@ fun ImagesTab(
 
                 val displayList = remember(imagesList, activeFilterTab, favoriteUris, showHiddenSetting, searchQuery) {
                     val baseList = when (activeFilterTab) {
-                        "EXCLUDED" -> imagesList.filter { it.isExcluded || com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
-                        "HIDDEN" -> imagesList.filter { it.isHidden && !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+                        "EXCLUDED" -> imagesList.filter { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
+                        "HIDDEN" -> imagesList.filter { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
                         else -> imagesList.filter { item ->
-                            !item.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(item) &&
-                            (showHiddenSetting || !item.isHidden)
+                            !com.medianest.util.FolderHiddenUtils.isItemExcluded(item) &&
+                            (showHiddenSetting || !com.medianest.util.FolderHiddenUtils.isItemHidden(item))
                         }
                     }
 
@@ -345,7 +346,7 @@ fun ImagesTab(
                     }
                 }
 
-                val currentDisplayList = if ((viewMode == 1 || activeFilterTab == "FOLDERS" || activeFilterTab == "HIDDEN") && selectedFolder != null) {
+                val currentDisplayList = if ((viewMode == 1 || activeFilterTab == "FOLDERS" || activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED") && selectedFolder != null) {
                     val folderItems = folderGroups[selectedFolder]
                         ?: folderGroups.entries.firstOrNull { (k, _) ->
                             val normKey = k.trim('/').lowercase()
@@ -367,17 +368,13 @@ fun ImagesTab(
                 }
 
                 val sortedDisplayList = remember(currentDisplayList, sortField, isAscending) {
-                    if (sortField == "Date" && !isAscending) {
-                        currentDisplayList
-                    } else {
-                        val comp = when (sortField) {
-                            "Name" -> compareBy<MediaItem> { it.title.lowercase() }
-                            "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
-                            "Size" -> compareBy<MediaItem> { it.size }
-                            else -> compareBy<MediaItem> { it.dateAdded }
-                        }
-                        if (isAscending) currentDisplayList.sortedWith(comp) else currentDisplayList.sortedWith(comp).reversed()
+                    val comp = when (sortField) {
+                        "Name" -> compareBy<MediaItem> { it.title.lowercase() }
+                        "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
+                        "Size" -> compareBy<MediaItem> { it.size }
+                        else -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
                     }
+                    if (isAscending) currentDisplayList.sortedWith(comp) else currentDisplayList.sortedWith(comp).reversed()
                 }
 
                 when {
@@ -647,30 +644,18 @@ fun ImagesTab(
 
         if (imageToDelete != null) {
             val target = imageToDelete!!
-            AlertDialog(
-                onDismissRequest = { imageToDelete = null },
-                title = { Text("Delete Image File") },
-                text = { Text("Are you sure you want to delete '${target.title}'? This will permanently remove the image file from your device storage.") },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            imageToDelete = null
-                            scope.launch(Dispatchers.IO) {
-                                try {
-                                    FolderHiddenUtils.deleteMediaUri(currentContext, target.uri)
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) {
-                        Text("Delete")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { imageToDelete = null }) {
-                        Text("Cancel")
+            com.medianest.ui.components.DeleteConfirmationDialog(
+                title = "Delete Image File",
+                itemTitle = target.title,
+                onDismiss = { imageToDelete = null },
+                onConfirm = {
+                    imageToDelete = null
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            FolderHiddenUtils.deleteMediaUri(currentContext, target.uri)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
                     }
                 }
             )

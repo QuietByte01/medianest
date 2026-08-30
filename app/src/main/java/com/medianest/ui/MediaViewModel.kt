@@ -62,7 +62,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     val videoCounts = combine(_videosList, sharedTitleWords) { list, words ->
         withContext(Dispatchers.Default) {
-            val visibleList = list.filter { !it.isExcluded && !it.isHidden }
+            val visibleList = list.filter { !com.medianest.util.FolderHiddenUtils.isItemHiddenOrExcluded(it) }
             MediaCounts(
                 music = visibleList.count { isMusicVideo(it) },
                 movies = visibleList.count { isMovie(it, words) },
@@ -72,8 +72,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 social = visibleList.count { isSocialMediaVideo(it) },
                 edited = visibleList.count { isEditedVideo(it) },
                 downloaded = visibleList.count { isDownloaded(it) },
-                excluded = list.count { it.isExcluded },
-                hidden = list.count { it.isHidden && !it.isExcluded }
+                excluded = list.count { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) },
+                hidden = list.count { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
             )
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, MediaCounts())
@@ -121,11 +121,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     ) { (list, query, tab), (sort, asc, showHidden) ->
         withContext(Dispatchers.Default) {
             val baseList = when (tab) {
-                "EXCLUDED" -> list.filter { it.isExcluded || com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
-                "HIDDEN" -> list.filter { it.isHidden && !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+                "EXCLUDED" -> list.filter { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
+                "HIDDEN" -> list.filter { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
                 else -> list.filter { item ->
-                    !item.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(item) &&
-                    (showHidden || !item.isHidden)
+                    !com.medianest.util.FolderHiddenUtils.isItemExcluded(item) &&
+                    (showHidden || !com.medianest.util.FolderHiddenUtils.isItemHidden(item))
                 }
             }
 
@@ -139,7 +139,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 "Name" -> compareBy<MediaItem> { it.title.lowercase() }
                 "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
                 "Size" -> compareBy<MediaItem> { it.size }
-                else -> compareBy<MediaItem> { it.dateAdded }
+                else -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
             }
             if (asc) filtered.sortedWith(comp) else filtered.sortedWith(comp).reversed()
         }
@@ -151,11 +151,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     ) { (list, query, tab), (sort, asc, showHidden) ->
         withContext(Dispatchers.Default) {
             val baseList = when (tab) {
-                "EXCLUDED" -> list.filter { it.isExcluded || com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
-                "HIDDEN" -> list.filter { it.isHidden && !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+                "EXCLUDED" -> list.filter { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
+                "HIDDEN" -> list.filter { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
                 else -> list.filter { item ->
-                    !item.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(item) &&
-                    (showHidden || !item.isHidden)
+                    !com.medianest.util.FolderHiddenUtils.isItemExcluded(item) &&
+                    (showHidden || !com.medianest.util.FolderHiddenUtils.isItemHidden(item))
                 }
             }
 
@@ -165,7 +165,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             val comp = when (sort) {
                 "Name" -> compareBy<MediaItem> { it.title.lowercase() }
                 "Artist" -> compareBy<MediaItem> { (it.artist ?: "").lowercase() }
-                "Date Added" -> compareBy<MediaItem> { it.dateAdded }
+                "Date Added", "Date" -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
+                "Size" -> compareBy<MediaItem> { it.size }
+                "Duration" -> compareBy<MediaItem> { it.durationMs }
                 else -> compareBy<MediaItem> { it.title.lowercase() }
             }
             if (asc) filtered.sortedWith(comp) else filtered.sortedWith(comp).reversed()
@@ -186,7 +188,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 "Name" -> compareBy<MediaItem> { it.title.lowercase() }
                 "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
                 "Size" -> compareBy<MediaItem> { it.size }
-                else -> compareBy<MediaItem> { it.dateAdded }
+                else -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
             }
             if (asc) filtered.sortedWith(comp) else filtered.sortedWith(comp).reversed()
         }

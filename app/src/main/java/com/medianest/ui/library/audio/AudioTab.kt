@@ -133,12 +133,12 @@ fun AudioTab(
     
     val effectiveAudioList = remember(audioList, cacheMap, sortField, isAscending, subTabState, showHiddenSetting, searchQuery) {
         val baseList = when (subTabState) {
-            7 -> audioList.filter { it.isExcluded || com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
-            8 -> audioList.filter { it.isHidden && !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
-            5 -> audioList.filter { !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+            7 -> audioList.filter { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
+            8 -> audioList.filter { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
+            5 -> audioList.filter { !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
             else -> audioList.filter { item ->
-                !item.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(item) &&
-                (showHiddenSetting || !item.isHidden)
+                !com.medianest.util.FolderHiddenUtils.isItemExcluded(item) &&
+                (showHiddenSetting || !com.medianest.util.FolderHiddenUtils.isItemHidden(item))
             }
         }
 
@@ -171,12 +171,14 @@ fun AudioTab(
             list
         }
         
-        // Sorting logic based on tab and field (Tracks & Albums & Artists & Folders)
-        if (subTabState == 0 || subTabState == 3 || subTabState == 4 || subTabState == 5 || subTabState == 7) {
+        // Sorting logic based on tab and field (Tracks & Albums & Artists & Folders & Excluded & Hidden)
+        if (subTabState == 0 || subTabState == 3 || subTabState == 4 || subTabState == 5 || subTabState == 7 || subTabState == 8) {
             val comp = when (sortField) {
                 "Name" -> compareBy<MediaItem> { it.title.lowercase() }
                 "Artist" -> compareBy<MediaItem> { (it.artist ?: "").lowercase() }
-                "Date Added" -> compareBy<MediaItem> { it.dateAdded }
+                "Date Added", "Date" -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
+                "Size" -> compareBy<MediaItem> { it.size }
+                "Duration" -> compareBy<MediaItem> { it.durationMs }
                 "Release Year" -> compareBy<MediaItem> { 
                     val cached = cacheMap[it.uri.toString()]
                     cached?.year?.toIntOrNull() ?: 0

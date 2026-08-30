@@ -77,13 +77,14 @@ fun VideoFoldersGrid(
         val folderName = lowerKey.substringAfterLast('/')
         if (com.medianest.util.FolderHiddenUtils.isFolderExcludedByDefault(folderKey, folderName)) return true
         if (lowerKey in allHiddenVideoFolders || folderName in allHiddenVideoFolders) return true
-        return items?.any { it.isExcluded } == true
+        return items?.any { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) } == true
     }
 
     fun isFolderSystemHidden(folderKey: String, items: List<MediaItem>?): Boolean {
         if (isFolderExcluded(folderKey, items)) return false
         val lowerKey = folderKey.lowercase().trim('/')
         val folderName = lowerKey.substringAfterLast('/')
+        if (items?.any { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) } == true) return true
         return lowerKey.split('/').any { it.startsWith(".") && it.length > 1 } || folderName.startsWith(".")
     }
 
@@ -91,12 +92,12 @@ fun VideoFoldersGrid(
         return isFolderExcluded(folderKey, items) || isFolderSystemHidden(folderKey, items)
     }
 
-    val sortedFolderNames = remember(videoFolderGroups, sortField, isAscending) {
+    val sortedFolderNames = remember(videoFolderGroups, sortField, isAscending, activeFilterTab) {
         val keys = videoFolderGroups.keys.toList()
         val comp = when (sortField) {
             "Name" -> compareBy<String> { it.lowercase() }
             "Date" -> compareBy<String> { folderName ->
-                videoFolderGroups[folderName]?.maxOfOrNull { maxOf(it.dateAdded, it.dateCreated) } ?: 0L
+                videoFolderGroups[folderName]?.maxOfOrNull { maxOf(it.dateAdded, it.dateCreated, it.dateModified) } ?: 0L
             }
             "Size" -> compareBy<String> { folderName ->
                 videoFolderGroups[folderName]?.sumOf { it.size } ?: 0L

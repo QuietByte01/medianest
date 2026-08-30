@@ -36,13 +36,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.medianest.data.model.MediaItem
+import com.medianest.data.db.CategoryMediaCrossRef
+import com.medianest.data.db.MediaCategory
 import com.medianest.data.db.MediaType
+import com.medianest.data.model.MediaItem
+import com.medianest.ui.components.BubblingHeartButton
 import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.MediaInfoBottomSheet
 import com.medianest.ui.components.debug.ImageDebugOverlay
 import com.medianest.ui.image.hybrid.HybridImageViewer
 import com.medianest.ui.image.hybrid.ImageSource
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -64,7 +68,7 @@ fun QuickViewScreen(
     var mutableMediaList by remember(mediaList) { mutableStateOf(mediaList) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showWallpaperDialog by remember { mutableStateOf(false) }
-    var viewerBgColor by remember { mutableStateOf<Color?>(null) }
+    var viewerBgColor by remember { mutableStateOf<Color?>(Color.Black) }
 
     var showControls by remember { mutableStateOf(true) }
     var controlsTimerKey by remember { mutableIntStateOf(0) }
@@ -145,6 +149,71 @@ fun QuickViewScreen(
             val itemWidthPx = (48 * context.resources.displayMetrics.density).toInt()
             val offset = getCenterScrollOffset(viewportWidth, itemWidthPx)
             filmstripListState.animateScrollToItem(index = targetPage, scrollOffset = offset)
+        }
+    }
+
+    val db = remember { app.database }
+    val observedCrossRefs by db.categoryDao().getAllCrossRefs().collectAsState(initial = emptyList())
+    val allImageCategories by db.categoryDao().getCategoriesByType("IMAGE").collectAsState(initial = emptyList())
+    val allVideoCategories by db.categoryDao().getCategoriesByType("VIDEO").collectAsState(initial = emptyList())
+    val allAudioCategories by db.categoryDao().getCategoriesByType("AUDIO").collectAsState(initial = emptyList())
+
+    val isFavoriteFromDb by remember(currentItem, observedCrossRefs, allImageCategories, allVideoCategories, allAudioCategories) {
+        val item = currentItem
+        if (item == null) {
+            mutableStateOf(false)
+        } else {
+            val categories = when (item.type) {
+                MediaType.IMAGE -> allImageCategories
+                MediaType.VIDEO -> allVideoCategories
+                MediaType.AUDIO -> allAudioCategories
+            }
+            val favCat = categories.find { it.name.equals("Favorites", ignoreCase = true) }
+            val fav = favCat != null && observedCrossRefs.any { it.categoryId == favCat.id && it.mediaUri == item.uri.toString() }
+            mutableStateOf(fav)
+        }
+    }
+
+    var optimisticFavorite by remember(currentItem?.uri) { mutableStateOf<Boolean?>(null) }
+    val isFavorite = optimisticFavorite ?: isFavoriteFromDb
+
+    val toggleFavorite: () -> Unit = {
+        val item = currentItem
+        if (item != null) {
+            val targetState = !isFavorite
+            optimisticFavorite = targetState
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val typeStr = item.type.name
+                    var favCat = db.categoryDao().getCategoryByNameAndType("Favorites", typeStr)
+                    if (favCat == null) {
+                        val newId = db.categoryDao().insertCategory(
+                            MediaCategory(name = "Favorites", type = typeStr)
+                        )
+                        favCat = MediaCategory(id = newId, name = "Favorites", type = typeStr)
+                    }
+
+                    if (!targetState) {
+                        db.categoryDao().removeMediaFromCategory(favCat.id, item.uri.toString())
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(context, "Removed from Favorites", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        db.categoryDao().insertCategoryCrossRef(
+                            CategoryMediaCrossRef(categoryId = favCat.id, mediaUri = item.uri.toString())
+                        )
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(context, "Added to Favorites", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    withContext(Dispatchers.Main) {
+                        optimisticFavorite = null
+                    }
+                }
+            }
         }
     }
 
@@ -623,6 +692,21 @@ fun QuickViewScreen(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Box(
+                            modifier = Modifier.size(48.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            BubblingHeartButton(
+                                isFavorite = isFavorite,
+                                onClick = {
+                                    resetControlsTimer()
+                                    toggleFavorite()
+                                },
+                                hue = imageHue,
+                                size = 26.dp
+                            )
+                        }
+
                         IconButton(onClick = {
                             resetControlsTimer()
                             showInfoBottomSheet = true
@@ -820,27 +904,15 @@ fun QuickViewScreen(
     }
 
     if (showDeleteDialog && currentItem != null) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Media", color = Color.White) },
-            text = { Text("Are you sure you want to delete this media item?", color = Color.White.copy(alpha = 0.8f)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val toDelete = currentItem
-                        onDelete(toDelete)
-                        showDeleteDialog = false
-                    }
-                ) {
-                    Text("Delete", color = Color.Red)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel", color = Color.White)
-                }
-            },
-            containerColor = Color(0xFF1E1E1E)
+        val toDelete = currentItem
+        com.medianest.ui.components.DeleteConfirmationDialog(
+            title = "Delete Media",
+            itemTitle = toDelete.title,
+            onDismiss = { showDeleteDialog = false },
+            onConfirm = {
+                showDeleteDialog = false
+                onDelete(toDelete)
+            }
         )
     }
 

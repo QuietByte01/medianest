@@ -56,7 +56,7 @@ fun SongsList(
     onSongClick: (List<MediaItem>, Int) -> Unit,
     onSongLongClick: (MediaItem) -> Unit,
     isLoading: Boolean = false,
-    showDeleteOption: Boolean = false,
+    showDeleteOption: Boolean = true,
     onRemoveFromPlaylist: ((MediaItem) -> Unit)? = null,
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?, targetSongUri: String?) -> Unit = { _, _, _, _, _ -> },
@@ -199,30 +199,18 @@ fun SongsList(
 
     if (songToDelete != null) {
         val target = songToDelete!!
-        AlertDialog(
-            onDismissRequest = { songToDelete = null },
-            title = { Text("Delete Audio File") },
-            text = { Text("Are you sure you want to delete '${target.title}'? This will permanently remove the file from your device storage.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        songToDelete = null
-                        scope.launch(Dispatchers.IO) {
-                            try {
-                                com.medianest.util.FolderHiddenUtils.deleteMediaUri(context, target.uri)
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Delete")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { songToDelete = null }) {
-                    Text("Cancel")
+        com.medianest.ui.components.DeleteConfirmationDialog(
+            title = "Delete Audio File",
+            itemTitle = target.title,
+            onDismiss = { songToDelete = null },
+            onConfirm = {
+                songToDelete = null
+                scope.launch(Dispatchers.IO) {
+                    try {
+                        com.medianest.util.FolderHiddenUtils.deleteMediaUri(context, target.uri)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
                 }
             }
         )

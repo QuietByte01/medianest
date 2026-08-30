@@ -58,6 +58,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -315,7 +317,8 @@ fun VideoPlayerScreen(
             val windowInsetsController = WindowCompat.getInsetsController(act.window, act.window.decorView)
             if (!showStatusBar) {
                 windowInsetsController.hide(WindowInsetsCompat.Type.statusBars())
-                windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                // Use DEFAULT behavior so edge swipes go to back navigation, not transient bar reveal
+                windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
             } else {
                 windowInsetsController.show(WindowInsetsCompat.Type.statusBars())
             }
@@ -951,26 +954,24 @@ fun VideoPlayerScreen(
             )
         }
 
-        if (showDeleteDialog) {
+        if (showDeleteDialog && currentItem != null) {
             val item = currentItem
-            AlertDialog(
-                onDismissRequest = { showDeleteDialog = false },
-                title = { Text("Delete Video") },
-                text = { Text("Are you sure you want to delete '${item?.title}'? This will permanently remove the file from your device.") },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            showDeleteDialog = false
-                            scope.launch {
-                                currentItem?.uri?.let { com.medianest.util.FolderHiddenUtils.deleteMediaUri(context, it) }
-                                onClose()
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) { Text("Delete") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
+            com.medianest.ui.components.DeleteConfirmationDialog(
+                title = "Delete Video",
+                itemTitle = item.title,
+                onDismiss = { showDeleteDialog = false },
+                onConfirm = {
+                    showDeleteDialog = false
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            com.medianest.util.FolderHiddenUtils.deleteMediaUri(context, item.uri)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                        withContext(Dispatchers.Main) {
+                            onClose()
+                        }
+                    }
                 }
             )
         }

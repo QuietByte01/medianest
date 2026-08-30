@@ -768,7 +768,9 @@ class MediaStoreRepository(private val context: Context) {
                                 MediaItem(
                                     id = file.absolutePath.hashCode().toLong(),
                                     uri = fileUri,
-                                    title = if (mediaType == MediaType.AUDIO && file.name.contains('.')) file.name.substringBeforeLast('.') else file.name,
+                                    title = if (mediaType == MediaType.AUDIO) {
+                                        meta.title?.takeIf { it.isNotBlank() && !it.all { c -> c.isDigit() } } ?: (if (file.name.contains('.')) file.name.substringBeforeLast('.') else file.name)
+                                    } else file.name,
                                     mimeType = when (mediaType) {
                                         MediaType.IMAGE -> "image/$ext"
                                         MediaType.VIDEO -> "video/$ext"
@@ -784,8 +786,8 @@ class MediaStoreRepository(private val context: Context) {
                                     dateCreated = meta.dateCreated,
                                     bucketName = folderName,
                                     relativePath = relPath,
-                                    isHidden = isHiddenFile,
-                                    isExcluded = isExcluded || parentIsHidden, // If parent is hidden, we count it as hidden but if specifically excluded, we count as excluded
+                                    isHidden = isHiddenFile || parentIsHidden,
+                                    isExcluded = isExcluded,
                                     artist = meta.artist,
                                     album = meta.album
                                 )
@@ -875,7 +877,9 @@ class MediaStoreRepository(private val context: Context) {
                         MediaItem(
                             id = child.uri.toString().hashCode().toLong(),
                             uri = child.uri,
-                            title = name,
+                            title = if (mediaType == MediaType.AUDIO) {
+                                meta.title?.takeIf { it.isNotBlank() && !it.all { c -> c.isDigit() } } ?: (if (name.contains('.')) name.substringBeforeLast('.') else name)
+                            } else name,
                             mimeType = when (mediaType) {
                                 MediaType.IMAGE -> "image/$ext"
                                 MediaType.VIDEO -> "video/$ext"

@@ -86,13 +86,16 @@ fun HybridImageViewer(
         }
     }
 
-    val isZoomed = viewportState.isZoomed
-    LaunchedEffect(isZoomed) {
-        onZoomChanged(isZoomed)
+    LaunchedEffect(Unit) {
+        snapshotFlow { viewportState.isZoomed }
+            .distinctUntilChanged()
+            .collect { onZoomChanged(it) }
     }
 
-    LaunchedEffect(viewportState.dismissFraction) {
-        onDismissProgress(viewportState.dismissFraction)
+    LaunchedEffect(Unit) {
+        snapshotFlow { viewportState.dismissFraction }
+            .distinctUntilChanged()
+            .collect { onDismissProgress(it) }
     }
 
     // Decoder & Tile Cache engine for zoom levels > 1.0x
@@ -110,7 +113,7 @@ fun HybridImageViewer(
     }
 
     LaunchedEffect(uri) {
-        uri?.let { decoderEngine.initialize(it) }
+        activeTileBitmaps.clear()
     }
 
     DisposableEffect(Unit) {
@@ -120,29 +123,33 @@ fun HybridImageViewer(
         }
     }
 
-    // Floating Zoom Percentage Pill
+    // Floating Zoom Percentage Pill — isolated state to avoid recomposing HybridImageViewer on every gesture frame
     var showZoomPill by remember { mutableStateOf(false) }
     var zoomPillText by remember { mutableStateOf("100%") }
 
-    LaunchedEffect(viewportState.scale) {
-        val pct = (viewportState.scale * 100).toInt()
-        zoomPillText = "$pct%"
-        if (viewportState.scale > 1.05f) {
-            showZoomPill = true
-            delay(800)
-            showZoomPill = false
-        } else {
-            showZoomPill = false
-        }
+    LaunchedEffect(Unit) {
+        snapshotFlow { viewportState.scale }
+            .distinctUntilChanged()
+            .collect { scale ->
+                val pct = (scale * 100).toInt()
+                zoomPillText = "$pct%"
+                if (scale > 1.05f) {
+                    showZoomPill = true
+                    delay(800)
+                    showZoomPill = false
+                } else {
+                    showZoomPill = false
+                }
+            }
     }
-
-    // Scrim Alpha decays smoothly during pull-to-dismiss
-    val scrimAlpha = (1f - viewportState.dismissFraction).coerceIn(0f, 1f)
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(backgroundColor.copy(alpha = scrimAlpha))
+            .graphicsLayer {
+                alpha = (1f - viewportState.dismissFraction).coerceIn(0f, 1f)
+            }
+            .background(backgroundColor)
             .onSizeChanged { viewportState.viewportSize = it.toSize() }
             .pointerInput(Unit) {
                 detectGooglePhotosGestures(
@@ -179,8 +186,19 @@ fun HybridImageViewer(
     ) {
         var intrinsicImageSize by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
 
+        LaunchedEffect(uri) {
+            uri?.let {
+                decoderEngine.initialize(it)
+                decoderEngine.imageDimensions?.let { (w, h) ->
+                    if (w > 0 && h > 0) {
+                        intrinsicImageSize = androidx.compose.ui.geometry.Size(w.toFloat(), h.toFloat())
+                    }
+                }
+            }
+        }
+
         LaunchedEffect(intrinsicImageSize, viewportState.viewportSize) {
-            if (intrinsicImageSize.width > 0 && intrinsicImageSize.height > 0 && viewportState.viewportSize.width > 0) {
+            if (intrinsicImageSize.width > 0 && intrinsicImageSize.height > 0 && viewportState.viewportSize.width > 0 && viewportState.viewportSize.height > 0) {
                 val scaleX = viewportState.viewportSize.width / intrinsicImageSize.width
                 val scaleY = viewportState.viewportSize.height / intrinsicImageSize.height
                 val fitScale = minOf(scaleX, scaleY)
@@ -297,18 +315,19 @@ fun HybridImageViewer(
         )
 
         // Layer 2: Native BitmapRegionDecoder Ultra High-Res Tiles for deep zoom clarity
-        if (activeTileBitmaps.isNotEmpty() && intrinsicImageSize.width > 0 && viewportState.scale > 1.05f) {
-            Canvas(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        val s = if (viewportState.scale.isNaN() || viewportState.scale <= 0f) 1f else viewportState.scale
-                        scaleX = s
-                        scaleY = s
-                        translationX = if (viewportState.offset.x.isNaN()) 0f else viewportState.offset.x
-                        translationY = if (viewportState.offset.y.isNaN()) 0f else viewportState.offset.y
-                    }
-            ) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    val s = if (viewportState.scale.isNaN() || viewportState.scale <= 0f) 1f else viewportState.scale
+                    scaleX = s
+                    scaleY = s
+                    translationX = if (viewportState.offset.x.isNaN()) 0f else viewportState.offset.x
+                    translationY = if (viewportState.offset.y.isNaN()) 0f else viewportState.offset.y
+                    alpha = if (viewportState.scale > 1.05f && activeTileBitmaps.isNotEmpty()) 1f else 0f
+                }
+        ) {
+            if (activeTileBitmaps.isNotEmpty() && intrinsicImageSize.width > 0 && intrinsicImageSize.height > 0) {
                 val fitScaleX = viewportState.contentSize.width / intrinsicImageSize.width
                 val fitScaleY = viewportState.contentSize.height / intrinsicImageSize.height
                 val fitScale = minOf(fitScaleX, fitScaleY).takeIf { !it.isNaN() && it > 0f } ?: 1f
@@ -335,8 +354,8 @@ fun HybridImageViewer(
 
                     drawImage(
                         image = bitmap.asImageBitmap(),
-                        dstOffset = IntOffset(left1x.toInt(), top1x.toInt()),
-                        dstSize = IntSize(dstW.toInt(), dstH.toInt()),
+                        dstOffset = IntOffset(kotlin.math.round(left1x).toInt(), kotlin.math.round(top1x).toInt()),
+                        dstSize = IntSize(kotlin.math.round(dstW).toInt(), kotlin.math.round(dstH).toInt()),
                         filterQuality = androidx.compose.ui.graphics.FilterQuality.High
                     )
                 }

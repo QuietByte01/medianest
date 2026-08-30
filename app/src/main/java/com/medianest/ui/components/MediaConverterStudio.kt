@@ -199,7 +199,7 @@ fun MediaConverterStudioDialog(
         activity?.window?.let { win ->
             val insetsController = WindowCompat.getInsetsController(win, win.decorView)
             insetsController.hide(WindowInsetsCompat.Type.statusBars())
-            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
         }
         onDispose {
             activity?.window?.let { win ->
@@ -226,7 +226,7 @@ fun MediaConverterStudioDialog(
             dialogWindow?.let { win ->
                 val insetsController = WindowCompat.getInsetsController(win, win.decorView)
                 insetsController.hide(WindowInsetsCompat.Type.statusBars())
-                insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
             }
         }
 

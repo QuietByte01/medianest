@@ -138,10 +138,10 @@ class SettingsManager(private val context: Context) {
     val hiddenFolders: Flow<Set<String>> = context.dataStore.data.map { prefs -> prefs[KEY_HIDDEN_FOLDERS] ?: emptySet() }
     val enableAnalyticsTab: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_ENABLE_ANALYTICS_TAB] ?: true }
     val developerModeEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_DEVELOPER_MODE_ENABLED] ?: false }
-    val verboseLoggingEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_VERBOSE_LOGGING_ENABLED] ?: false }
-    val showPlayerDebugInfo: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_SHOW_PLAYER_DEBUG_INFO] ?: false }
-    val showImageDebugInfo: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_SHOW_IMAGE_DEBUG_INFO] ?: false }
-    val showAudioDebugInfo: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_SHOW_AUDIO_DEBUG_INFO] ?: false }
+    val verboseLoggingEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> (prefs[KEY_DEVELOPER_MODE_ENABLED] ?: false) && (prefs[KEY_VERBOSE_LOGGING_ENABLED] ?: false) }
+    val showPlayerDebugInfo: Flow<Boolean> = context.dataStore.data.map { prefs -> (prefs[KEY_DEVELOPER_MODE_ENABLED] ?: false) && (prefs[KEY_SHOW_PLAYER_DEBUG_INFO] ?: false) }
+    val showImageDebugInfo: Flow<Boolean> = context.dataStore.data.map { prefs -> (prefs[KEY_DEVELOPER_MODE_ENABLED] ?: false) && (prefs[KEY_SHOW_IMAGE_DEBUG_INFO] ?: false) }
+    val showAudioDebugInfo: Flow<Boolean> = context.dataStore.data.map { prefs -> (prefs[KEY_DEVELOPER_MODE_ENABLED] ?: false) && (prefs[KEY_SHOW_AUDIO_DEBUG_INFO] ?: false) }
 
     val audioBackgroundPlay: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUDIO_BACKGROUND_PLAY] ?: true }
     val videoBackgroundPlay: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_VIDEO_BACKGROUND_PLAY] ?: false }
@@ -194,7 +194,15 @@ class SettingsManager(private val context: Context) {
     suspend fun setHiddenFolders(folders: Set<String>) = context.dataStore.edit { it[KEY_HIDDEN_FOLDERS] = folders }
     suspend fun setEnableAnalyticsTab(enabled: Boolean) = context.dataStore.edit { it[KEY_ENABLE_ANALYTICS_TAB] = enabled }
     suspend fun setEnableTrash(enabled: Boolean) = context.dataStore.edit { it[KEY_ENABLE_TRASH] = enabled }
-    suspend fun setDeveloperModeEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_DEVELOPER_MODE_ENABLED] = enabled }
+    suspend fun setDeveloperModeEnabled(enabled: Boolean) = context.dataStore.edit {
+        it[KEY_DEVELOPER_MODE_ENABLED] = enabled
+        if (!enabled) {
+            it[KEY_SHOW_PLAYER_DEBUG_INFO] = false
+            it[KEY_SHOW_IMAGE_DEBUG_INFO] = false
+            it[KEY_SHOW_AUDIO_DEBUG_INFO] = false
+            it[KEY_VERBOSE_LOGGING_ENABLED] = false
+        }
+    }
     suspend fun setVerboseLoggingEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_VERBOSE_LOGGING_ENABLED] = enabled }
     suspend fun setShowPlayerDebugInfo(enabled: Boolean) = context.dataStore.edit { it[KEY_SHOW_PLAYER_DEBUG_INFO] = enabled }
     suspend fun setShowImageDebugInfo(enabled: Boolean) = context.dataStore.edit { it[KEY_SHOW_IMAGE_DEBUG_INFO] = enabled }

@@ -418,7 +418,7 @@ fun VideosTab(
                 "Name" -> compareBy<MediaItem> { it.title.lowercase() }
                 "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
                 "Size" -> compareBy<MediaItem> { it.size }
-                else -> compareBy<MediaItem> { it.dateAdded }
+                else -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
             }
             if (isAscending) displayList.sortedWith(comp) else displayList.sortedWith(comp).reversed()
         }
@@ -637,30 +637,18 @@ fun VideosTab(
 
         if (videoToDelete != null) {
             val target = videoToDelete!!
-            AlertDialog(
-                onDismissRequest = { videoToDelete = null },
-                title = { Text("Delete Video File") },
-                text = { Text("Are you sure you want to delete '${target.title}'? This will permanently remove the video file from your device storage.") },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            videoToDelete = null
-                            scope.launch(Dispatchers.IO) {
-                                try {
-                                    FolderHiddenUtils.deleteMediaUri(currentContext, target.uri)
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) {
-                        Text("Delete")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { videoToDelete = null }) {
-                        Text("Cancel")
+            com.medianest.ui.components.DeleteConfirmationDialog(
+                title = "Delete Video File",
+                itemTitle = target.title,
+                onDismiss = { videoToDelete = null },
+                onConfirm = {
+                    videoToDelete = null
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            FolderHiddenUtils.deleteMediaUri(currentContext, target.uri)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
                     }
                 }
             )

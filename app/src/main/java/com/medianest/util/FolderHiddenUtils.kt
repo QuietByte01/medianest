@@ -29,18 +29,30 @@ object FolderHiddenUtils {
         return false
     }
 
-    fun isItemHidden(item: com.medianest.data.model.MediaItem): Boolean {
+    fun isItemExcluded(item: com.medianest.data.model.MediaItem): Boolean {
+        if (item.isExcluded) return true
         val name = item.title.lowercase()
         val bucket = (item.bucketName ?: "").lowercase()
         val relPath = (item.relativePath ?: "").lowercase()
 
-        if (name.startsWith(".") || bucket.startsWith(".") || relPath.split('/').any { it.startsWith(".") }) return true
+        if (isFolderExcludedByDefault(relPath, bucket)) return true
 
-        if (DEFAULT_EXCLUDED_FOLDERS.any { hn ->
+        return DEFAULT_EXCLUDED_FOLDERS.any { hn ->
             bucket == hn || name.contains(hn) || relPath.split('/').any { it == hn }
-        }) return true
+        }
+    }
 
-        return false
+    fun isItemHidden(item: com.medianest.data.model.MediaItem): Boolean {
+        if (item.isHidden) return true
+        val name = item.title.lowercase()
+        val bucket = (item.bucketName ?: "").lowercase()
+        val relPath = (item.relativePath ?: "").lowercase()
+
+        return name.startsWith(".") || bucket.startsWith(".") || relPath.split('/').any { it.startsWith(".") && it.length > 1 }
+    }
+
+    fun isItemHiddenOrExcluded(item: com.medianest.data.model.MediaItem): Boolean {
+        return isItemExcluded(item) || isItemHidden(item)
     }
 
     fun deleteMediaUri(context: Context, uri: Uri): Boolean {

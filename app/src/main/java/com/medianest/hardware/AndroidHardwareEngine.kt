@@ -1,9 +1,11 @@
 package com.medianest.hardware
 
 import android.content.Context
+import android.hardware.display.DisplayManager
 import android.media.MediaCodecList
 import android.os.Build
 import android.util.Log
+import android.view.Display
 import com.medianest.util.Logger
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
@@ -27,14 +29,27 @@ object AndroidHardwareEngine {
         val ramTier: String = "4GB",
         val isVulkanSupported: Boolean = true,
         val isOpenGlEs3Supported: Boolean = true,
+        val maxTextureSize: Int = 4096,
+        
+        // Video Decoders
         val isH264HwSupported: Boolean = true,
         val isHevcHwSupported: Boolean = true,
         val isAv1HwSupported: Boolean = false,
         val isVp9HwSupported: Boolean = true,
-        val isHdr10Supported: Boolean = false,
+        val isVp8HwSupported: Boolean = true,
+        val isMpeg4HwSupported: Boolean = true,
+
+        // HDR & Display
+        val isHdrSupported: Boolean = false,
+        val hdrFormatsStr: String = "SDR",
+        val supportedHdrTypes: List<String> = emptyList(),
+        val isWideColorGamutSupported: Boolean = false,
+        val isUltraHdrSupported: Boolean = false,
+
+        // Audio & Subtitles
         val isAAudioSupported: Boolean = true,
         val isOpenSlEsSupported: Boolean = true,
-        val maxTextureSize: Int = 4096
+        val supportedAudioPassthrough: List<String> = listOf("Dolby Atmos", "EAC3", "AC3", "DTS", "PCM")
     )
 
     data class SubsystemToggles(
@@ -97,6 +112,8 @@ object AndroidHardwareEngine {
         var hasHevcHw = false
         var hasH264Hw = false
         var hasVp9Hw = false
+        var hasVp8Hw = false
+        var hasMpeg4Hw = false
 
         try {
             val codecList = MediaCodecList(MediaCodecList.ALL_CODECS)
@@ -111,6 +128,8 @@ object AndroidHardwareEngine {
                         type.equals("video/hevc", ignoreCase = true) && isHw -> hasHevcHw = true
                         type.equals("video/avc", ignoreCase = true) && isHw -> hasH264Hw = true
                         type.equals("video/x-vnd.on2.vp9", ignoreCase = true) && isHw -> hasVp9Hw = true
+                        type.equals("video/x-vnd.on2.vp8", ignoreCase = true) && isHw -> hasVp8Hw = true
+                        type.equals("video/mp4v-es", ignoreCase = true) && isHw -> hasMpeg4Hw = true
                     }
                 }
             }
@@ -120,7 +139,67 @@ object AndroidHardwareEngine {
             hasHevcHw = true
         }
 
-        val isHdrSupported = context.resources.configuration.isScreenHdr
+        // Display & HDR Capabilities Detection
+        val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager
+        val defaultDisplay = displayManager?.getDisplay(Display.DEFAULT_DISPLAY)
+
+        val hdrTypesList = mutableListOf<String>()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && defaultDisplay != null) {
+            val hdrCaps = defaultDisplay.hdrCapabilities
+            if (hdrCaps != null) {
+                for (type in hdrCaps.supportedHdrTypes) {
+                    when (type) {
+                        Display.HdrCapabilities.HDR_TYPE_HDR10 -> if (!hdrTypesList.contains("HDR10")) hdrTypesList.add("HDR10")
+                        Display.HdrCapabilities.HDR_TYPE_HLG -> if (!hdrTypesList.contains("HLG")) hdrTypesList.add("HLG")
+                        Display.HdrCapabilities.HDR_TYPE_DOLBY_VISION -> if (!hdrTypesList.contains("Dolby Vision")) hdrTypesList.add("Dolby Vision")
+                        4 -> if (!hdrTypesList.contains("HDR10+")) hdrTypesList.add("HDR10+") // Display.HdrCapabilities.HDR_TYPE_HDR10_PLUS
+                    }
+                }
+            }
+        }
+
+        // Fallback or additional check for HDR screen mode
+        val isScreenHdr = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && defaultDisplay != null) {
+            defaultDisplay.isHdr || context.resources.configuration.isScreenHdr
+        } else {
+            context.resources.configuration.isScreenHdr
+        }
+
+        if (isScreenHdr && hdrTypesList.isEmpty()) {
+            hdrTypesList.add("HDR10")
+        }
+
+        // Inspect MediaCodec Profile/Levels for HDR10+ support if not yet detected via display capabilities
+        if (!hdrTypesList.contains("HDR10+")) {
+            try {
+                val codecList = MediaCodecList(MediaCodecList.ALL_CODECS)
+                for (info in codecList.codecInfos) {
+                    if (info.isEncoder) continue
+                    for (type in info.supportedTypes) {
+                        if (type.equals("video/hevc", ignoreCase = true) || type.equals("video/av01", ignoreCase = true) || type.equals("video/x-vnd.on2.vp9", ignoreCase = true)) {
+                            val caps = info.getCapabilitiesForType(type)
+                            for (pl in caps.profileLevels) {
+                                // Profile 8192 = HEVCProfileMain10HDR10Plus, 8 = VP9Profile2HDR10Plus
+                                if (pl.profile == 8192 || pl.profile == 8) {
+                                    if (!hdrTypesList.contains("HDR10+")) {
+                                        hdrTypesList.add("HDR10+")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore codec profile error
+            }
+        }
+
+        val isWideColorGamut = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && defaultDisplay != null) {
+            defaultDisplay.isWideColorGamut
+        } else false
+
+        val isUltraHdr = Build.VERSION.SDK_INT >= 34
 
         val caps = HardwareCapabilities(
             apiLevel = Build.VERSION.SDK_INT,
@@ -129,14 +208,21 @@ object AndroidHardwareEngine {
             ramTier = ramTier,
             isVulkanSupported = true,
             isOpenGlEs3Supported = true,
+            maxTextureSize = if (totalRamMb >= 8192) 8192 else 4096,
             isH264HwSupported = hasH264Hw,
             isHevcHwSupported = hasHevcHw,
             isAv1HwSupported = hasAv1Hw,
             isVp9HwSupported = hasVp9Hw,
-            isHdr10Supported = isHdrSupported,
+            isVp8HwSupported = hasVp8Hw,
+            isMpeg4HwSupported = hasMpeg4Hw,
+            isHdrSupported = hdrTypesList.isNotEmpty() || isScreenHdr,
+            hdrFormatsStr = if (hdrTypesList.isNotEmpty()) hdrTypesList.joinToString(", ") else "SDR",
+            supportedHdrTypes = hdrTypesList,
+            isWideColorGamutSupported = isWideColorGamut,
+            isUltraHdrSupported = isUltraHdr,
             isAAudioSupported = true,
             isOpenSlEsSupported = true,
-            maxTextureSize = if (totalRamMb >= 8192) 8192 else 4096
+            supportedAudioPassthrough = listOf("Dolby Atmos", "EAC3", "AC3", "DTS", "PCM")
         )
         cachedCapabilities = caps
         Logger.i(TAG, "Hardware Capabilities Detected: $caps")
@@ -252,8 +338,8 @@ object AndroidHardwareEngine {
             put("video_rendering", JSONObject().apply {
                 put("scaling_filter", "AMD CAS / Lanczos")
                 put("filter_fallback_chain", listOf("FSR", "Anime4K", "CAS", "Lanczos", "Spline36", "Bicubic", "Bilinear"))
-                put("hdr_passthrough", caps.isHdr10Supported)
-                put("color_depth_bits", if (caps.isHdr10Supported) 10 else 8)
+                put("hdr_passthrough", caps.isHdrSupported)
+                put("color_depth_bits", if (caps.isHdrSupported) 10 else 8)
                 put("presentation_timing", "VSYNC Paced")
             })
 

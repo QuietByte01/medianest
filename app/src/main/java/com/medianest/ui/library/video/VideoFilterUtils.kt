@@ -14,12 +14,12 @@ fun filterVideoList(videos: List<MediaItem>, filterTab: String, showHidden: Bool
     
     // Filter out excluded and hidden items from standard tabs
     val baseVideos = when (filterTab) {
-        "EXCLUDED" -> videos.filter { it.isExcluded || com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
-        "HIDDEN" -> videos.filter { it.isHidden && !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
-        "FOLDERS" -> videos.filter { !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+        "EXCLUDED" -> videos.filter { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
+        "HIDDEN" -> videos.filter { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
+        "FOLDERS" -> videos.filter { !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
         else -> videos.filter { item ->
-            !item.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(item) &&
-            (showHidden || !item.isHidden)
+            !com.medianest.util.FolderHiddenUtils.isItemExcluded(item) &&
+            (showHidden || !com.medianest.util.FolderHiddenUtils.isItemHidden(item))
         }
     }
 

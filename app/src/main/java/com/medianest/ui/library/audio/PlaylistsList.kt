@@ -312,27 +312,15 @@ fun PlaylistsList(
 
     if (playlistToDelete != null) {
         val target = playlistToDelete!!
-        AlertDialog(
-            onDismissRequest = { playlistToDelete = null },
-            title = { Text("Delete Playlist") },
-            text = { Text("Are you sure you want to delete the playlist '${target.name}'? The songs will not be deleted from your device.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        playlistToDelete = null
-                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                            val db = com.medianest.MediaNestApp.instance.database
-                            db.categoryDao().deleteCategory(target)
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Delete")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { playlistToDelete = null }) {
-                    Text("Cancel")
+        com.medianest.ui.components.DeleteConfirmationDialog(
+            title = "Delete Playlist",
+            message = "Are you sure you want to delete the playlist '${target.name}'? The songs will not be deleted from your device.",
+            onDismiss = { playlistToDelete = null },
+            onConfirm = {
+                playlistToDelete = null
+                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    val db = com.medianest.MediaNestApp.instance.database
+                    db.categoryDao().deleteCategory(target)
                 }
             }
         )

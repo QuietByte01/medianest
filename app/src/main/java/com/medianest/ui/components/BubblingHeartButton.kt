@@ -1,6 +1,7 @@
 package com.medianest.ui.components
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -11,11 +12,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.coroutineScope
+import androidx.compose.ui.zIndex
 import kotlinx.coroutines.launch
 import kotlin.math.sin
 import kotlin.random.Random
@@ -33,7 +41,7 @@ data class HeartBubbleParticle(
 )
 
 /**
- * Generates an artistic harmonic palette based on the extracted album art hue.
+ * Generates an artistic dynamic harmonic palette based on the extracted album art hue.
  * When hue is null, falls back to Samsung Music's signature rose/coral/pink palette.
  */
 fun generateHarmonicHeartPalette(hue: Float?): List<Color> {
@@ -50,13 +58,14 @@ fun generateHarmonicHeartPalette(hue: Float?): List<Color> {
     }
     val h = (hue % 360f + 360f) % 360f
     return listOf(
-        Color.hsv(h, 0.88f, 1.0f),                            // 1. Primary vivid hue
-        Color.hsv((h + 16f) % 360f, 0.78f, 0.98f),             // 2. Analogous warm
-        Color.hsv((h - 16f + 360f) % 360f, 0.80f, 0.98f),      // 3. Analogous cool
-        Color.hsv(h, 0.45f, 1.0f),                            // 4. Pastel luminous tint
-        Color.hsv((h + 32f) % 360f, 0.85f, 0.95f),             // 5. Harmonic accent
-        Color.hsv((h + 335f) % 360f, 0.80f, 1.0f),            // 6. Soft warm hue
-        Color.hsv(h, 0.65f, 0.94f)                            // 7. Soft glowing tone
+        Color.hsv(h, 0.92f, 1.0f),                             // 1. Primary vivid dynamic hue
+        Color.hsv((h + 18f) % 360f, 0.85f, 0.98f),             // 2. Warm analog dynamic hue
+        Color.hsv((h - 18f + 360f) % 360f, 0.86f, 0.98f),      // 3. Cool analog dynamic hue
+        Color.hsv(h, 0.52f, 1.0f),                             // 4. Pastel luminous tint
+        Color.hsv((h + 38f) % 360f, 0.90f, 0.96f),             // 5. Harmonic dynamic accent
+        Color.hsv((h + 325f) % 360f, 0.84f, 1.0f),             // 6. Radiant companion hue
+        Color.hsv(h, 0.72f, 0.95f),                             // 7. Rich glow tone
+        Color.hsv((h + 55f) % 360f, 0.78f, 1.0f)               // 8. Spark dynamic hue
     )
 }
 
@@ -64,10 +73,11 @@ fun generateHarmonicHeartPalette(hue: Float?): List<Color> {
  * BubblingHeartButton — Samsung Music-style favorite heart button.
  *
  * Features:
- * 1. Slow, serene bubbling hearts that float straight upwards, sway gently, and slowly fade out into nothingness.
- * 2. Gentle spring scale-up pop on the main heart.
- * 3. Soft expanding halo pulse.
- * 4. Colors dynamically inherit the album art hue.
+ * 1. Radiant fountain of bubbling hearts with dynamic hue extracted from album art.
+ * 2. Hardware Canvas rendering that never gets clipped.
+ * 3. Elastic bouncy spring on main heart.
+ * 4. Soft radial halo glow pulse.
+ * 5. 0ms instant optimistic response without delay.
  */
 @Composable
 fun BubblingHeartButton(
@@ -81,89 +91,169 @@ fun BubblingHeartButton(
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
 ) {
     val resolvedActiveColor = activeColor ?: hue?.let { Color.hsv(it, 0.90f, 1.0f) } ?: Color(0xFFFF2D55)
-    var burstTrigger by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
+    val heartPainter = rememberVectorPainter(Icons.Default.Favorite)
+
     val mainHeartScale = remember { Animatable(1f) }
     val haloScale = remember { Animatable(0.5f) }
     val haloAlpha = remember { Animatable(0f) }
 
-    LaunchedEffect(burstTrigger) {
-        if (burstTrigger > 0) {
-            coroutineScope {
-                // 1. Pop bounce on main heart (Gentle spring)
-                launch {
-                    mainHeartScale.snapTo(0.75f)
-                    mainHeartScale.animateTo(
-                        targetValue = 1.30f,
-                        animationSpec = tween(240, easing = FastOutSlowInEasing)
-                    )
-                    mainHeartScale.animateTo(
-                        targetValue = 1.0f,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessLow
-                        )
-                    )
-                }
+    var particles by remember { mutableStateOf<List<HeartBubbleParticle>>(emptyList()) }
+    val burstProgress = remember { Animatable(0f) }
 
-                // 2. Halo ring expand & fade
+    fun triggerBurst() {
+        val palette = generateHarmonicHeartPalette(hue)
+        val list = ArrayList<HeartBubbleParticle>(16)
+        for (i in 0 until 16) {
+            val spreadFactor = ((i - 8) / 8f) * 38f
+            val initX = spreadFactor + (Random.nextFloat() * 16f - 8f)
+            val riseDist = Random.nextFloat() * 80f + 110f // 110dp to 190dp upward float
+            val swayAmp = Random.nextFloat() * 16f + 6f
+            val swayFreq = Random.nextFloat() * 1.5f + 0.8f
+            val pSize = (Random.nextInt(18, 28)).dp // Prominent Samsung Music size
+            val col = palette[i % palette.size]
+            val rot = (spreadFactor * 0.8f) + (Random.nextFloat() * 24f - 12f)
+            val delayFrac = (Random.nextFloat() * 0.20f)
+
+            list.add(
+                HeartBubbleParticle(
+                    id = i,
+                    initialXOffset = initX,
+                    maxUpwardDistance = riseDist,
+                    swayAmplitude = swayAmp,
+                    swayFrequency = swayFreq,
+                    size = pSize,
+                    color = col,
+                    initialRotation = rot,
+                    delayFraction = delayFrac
+                )
+            )
+        }
+
+        scope.launch {
+            burstProgress.snapTo(0f)
+            particles = list
+
+            // 1. Pop bounce on main heart
+            launch {
+                mainHeartScale.snapTo(0.70f)
+                mainHeartScale.animateTo(
+                    targetValue = 1.35f,
+                    animationSpec = tween(140, easing = FastOutSlowInEasing)
+                )
+                mainHeartScale.animateTo(
+                    targetValue = 1.0f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    )
+                )
+            }
+
+            // 2. Halo ring expand & fade
+            launch {
+                haloScale.snapTo(0.5f)
+                haloAlpha.snapTo(0.85f)
                 launch {
-                    haloScale.snapTo(0.6f)
-                    haloAlpha.snapTo(0.65f)
-                    launch {
-                        haloScale.animateTo(2.4f, tween(900, easing = FastOutSlowInEasing))
-                    }
-                    launch {
-                        haloAlpha.animateTo(0f, tween(900, easing = LinearEasing))
-                    }
+                    haloScale.animateTo(2.8f, tween(450, easing = FastOutSlowInEasing))
                 }
+                launch {
+                    haloAlpha.animateTo(0f, tween(450, easing = FastOutSlowInEasing))
+                }
+            }
+
+            // 3. Bubbling Hearts Rise
+            launch {
+                burstProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(1200, easing = LinearOutSlowInEasing)
+                )
+                particles = emptyList()
             }
         }
     }
 
     Box(
         modifier = modifier
-            .size(size + 36.dp)
+            .size(size + 20.dp)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null
             ) {
                 if (!isFavorite) {
-                    burstTrigger += 1
-                } else {
-                    burstTrigger = 0
+                    triggerBurst()
                 }
                 onClick()
             },
         contentAlignment = Alignment.Center
     ) {
-        // 1. Halo Radial Glow Ring
-        if (haloAlpha.value > 0.01f) {
+        // 1. Floating Bubbling Hearts (Hardware GPU-accelerated via graphicsLayer, unclipped)
+        if (particles.isNotEmpty()) {
             Box(
                 modifier = Modifier
-                    .size(size)
-                    .graphicsLayer {
-                        scaleX = haloScale.value
-                        scaleY = haloScale.value
-                        alpha = haloAlpha.value
-                    }
+                    .wrapContentSize(Alignment.Center, unbounded = true)
+                    .zIndex(999f),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.Favorite,
-                    contentDescription = null,
-                    tint = resolvedActiveColor.copy(alpha = haloAlpha.value * 0.45f),
-                    modifier = Modifier.fillMaxSize()
-                )
+                particles.forEach { particle ->
+                    Icon(
+                        imageVector = Icons.Default.Favorite,
+                        contentDescription = null,
+                        tint = particle.color,
+                        modifier = Modifier
+                            .size(particle.size)
+                            .graphicsLayer {
+                                val animValue = burstProgress.value
+                                val p = ((animValue - particle.delayFraction) / (1f - particle.delayFraction)).coerceIn(0f, 1f)
+
+                                if (p <= 0.001f || p >= 0.999f) {
+                                    alpha = 0f
+                                } else {
+                                    val riseProgress = sin((p * Math.PI.toFloat()) / 2f)
+                                    val swayOffset = sin(p * Math.PI.toFloat() * particle.swayFrequency) * particle.swayAmplitude
+                                    translationY = -(riseProgress * particle.maxUpwardDistance) * density
+                                    translationX = (particle.initialXOffset + swayOffset) * density
+
+                                    val scale = when {
+                                        p < 0.15f -> (p / 0.15f) * 1.35f
+                                        p < 0.70f -> 1.35f - ((p - 0.15f) / 0.55f) * 0.25f
+                                        else -> (1.10f - ((p - 0.70f) / 0.30f) * 0.85f).coerceAtLeast(0f)
+                                    }
+                                    scaleX = scale
+                                    scaleY = scale
+
+                                    rotationZ = particle.initialRotation + (swayOffset * 1.5f)
+
+                                    alpha = when {
+                                        p < 0.08f -> p / 0.08f
+                                        p < 0.75f -> 1.0f
+                                        else -> (1.0f - ((p - 0.75f) / 0.25f)).coerceIn(0f, 1f)
+                                    }
+                                }
+                            }
+                    )
+                }
             }
         }
 
-        // 2. Bubbling Mini Hearts Burst (Floating upward and slowly vanishing)
-        BubblingHeartBurstEffect(
-            triggerKey = burstTrigger,
-            hue = hue,
-            particleCount = 8,
-            durationMs = 1900,
-            modifier = Modifier.fillMaxSize()
-        )
+        // 2. Halo Radial Glow Ring (Rendered entirely on graphicsLayer without recomposition)
+        Box(
+            modifier = Modifier
+                .size(size)
+                .graphicsLayer {
+                    val a = haloAlpha.value
+                    alpha = if (a > 0.01f) a else 0f
+                    scaleX = haloScale.value
+                    scaleY = haloScale.value
+                }
+        ) {
+            Icon(
+                imageVector = Icons.Default.Favorite,
+                contentDescription = null,
+                tint = resolvedActiveColor.copy(alpha = 0.5f),
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         // 3. Main Heart Icon
         Box(
@@ -184,42 +274,40 @@ fun BubblingHeartButton(
 
 /**
  * Reusable bubbling floating hearts burst effect.
- *
- * Hearts spawn near the bottom/center, slowly rise upwards (80dp - 130dp),
- * sway gently from side to side, and slowly fade out until vanishing completely.
+ * Snappy, GPU-accelerated with zero end-of-animation stutter.
  */
 @Composable
 fun BubblingHeartBurstEffect(
     triggerKey: Int,
     modifier: Modifier = Modifier,
     hue: Float? = null,
-    particleCount: Int = 8,
-    durationMs: Int = 1900,
-    minUpwardDistance: Float = 75f,
-    maxUpwardDistance: Float = 135f,
+    particleCount: Int = 10,
+    durationMs: Int = 1000,
+    minUpwardDistance: Float = 80f,
+    maxUpwardDistance: Float = 160f,
     customPalette: List<Color>? = null
 ) {
     val palette = remember(hue, customPalette) {
         customPalette ?: generateHarmonicHeartPalette(hue)
     }
 
-    val particleList = remember { mutableStateListOf<HeartBubbleParticle>() }
+    var currentParticles by remember { mutableStateOf<List<HeartBubbleParticle>>(emptyList()) }
     val progress = remember { Animatable(0f) }
 
     LaunchedEffect(triggerKey) {
         if (triggerKey > 0) {
-            particleList.clear()
+            val list = ArrayList<HeartBubbleParticle>(particleCount)
             for (i in 0 until particleCount) {
-                val initX = (Random.nextFloat() * 44f - 22f) // Initial spread around center (-22dp to +22dp)
+                val initX = (Random.nextFloat() * 40f - 20f)
                 val riseDist = Random.nextFloat() * (maxUpwardDistance - minUpwardDistance) + minUpwardDistance
-                val swayAmp = Random.nextFloat() * 12f + 6f   // 6dp to 18dp horizontal sway
-                val swayFreq = Random.nextFloat() * 1.5f + 1.2f // Sine frequency
-                val pSize = (Random.nextInt(12, 19)).dp
+                val swayAmp = Random.nextFloat() * 16f + 6f
+                val swayFreq = Random.nextFloat() * 1.6f + 0.8f
+                val pSize = (Random.nextInt(14, 22)).dp
                 val col = palette[i % palette.size]
-                val rot = Random.nextFloat() * 36f - 18f
-                val delayFrac = (i.toFloat() / particleCount.toFloat()) * 0.22f // Staggered release
+                val rot = Random.nextFloat() * 40f - 20f
+                val delayFrac = (i.toFloat() / particleCount.toFloat()) * 0.22f
 
-                particleList.add(
+                list.add(
                     HeartBubbleParticle(
                         id = i,
                         initialXOffset = initX,
@@ -233,69 +321,66 @@ fun BubblingHeartBurstEffect(
                     )
                 )
             }
+            currentParticles = list
 
+            try {
+                progress.snapTo(0f)
+                progress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMs, easing = LinearOutSlowInEasing)
+                )
+            } finally {
+                currentParticles = emptyList()
+                progress.snapTo(0f)
+            }
+        } else {
+            currentParticles = emptyList()
             progress.snapTo(0f)
-            progress.animateTo(
-                targetValue = 1f,
-                animationSpec = tween(durationMs, easing = LinearEasing)
-            )
-            particleList.clear()
         }
     }
 
-    if (particleList.isNotEmpty()) {
-        val animValue = progress.value
+    if (currentParticles.isNotEmpty()) {
         Box(
-            modifier = modifier,
+            modifier = modifier.wrapContentSize(Alignment.Center, unbounded = true),
             contentAlignment = Alignment.Center
         ) {
-            particleList.forEach { particle ->
-                // Effective progress for this particle after its delay
-                val p = ((animValue - particle.delayFraction) / (1f - particle.delayFraction)).coerceIn(0f, 1f)
+            currentParticles.forEach { particle ->
+                Icon(
+                    imageVector = Icons.Default.Favorite,
+                    contentDescription = null,
+                    tint = particle.color,
+                    modifier = Modifier
+                        .size(particle.size)
+                        .graphicsLayer {
+                            val animValue = progress.value
+                            val p = ((animValue - particle.delayFraction) / (1f - particle.delayFraction)).coerceIn(0f, 1f)
 
-                if (p > 0f && p < 1f) {
-                    // Gentle rising ease-out motion
-                    val riseProgress = easeOutSine(p)
-                    val offsetY = -(riseProgress * particle.maxUpwardDistance).dp
+                            if (p <= 0f || p >= 0.99f) {
+                                alpha = 0f
+                            } else {
+                                val riseProgress = sin((p * Math.PI.toFloat()) / 2f)
+                                val swayOffset = sin(p * Math.PI.toFloat() * particle.swayFrequency) * particle.swayAmplitude
+                                translationY = -(riseProgress * particle.maxUpwardDistance) * density
+                                translationX = (particle.initialXOffset + swayOffset) * density
 
-                    // Left-right organic horizontal sway
-                    val swayOffset = sin(p * Math.PI.toFloat() * particle.swayFrequency) * particle.swayAmplitude
-                    val offsetX = (particle.initialXOffset + swayOffset).dp
-
-                    // Scale progression: Pops in quickly, stays full size, gently shrinks at top
-                    val scale = when {
-                        p < 0.15f -> (p / 0.15f) * 1.15f
-                        p < 0.65f -> 1.15f - ((p - 0.15f) / 0.50f) * 0.15f
-                        else -> (1f - ((p - 0.65f) / 0.35f) * 0.5f)
-                    }
-
-                    // Opacity (Alpha): Fades in, stays visible, slowly and smoothly dissolves into nothingness
-                    val alpha = when {
-                        p < 0.12f -> p / 0.12f
-                        p < 0.45f -> 1.0f
-                        else -> (1.0f - ((p - 0.45f) / 0.55f)).coerceIn(0f, 1f)
-                    }
-
-                    val rotation = particle.initialRotation + (swayOffset * 1.5f)
-
-                    Box(
-                        modifier = Modifier
-                            .offset(x = offsetX, y = offsetY)
-                            .graphicsLayer {
+                                val scale = when {
+                                    p < 0.15f -> (p / 0.15f) * 1.3f
+                                    p < 0.65f -> 1.3f - ((p - 0.15f) / 0.50f) * 0.3f
+                                    else -> (1f - ((p - 0.65f) / 0.35f) * 0.5f)
+                                }
                                 scaleX = scale
                                 scaleY = scale
-                                rotationZ = rotation
-                                this.alpha = alpha
+
+                                rotationZ = particle.initialRotation + (swayOffset * 1.5f)
+
+                                alpha = when {
+                                    p < 0.08f -> p / 0.08f
+                                    p < 0.70f -> 1.0f
+                                    else -> (1.0f - ((p - 0.70f) / 0.30f)).coerceIn(0f, 1f)
+                                }
                             }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Favorite,
-                            contentDescription = null,
-                            tint = particle.color,
-                            modifier = Modifier.size(particle.size)
-                        )
-                    }
-                }
+                        }
+                )
             }
         }
     }

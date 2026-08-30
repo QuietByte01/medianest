@@ -18,10 +18,10 @@ class AudioPlayerActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        // Global Fullscreen: Hide Status and Navigation bars
+        // Edge-to-edge appearance with transparent system bars (ensures immediate edge swipe gestures)
         val controller = androidx.core.view.WindowInsetsControllerCompat(window, window.decorView)
-        controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-        controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.isAppearanceLightStatusBars = false
+        controller.isAppearanceLightNavigationBars = false
 
         if (Build.VERSION.SDK_INT >= 34) {
             overrideActivityTransition(

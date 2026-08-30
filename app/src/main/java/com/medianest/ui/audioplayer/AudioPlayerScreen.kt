@@ -38,9 +38,14 @@ import com.medianest.ui.components.extractBaseHueFromArt
 import com.medianest.ui.components.debug.AudioDebugOverlay
 import com.medianest.ui.library.audio.AudioMetadataEditDialog
 import com.medianest.ui.theme.LocalDarkTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 
 /**
  * Main Audio Playback Screen.
@@ -100,6 +105,7 @@ fun AudioPlayerScreen(
     var isVisualizerFullscreen by remember { mutableStateOf(false) }
     var showArtistInfoPanel by remember { mutableStateOf(false) }
     var showSidePanelLandscape by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     var displayedArtistName by remember { mutableStateOf<String?>(null) }
     var artistNavigationStack by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -119,8 +125,11 @@ fun AudioPlayerScreen(
             libraryAudioList = allAudioItems
         } else {
             isScanningLibrary = true
-            val mediaRepo = MediaStoreRepository(context)
-            libraryAudioList = mediaRepo.getAudio()
+            val items = withContext(Dispatchers.IO) {
+                val mediaRepo = MediaStoreRepository(context)
+                mediaRepo.getAudio()
+            }
+            libraryAudioList = items
             isScanningLibrary = false
         }
     }
@@ -140,51 +149,55 @@ fun AudioPlayerScreen(
         }
     }
 
-    LaunchedEffect(displayedArtistName, libraryAudioList) {
+    LaunchedEffect(displayedArtistName, libraryAudioList, showArtistInfoPanel) {
+        if (!showArtistInfoPanel) return@LaunchedEffect
         val artistName = displayedArtistName ?: currentItem?.artist ?: "Unknown Artist"
-        val info = artistMetadataRepo.getArtistInfo(artistName)
-        
-        // 1. Find real albums in library
-        val artistSongs = libraryAudioList.filter { it.artist.equals(artistName, ignoreCase = true) }
-        val realLocalAlbums = if (artistSongs.isNotEmpty()) {
-            artistSongs.groupBy { it.album ?: "Unknown Album" }
-                .map { (title, songs) ->
-                    LocalAlbumInfo(
-                        title = title,
-                        artworkUri = songs.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: songs.firstOrNull()?.uri,
-                        songCount = songs.size
-                    )
-                }
-                .sortedBy { it.title.lowercase() }
-        } else {
-            info.localAlbums
+        val computedInfo = withContext(Dispatchers.IO) {
+            val info = artistMetadataRepo.getArtistInfo(artistName)
+            
+            // 1. Find real albums in library
+            val artistSongs = libraryAudioList.filter { it.artist.equals(artistName, ignoreCase = true) }
+            val realLocalAlbums = if (artistSongs.isNotEmpty()) {
+                artistSongs.groupBy { it.album ?: "Unknown Album" }
+                    .map { (title, songs) ->
+                        LocalAlbumInfo(
+                            title = title,
+                            artworkUri = songs.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: songs.firstOrNull()?.uri,
+                            songCount = songs.size
+                        )
+                    }
+                    .sortedBy { it.title.lowercase() }
+            } else {
+                info.localAlbums
+            }
+
+            // 2. Personal Library Stats
+            val uris = artistSongs.map { it.uri.toString() }
+            val playbackStates = if (uris.isNotEmpty()) db.playbackStateDao().getPlaybackStatesForUris(uris) else emptyList<com.medianest.data.db.PlaybackState>()
+            
+            val totalPlays = playbackStates.sumOf { it.playCount }
+            val topPlayedUri = playbackStates.maxByOrNull { it.playCount }?.mediaUri
+            val topPlayedSong = artistSongs.find { it.uri.toString() == topPlayedUri }?.title
+            val firstDiscovered = artistSongs.minOfOrNull { it.dateAdded } ?: 0L
+            
+            val pStats = PersonalArtistStats(
+                totalPlays = totalPlays,
+                topPlayedSong = topPlayedSong,
+                firstDiscovered = firstDiscovered
+            )
+
+            info.copy(
+                localAlbums = realLocalAlbums,
+                personalStats = pStats
+            )
         }
-
-        // 2. Personal Library Stats
-        val uris = artistSongs.map { it.uri.toString() }
-        val playbackStates = if (uris.isNotEmpty()) db.playbackStateDao().getPlaybackStatesForUris(uris) else emptyList<com.medianest.data.db.PlaybackState>()
-        
-        val totalPlays = playbackStates.sumOf { it.playCount }
-        val topPlayedUri = playbackStates.maxByOrNull { it.playCount }?.mediaUri
-        val topPlayedSong = artistSongs.find { it.uri.toString() == topPlayedUri }?.title
-        val firstDiscovered = artistSongs.minOfOrNull { it.dateAdded } ?: 0L
-        
-        val pStats = PersonalArtistStats(
-            totalPlays = totalPlays,
-            topPlayedSong = topPlayedSong,
-            firstDiscovered = firstDiscovered
-        )
-
-        artistInfo = info.copy(
-            localAlbums = realLocalAlbums,
-            personalStats = pStats
-        )
+        artistInfo = computedInfo
     }
 
     val audioPlaylists by db.categoryDao().getCategoriesByType("AUDIO").collectAsState(initial = emptyList())
 
     // Reactive Favorite Status
-    val isFavorite by remember(currentItem, audioPlaylists) {
+    val isFavoriteFromDb by remember(currentItem, audioPlaylists) {
         if (currentItem == null) kotlinx.coroutines.flow.flowOf(false)
         else db.categoryDao().getAllCrossRefs()
             .map { refs -> 
@@ -192,6 +205,9 @@ fun AudioPlayerScreen(
                 favoritesCat != null && refs.any { it.categoryId == favoritesCat.id && it.mediaUri == currentItem.uri.toString() }
             }
     }.collectAsState(initial = false)
+
+    var optimisticFavorite by remember(currentItem?.uri) { mutableStateOf<Boolean?>(null) }
+    val isFavorite = optimisticFavorite ?: isFavoriteFromDb
 
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -211,24 +227,37 @@ fun AudioPlayerScreen(
     val toggleFavoriteLambda = {
         val item = currentItem
         if (item != null) {
-            scope.launch {
-                val categories = db.categoryDao().getCategoriesByType("AUDIO").first()
-                var favCat = categories.find { it.name.equals("Favorites", ignoreCase = true) }
-                if (favCat == null) {
-                    val newId = db.categoryDao().insertCategory(
-                        MediaCategory(name = "Favorites", type = "AUDIO")
-                    )
-                    favCat = MediaCategory(id = newId, name = "Favorites", type = "AUDIO")
-                }
-                
-                if (isFavorite) {
-                    db.categoryDao().removeMediaFromCategory(favCat.id, item.uri.toString())
-                    Toast.makeText(context, "Removed from Favorites", Toast.LENGTH_SHORT).show()
-                } else {
-                    db.categoryDao().insertCategoryCrossRefs(
-                        listOf(CategoryMediaCrossRef(categoryId = favCat.id, mediaUri = item.uri.toString()))
-                    )
-                    Toast.makeText(context, "Added to Favorites", Toast.LENGTH_SHORT).show()
+            val targetState = !isFavorite
+            optimisticFavorite = targetState
+            scope.launch(Dispatchers.IO) {
+                try {
+                    var favCat = db.categoryDao().getCategoryByNameAndType("Favorites", "AUDIO")
+                    if (favCat == null) {
+                        val newId = db.categoryDao().insertCategory(
+                            MediaCategory(name = "Favorites", type = "AUDIO")
+                        )
+                        favCat = MediaCategory(id = newId, name = "Favorites", type = "AUDIO")
+                    }
+                    
+                    if (!targetState) {
+                        db.categoryDao().removeMediaFromCategory(favCat.id, item.uri.toString())
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(context, "Removed from Favorites", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        db.categoryDao().insertCategoryCrossRef(
+                            CategoryMediaCrossRef(categoryId = favCat.id, mediaUri = item.uri.toString())
+                        )
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(context, "Added to Favorites", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    withContext(Dispatchers.Main) {
+                        optimisticFavorite = null
+                    }
                 }
             }
         }
@@ -258,27 +287,24 @@ fun AudioPlayerScreen(
     LaunchedEffect(currentItem) {
         if (currentItem != null) {
             isLoadingLyrics = true
-            val prefs = context.getSharedPreferences("manual_lyrics", Context.MODE_PRIVATE)
-            val savedManual = prefs.getString(currentItem.uri.toString(), null)
-            if (!savedManual.isNullOrBlank()) {
-                rawLyricsText = savedManual
-                lyricsLines = networkRepository.parseLrcLyrics(savedManual)
-                isLoadingLyrics = false
-            } else {
-                val lrc = networkRepository.fetchSyncedLyrics(
-                    title = currentItem.title,
-                    artist = currentItem.artist,
-                    album = currentItem.album,
-                    offlineMode = offlineMode
-                )
-                rawLyricsText = lrc
-                if (lrc != null) {
-                    lyricsLines = networkRepository.parseLrcLyrics(lrc)
+            val (savedManual, lyrics) = withContext(Dispatchers.IO) {
+                val prefs = context.getSharedPreferences("manual_lyrics", Context.MODE_PRIVATE)
+                val manual = prefs.getString(currentItem.uri.toString(), null)
+                if (!manual.isNullOrBlank()) {
+                    manual to networkRepository.parseLrcLyrics(manual)
                 } else {
-                    lyricsLines = emptyList()
+                    val lrc = networkRepository.fetchSyncedLyrics(
+                        title = currentItem.title,
+                        artist = currentItem.artist,
+                        album = currentItem.album,
+                        offlineMode = offlineMode
+                    )
+                    lrc to (if (lrc != null) networkRepository.parseLrcLyrics(lrc) else emptyList())
                 }
-                isLoadingLyrics = false
             }
+            rawLyricsText = savedManual
+            lyricsLines = lyrics
+            isLoadingLyrics = false
         }
     }
 
@@ -302,7 +328,9 @@ fun AudioPlayerScreen(
         val targetItem = currentItem ?: playerState.queue.firstOrNull()
         if (targetItem != null) {
             val artUri = targetItem.albumArtUri ?: targetItem.uri
-            albumArtHue = extractBaseHueFromArt(context, artUri)
+            albumArtHue = withContext(Dispatchers.IO) {
+                extractBaseHueFromArt(context, artUri)
+            }
         } else {
             albumArtHue = null
         }
@@ -319,7 +347,11 @@ fun AudioPlayerScreen(
         Brush.verticalGradient(colors = listOf(topColor, midColor, targetBottomColor))
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(playerBgBrush)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(playerBgBrush)
+    ) {
         if (isLandscape) {
             LandscapePlayerLayout(
                 playerState = playerState, currentItem = currentItem, playerManager = playerManager,
@@ -400,6 +432,16 @@ fun AudioPlayerScreen(
                                 DropdownMenuItem(text = { Text("Native Audio DSP", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Equalizer, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; showDspSheet = true })
                                 DropdownMenuItem(text = { Text(if (showAudioVisualizer) "Hide Audio Visualizer" else "Show Audio Visualizer", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.GraphicEq, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) } })
                                 DropdownMenuItem(text = { Text("Settings", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Settings, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; onClose(); onOpenSettings() })
+                                if (currentItem != null) {
+                                    DropdownMenuItem(
+                                        text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            showDeleteConfirmDialog = true
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -457,6 +499,34 @@ fun AudioPlayerScreen(
         if (showManualLyricsDialog) ManualLyricsDialog(currentItem = currentItem, rawLyricsText = rawLyricsText, initialInput = manualLyricsInput, networkRepository = networkRepository, context = context, onLyricsUpdated = { raw, lines -> rawLyricsText = raw; lyricsLines = lines; if (raw != null) showLyricsView = true }, onDismiss = { showManualLyricsDialog = false })
         if (showDspSheet) com.medianest.ui.components.NativeAudioDspSheet(playerState = playerState, playerManager = playerManager, onDismiss = { showDspSheet = false }, backgroundImage = currentItem?.albumArtUri ?: currentItem?.uri)
         if (isVisualizerFullscreen) FullscreenVisualizerDialog(isPlaying = playerState.isPlaying, audioSessionId = playerState.audioSessionId, albumArtHue = albumArtHue, currentItem = currentItem, onDismiss = { isVisualizerFullscreen = false })
+
+        if (showDeleteConfirmDialog && currentItem != null) {
+            val targetItem = currentItem
+            com.medianest.ui.components.DeleteConfirmationDialog(
+                title = "Delete Audio File",
+                itemTitle = targetItem.title,
+                onDismiss = { showDeleteConfirmDialog = false },
+                onConfirm = {
+                    showDeleteConfirmDialog = false
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            com.medianest.util.FolderHiddenUtils.deleteMediaUri(context, targetItem.uri)
+                            withContext(Dispatchers.Main) {
+                                if (playerState.queue.size > 1) {
+                                    playerManager.next()
+                                } else {
+                                    playerManager.stop()
+                                    onClose()
+                                }
+                                Toast.makeText(context, "Deleted '${targetItem.title}'", Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            )
+        }
         
         if (showAudioDebug) {
             AudioDebugOverlay(

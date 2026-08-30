@@ -106,31 +106,20 @@ fun DeleteSelectedDialog(
     onConfirm: () -> Unit,
     context: Context
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-        shape = RoundedCornerShape(24.dp),
-        title = { Text("Delete Selected Items?") },
-        text = { Text("Are you sure you want to delete ${selectedUris.size} selected item(s)?") },
-        confirmButton = {
-            TextButton(onClick = {
-                selectedUris.forEach { uriStr ->
-                    try {
-                        com.medianest.util.FolderHiddenUtils.deleteMediaUri(context, Uri.parse(uriStr))
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
+    com.medianest.ui.components.DeleteConfirmationDialog(
+        title = "Delete Selected Items",
+        message = "Are you sure you want to delete ${selectedUris.size} selected item(s)? This will permanently remove the files from your device storage.",
+        onDismiss = onDismiss,
+        onConfirm = {
+            selectedUris.forEach { uriStr ->
+                try {
+                    com.medianest.util.FolderHiddenUtils.deleteMediaUri(context, Uri.parse(uriStr))
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-                onConfirm()
-                onDismiss()
-            }) {
-                Text("Delete", color = MaterialTheme.colorScheme.error)
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
+            onConfirm()
+            onDismiss()
         }
     )
 }

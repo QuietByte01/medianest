@@ -32,7 +32,6 @@ fun LibraryScreen(
     videoCategories: List<MediaCategory>,
     audioPlaylists: List<MediaCategory>,
     imageCollections: List<MediaCategory> = emptyList(),
-    categoryCrossRefs: List<CategoryMediaCrossRef> = emptyList(),
     gridGapDp: Int,
     gridSizeLevel: Int = 1,
     cornerRadiusDp: Int = 8,

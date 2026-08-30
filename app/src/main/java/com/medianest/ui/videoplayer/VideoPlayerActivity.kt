@@ -62,11 +62,11 @@ class VideoPlayerActivity : ComponentActivity() {
         val contextTitle = intent.getStringExtra("context_title") ?: activeContextTitle
         val startIndex = intent.getIntExtra("start_index", 0)
 
-        // Hide notification bar & status bar for immersive video playback
+        // Edge-to-edge appearance with transparent system bars (ensures immediate edge swipe gestures)
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
         val controller = androidx.core.view.WindowInsetsControllerCompat(window, window.decorView)
-        controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-        controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.isAppearanceLightStatusBars = false
+        controller.isAppearanceLightNavigationBars = false
 
         if (activeList != null) {
             playerManager.playMediaList(activeList!!, startIndex.coerceIn(0, activeList!!.size - 1), queueTitle = contextTitle)

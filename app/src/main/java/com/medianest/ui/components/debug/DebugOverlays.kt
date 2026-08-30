@@ -387,7 +387,7 @@ fun HardwarePipelineDiagnosticsCard(
     val hwCaps = androidx.compose.runtime.remember {
         com.medianest.hardware.AndroidHardwareEngine.detectCapabilities(context)
     }
-    
+
     GlassSurface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -399,47 +399,95 @@ fun HardwarePipelineDiagnosticsCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                text = "HARDWARE PIPELINE DIAGNOSTICS",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFFA5B4FC),
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
-            
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Real-time Hardware Profile",
-                    fontSize = 13.sp,
+                    text = "REAL-TIME HARDWARE & MEDIA PROFILE",
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = Color(0xFFA5B4FC)
                 )
-                Text(
-                    text = "GPU ACCELERATED",
-                    fontSize = 10.sp,
-                    color = Color(0xFF34D399),
-                    fontWeight = FontWeight.Medium
-                )
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0x3334D399)
+                ) {
+                    Text(
+                        text = "GPU ACCELERATED",
+                        fontSize = 9.sp,
+                        color = Color(0xFF34D399),
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "• RAM Tier: ${hwCaps.ramTier}\n" +
-                       "• GPU Backend: ${if (hwCaps.isVulkanSupported) "Vulkan 1.3 / GL ES 3.2" else "GL ES 3.0"}\n" +
-                       "• Video Decode: MediaCodec SoC DSP (${if (hwCaps.isAv1HwSupported) "AV1, " else ""}HEVC, H.264)\n" +
-                       "• Audio Sink: ${if (hwCaps.isAAudioSupported) "AAudio Low-Latency" else "OpenSL ES"}\n" +
-                       "• Display HDR: ${if (hwCaps.isHdr10Supported) "Supported (HDR10/HLG)" else "Not Detected"}",
-                fontSize = 11.sp,
-                color = Color.White.copy(alpha = 0.85f),
-                lineHeight = 18.sp,
-                fontFamily = FontFamily.Monospace
-            )
+
+            HorizontalDivider(color = Color.White.copy(alpha = 0.15f))
+
+            // System & Device
+            DebugDetailRow("Device / System", "${hwCaps.deviceModel} (API ${hwCaps.apiLevel})")
+            DebugDetailRow("Memory Tier", "${hwCaps.ramTier} (${hwCaps.totalRamMb} MB Total RAM)")
+            DebugDetailRow("GPU Backend", if (hwCaps.isVulkanSupported) "Vulkan 1.3 / GL ES 3.2 (Max ${hwCaps.maxTextureSize}px)" else "OpenGL ES 3.0")
+
+            HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+
+            // Hardware Video Codecs
+            val hwCodecsList = mutableListOf<String>().apply {
+                if (hwCaps.isAv1HwSupported) add("AV1")
+                if (hwCaps.isHevcHwSupported) add("HEVC/H.265")
+                if (hwCaps.isH264HwSupported) add("H.264/AVC")
+                if (hwCaps.isVp9HwSupported) add("VP9")
+                if (hwCaps.isVp8HwSupported) add("VP8")
+                if (hwCaps.isMpeg4HwSupported) add("MPEG4")
+            }.joinToString(", ")
+            DebugDetailRow("Hardware Video Decoders", hwCodecsList.ifEmpty { "H.264, HEVC (Software Fallback)" })
+
+            // Display & HDR Support
+            val hdrDisplay = if (hwCaps.isHdrSupported) {
+                "${hwCaps.hdrFormatsStr} (10-bit Wide Color)"
+            } else {
+                "SDR Only"
+            }
+            val hdrColor = if (hwCaps.isHdrSupported) Color(0xFF34D399) else Color(0xFF94A3B8)
+            DebugDetailRow("Display HDR Support", hdrDisplay, valueColor = hdrColor)
+
+            HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+
+            // Audio Pipeline & Formats
+            DebugDetailRow("Audio Pipeline", "AAudio Low-Latency -> OpenSL ES")
+            DebugDetailRow("Passthrough Audio", hwCaps.supportedAudioPassthrough.joinToString(", "))
+
+            // Image & Subtitles
+            val imageEngineStr = buildString {
+                append("Coil Hardware Bitmaps")
+                if (hwCaps.isUltraHdrSupported) append(" • Ultra HDR Gainmaps")
+                if (hwCaps.isWideColorGamutSupported) append(" • Display P3")
+            }
+            DebugDetailRow("Image Pipeline", imageEngineStr)
+            DebugDetailRow("Subtitle Engine", "GPU Accelerated ASS/SSA Vector Shading")
         }
+    }
+}
+
+@Composable
+private fun DebugDetailRow(label: String, value: String, valueColor: Color = Color.White) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(text = label, fontSize = 10.sp, color = Color(0xFFA5B4FC), fontWeight = FontWeight.SemiBold)
+        Text(
+            text = value,
+            fontSize = 11.sp,
+            color = valueColor,
+            fontFamily = FontFamily.Monospace,
+            lineHeight = 15.sp
+        )
     }
 }
 

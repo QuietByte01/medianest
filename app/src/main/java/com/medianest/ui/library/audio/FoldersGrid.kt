@@ -97,13 +97,14 @@ fun FoldersGrid(
         val folderName = lowerKey.substringAfterLast('/')
         if (com.medianest.util.FolderHiddenUtils.isFolderExcludedByDefault(folderKey, folderName)) return true
         if (lowerKey in allHiddenAudioFolders || folderName in allHiddenAudioFolders) return true
-        return items?.any { it.isExcluded } == true
+        return items?.any { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) } == true
     }
 
     fun isFolderSystemHidden(folderKey: String, items: List<MediaItem>?): Boolean {
         if (isFolderExcluded(folderKey, items)) return false
         val lowerKey = folderKey.lowercase().trim('/')
         val folderName = lowerKey.substringAfterLast('/')
+        if (items?.any { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) } == true) return true
         return lowerKey.split('/').any { it.startsWith(".") && it.length > 1 } || folderName.startsWith(".")
     }
 
@@ -111,12 +112,15 @@ fun FoldersGrid(
         return isFolderExcluded(folderKey, items) || isFolderSystemHidden(folderKey, items)
     }
 
-    val sortedFolderNames = remember(folderMap, sortField, isAscending) {
+    val isExcludedFeed = remember(songs) { songs.isNotEmpty() && songs.all { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) } }
+    val isHiddenFeed = remember(songs) { songs.isNotEmpty() && songs.all { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) } }
+
+    val sortedFolderNames = remember(folderMap, sortField, isAscending, isExcludedFeed, isHiddenFeed, showAllFoldersMode) {
         val keys = folderMap.keys.toList()
         val comp = when (sortField) {
             "Name" -> compareBy<String> { it.lowercase() }
-            "Date Added" -> compareBy<String> { folderName ->
-                folderMap[folderName]?.maxOfOrNull { maxOf(it.dateAdded, it.dateCreated) } ?: 0L
+            "Date Added", "Date" -> compareBy<String> { folderName ->
+                folderMap[folderName]?.maxOfOrNull { maxOf(it.dateAdded, it.dateCreated, it.dateModified) } ?: 0L
             }
             "Size" -> compareBy<String> { folderName ->
                 folderMap[folderName]?.sumOf { it.size } ?: 0L
@@ -125,11 +129,8 @@ fun FoldersGrid(
         }
         
         val baseSorted = if (isAscending) keys.sortedWith(comp) else keys.sortedWith(comp).reversed()
-        baseSorted.sortedBy { fn -> isFolderHidden(fn, folderMap[fn]) && !showAllFoldersMode }
+        baseSorted.sortedBy { fn -> isFolderHidden(fn, folderMap[fn]) && !showAllFoldersMode && !isHiddenFeed && !isExcludedFeed }
     }
-
-    val isExcludedFeed = remember(songs) { songs.isNotEmpty() && songs.all { it.isExcluded || com.medianest.util.FolderHiddenUtils.isItemHidden(it) } }
-    val isHiddenFeed = remember(songs) { songs.isNotEmpty() && songs.all { it.isHidden && !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) } }
 
     val visibleFolderNames = remember(sortedFolderNames, folderMap, isExcludedFeed, isHiddenFeed, showHiddenSetting, allHiddenAudioFolders) {
         when {
@@ -618,38 +619,22 @@ fun FoldersGrid(
 
             // Folder Action Dialog: Delete Folder
             if (folderToDelete != null) {
-                val srcFolder = folderToDelete
+                val srcFolder = folderToDelete!!
                 val itemsToDelete = folderMap[srcFolder] ?: emptyList()
-                AlertDialog(
-                    onDismissRequest = { folderToDelete = null },
-                    containerColor = if (com.medianest.ui.theme.LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-                shape = RoundedCornerShape(24.dp),
-                    title = { Text("Delete Folder: $srcFolder") },
-                    text = {
-                        Text("Are you sure you want to delete this folder and all ${itemsToDelete.size} tracks inside? This action cannot be undone.")
-                    },
-                    confirmButton = {
-                        Button(
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                            onClick = {
-                                folderToDelete = null
-                                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                    itemsToDelete.forEach { item ->
-                                        try {
-                                            com.medianest.util.FolderHiddenUtils.deleteMediaUri(context, item.uri)
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
-                                        }
-                                    }
+                com.medianest.ui.components.DeleteConfirmationDialog(
+                    title = "Delete Folder",
+                    message = "Are you sure you want to delete '${srcFolder.substringAfterLast('/')}' and all ${itemsToDelete.size} tracks inside? This action cannot be undone.",
+                    onDismiss = { folderToDelete = null },
+                    onConfirm = {
+                        folderToDelete = null
+                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            itemsToDelete.forEach { item ->
+                                try {
+                                    com.medianest.util.FolderHiddenUtils.deleteMediaUri(context, item.uri)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
                                 }
                             }
-                        ) {
-                            Text("Delete", color = MaterialTheme.colorScheme.onError)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { folderToDelete = null }) {
-                            Text("Cancel")
                         }
                     }
                 )

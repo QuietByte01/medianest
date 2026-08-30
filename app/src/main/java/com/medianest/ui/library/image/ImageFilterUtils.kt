@@ -8,8 +8,8 @@ fun filterImageList(
     favoriteUris: Set<String> = emptySet()
 ): List<MediaItem> {
     val result = when (activeFilterTab) {
-        "HIDDEN" -> imagesList.filter { it.isHidden && !it.isExcluded && !com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
-        "EXCLUDED" -> imagesList.filter { it.isExcluded || com.medianest.util.FolderHiddenUtils.isItemHidden(it) }
+        "HIDDEN" -> imagesList.filter { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
+        "EXCLUDED" -> imagesList.filter { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
         "ALL" -> imagesList
         "CAMERA" -> imagesList.filter { item ->
             val bucket = (item.bucketName ?: "").lowercase()
@@ -25,7 +25,7 @@ fun filterImageList(
             val isExcluded = excluded.any { exc -> full.contains(exc) }
             !isExcluded
         }
-        "FAVORITES" -> imagesList.filter { favoriteUris.contains(it.uri.toString()) || it.title.lowercase().contains("fav") }
+        "FAVORITES" -> imagesList.filter { favoriteUris.contains(it.uri.toString()) }
         "SOCIAL" -> imagesList.filter { item ->
             val title = (item.title ?: "").lowercase()
             val path = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
@@ -172,7 +172,6 @@ fun filterImageList(
             val full = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
             full.contains("screenshot") || full.contains("screenshots")
         }
-        "EXCLUDED" -> imagesList.filter { it.isExcluded }
         "NOTES" -> {
             val notesKeywordsSet = setOf(
                 "note", "notes", "document", "documents", "doc", "docs", "scan", "scanner", "receipt", "whiteboard",

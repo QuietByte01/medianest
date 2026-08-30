@@ -12,6 +12,8 @@ import android.provider.Settings
 import android.util.Log
 import com.medianest.util.Logger
 import android.view.WindowManager
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -19,11 +21,14 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -70,11 +75,9 @@ class MainActivity : ComponentActivity() {
     private val targetVideoFolder = MutableStateFlow<String?>(null)
     private val targetImageFolder = MutableStateFlow<String?>(null)
     private val targetMediaItemUri = MutableStateFlow<String?>(null)
-    private val resumeTrigger = MutableStateFlow(0)
 
     override fun onResume() {
         super.onResume()
-        resumeTrigger.value += 1
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -86,10 +89,10 @@ class MainActivity : ComponentActivity() {
             window.colorMode = android.content.pm.ActivityInfo.COLOR_MODE_HDR
         }
         
-        // Global Fullscreen: Hide Status and Navigation bars
+        // Edge-to-edge appearance with transparent system bars (ensures immediate edge swipe gestures)
         val controller = androidx.core.view.WindowInsetsControllerCompat(window, window.decorView)
-        controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-        controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.isAppearanceLightStatusBars = false
+        controller.isAppearanceLightNavigationBars = false
 
         requestMediaPermissions()
 
@@ -111,7 +114,6 @@ class MainActivity : ComponentActivity() {
                     var videoCategories by remember { mutableStateOf<List<MediaCategory>>(emptyList()) }
                     var audioPlaylists by remember { mutableStateOf<List<MediaCategory>>(emptyList()) }
                     var imageCollections by remember { mutableStateOf<List<MediaCategory>>(emptyList()) }
-                    var categoryCrossRefs by remember { mutableStateOf<List<CategoryMediaCrossRef>>(emptyList()) }
 
                     val gridGapDp by settingsManager.gridGapDp.collectAsState(initial = 8)
                     val gridSizeLevel by settingsManager.gridSizeLevel.collectAsState(initial = 1)
@@ -171,8 +173,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     // Observe hidden folders, MediaStore changes, and Room metadata cache (Fast immediate load + reactive updates)
-                    val resumeCount by resumeTrigger.collectAsState()
-                    LaunchedEffect(showHiddenFiles, resumeCount) {
+                    LaunchedEffect(showHiddenFiles) {
                         combine(
                             db.selectiveHiddenFolderDao().getAllHiddenFolders(),
                             settingsManager.hiddenFolders,
@@ -190,41 +191,47 @@ class MainActivity : ComponentActivity() {
                         }.collectLatest { (imageHiddenPaths, videoHiddenPaths, audioHiddenPaths) ->
                             Logger.i("MainActivity", "DATA REFRESH START: showHidden=$showHiddenFiles")
                             // 1. Fast immediate fetch from MediaStore (<50ms)
-                            isScanLoading = true
-                            imagesList = mediaStoreRepository.getImages(imageHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
-                            videosList = mediaStoreRepository.getVideos(videoHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
-                            audioList = mediaStoreRepository.getAudio(audioHiddenPaths, showHidden = showHiddenFiles, includeFileSystemScan = false).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
+                            if (imagesList.isEmpty() && videosList.isEmpty() && audioList.isEmpty()) {
+                                isScanLoading = true
+                            }
+                            val msImages = mediaStoreRepository.getImages(imageHiddenPaths, showHidden = true, includeFileSystemScan = false)
+                            val msVideos = mediaStoreRepository.getVideos(videoHiddenPaths, showHidden = true, includeFileSystemScan = false)
+                            val msAudio = mediaStoreRepository.getAudio(audioHiddenPaths, showHidden = true, includeFileSystemScan = false)
+
+                            // Seamlessly merge without dropping previously scanned hidden files
+                            imagesList = (imagesList.filter { it.isHidden } + msImages).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
+                            videosList = (videosList.filter { it.isHidden } + msVideos).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
+                            audioList = (audioList.filter { it.isHidden } + msAudio).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
                             isScanLoading = false
                             
                             Logger.i("MainActivity", "MediaStore Load DONE: imgs=${imagesList.size}, vids=${videosList.size}, audio=${audioList.size}")
 
-                            // 2. Delayed background filesystem scan for hidden folders so UI never blocks
-                            if (showHiddenFiles) {
+                            // 2. Background filesystem scan for hidden & excluded folders (only show full spinner if nothing in memory)
+                            val hasHiddenInMemory = imagesList.any { it.isHidden } || videosList.any { it.isHidden } || audioList.any { it.isHidden }
+                            if (!hasHiddenInMemory) {
                                 isScanningHidden = true
-                                Logger.i("MainActivity", "Hidden File Scan STARTING...")
-                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                    kotlinx.coroutines.delay(150) // Let main screen compose immediately
-                                    val hiddenImages = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.IMAGE, imageHiddenPaths)
-                                    val hiddenVideos = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.VIDEO, videoHiddenPaths)
-                                    val hiddenAudio = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.AUDIO, audioHiddenPaths)
+                            }
+                            Logger.i("MainActivity", "Hidden File Scan STARTING...")
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                kotlinx.coroutines.delay(100) // Yield to allow initial compose of categories and filters
+                                val hiddenImages = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.IMAGE, imageHiddenPaths)
+                                val hiddenVideos = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.VIDEO, videoHiddenPaths)
+                                val hiddenAudio = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.AUDIO, audioHiddenPaths)
 
-                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                        Logger.i("MainActivity", "Hidden File Scan COMPLETE: imgs=${hiddenImages.size}, vids=${hiddenVideos.size}, audio=${hiddenAudio.size}")
-                                        if (hiddenImages.isNotEmpty()) {
-                                            imagesList = (imagesList + hiddenImages).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
-                                        }
-                                        if (hiddenVideos.isNotEmpty()) {
-                                            videosList = (videosList + hiddenVideos).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
-                                        }
-                                        if (hiddenAudio.isNotEmpty()) {
-                                            audioList = (audioList + hiddenAudio).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
-                                        }
-                                        isScanningHidden = false
-                                        Logger.i("MainActivity", "Total Merged List: imgs=${imagesList.size}, vids=${videosList.size}, audio=${audioList.size}")
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    Logger.i("MainActivity", "Hidden File Scan COMPLETE: imgs=${hiddenImages.size}, vids=${hiddenVideos.size}, audio=${hiddenAudio.size}")
+                                    if (hiddenImages.isNotEmpty()) {
+                                        imagesList = (imagesList + hiddenImages).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
                                     }
+                                    if (hiddenVideos.isNotEmpty()) {
+                                        videosList = (videosList + hiddenVideos).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
+                                    }
+                                    if (hiddenAudio.isNotEmpty()) {
+                                        audioList = (audioList + hiddenAudio).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
+                                    }
+                                    isScanningHidden = false
+                                    Logger.i("MainActivity", "Total Merged List: imgs=${imagesList.size}, vids=${videosList.size}, audio=${audioList.size}")
                                 }
-                            } else {
-                                isScanningHidden = false
                             }
                         }
                     }
@@ -269,11 +276,6 @@ class MainActivity : ComponentActivity() {
                                 imageCollections = it
                             }
                         }
-                        lifecycleScope.launch {
-                            db.categoryDao().getAllCrossRefs().collectLatest {
-                                categoryCrossRefs = it
-                            }
-                        }
                     }
 
                     if (appLockEnabled && !isUnlocked && appLockPin.isNotEmpty()) {
@@ -282,201 +284,191 @@ class MainActivity : ComponentActivity() {
                             onUnlocked = { isUnlocked = true }
                         )
                     } else {
-                        AnimatedContent(
-                            targetState = currentScreen,
-                            label = "ScreenTransition",
-                            transitionSpec = {
-                                if (targetState == "AUDIO_PLAYER") {
-                                    (slideInVertically(animationSpec = tween(360, easing = FastOutSlowInEasing)) { height -> height } + fadeIn(animationSpec = tween(280)))
-                                        .togetherWith(fadeOut(animationSpec = tween(280)))
-                                } else if (initialState == "AUDIO_PLAYER") {
-                                    (fadeIn(animationSpec = tween(280)))
-                                        .togetherWith(slideOutVertically(animationSpec = tween(360, easing = FastOutSlowInEasing)) { height -> height } + fadeOut(animationSpec = tween(280)))
-                                } else {
-                                    (fadeIn(animationSpec = tween(250)))
-                                        .togetherWith(fadeOut(animationSpec = tween(250)))
-                                }
-                            }
-                        ) { screen ->
-                            when (screen) {
-                                "SETTINGS" -> {
-                                    SettingsScreen(
-                                        settingsManager = settingsManager,
-                                        hiddenFolderDao = db.hiddenFolderDao(),
-                                        mediaStoreRepository = mediaStoreRepository,
-                                        onClearHistory = {
-                                            lifecycleScope.launch {
-                                                db.playbackStateDao().clearAllHistory()
-                                                db.metadataCacheDao().clearCache()
-                                            }
-                                        },
-                                        onClose = { currentScreen = "LIBRARY" }
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            // Persistent Base Library Screen (never destroyed on navigation to Settings/Player)
+                            LibraryScreen(
+                                imagesList = imagesList,
+                                videosList = videosList,
+                                audioList = audioList,
+                                videoCategories = videoCategories,
+                                audioPlaylists = audioPlaylists,
+                                imageCollections = imageCollections,
+                                gridGapDp = gridGapDp,
+                                gridSizeLevel = gridSizeLevel,
+                                cornerRadiusDp = cornerRadiusDp,
+                                roundedCornersEnabled = roundedCornersEnabled,
+                                enableAnalyticsTab = enableAnalyticsTab,
+                                isLoading = isScanLoading,
+                                isScanningHidden = isScanningHidden,
+                                analyticsSnapshot = analyticsSnapshot,
+                                analyticsFormatStats = analyticsFormatStats,
+                                isAnalyticsRefreshing = isAnalyticsRefreshing,
+                                onRefreshAnalytics = {
+                                    lifecycleScope.launch {
+                                        isAnalyticsRefreshing = true
+                                        analyticsRepository.refreshAnalytics(showHiddenFiles)
+                                        isAnalyticsRefreshing = false
+                                    }
+                                },
+                                exoPlayerManager = exoPlayerManager,
+                                initialTab = mainTab,
+                                audioSubTab = audioSub,
+                                audioAlbum = audioAlb,
+                                audioArtist = audioArt,
+                                audioFolder = audioFld,
+                                initialVideoFolder = videoFld,
+                                initialImageFolder = imageFld,
+                                targetMediaUri = mediaTargetUri,
+                                onOpenQuickView = { item, currentList ->
+                                    val index = currentList.indexOfFirst { it.uri == item.uri }
+                                    com.medianest.ui.quickview.QuickViewActivity.activeList = currentList
+                                    val intent = Intent(this@MainActivity, QuickViewActivity::class.java).apply {
+                                        action = Intent.ACTION_VIEW
+                                        setDataAndType(item.uri, item.mimeType)
+                                        putExtra("start_index", if (index >= 0) index else 0)
+                                    }
+                                    val options = ActivityOptionsCompat.makeCustomAnimation(
+                                        this@MainActivity,
+                                        R.anim.viewer_open_enter,
+                                        R.anim.viewer_open_exit
                                     )
-                                }
-
-                                "AUDIO_PLAYER" -> {
-                                    AudioPlayerScreen(
-                                        playerManager = exoPlayerManager,
-                                        networkRepository = networkRepository,
-                                        onClose = { currentScreen = "LIBRARY" },
-                                        onOpenAlbum = { album ->
-                                            targetMainTab.value = if (enableAnalyticsTab) 3 else 2
-                                            targetAudioSubTab.value = 3
-                                            targetAudioAlbum.value = album
-                                            currentScreen = "LIBRARY"
-                                        },
-                                        onOpenArtist = { artist ->
-                                            targetMainTab.value = if (enableAnalyticsTab) 3 else 2
-                                            targetAudioSubTab.value = 4
-                                            targetAudioArtist.value = artist
-                                            currentScreen = "LIBRARY"
-                                        },
-                                        onOpenFolder = { folder, targetUri ->
-                                            targetMainTab.value = if (enableAnalyticsTab) 3 else 2
-                                            targetAudioSubTab.value = 5
-                                            targetAudioFolder.value = folder
-                                            targetMediaItemUri.value = targetUri
-                                            currentScreen = "LIBRARY"
-                                        },
-                                        onOpenSettings = { currentScreen = "SETTINGS" },
-                                        allAudioItems = audioList,
-                                        showHidden = showHiddenFiles,
-                                        hiddenFolders = hiddenFolders
-                                    )
-                                }
-
-                                else -> {
-                                    LibraryScreen(
-                                        imagesList = imagesList,
-                                        videosList = videosList,
-                                        audioList = audioList,
-                                        videoCategories = videoCategories,
-                                        audioPlaylists = audioPlaylists,
-                                        imageCollections = imageCollections,
-                                        categoryCrossRefs = categoryCrossRefs,
-                                        gridGapDp = gridGapDp,
-                                        gridSizeLevel = gridSizeLevel,
-                                        cornerRadiusDp = cornerRadiusDp,
-                                        roundedCornersEnabled = roundedCornersEnabled,
-                                        enableAnalyticsTab = enableAnalyticsTab,
-                                        isLoading = isScanLoading,
-                                        isScanningHidden = isScanningHidden,
-                                        analyticsSnapshot = analyticsSnapshot,
-                                        analyticsFormatStats = analyticsFormatStats,
-                                        isAnalyticsRefreshing = isAnalyticsRefreshing,
-                                        onRefreshAnalytics = {
-                                            lifecycleScope.launch {
-                                                isAnalyticsRefreshing = true
-                                                analyticsRepository.refreshAnalytics(showHiddenFiles)
-                                                isAnalyticsRefreshing = false
-                                            }
-                                        },
-                                        exoPlayerManager = exoPlayerManager,
-                                        initialTab = mainTab,
-                                        audioSubTab = audioSub,
-                                        audioAlbum = audioAlb,
-                                        audioArtist = audioArt,
-                                        audioFolder = audioFld,
-                                        initialVideoFolder = videoFld,
-                                        initialImageFolder = imageFld,
-                                        targetMediaUri = mediaTargetUri,
-                                        onOpenQuickView = { item, currentList ->
-                                            val index = currentList.indexOfFirst { it.uri == item.uri }
-                                            com.medianest.ui.quickview.QuickViewActivity.activeList = currentList
-                                            val intent = Intent(this@MainActivity, QuickViewActivity::class.java).apply {
-                                                action = Intent.ACTION_VIEW
-                                                setDataAndType(item.uri, item.mimeType)
-                                                putExtra("start_index", if (index >= 0) index else 0)
-                                            }
-                                            val options = ActivityOptionsCompat.makeCustomAnimation(
-                                                this@MainActivity,
-                                                R.anim.viewer_open_enter,
-                                                R.anim.viewer_open_exit
-                                            )
-                                            startActivity(intent, options.toBundle())
-                                        },
-                                         onOpenVideoPlayer = { item, currentList, contextTitle ->
-                                             // Handle GIFs separately
-                                             if (item.mimeType.contains("gif", ignoreCase = true)) {
-                                                 val intent = Intent(this@MainActivity, QuickViewActivity::class.java).apply {
-                                                     action = Intent.ACTION_VIEW
-                                                     setDataAndType(item.uri, item.mimeType)
-                                                 }
-                                                 val options = ActivityOptionsCompat.makeCustomAnimation(
-                                                     this@MainActivity,
-                                                     R.anim.viewer_open_enter,
-                                                     R.anim.viewer_open_exit
-                                                 )
-                                                 startActivity(intent, options.toBundle())
-                                             } else {
-                                                 val playlist = if (!currentList.isNullOrEmpty()) {
-                                                     currentList
-                                                 } else {
-                                                     val currentFolder = item.relativePath ?: item.bucketName ?: ""
-                                                     val filtered = videosList.filter { 
-                                                         (it.relativePath ?: it.bucketName ?: "") == currentFolder 
-                                                     }
-                                                     if (filtered.isNotEmpty()) filtered else videosList
-                                                 }
-                                                 val index = playlist.indexOfFirst { it.uri == item.uri }
-                                                 val effectiveTitle = contextTitle ?: (item.bucketName ?: item.relativePath?.trim('/')?.substringAfterLast('/') ?: "Videos")
-                                                 
-                                                 com.medianest.ui.videoplayer.VideoPlayerActivity.activeList = playlist
-                                                 com.medianest.ui.videoplayer.VideoPlayerActivity.activeContextTitle = effectiveTitle
-                                                 val intent = Intent(this@MainActivity, VideoPlayerActivity::class.java).apply {
-                                                     putExtra("media_uri", item.uri.toString())
-                                                     putExtra("media_title", item.title)
-                                                     putExtra("mime_type", item.mimeType)
-                                                     putExtra("context_title", effectiveTitle)
-                                                     putExtra("start_index", if (index >= 0) index else 0)
-                                                 }
-                                                 val options = ActivityOptionsCompat.makeCustomAnimation(
-                                                     this@MainActivity,
-                                                     R.anim.viewer_open_enter,
-                                                     R.anim.viewer_open_exit
-                                                 )
-                                                 startActivity(intent, options.toBundle())
-                                             }
-                                         },
-                                        onOpenAudioPlayer = { activeTab ->
-                                            targetMainTab.value = activeTab
-                                            currentScreen = "AUDIO_PLAYER"
-                                        },
-                                        onOpenSettings = { currentScreen = "SETTINGS" },
-                                        onCreateCategory = { name, type, iconName ->
-                                            lifecycleScope.launch {
-                                                db.categoryDao().insertCategory(
-                                                    MediaCategory(name = name, type = type, iconName = iconName)
-                                                )
-                                            }
-                                        },
-                                        onCreateImageCollection = { name, folders, coverUri ->
-                                            lifecycleScope.launch {
-                                                val catId = db.categoryDao().insertCategory(
-                                                    MediaCategory(name = name, type = "IMAGE", coverUri = coverUri)
-                                                )
-                                                val refs = folders.map { CategoryMediaCrossRef(categoryId = catId, mediaUri = it) }
-                                                db.categoryDao().insertCategoryCrossRefs(refs)
-                                            }
-                                        },
-                                        onUpdateImageCollection = { catId, name, folders, coverUri ->
-                                            lifecycleScope.launch {
-                                                db.categoryDao().updateCategory(
-                                                    MediaCategory(id = catId, name = name, type = "IMAGE", coverUri = coverUri)
-                                                )
-                                                db.categoryDao().clearCategoryMedia(catId)
-                                                val refs = folders.map { CategoryMediaCrossRef(categoryId = catId, mediaUri = it) }
-                                                db.categoryDao().insertCategoryCrossRefs(refs)
-                                            }
-                                        },
-                                        onDeleteImageCollection = { catId ->
-                                            lifecycleScope.launch {
-                                                db.categoryDao().deleteCategoryById(catId)
-                                                db.categoryDao().clearCategoryMedia(catId)
-                                            }
+                                    startActivity(intent, options.toBundle())
+                                },
+                                onOpenVideoPlayer = { item, currentList, contextTitle ->
+                                    if (item.mimeType.contains("gif", ignoreCase = true)) {
+                                        val intent = Intent(this@MainActivity, QuickViewActivity::class.java).apply {
+                                            action = Intent.ACTION_VIEW
+                                            setDataAndType(item.uri, item.mimeType)
                                         }
-                                    )
+                                        val options = ActivityOptionsCompat.makeCustomAnimation(
+                                            this@MainActivity,
+                                            R.anim.viewer_open_enter,
+                                            R.anim.viewer_open_exit
+                                        )
+                                        startActivity(intent, options.toBundle())
+                                    } else {
+                                        val playlist = if (!currentList.isNullOrEmpty()) {
+                                            currentList
+                                        } else {
+                                            val currentFolder = item.relativePath ?: item.bucketName ?: ""
+                                            val filtered = videosList.filter { 
+                                                (it.relativePath ?: it.bucketName ?: "") == currentFolder 
+                                            }
+                                            if (filtered.isNotEmpty()) filtered else videosList
+                                        }
+                                        val index = playlist.indexOfFirst { it.uri == item.uri }
+                                        val effectiveTitle = contextTitle ?: (item.bucketName ?: item.relativePath?.trim('/')?.substringAfterLast('/') ?: "Videos")
+                                        
+                                        com.medianest.ui.videoplayer.VideoPlayerActivity.activeList = playlist
+                                        com.medianest.ui.videoplayer.VideoPlayerActivity.activeContextTitle = effectiveTitle
+                                        val intent = Intent(this@MainActivity, VideoPlayerActivity::class.java).apply {
+                                            putExtra("media_uri", item.uri.toString())
+                                            putExtra("media_title", item.title)
+                                            putExtra("mime_type", item.mimeType)
+                                            putExtra("context_title", effectiveTitle)
+                                            putExtra("start_index", if (index >= 0) index else 0)
+                                        }
+                                        val options = ActivityOptionsCompat.makeCustomAnimation(
+                                            this@MainActivity,
+                                            R.anim.viewer_open_enter,
+                                            R.anim.viewer_open_exit
+                                        )
+                                        startActivity(intent, options.toBundle())
+                                    }
+                                },
+                                onOpenAudioPlayer = { activeTab ->
+                                    targetMainTab.value = activeTab
+                                    currentScreen = "AUDIO_PLAYER"
+                                },
+                                onOpenSettings = { currentScreen = "SETTINGS" },
+                                onCreateCategory = { name, type, iconName ->
+                                    lifecycleScope.launch {
+                                        db.categoryDao().insertCategory(
+                                            MediaCategory(name = name, type = type, iconName = iconName)
+                                        )
+                                    }
+                                },
+                                onCreateImageCollection = { name, folders, coverUri ->
+                                    lifecycleScope.launch {
+                                        val catId = db.categoryDao().insertCategory(
+                                            MediaCategory(name = name, type = "IMAGE", coverUri = coverUri)
+                                        )
+                                        val refs = folders.map { CategoryMediaCrossRef(categoryId = catId, mediaUri = it) }
+                                        db.categoryDao().insertCategoryCrossRefs(refs)
+                                    }
+                                },
+                                onUpdateImageCollection = { catId, name, folders, coverUri ->
+                                    lifecycleScope.launch {
+                                        db.categoryDao().updateCategory(
+                                            MediaCategory(id = catId, name = name, type = "IMAGE", coverUri = coverUri)
+                                        )
+                                        db.categoryDao().clearCategoryMedia(catId)
+                                        val refs = folders.map { CategoryMediaCrossRef(categoryId = catId, mediaUri = it) }
+                                        db.categoryDao().insertCategoryCrossRefs(refs)
+                                    }
+                                },
+                                onDeleteImageCollection = { catId ->
+                                    lifecycleScope.launch {
+                                        db.categoryDao().deleteCategoryById(catId)
+                                        db.categoryDao().clearCategoryMedia(catId)
+                                    }
                                 }
+                            )
+
+                            // Settings Overlay Screen
+                            AnimatedVisibility(
+                                visible = currentScreen == "SETTINGS",
+                                enter = fadeIn(animationSpec = tween(220)) + slideInHorizontally(animationSpec = tween(220, easing = FastOutSlowInEasing)) { it / 6 },
+                                exit = fadeOut(animationSpec = tween(180)) + slideOutHorizontally(animationSpec = tween(180, easing = FastOutSlowInEasing)) { it / 6 }
+                            ) {
+                                SettingsScreen(
+                                    settingsManager = settingsManager,
+                                    hiddenFolderDao = db.hiddenFolderDao(),
+                                    mediaStoreRepository = mediaStoreRepository,
+                                    onClearHistory = {
+                                        lifecycleScope.launch {
+                                            db.playbackStateDao().clearAllHistory()
+                                            db.metadataCacheDao().clearCache()
+                                        }
+                                    },
+                                    onClose = { currentScreen = "LIBRARY" }
+                                )
+                            }
+
+                            // Audio Player Overlay Screen
+                            AnimatedVisibility(
+                                visible = currentScreen == "AUDIO_PLAYER",
+                                enter = slideInVertically(animationSpec = tween(340, easing = FastOutSlowInEasing)) { height -> height } + fadeIn(animationSpec = tween(260)),
+                                exit = slideOutVertically(animationSpec = tween(320, easing = FastOutSlowInEasing)) { height -> height } + fadeOut(animationSpec = tween(240))
+                            ) {
+                                AudioPlayerScreen(
+                                    playerManager = exoPlayerManager,
+                                    networkRepository = networkRepository,
+                                    onClose = { currentScreen = "LIBRARY" },
+                                    onOpenAlbum = { album ->
+                                        targetMainTab.value = if (enableAnalyticsTab) 3 else 2
+                                        targetAudioSubTab.value = 3
+                                        targetAudioAlbum.value = album
+                                        currentScreen = "LIBRARY"
+                                    },
+                                    onOpenArtist = { artist ->
+                                        targetMainTab.value = if (enableAnalyticsTab) 3 else 2
+                                        targetAudioSubTab.value = 4
+                                        targetAudioArtist.value = artist
+                                        currentScreen = "LIBRARY"
+                                    },
+                                    onOpenFolder = { folder, targetUri ->
+                                        targetMainTab.value = if (enableAnalyticsTab) 3 else 2
+                                        targetAudioSubTab.value = 5
+                                        targetAudioFolder.value = folder
+                                        targetMediaItemUri.value = targetUri
+                                        currentScreen = "LIBRARY"
+                                    },
+                                    onOpenSettings = { currentScreen = "SETTINGS" },
+                                    allAudioItems = audioList,
+                                    showHidden = showHiddenFiles,
+                                    hiddenFolders = hiddenFolders
+                                )
                             }
                         }
                     }
@@ -505,13 +497,17 @@ class MainActivity : ComponentActivity() {
 
         if (ungranted.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, ungranted.toTypedArray(), 100)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !com.medianest.util.PermissionUtils.hasAllFilesAccess()) {
+            com.medianest.util.PermissionUtils.openStorageAccessSettings(this)
         }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 100) {
-            resumeTrigger.value += 1
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !com.medianest.util.PermissionUtils.hasAllFilesAccess()) {
+                com.medianest.util.PermissionUtils.openStorageAccessSettings(this)
+            }
         }
     }
 
