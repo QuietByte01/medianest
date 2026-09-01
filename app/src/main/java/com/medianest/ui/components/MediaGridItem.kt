@@ -252,24 +252,31 @@ fun MediaGridItem(
                 }
 
                 // Compact Duration badge on bottom-right (BottomEnd)
-                Surface(
-                    shape = RoundedCornerShape(5.dp),
-                    color = Color.Black.copy(alpha = 0.25f)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color.Black.copy(alpha = 0.70f))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(2.5.dp)
                     ) {
                         RoundedPlayIcon(
-                            modifier = Modifier.size(11.dp),
+                            modifier = Modifier.size(9.5.dp),
                             tint = Color.White
                         )
                         Text(
                             text = formatDuration(item.durationMs),
                             color = Color.White,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            style = androidx.compose.ui.text.TextStyle(
+                                platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                                    includeFontPadding = false
+                                ),
+                                lineHeight = 9.5.sp
+                            )
                         )
                     }
                 }

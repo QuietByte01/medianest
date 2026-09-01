@@ -224,27 +224,33 @@ fun WideVideoCard(
                     }
 
                     // Compact Duration badge on bottom-right (BottomEnd)
-                    Surface(
-                        shape = RoundedCornerShape(5.dp),
-                        color = Color.Black.copy(alpha = 0.35f),
+                    Box(
                         modifier = Modifier
                             .padding(6.dp)
                             .align(Alignment.BottomEnd)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color.Black.copy(alpha = 0.70f))
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(2.5.dp)
                         ) {
                             RoundedPlayIcon(
-                                modifier = Modifier.size(10.5.dp),
+                                modifier = Modifier.size(10.dp),
                                 tint = Color.White
                             )
                             Text(
                                 text = formatDuration(item.durationMs),
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color.White
+                                color = Color.White,
+                                style = androidx.compose.ui.text.TextStyle(
+                                    platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                                        includeFontPadding = false
+                                    ),
+                                    lineHeight = 10.sp
+                                )
                             )
                         }
                     }

@@ -399,12 +399,13 @@ fun VideoPlayerScreen(
 
     val controlsFadeSpec = tween<Float>(durationMillis = 500)
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .dismissKeyboardOnOutsideTap()
-    ) {
+    CompositionLocalProvider(com.medianest.ui.components.LocalBackdropState provides playerBackdropState) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .dismissKeyboardOnOutsideTap()
+        ) {
         // 1. BLURRABLE CONTENT STACK
         // This container holds everything that should be blurred when Settings is open.
         Box(
@@ -1206,6 +1207,7 @@ fun VideoPlayerScreen(
             )
         }
     }
+}
 }
 
 @Composable

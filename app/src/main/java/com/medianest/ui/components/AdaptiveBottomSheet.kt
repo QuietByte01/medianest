@@ -64,11 +64,11 @@ fun AdaptiveBottomSheet(
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
 
-    // Translucent obsidian for dark, translucent frosted white for light
+    // Frosted obsidian glass for dark mode, frosted white for light mode
     val resolvedColor = when {
         containerColor != Color.Unspecified -> containerColor
-        isDark -> Color(0x6608090E)
-        else   -> Color(0x80FFFFFF)
+        isDark -> Color(0xCC0B0D14)
+        else   -> Color(0xE6FFFFFF)
     }
 
     if (isTablet) {
@@ -158,30 +158,16 @@ fun AdaptiveBottomSheet(
                         }
                     }
                 } else {
-                    val tabletMod = modifier
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            enabled = false
-                        ) {}
-                        .fillMaxWidth(0.74f)
-                        .clip(RoundedCornerShape(24.dp))
-                        .then(
-                            if (backdropState != null) {
-                                Modifier.backdropReceiver(
-                                    state = backdropState,
-                                    blurRadius = 24.dp,
-                                    tint = resolvedColor,
-                                    baseColor = Color.Transparent,
-                                    showTopBorder = false
-                                )
-                            } else Modifier
-                        )
-
                     GlassSurface(
-                        modifier = tabletMod,
+                        modifier = modifier
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                enabled = false
+                            ) {}
+                            .fillMaxWidth(0.74f),
                         shape = RoundedCornerShape(24.dp),
-                        backgroundColor = if (backdropState != null) Color.Transparent else resolvedColor,
+                        backgroundColor = resolvedColor,
                         borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
                         backgroundImage = backgroundImage,
                         backgroundImageAlpha = backgroundImageAlpha,
@@ -205,7 +191,7 @@ fun AdaptiveBottomSheet(
             shape = shape,
             containerColor = Color.Transparent,
             contentColor = contentColor,
-            scrimColor = Color.Black.copy(alpha = 0.35f),
+            scrimColor = Color.Black.copy(alpha = 0.50f),
             dragHandle = null,
             contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
         ) {
@@ -273,25 +259,10 @@ fun AdaptiveBottomSheet(
                     }
                 }
             } else {
-                val phoneMod = Modifier
-                    .fillMaxWidth()
-                    .clip(shape)
-                    .then(
-                        if (backdropState != null) {
-                            Modifier.backdropReceiver(
-                                state = backdropState,
-                                blurRadius = 24.dp,
-                                tint = resolvedColor,
-                                baseColor = Color.Transparent,
-                                showTopBorder = false
-                            )
-                        } else Modifier
-                    )
-
                 GlassSurface(
-                    modifier = phoneMod,
+                    modifier = Modifier.fillMaxWidth(),
                     shape = shape,
-                    backgroundColor = if (backdropState != null) Color.Transparent else resolvedColor,
+                    backgroundColor = resolvedColor,
                     borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
                     backgroundImage = backgroundImage,
                     backgroundImageAlpha = backgroundImageAlpha,
