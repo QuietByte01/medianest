@@ -59,9 +59,9 @@ fun AlbumsGrid(
         selectedAlbum = null
     }
 
-    val db = remember { com.medianest.MediaNestApp.instance.database }
-    val recentlyPlayedStates by db.playbackStateDao().getRecentlyPlayed("AUDIO").collectAsState(initial = emptyList())
-    val currentlyPlayingUri = recentlyPlayedStates.firstOrNull()?.mediaUri
+    val exoPlayerManager = remember { com.medianest.player.ExoPlayerManager.getInstance(context) }
+    val playerState by exoPlayerManager.playerState.collectAsState()
+    val currentlyPlayingUri = playerState.currentItem?.uri?.toString()
     val currentlyPlayingAlbum = remember(currentlyPlayingUri, songs) {
         songs.firstOrNull { it.uri.toString() == currentlyPlayingUri }?.album
     }

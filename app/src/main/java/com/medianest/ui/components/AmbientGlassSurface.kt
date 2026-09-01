@@ -99,6 +99,7 @@ fun AmbientGlassSurface(
             AsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(backgroundImage)
+                    .decoderFactory(com.medianest.util.SemaphoreVideoFrameDecoder.Factory())
                     .crossfade(true)
                     .build(),
                 contentDescription = null,

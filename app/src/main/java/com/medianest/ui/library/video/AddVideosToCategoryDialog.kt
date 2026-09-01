@@ -70,7 +70,7 @@ fun AddVideosToCategoryDialog(
         DisposableEffect(dialogView) {
             val window = (dialogView.parent as? DialogWindowProvider)?.window
             window?.let { w ->
-                w.setDimAmount(0.32f)
+                w.setDimAmount(0.18f)
                 w.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
             }
             onDispose {}
@@ -100,7 +100,7 @@ fun AddVideosToCategoryDialog(
                         Modifier.backdropReceiver(
                             state = backdropState,
                             blurRadius = 24.dp,
-                            tint = if (isDark) Color(0x6608090E) else Color(0x80FFFFFF),
+                            tint = if (isDark) Color(0x3B181A26) else Color(0x80FFFFFF),
                             baseColor = Color.Transparent,
                             showTopBorder = false
                         )
@@ -110,7 +110,7 @@ fun AddVideosToCategoryDialog(
             GlassSurface(
                 modifier = cardModifier,
                 shape = shape,
-                backgroundColor = if (backdropState != null) Color.Transparent else if (isDark) Color(0xCC08090E) else Color(0xBFFFFFFF),
+                backgroundColor = if (backdropState != null) Color.Transparent else if (isDark) Color(0x4D181A26) else Color(0xBFFFFFFF),
                 borderColor = if (isDark) Color(0x28FFFFFF) else Color(0x28000000)
             ) {
                 Column(

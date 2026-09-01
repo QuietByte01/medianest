@@ -269,7 +269,7 @@ fun MediaGridItem(
                         Text(
                             text = formatDuration(item.durationMs),
                             color = Color.White,
-                            fontSize = 8.5.sp,
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.SemiBold,
                             style = androidx.compose.ui.text.TextStyle(
                                 platformStyle = androidx.compose.ui.text.PlatformTextStyle(

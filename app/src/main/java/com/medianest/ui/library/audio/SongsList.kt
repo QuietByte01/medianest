@@ -67,9 +67,9 @@ fun SongsList(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val db = remember { com.medianest.MediaNestApp.instance.database }
-    val recentlyPlayedStates by db.playbackStateDao().getRecentlyPlayed("AUDIO").collectAsState(initial = emptyList())
-    val currentlyPlayingUri = recentlyPlayedStates.firstOrNull()?.mediaUri
+    val exoPlayerManager = remember { com.medianest.player.ExoPlayerManager.getInstance(context) }
+    val playerState by exoPlayerManager.playerState.collectAsState()
+    val currentlyPlayingUri = playerState.currentItem?.uri?.toString()
 
     var infoItem by remember { mutableStateOf<MediaItem?>(null) }
     var editMetadataItem by remember { mutableStateOf<MediaItem?>(null) }
