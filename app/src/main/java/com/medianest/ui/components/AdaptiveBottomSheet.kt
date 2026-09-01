@@ -71,7 +71,63 @@ fun AdaptiveBottomSheet(
         else   -> if (backdropState != null) Color(0x80FFFFFF) else Color(0xBFFFFFFF)
     }
 
-    if (isTablet) {
+    if (backdropState != null) {
+        // INLINE OVERLAY: Renders in the same Window hierarchy to ensure backdropBlur coordinates align 100%
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.55f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { onDismissRequest() },
+            contentAlignment = if (isTablet) Alignment.Center else Alignment.BottomCenter
+        ) {
+            val sheetShape = if (isTablet) RoundedCornerShape(24.dp) else shape
+            val sheetModifier = modifier
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    enabled = false
+                ) {}
+                .then(if (isTablet) Modifier.fillMaxWidth(0.74f) else Modifier.fillMaxWidth())
+                .clip(sheetShape)
+                .backdropReceiver(
+                    state = backdropState,
+                    blurRadius = 24.dp,
+                    tint = resolvedColor,
+                    baseColor = if (isDark) Color(0xFF08090E) else Color(0xFFFFFFFF),
+                    showTopBorder = false
+                )
+
+            GlassSurface(
+                modifier = sheetModifier,
+                shape = sheetShape,
+                backgroundColor = Color.Transparent,
+                borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
+                backgroundImage = backgroundImage,
+                backgroundImageAlpha = 0.20f,
+                enableBlur = false
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (!isTablet) Modifier.navigationBarsPadding() else Modifier)
+                        .padding(if (isTablet) 20.dp else 0.dp)
+                ) {
+                    if (dragHandle != null && !isTablet) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            dragHandle()
+                        }
+                    }
+                    content()
+                }
+            }
+        }
+    } else if (isTablet) {
         Dialog(
             onDismissRequest = onDismissRequest,
             properties = DialogProperties(
@@ -107,32 +163,16 @@ fun AdaptiveBottomSheet(
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
-                val backdropState = LocalBackdropState.current
-                val shape24 = RoundedCornerShape(24.dp)
-                val dialogModifier = modifier
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        enabled = false
-                    ) {}
-                    .fillMaxWidth(0.74f)
-                    .clip(shape24)
-                    .then(
-                        if (backdropState != null) {
-                            Modifier.backdropReceiver(
-                                state = backdropState,
-                                blurRadius = 24.dp,
-                                tint = resolvedColor,
-                                baseColor = if (isDark) Color(0xFF08090E) else Color(0xFFFFFFFF),
-                                showTopBorder = false
-                            )
-                        } else Modifier
-                    )
-
-                if (backdropState == null && isSolidGlossy) {
+                if (isSolidGlossy) {
                     SolidGlossySurface(
-                        modifier = dialogModifier,
-                        shape = shape24,
+                        modifier = modifier
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                enabled = false
+                            ) {}
+                            .fillMaxWidth(0.74f),
+                        shape = RoundedCornerShape(24.dp),
                         backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color.Unspecified,
                         borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.10f),
                         borderWidth = 1.dp,
@@ -147,10 +187,16 @@ fun AdaptiveBottomSheet(
                             content()
                         }
                     }
-                } else if (backdropState == null && backgroundImage != null) {
+                } else if (backgroundImage != null) {
                     SheetAmbientSurface(
-                        modifier = dialogModifier,
-                        shape = shape24,
+                        modifier = modifier
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                enabled = false
+                            ) {}
+                            .fillMaxWidth(0.74f),
+                        shape = RoundedCornerShape(24.dp),
                         isDark = isDark,
                         backgroundImage = backgroundImage,
                         hue = hue,
@@ -166,12 +212,16 @@ fun AdaptiveBottomSheet(
                     }
                 } else {
                     GlassSurface(
-                        modifier = dialogModifier,
-                        shape = shape24,
-                        backgroundColor = if (backdropState != null) Color.Transparent else (if (containerColor != Color.Unspecified) containerColor else Color(0x4D0F1015)),
+                        modifier = modifier
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                enabled = false
+                            ) {}
+                            .fillMaxWidth(0.74f),
+                        shape = RoundedCornerShape(24.dp),
+                        backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color(0x4D0F1015),
                         borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
-                        backgroundImage = if (backdropState != null) backgroundImage else null,
-                        backgroundImageAlpha = 0.20f,
                         enableBlur = false
                     ) {
                         Column(
@@ -213,25 +263,9 @@ fun AdaptiveBottomSheet(
                 onDispose {}
             }
 
-            val backdropState = LocalBackdropState.current
-            val sheetModifier = Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .then(
-                    if (backdropState != null) {
-                        Modifier.backdropReceiver(
-                            state = backdropState,
-                            blurRadius = 24.dp,
-                            tint = resolvedColor,
-                            baseColor = if (isDark) Color(0xFF08090E) else Color(0xFFFFFFFF),
-                            showTopBorder = false
-                        )
-                    } else Modifier
-                )
-
-            if (backdropState == null && isSolidGlossy) {
+            if (isSolidGlossy) {
                 SolidGlossySurface(
-                    modifier = sheetModifier,
+                    modifier = Modifier.fillMaxWidth(),
                     shape = shape,
                     backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color.Unspecified,
                     borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.10f),
@@ -251,9 +285,9 @@ fun AdaptiveBottomSheet(
                         content()
                     }
                 }
-            } else if (backdropState == null && backgroundImage != null) {
+            } else if (backgroundImage != null) {
                 SheetAmbientSurface(
-                    modifier = sheetModifier,
+                    modifier = Modifier.fillMaxWidth(),
                     shape = shape,
                     isDark = isDark,
                     backgroundImage = backgroundImage,
@@ -274,12 +308,10 @@ fun AdaptiveBottomSheet(
                 }
             } else {
                 GlassSurface(
-                    modifier = sheetModifier,
+                    modifier = Modifier.fillMaxWidth(),
                     shape = shape,
-                    backgroundColor = if (backdropState != null) Color.Transparent else (if (containerColor != Color.Unspecified) containerColor else Color(0x4D0F1015)),
+                    backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color(0x4D0F1015),
                     borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
-                    backgroundImage = if (backdropState != null) backgroundImage else null,
-                    backgroundImageAlpha = 0.20f,
                     enableBlur = false
                 ) {
                     Column(modifier = Modifier.navigationBarsPadding()) {
@@ -332,4 +364,3 @@ private fun SheetAmbientSurface(
         content = content
     )
 }
-

@@ -44,8 +44,7 @@ fun MediaInfoBottomSheet(
     item: MediaItem?,
     onDismiss: () -> Unit,
     onShowFileLocation: ((MediaItem) -> Unit)? = null,
-    onFetchInfo: ((MediaItem) -> Unit)? = null,
-    hue: Float? = null
+    onFetchInfo: ((MediaItem) -> Unit)? = null
 ) {
     if (item == null) return
 
@@ -79,9 +78,8 @@ fun MediaInfoBottomSheet(
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         containerColor = Color.Unspecified,
         contentColor = if (isDark) Color.White else Color.Black,
-        backgroundImage = item.albumArtUri ?: item.uri,
-        backgroundImageAlpha = 1.0f,
-        hue = hue,
+        backgroundImage = null,
+        hue = null,
         dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
         if (item.type == MediaType.VIDEO) {
