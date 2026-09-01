@@ -178,13 +178,6 @@ private fun SettingsContent(
     filmGrainIntensity: Float,
     onFilmGrainIntensityChange: (Float) -> Unit
 ) {
-    val customSwitchColors = SwitchDefaults.colors(
-        checkedThumbColor = Color.White,
-        checkedTrackColor = Color(0xFF3F51B5),
-        uncheckedThumbColor = Color.Gray,
-        uncheckedTrackColor = Color.DarkGray
-    )
-
     val glossyChipColors = FilterChipDefaults.filterChipColors(
         containerColor = Color(0x1AFFFFFF),
         labelColor = Color(0xFF9EA3B0),
@@ -241,12 +234,13 @@ private fun SettingsContent(
                 Text(text = "Remember Playback Position", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 Text(text = "Prompt to resume videos where you left off", fontSize = 11.sp, color = Color.White.copy(alpha = 0.65f))
             }
-            Switch(
+            AppSwitch(
                 checked = rememberPosition,
                 onCheckedChange = { checked ->
                     settingsScope.launch { settingsManager.setRememberVideoPosition(checked) }
                 },
-                colors = customSwitchColors
+                style = AppSwitchStyle.Glossy,
+                accentColor = Color(0xFF38BDF8)
             )
         }
 
@@ -307,10 +301,11 @@ private fun SettingsContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(text = "5-Band Native Equalizer", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Switch(
+                    AppSwitch(
                         checked = playerState.isEqEnabled,
                         onCheckedChange = { playerManager.setEqEnabled(it) },
-                        colors = customSwitchColors
+                        style = AppSwitchStyle.Glossy,
+                        accentColor = Color(0xFF10B981)
                     )
                 }
 
@@ -381,10 +376,11 @@ private fun SettingsContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(text = "Film Grain Overlay", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
-                Switch(
+                AppSwitch(
                     checked = isFilmGrainEnabled,
                     onCheckedChange = onFilmGrainEnabledChange,
-                    colors = customSwitchColors
+                    style = AppSwitchStyle.Glossy,
+                    accentColor = Color(0xFF38BDF8)
                 )
             }
 

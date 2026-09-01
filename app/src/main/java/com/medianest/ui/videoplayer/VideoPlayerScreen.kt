@@ -84,6 +84,7 @@ import com.medianest.ui.components.MediaInfoBottomSheet
 import com.medianest.ui.videoplayer.studio.VideoEditorStudioSheet
 import com.medianest.ui.videoplayer.panels.*
 import com.medianest.util.BlurUtils.videoBlur
+import com.medianest.ui.components.backdropReceiver
 import com.medianest.ui.components.backdropSource
 import com.medianest.ui.components.rememberBackdropBlurState
 import com.medianest.ui.components.SidebarQueueDrawer
@@ -830,15 +831,32 @@ fun VideoPlayerScreen(
             exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = if (showControls && !showAbRepeatBar) 90.dp else 24.dp)
+                .padding(
+                    bottom = if (showControls) (if (showAbRepeatBar) 220.dp else 165.dp) else (if (showAbRepeatBar) 90.dp else 28.dp)
+                )
         ) {
             resumePromptPositionMs?.let { resumePos ->
+                val shape = RoundedCornerShape(16.dp)
+                val cardBg = Color(0xCC111827)
                 GlassSurface(
-                    shape = RoundedCornerShape(16.dp),
-                    backgroundColor = Color(0xEE111827),
-                    borderColor = Color(0x3338BDF8),
-                    borderWidth = 1.dp,
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    shape = shape,
+                    backgroundColor = if (playerBackdropState != null) Color.Transparent else cardBg,
+                    borderColor = Color(0x33FFFFFF),
+                    borderWidth = 0.5.dp,
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .clip(shape)
+                        .then(
+                            if (playerBackdropState != null) {
+                                Modifier.backdropReceiver(
+                                    state = playerBackdropState,
+                                    blurRadius = 24.dp,
+                                    tint = cardBg,
+                                    baseColor = Color(0xFF111827),
+                                    showTopBorder = false
+                                )
+                            } else Modifier
+                        )
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -848,7 +866,7 @@ fun VideoPlayerScreen(
                         Icon(
                             imageVector = Icons.Default.History,
                             contentDescription = null,
-                            tint = Color(0xFF38BDF8),
+                            tint = Color.White,
                             modifier = Modifier.size(18.dp)
                         )
                         Text(
@@ -863,7 +881,7 @@ fun VideoPlayerScreen(
                                 resumePromptPositionMs = null
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF38BDF8),
+                                containerColor = Color.White,
                                 contentColor = Color.Black
                             ),
                             shape = RoundedCornerShape(10.dp),

@@ -25,13 +25,6 @@ fun HardwareAccelerationSetting(
     val hwAccelEnabled by settingsManager.hardwareAccelerationEnabled.collectAsState(initial = true)
     val decoderMode by settingsManager.decoderMode.collectAsState(initial = "AUTO")
 
-    val customSwitchColors = SwitchDefaults.colors(
-        checkedThumbColor = Color.White,
-        checkedTrackColor = Color(0xFF3F51B5),
-        uncheckedThumbColor = Color.Gray,
-        uncheckedTrackColor = Color.DarkGray
-    )
-
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         // Master Toggle
         Row(
@@ -52,10 +45,11 @@ fun HardwareAccelerationSetting(
                     fontSize = 12.sp
                 )
             }
-            Switch(
+            AppSwitch(
                 checked = hwAccelEnabled,
                 onCheckedChange = { scope.launch { settingsManager.setHardwareAccelerationEnabled(it); onModeChange() } },
-                colors = customSwitchColors
+                style = AppSwitchStyle.Glossy,
+                accentColor = Color(0xFF38BDF8)
             )
         }
 
@@ -141,13 +135,6 @@ fun HdrPlaybackSetting(
     
     val hdrEnabled by settingsManager.hdrPlaybackEnabled.collectAsState(initial = isHdrSupported)
 
-    val customSwitchColors = SwitchDefaults.colors(
-        checkedThumbColor = Color.White,
-        checkedTrackColor = Color(0xFF3F51B5),
-        uncheckedThumbColor = Color.Gray,
-        uncheckedTrackColor = Color.DarkGray
-    )
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -166,11 +153,12 @@ fun HdrPlaybackSetting(
                 fontSize = 12.sp
             )
         }
-        Switch(
+        AppSwitch(
             checked = hdrEnabled && isHdrSupported,
             enabled = isHdrSupported,
             onCheckedChange = { scope.launch { settingsManager.setHdrPlaybackEnabled(it) } },
-            colors = customSwitchColors
+            style = AppSwitchStyle.Glossy,
+            accentColor = Color(0xFF38BDF8)
         )
     }
 }
