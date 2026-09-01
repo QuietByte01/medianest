@@ -56,7 +56,6 @@ fun AdaptiveBottomSheet(
     enableBlur: Boolean = true,
     hue: Float? = null,
     isSolidGlossy: Boolean = false,
-    backdropState: BackdropBlurState? = LocalBackdropState.current,
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -64,71 +63,14 @@ fun AdaptiveBottomSheet(
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
 
-    // Translucent obsidian for dark with active backdrop blur; frosted white for light
+    // Translucent obsidian for dark, translucent frosted white for light
     val resolvedColor = when {
         containerColor != Color.Unspecified -> containerColor
-        isDark -> if (backdropState != null) Color(0x6608090E) else Color(0xCC08090E)
-        else   -> if (backdropState != null) Color(0x80FFFFFF) else Color(0xBFFFFFFF)
+        isDark -> Color(0x6608090E)
+        else   -> Color(0x80FFFFFF)
     }
 
-    if (backdropState != null) {
-        // INLINE OVERLAY: Renders in the same Window hierarchy to ensure backdropBlur coordinates align 100%
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.55f))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { onDismissRequest() },
-            contentAlignment = if (isTablet) Alignment.Center else Alignment.BottomCenter
-        ) {
-            val sheetShape = if (isTablet) RoundedCornerShape(24.dp) else shape
-            val maxSheetHeight = (configuration.screenHeightDp * 0.88f).dp
-            val sheetModifier = modifier
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    enabled = false
-                ) {}
-                .then(if (isTablet) Modifier.fillMaxWidth(0.74f).heightIn(max = maxSheetHeight) else Modifier.fillMaxWidth().heightIn(max = maxSheetHeight))
-                .clip(sheetShape)
-                .backdropReceiver(
-                    state = backdropState,
-                    blurRadius = 24.dp,
-                    tint = resolvedColor,
-                    baseColor = Color.Transparent,
-                    showTopBorder = false
-                )
-
-            GlassSurface(
-                modifier = sheetModifier,
-                shape = sheetShape,
-                backgroundColor = Color.Transparent,
-                borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
-                backgroundImage = backgroundImage,
-                backgroundImageAlpha = 0.20f,
-                enableBlur = false
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(if (!isTablet) Modifier.navigationBarsPadding() else Modifier)
-                        .padding(if (isTablet) 20.dp else 0.dp)
-                ) {
-                    if (dragHandle != null && !isTablet) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            dragHandle()
-                        }
-                    }
-                    content()
-                }
-            }
-        }
-    } else if (isTablet) {
+    if (isTablet) {
         Dialog(
             onDismissRequest = onDismissRequest,
             properties = DialogProperties(
@@ -145,6 +87,9 @@ fun AdaptiveBottomSheet(
                     w.navigationBarColor = android.graphics.Color.TRANSPARENT
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         w.isNavigationBarContrastEnforced = false
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        w.setBackgroundBlurRadius(80)
                     }
                     WindowInsetsControllerCompat(w, w.decorView).let { controller ->
                         controller.isAppearanceLightNavigationBars = !isDark
@@ -221,9 +166,11 @@ fun AdaptiveBottomSheet(
                             ) {}
                             .fillMaxWidth(0.74f),
                         shape = RoundedCornerShape(24.dp),
-                        backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color(0x4D0F1015),
+                        backgroundColor = resolvedColor,
                         borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
-                        enableBlur = false
+                        backgroundImage = backgroundImage,
+                        backgroundImageAlpha = backgroundImageAlpha,
+                        enableBlur = enableBlur
                     ) {
                         Column(
                             modifier = Modifier
@@ -243,7 +190,7 @@ fun AdaptiveBottomSheet(
             shape = shape,
             containerColor = Color.Transparent,
             contentColor = contentColor,
-            scrimColor = Color.Black.copy(alpha = 0.55f),
+            scrimColor = Color.Black.copy(alpha = 0.35f),
             dragHandle = null,
             contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
         ) {
@@ -256,6 +203,9 @@ fun AdaptiveBottomSheet(
                     w.navigationBarColor = android.graphics.Color.TRANSPARENT
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         w.isNavigationBarContrastEnforced = false
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        w.setBackgroundBlurRadius(80)
                     }
                     WindowInsetsControllerCompat(w, w.decorView).let { controller ->
                         controller.isAppearanceLightNavigationBars = !isDark
@@ -311,9 +261,11 @@ fun AdaptiveBottomSheet(
                 GlassSurface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = shape,
-                    backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color(0x4D0F1015),
+                    backgroundColor = resolvedColor,
                     borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
-                    enableBlur = false
+                    backgroundImage = backgroundImage,
+                    backgroundImageAlpha = backgroundImageAlpha,
+                    enableBlur = enableBlur
                 ) {
                     Column(modifier = Modifier.navigationBarsPadding()) {
                         if (dragHandle != null) {
@@ -346,22 +298,13 @@ private fun SheetAmbientSurface(
     containerColor: Color,
     content: @Composable BoxScope.() -> Unit
 ) {
-    val backdropState = LocalBackdropState.current
-    val baseMod = if (backdropState != null) {
-        modifier.backdropReceiver(
-            state = backdropState,
-            blurRadius = 32.dp,
-            tint = Color(0x990A0C10)
-        )
-    } else {
-        modifier
-    }
-
-    GlassSurface(
-        modifier = baseMod,
+    AmbientGlassSurface(
+        modifier = modifier,
         shape = shape,
-        backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color(0x660F1015),
+        backgroundImage = backgroundImage,
+        hue = hue,
         borderWidth = 0.5.dp,
+        containerColor = containerColor,
         content = content
     )
 }
