@@ -1161,6 +1161,7 @@ fun VideoPlayerScreen(
                 title = "Delete Video",
                 itemTitle = item.title,
                 onDismiss = { showDeleteDialog = false },
+                backdropState = playerBackdropState,
                 onConfirm = {
                     showDeleteDialog = false
                     scope.launch(Dispatchers.IO) {

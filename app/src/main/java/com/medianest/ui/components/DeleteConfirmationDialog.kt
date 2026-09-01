@@ -59,8 +59,8 @@ fun DeleteConfirmationDialog(
                     Modifier.backdropReceiver(
                         state = backdropState,
                         blurRadius = 24.dp,
-                        tint = cardBg,
-                        baseColor = if (isDark) Color(0xFF08090E) else Color(0xFFFFFFFF),
+                        tint = Color(0x6608090E),
+                        baseColor = Color.Transparent,
                         showTopBorder = false
                     )
                 } else Modifier

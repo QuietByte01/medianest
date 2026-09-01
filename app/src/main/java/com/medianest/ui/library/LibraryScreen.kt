@@ -302,6 +302,7 @@ fun LibraryScreen(
                                         },
                                         onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
                                         onRescanHiddenMedia = onRescanHiddenMedia,
+                                        onShowInfo = { libraryInfoItem = it },
                                         viewModel = viewModel
                                     )
                                 } else {
