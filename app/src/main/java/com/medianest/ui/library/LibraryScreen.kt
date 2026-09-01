@@ -17,6 +17,8 @@ import com.medianest.data.model.MediaItem
 import com.medianest.player.ExoPlayerManager
 import com.medianest.ui.MediaViewModel
 import com.medianest.ui.dashboard.AnalyticsScreen
+import com.medianest.ui.components.backdropSource
+import com.medianest.ui.components.rememberBackdropBlurState
 import com.medianest.ui.components.dismissKeyboardOnOutsideTap
 import com.medianest.ui.library.audio.AudioTab
 import com.medianest.ui.library.image.ImagesTab
@@ -137,13 +139,25 @@ fun LibraryScreen(
         }
 
         val currentPlayingTrack = playerState.currentItem
+        val libraryBackdropState = rememberBackdropBlurState()
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .dismissKeyboardOnOutsideTap()
+        CompositionLocalProvider(
+            com.medianest.ui.components.LocalBackdropState provides libraryBackdropState
         ) {
-            LibraryAmbientBackground(
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .dismissKeyboardOnOutsideTap()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .backdropSource(
+                            state = libraryBackdropState,
+                            backgroundColor = MaterialTheme.colorScheme.background
+                        )
+                ) {
+                    LibraryAmbientBackground(
                 isDashboardTab = isDashboardTab,
                 isImagesTab = isImagesTab,
                 isVideosTab = isVideosTab,
@@ -489,4 +503,6 @@ fun LibraryScreen(
             )
         }
     }
+    }
+}
 }
