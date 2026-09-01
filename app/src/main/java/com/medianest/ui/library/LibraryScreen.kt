@@ -139,6 +139,7 @@ fun LibraryScreen(
         }
 
         val currentPlayingTrack = playerState.currentItem
+        var libraryInfoItem by remember { mutableStateOf<MediaItem?>(null) }
         val libraryBackdropState = rememberBackdropBlurState()
 
         CompositionLocalProvider(
@@ -500,6 +501,13 @@ fun LibraryScreen(
                 onDismiss = { showCopyModal = false },
                 onComplete = { selectedUris = emptySet() },
                 coroutineScope = coroutineScope
+            )
+        }
+
+        if (libraryInfoItem != null) {
+            com.medianest.ui.components.MediaInfoBottomSheet(
+                item = libraryInfoItem,
+                onDismiss = { libraryInfoItem = null }
             )
         }
     }
