@@ -130,6 +130,7 @@ fun VideosTab(
     initialTargetVideoUri: String? = null,
     onBackToDashboard: () -> Unit = {},
     onRescanHiddenMedia: () -> Unit = {},
+    onShowInfo: (MediaItem) -> Unit = {},
     viewModel: com.medianest.ui.MediaViewModel = viewModel()
 ) {
     val currentContext = LocalContext.current
@@ -514,7 +515,7 @@ fun VideosTab(
                         db.categoryDao().removeMediaFromCategory(selectedCategory.id, item.uri.toString())
                     }
                 },
-                onShowInfo = { infoItem = it },
+                onShowInfo = onShowInfo,
                 gridState = chronologicalGridState
             )
         } else if (activeFilterTab == "CATEGORIES" && selectedCategory == null) {
@@ -593,7 +594,7 @@ fun VideosTab(
                 roundedCornersEnabled = roundedCornersEnabled,
                 gridSizeLevel = gridSizeLevel,
                 gridGapDp = gridGapDp,
-                onInfoItem = { infoItem = it },
+                onInfoItem = onShowInfo,
                 onVideoDelete = { videoToDelete = it },
                 onRename = { itemToRename = it }
             )
@@ -611,7 +612,7 @@ fun VideosTab(
                 activeFilterTab = activeFilterTab,
                 onVideoClick = { item -> onVideoClick(item, sortedDisplayList, currentContextTitle) },
                 onVideoLongClick = onVideoLongClick,
-                onInfoItem = { infoItem = it },
+                onInfoItem = onShowInfo,
                 onVideoDelete = { videoToDelete = it },
                 onRemoveFromCategory = { item ->
                     scope.launch(Dispatchers.IO) {
@@ -680,24 +681,7 @@ fun VideosTab(
             )
         }
 
-        if (infoItem != null) {
-            MediaInfoBottomSheet(
-                item = infoItem!!,
-                onDismiss = { infoItem = null },
-                onShowFileLocation = { item ->
-                    infoItem = null
-                    isFolderViewActive = true
-                    activeFilterTab = "FOLDERS"
-                    onCategorySelect(null)
-                    targetVideoUri = item.uri.toString()
-                    val relPath = item.relativePath?.trim('/')
-                    val folderKey = if (!relPath.isNullOrBlank()) relPath else (item.bucketName ?: "Movies")
-                    selectedFolder = videoFolderGroups.keys.firstOrNull { key ->
-                        key.equals(folderKey, ignoreCase = true) || key.lowercase().endsWith(folderKey.lowercase()) || folderKey.lowercase().endsWith(key.lowercase())
-                    } ?: folderKey
-                }
-            )
-        }
+        /* MediaInfoBottomSheet handled at top level in LibraryScreen */
 
         if (showAddVideosToCategoryDialog || showAddVideosDialog) {
             AddVideosToCategoryDialog(

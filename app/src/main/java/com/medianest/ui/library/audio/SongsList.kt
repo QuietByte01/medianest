@@ -61,6 +61,7 @@ fun SongsList(
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?, targetSongUri: String?) -> Unit = { _, _, _, _, _ -> },
     onAddToPlaylist: (MediaItem) -> Unit = {},
+    onShowInfo: (MediaItem) -> Unit = {},
     showInGallery: Boolean = false,
     targetSongUri: String? = null
 ) {
@@ -140,7 +141,7 @@ fun SongsList(
                         },
                         onAddToPlaylist = onAddToPlaylist,
                         onRemoveFromPlaylist = onRemoveFromPlaylist,
-                        onInfoClick = { infoItem = it },
+                        onInfoClick = onShowInfo,
                         onEditMetadataClick = { editMetadataItem = it },
                         onMoveClick = { itemToMove = it },
                         onCopyClick = { itemToCopy = it },
@@ -183,19 +184,7 @@ fun SongsList(
         )
     }
 
-    if (infoItem != null) {
-        MediaInfoBottomSheet(
-            item = infoItem!!,
-            onDismiss = { infoItem = null },
-            onShowFileLocation = { item ->
-                val folder = item.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (item.bucketName ?: "Music")
-                onNavigateSubTab(5, null, null, folder, item.uri.toString())
-            },
-            onFetchInfo = { item ->
-                Toast.makeText(context, "Fetching tags & info for '${item.title}'...", Toast.LENGTH_SHORT).show()
-            }
-        )
-    }
+    /* MediaInfoBottomSheet handled at top level in LibraryScreen */
 
     if (songToDelete != null) {
         val target = songToDelete!!

@@ -50,6 +50,7 @@ fun AudioTab(
     initialTargetSongUri: String? = null,
     onBackToDashboard: () -> Unit = {},
     onRescanHiddenMedia: () -> Unit = {},
+    onShowInfo: (MediaItem) -> Unit = {},
     viewModel: com.medianest.ui.MediaViewModel = viewModel()
 ) {
     var subTabState by remember(initialSubTab) { mutableIntStateOf(initialSubTab) }
@@ -303,6 +304,7 @@ fun AudioTab(
                 onSongClick = onSongClick,
                 onSongLongClick = onSongLongClick,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
+                onShowInfo = onShowInfo,
                 onNavigateSubTab = { tab, album, artist, folder, targetUri ->
                     subTabState = tab
                     if (album != null) targetAlbum = album
@@ -320,6 +322,7 @@ fun AudioTab(
                 onSongClick = onSongClick,
                 onSongLongClick = onSongLongClick,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
+                onShowInfo = onShowInfo,
                 onNavigateSubTab = { tab, album, artist, folder, targetUri ->
                     subTabState = tab
                     if (album != null) targetAlbum = album
@@ -337,6 +340,7 @@ fun AudioTab(
                 onSongClick = onSongClick,
                 onSongLongClick = onSongLongClick,
                 onAddToPlaylist = { itemToAddToPlaylist = it },
+                onShowInfo = onShowInfo,
                 onNavigateSubTab = { tab, album, artist, folder, targetUri ->
                     subTabState = tab
                     if (album != null) targetAlbum = album

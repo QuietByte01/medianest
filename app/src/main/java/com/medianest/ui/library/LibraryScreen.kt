@@ -269,6 +269,7 @@ fun LibraryScreen(
                                             selectedUris = selectedUris + item.uri.toString()
                                         },
                                         onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
+                                        onShowInfo = { libraryInfoItem = it },
                                         viewModel = viewModel
                                     )
                                 }
@@ -336,6 +337,7 @@ fun LibraryScreen(
                                         initialTargetVideoUri = targetMediaUri,
                                         onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
                                         onRescanHiddenMedia = onRescanHiddenMedia,
+                                        onShowInfo = { libraryInfoItem = it },
                                         viewModel = viewModel
                                     )
                                 }
@@ -375,6 +377,7 @@ fun LibraryScreen(
                                         initialTargetVideoUri = targetMediaUri,
                                         onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
                                         onRescanHiddenMedia = onRescanHiddenMedia,
+                                        onShowInfo = { libraryInfoItem = it },
                                         viewModel = viewModel
                                     )
                                 } else {
@@ -400,6 +403,7 @@ fun LibraryScreen(
                                         initialTargetSongUri = targetMediaUri,
                                         onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
                                         onRescanHiddenMedia = onRescanHiddenMedia,
+                                        onShowInfo = { libraryInfoItem = it },
                                         viewModel = viewModel
                                     )
                                 }
@@ -428,6 +432,7 @@ fun LibraryScreen(
                                     initialTargetSongUri = targetMediaUri,
                                     onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
                                     onRescanHiddenMedia = onRescanHiddenMedia,
+                                    onShowInfo = { libraryInfoItem = it },
                                     viewModel = viewModel
                                 )
                             }

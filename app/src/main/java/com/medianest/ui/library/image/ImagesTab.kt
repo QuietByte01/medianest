@@ -63,6 +63,7 @@ fun ImagesTab(
     initialTargetImageUri: String? = null,
     onBackToDashboard: () -> Unit = {},
     onRescanHiddenMedia: () -> Unit = {},
+    onShowInfo: (MediaItem) -> Unit = {},
     viewModel: com.medianest.ui.MediaViewModel = viewModel()
 ) {
     val currentContext = LocalContext.current
@@ -493,7 +494,7 @@ fun ImagesTab(
                             imageMinSize = imageMinSize,
                             onImageClick = onImageClick,
                             onImageLongClick = onImageLongClick,
-                            onInfoItemChange = { infoItem = it },
+                            onInfoItemChange = { if (it != null) onShowInfo(it) },
                             onImageToDeleteChange = { imageToDelete = it },
                             onContextSheetItemChange = { contextSheetItem = it },
                             onRemoveFromCategory = {},
@@ -700,23 +701,7 @@ fun ImagesTab(
             )
         }
 
-        if (infoItem != null) {
-            MediaInfoBottomSheet(
-                item = infoItem!!,
-                onDismiss = { infoItem = null },
-                onShowFileLocation = { item ->
-                    infoItem = null
-                    activeFilterTab = "FOLDERS"
-                    viewMode = 1
-                    targetImageUri = item.uri.toString()
-                    val relPath = item.relativePath?.trim('/')
-                    val folderKey = if (!relPath.isNullOrBlank()) relPath else (item.bucketName ?: "Pictures")
-                    selectedFolder = folderGroups.keys.firstOrNull { key ->
-                        key.equals(folderKey, ignoreCase = true) || key.lowercase().endsWith(folderKey.lowercase()) || folderKey.lowercase().endsWith(key.lowercase())
-                    } ?: folderKey
-                }
-            )
-        }
+        /* MediaInfoBottomSheet handled at top level in LibraryScreen */
 
         if (itemToRename != null) {
             RenameFileDialog(
