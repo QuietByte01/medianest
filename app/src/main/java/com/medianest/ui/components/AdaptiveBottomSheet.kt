@@ -62,12 +62,13 @@ fun AdaptiveBottomSheet(
     val isDark = LocalDarkTheme.current
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
+    val backdropState = LocalBackdropState.current
 
-    // Obsidian for dark, frosted white for light
+    // Translucent obsidian for dark with active backdrop blur; frosted white for light
     val resolvedColor = when {
         containerColor != Color.Unspecified -> containerColor
-        isDark -> Color(0xCC08090E)
-        else   -> Color(0xBFFFFFFF)
+        isDark -> if (backdropState != null) Color(0x6608090E) else Color(0xCC08090E)
+        else   -> if (backdropState != null) Color(0x80FFFFFF) else Color(0xBFFFFFFF)
     }
 
     if (isTablet) {
