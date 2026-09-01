@@ -671,9 +671,11 @@ class MediaStoreRepository(private val context: Context) {
 
     suspend fun scanHiddenMedia(
         mediaType: MediaType,
-        hiddenFolders: Set<String> = emptySet()
+        hiddenFolders: Set<String> = emptySet(),
+        forceRescan: Boolean = false,
+        onProgress: ((currentPath: String, count: Int) -> Unit)? = null
     ): List<MediaItem> = withContext(Dispatchers.IO) {
-        scanFileSystemHiddenMedia(mediaType, hiddenFolders, showHidden = true)
+        scanFileSystemHiddenMedia(mediaType, hiddenFolders, showHidden = true, forceRescan = forceRescan, onProgress = onProgress)
     }
 
     private val commonDotFolders = listOf(
@@ -685,9 +687,31 @@ class MediaStoreRepository(private val context: Context) {
         ".Audio", ".Music", ".Documents", ".Files", ".thumbnails", ".recycle_bin", "recycle.bin"
     )
 
-    private fun scanFileSystemHiddenMedia(mediaType: MediaType, hiddenFolders: Set<String> = emptySet(), showHidden: Boolean = true): List<MediaItem> {
+    private fun scanFileSystemHiddenMedia(
+        mediaType: MediaType,
+        hiddenFolders: Set<String> = emptySet(),
+        showHidden: Boolean = true,
+        forceRescan: Boolean = false,
+        onProgress: ((currentPath: String, count: Int) -> Unit)? = null
+    ): List<MediaItem> {
         val startTime = System.currentTimeMillis()
-        Logger.i("MediaStoreRepo", "START FS SCAN: type=$mediaType, showHidden=$showHidden")
+        
+        val cacheFile = java.io.File(context.filesDir, "hidden_media_cache_${mediaType.name}.bin")
+        if (!forceRescan && cacheFile.exists()) {
+            try {
+                java.io.ObjectInputStream(java.io.FileInputStream(cacheFile)).use { ois ->
+                    @Suppress("UNCHECKED_CAST")
+                    val cachedProxies = ois.readObject() as List<com.medianest.data.model.CachedMediaItemProxy>
+                    val items = cachedProxies.map { it.toMediaItem() }
+                    Logger.i("MediaStoreRepo", "Loaded ${items.size} hidden items from cache for $mediaType in ${System.currentTimeMillis() - startTime}ms")
+                    return items
+                }
+            } catch (e: Exception) {
+                Logger.e("MediaStoreRepo", "Failed to load hidden media cache for $mediaType: ${e.message}")
+            }
+        }
+
+        Logger.i("MediaStoreRepo", "START FS SCAN: type=$mediaType, showHidden=$showHidden, forceRescan=$forceRescan")
         val hiddenItems = mutableListOf<MediaItem>()
         try {
             val rootDir = android.os.Environment.getExternalStorageDirectory() ?: return emptyList()
@@ -722,7 +746,11 @@ class MediaStoreRepository(private val context: Context) {
                 visitedPaths.add(canonicalPath)
 
                 val dirName = dir.name
-                if (dirName == "Android" && dir.parentFile?.absolutePath == rootDir.absolutePath) return
+                if (dirName == "data" && dir.parentFile?.name == "Android") return
+                if (dirName == "obb" && dir.parentFile?.name == "Android") return
+
+                val displayRelPath = dir.absolutePath.removePrefix(rootDir.absolutePath).trim('/')
+                onProgress?.invoke(if (displayRelPath.isNotBlank()) displayRelPath else dirName, hiddenItems.size)
 
                 val isExcluded = hiddenFolders.isNotEmpty() && hiddenFolders.any { hidden ->
                     dirName.equals(hidden, ignoreCase = true) || dir.absolutePath.contains(hidden, ignoreCase = true)
@@ -749,18 +777,21 @@ class MediaStoreRepository(private val context: Context) {
                 val filesList = (rawFiles ?: emptyArray()).toMutableList()
 
                 val hasNoMedia = filesList.any { it.name.equals(".nomedia", ignoreCase = true) }
-                val isHiddenFolder = parentIsHidden || dirName.startsWith(".") || dir.absolutePath.contains("/.") || hasNoMedia
+                val isHiddenFolder = parentIsHidden || dirName.startsWith(".") || hasNoMedia
 
                 for (file in filesList) {
                     if (file.isDirectory) {
-                        scanDir(file, depth + 1, isHiddenFolder || isExcluded)
+                        scanDir(file, depth + 1, isHiddenFolder)
                     } else if (file.isFile) {
                         val ext = file.extension.lowercase()
                         val isHiddenFile = file.name.startsWith(".") || isHiddenFolder
-                        if (extensions.contains(ext) && (showHidden || (!isHiddenFile && !isExcluded))) {
+                        val relPath = file.parentFile?.absolutePath?.removePrefix(rootDir.absolutePath)?.trim('/')?.let { "$it/" } ?: "$dirName/"
+                        val isExcludedFile = isExcluded || com.medianest.util.FolderHiddenUtils.isFolderExcludedByDefault(relPath, dirName)
+
+                        // ONLY add items that are genuinely hidden or excluded (standard public files belong in MediaStore)
+                        if (extensions.contains(ext) && (isHiddenFile || isExcludedFile)) {
                             val fileUri = Uri.fromFile(file)
                             val folderName = if (dirName.isNotBlank()) dirName else (file.parentFile?.name ?: "Hidden")
-                            val relPath = file.parentFile?.absolutePath?.removePrefix(rootDir.absolutePath)?.trim('/')?.let { "$it/" } ?: "$folderName/"
                             
                             val meta = com.medianest.util.MediaMetadataUtils.extractBasicMetadata(context, fileUri)
 
@@ -786,8 +817,8 @@ class MediaStoreRepository(private val context: Context) {
                                     dateCreated = meta.dateCreated,
                                     bucketName = folderName,
                                     relativePath = relPath,
-                                    isHidden = isHiddenFile || parentIsHidden,
-                                    isExcluded = isExcluded,
+                                    isHidden = isHiddenFile,
+                                    isExcluded = isExcludedFile,
                                     artist = meta.artist,
                                     album = meta.album
                                 )
@@ -821,6 +852,15 @@ class MediaStoreRepository(private val context: Context) {
                 scanDir(root, 0, false)
             }
             Logger.i("MediaStoreRepo", "END FS SCAN: Found ${hiddenItems.size} items in ${System.currentTimeMillis() - startTime}ms")
+            try {
+                java.io.ObjectOutputStream(java.io.FileOutputStream(cacheFile)).use { oos ->
+                    val proxies = hiddenItems.map { com.medianest.data.model.CachedMediaItemProxy.fromMediaItem(it) }
+                    oos.writeObject(proxies)
+                }
+                Logger.d("MediaStoreRepo", "Saved ${hiddenItems.size} hidden items to cache for $mediaType")
+            } catch (e: Exception) {
+                Logger.e("MediaStoreRepo", "Failed to save hidden media cache for $mediaType: ${e.message}")
+            }
         } catch (e: Exception) {
             Logger.e("MediaStoreRepo", "FS Scan Error: ${e.message}", e)
         }
@@ -902,6 +942,21 @@ class MediaStoreRepository(private val context: Context) {
                         )
                     )
                 }
+            }
+        }
+    }
+
+    companion object {
+        fun clearHiddenMediaCache(context: Context) {
+            try {
+                val dir = context.cacheDir
+                dir.listFiles()?.forEach { file ->
+                    if (file.name.startsWith("hidden_media_cache_") && file.name.endsWith(".bin")) {
+                        file.delete()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }

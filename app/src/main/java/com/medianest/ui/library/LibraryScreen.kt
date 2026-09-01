@@ -43,6 +43,7 @@ fun LibraryScreen(
     analyticsFormatStats: List<FormatStat> = emptyList(),
     isAnalyticsRefreshing: Boolean = false,
     onRefreshAnalytics: () -> Unit = {},
+    onRescanHiddenMedia: () -> Unit = {},
     exoPlayerManager: ExoPlayerManager,
     initialTab: Int = 0,
     audioSubTab: Int = 0,
@@ -194,8 +195,17 @@ fun LibraryScreen(
                         beyondViewportPageCount = 3,
                         modifier = Modifier.fillMaxSize()
                     ) { page ->
-                        when (page) {
-                            0 -> {
+                        val isPageImages = (enableAnalyticsTab && page == 1) || (!enableAnalyticsTab && page == 0)
+                        val isPageVideos = (enableAnalyticsTab && page == 2) || (!enableAnalyticsTab && page == 1)
+                        val shouldAutoPlayVideos = isVideosTab && isPageVideos
+                        val shouldAutoPlayGifs = isImagesTab && isPageImages
+
+                        CompositionLocalProvider(
+                            com.medianest.ui.components.LocalAutoPlayVideoPreviews provides shouldAutoPlayVideos,
+                            com.medianest.ui.components.LocalAutoPlayGifPreviews provides shouldAutoPlayGifs
+                        ) {
+                            when (page) {
+                                0 -> {
                                 if (enableAnalyticsTab) {
                                     AnalyticsScreen(
                                         snapshot = analyticsSnapshot,
@@ -273,6 +283,7 @@ fun LibraryScreen(
                                             selectedUris = selectedUris + item.uri.toString()
                                         },
                                         onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
+                                        onRescanHiddenMedia = onRescanHiddenMedia,
                                         viewModel = viewModel
                                     )
                                 } else {
@@ -307,6 +318,7 @@ fun LibraryScreen(
                                         initialFolder = initialVideoFolder,
                                         initialTargetVideoUri = targetMediaUri,
                                         onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
+                                        onRescanHiddenMedia = onRescanHiddenMedia,
                                         viewModel = viewModel
                                     )
                                 }
@@ -345,6 +357,7 @@ fun LibraryScreen(
                                         initialFolder = initialVideoFolder,
                                         initialTargetVideoUri = targetMediaUri,
                                         onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
+                                        onRescanHiddenMedia = onRescanHiddenMedia,
                                         viewModel = viewModel
                                     )
                                 } else {
@@ -369,6 +382,7 @@ fun LibraryScreen(
                                         initialFolder = audioFolder,
                                         initialTargetSongUri = targetMediaUri,
                                         onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
+                                        onRescanHiddenMedia = onRescanHiddenMedia,
                                         viewModel = viewModel
                                     )
                                 }
@@ -396,11 +410,13 @@ fun LibraryScreen(
                                     initialFolder = audioFolder,
                                     initialTargetSongUri = targetMediaUri,
                                     onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
+                                    onRescanHiddenMedia = onRescanHiddenMedia,
                                     viewModel = viewModel
                                 )
                             }
                         }
                     }
+                }
 
                 LibraryBatchActionBar(
                     isSelectionMode = isSelectionMode,

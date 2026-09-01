@@ -49,6 +49,7 @@ fun AudioTab(
     initialFolder: String? = null,
     initialTargetSongUri: String? = null,
     onBackToDashboard: () -> Unit = {},
+    onRescanHiddenMedia: () -> Unit = {},
     viewModel: com.medianest.ui.MediaViewModel = viewModel()
 ) {
     var subTabState by remember(initialSubTab) { mutableIntStateOf(initialSubTab) }
@@ -362,6 +363,7 @@ fun AudioTab(
                 },
                 isLoading = isLoading,
                 isScanningHidden = isScanningHidden,
+                onRescanHiddenMedia = onRescanHiddenMedia,
                 sortField = sortField,
                 isAscending = isAscending
             )
@@ -383,6 +385,7 @@ fun AudioTab(
                 },
                 isLoading = isLoading,
                 isScanningHidden = isScanningHidden,
+                onRescanHiddenMedia = onRescanHiddenMedia,
                 sortField = sortField,
                 isAscending = isAscending
             )
@@ -441,6 +444,9 @@ fun AudioTab(
                     if (folder != null) targetFolder = folder
                     if (targetUri != null) targetSongUri = targetUri
                 },
+                isLoading = isLoading,
+                isScanningHidden = isScanningHidden,
+                onRescanHiddenMedia = onRescanHiddenMedia,
                 sortField = sortField,
                 isAscending = isAscending
             )

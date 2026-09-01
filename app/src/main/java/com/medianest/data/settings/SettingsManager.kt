@@ -78,6 +78,10 @@ class SettingsManager(private val context: Context) {
         val KEY_UNINTERRUPTED_MODE = booleanPreferencesKey("uninterrupted_mode")
         val KEY_AUTO_RESUME_ON_BLUETOOTH = booleanPreferencesKey("auto_resume_on_bluetooth")
         
+        val KEY_AUTO_PLAY_VIDEO_PREVIEWS = booleanPreferencesKey("auto_play_video_previews")
+        val KEY_AUTO_PLAY_GIF_PREVIEWS = booleanPreferencesKey("auto_play_gif_previews")
+        val KEY_REMEMBER_VIDEO_POSITION = booleanPreferencesKey("remember_video_position")
+
         val KEY_DAILY_SUBTITLE_SEARCH_COUNT = intPreferencesKey("daily_subtitle_search_count")
         val KEY_LAST_SUBTITLE_SEARCH_DATE = stringPreferencesKey("last_subtitle_search_date")
     }
@@ -94,6 +98,7 @@ class SettingsManager(private val context: Context) {
     val decoderMode: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_DECODER_MODE] ?: "AUTO" }
     val pictureModeEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_PICTURE_MODE_ENABLED] ?: true }
     val pictureMode: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_PICTURE_MODE] ?: "DEVICE_DEFAULT" }
+    val rememberVideoPosition: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_REMEMBER_VIDEO_POSITION] ?: true }
     val hdrPlaybackEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_HDR_PLAYBACK_ENABLED] ?: true }
     val filmGrainEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_FILM_GRAIN_ENABLED] ?: false }
     val filmGrainIntensity: Flow<Float> = context.dataStore.data.map { prefs -> prefs[KEY_FILM_GRAIN_INTENSITY] ?: 0.15f }
@@ -150,6 +155,12 @@ class SettingsManager(private val context: Context) {
     val videoRepeatMode: Flow<Int> = context.dataStore.data.map { prefs -> prefs[KEY_VIDEO_REPEAT_MODE] ?: 0 } // REPEAT_MODE_OFF
     val audioShuffleMode: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUDIO_SHUFFLE_MODE] ?: false }
     val videoShuffleMode: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_VIDEO_SHUFFLE_MODE] ?: false }
+
+    val autoPlayVideoPreviews: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUTO_PLAY_VIDEO_PREVIEWS] ?: true }
+    val autoPlayGifPreviews: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUTO_PLAY_GIF_PREVIEWS] ?: true }
+
+    suspend fun setAutoPlayVideoPreviews(enabled: Boolean) = context.dataStore.edit { it[KEY_AUTO_PLAY_VIDEO_PREVIEWS] = enabled }
+    suspend fun setAutoPlayGifPreviews(enabled: Boolean) = context.dataStore.edit { it[KEY_AUTO_PLAY_GIF_PREVIEWS] = enabled }
 
     suspend fun setTheme(theme: String) = context.dataStore.edit { it[KEY_THEME] = theme }
     suspend fun setAccentColor(color: Int) = context.dataStore.edit { it[KEY_ACCENT_COLOR] = color }
@@ -220,6 +231,7 @@ class SettingsManager(private val context: Context) {
     suspend fun setHdrPlaybackEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_HDR_PLAYBACK_ENABLED] = enabled }
     suspend fun setPictureModeEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_PICTURE_MODE_ENABLED] = enabled }
     suspend fun setPictureMode(mode: String) = context.dataStore.edit { it[KEY_PICTURE_MODE] = mode }
+    suspend fun setRememberVideoPosition(remember: Boolean) = context.dataStore.edit { it[KEY_REMEMBER_VIDEO_POSITION] = remember }
     suspend fun setFilmGrainEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_FILM_GRAIN_ENABLED] = enabled }
     suspend fun setFilmGrainIntensity(intensity: Float) = context.dataStore.edit { it[KEY_FILM_GRAIN_INTENSITY] = intensity }
     suspend fun setCustomSaturation(sat: Float) = context.dataStore.edit { it[KEY_CUSTOM_SATURATION] = sat }

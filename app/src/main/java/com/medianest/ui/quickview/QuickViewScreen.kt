@@ -42,6 +42,7 @@ import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.BubblingHeartButton
 import com.medianest.ui.components.GlassDropdownMenu
+import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.MediaInfoBottomSheet
 import com.medianest.ui.components.debug.ImageDebugOverlay
 import com.medianest.ui.image.hybrid.HybridImageViewer
@@ -384,7 +385,7 @@ fun QuickViewScreen(
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape)
-                                    .background(if (pictureModeEnabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.8f) else Color.Black.copy(alpha = 0.55f))
+                                    .background(if (pictureModeEnabled) Color.White.copy(alpha = 0.85f) else Color.Black.copy(alpha = 0.55f))
                                     .clickable {
                                         resetControlsTimer()
                                         showPictureModeDialog = true
@@ -394,7 +395,7 @@ fun QuickViewScreen(
                                 Icon(
                                     imageVector = Icons.Default.Tune,
                                     contentDescription = "Picture Mode",
-                                    tint = Color.White,
+                                    tint = if (pictureModeEnabled) Color.Black else Color.White,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -404,17 +405,9 @@ fun QuickViewScreen(
                             Color.Transparent, // Dynamic Frosted
                             Color.Black,
                             Color.White,
-                            Color(0xFF1A1C1E), // Dark Gray
-                            Color(0xFF2D2D2D), // Medium Gray
-                            Color(0xFFE0E0E0), // Light Gray
-                            Color(0xFFFDF6E3), // Cream
-                            Color(0xFF0D1117), // Deep Navy
-                            Color(0xFF1E1E1E), // Slate
-                            Color(0xFF2C3E50), // Midnight Blue
-                            Color(0xFF34495E), // Wet Asphalt
-                            Color(0xFF7F8C8D), // Asbestos Gray
-                            Color(0xFFE67E22), // Pumpkin
-                            Color(0xFF27AE60)  // Emerald
+                            Color(0xFF27AE60), // Green
+                            Color.Black.copy(alpha = 0.10f), // Black 10% opacity
+                            Color.White.copy(alpha = 0.10f)  // White 10% opacity
                         )
 
                         // Color Indicator & Selection Button
@@ -857,50 +850,85 @@ fun QuickViewScreen(
 
     if (showPictureModeDialog) {
         val modes = listOf("OFF", "VIBRANT", "NATURAL", "AMOLED", "CINEMATIC", "WARM", "COOL")
-        AlertDialog(
-            onDismissRequest = { showPictureModeDialog = false },
-            title = { Text("Picture Mode", color = Color.White) },
-            text = {
-                Column {
-                    modes.forEach { mode ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    pictureMode = mode
-                                    pictureModeEnabled = mode != "OFF"
-                                    coroutineScope.launch {
-                                        app.settingsManager.setPictureMode(mode)
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showPictureModeDialog = false }
+        ) {
+            GlassSurface(
+                shape = RoundedCornerShape(24.dp),
+                backgroundColor = Color(0x40000000),
+                borderColor = Color(0x33FFFFFF),
+                modifier = Modifier.fillMaxWidth(0.92f)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp)
+                ) {
+                    Text(
+                        text = "Picture Mode",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Column {
+                        modes.forEach { mode ->
+                            val isSelected = pictureMode == mode
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isSelected) Color.White.copy(alpha = 0.15f) else Color.Transparent)
+                                    .clickable {
+                                        pictureMode = mode
+                                        pictureModeEnabled = mode != "OFF"
+                                        coroutineScope.launch {
+                                            app.settingsManager.setPictureMode(mode)
+                                        }
+                                        showPictureModeDialog = false
                                     }
-                                    showPictureModeDialog = false
-                                }
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = pictureMode == mode,
-                                onClick = {
-                                    pictureMode = mode
-                                    pictureModeEnabled = mode != "OFF"
-                                    coroutineScope.launch {
-                                        app.settingsManager.setPictureMode(mode)
-                                    }
-                                    showPictureModeDialog = false
-                                }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(mode, color = Color.White)
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = isSelected,
+                                    onClick = {
+                                        pictureMode = mode
+                                        pictureModeEnabled = mode != "OFF"
+                                        coroutineScope.launch {
+                                            app.settingsManager.setPictureMode(mode)
+                                        }
+                                        showPictureModeDialog = false
+                                    },
+                                    colors = RadioButtonDefaults.colors(
+                                        selectedColor = Color.White,
+                                        unselectedColor = Color.White.copy(alpha = 0.5f)
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = mode,
+                                    color = Color.White,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 15.sp
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showPictureModeDialog = false }) {
+                            Text("Close", color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { showPictureModeDialog = false }) {
-                    Text("Close", color = MaterialTheme.colorScheme.primary)
-                }
-            },
-            containerColor = Color(0xFF1E1E1E)
-        )
+            }
+        }
     }
 
     if (showDeleteDialog && currentItem != null) {

@@ -47,6 +47,7 @@ fun AppSlider(
     modifier: Modifier = Modifier,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
     steps: Int = 0,
+    drawTicks: Boolean = false,
     enabled: Boolean = true,
     style: AppSliderStyle = AppSliderStyle.Solid,
     headStyle: AppSliderHeadStyle = AppSliderHeadStyle.Circular,
@@ -65,10 +66,10 @@ fun AppSlider(
     val maxVal = valueRange.endInclusive
     val rangeSpan = (maxVal - minVal).coerceAtLeast(0.0001f)
 
-    val trackHeightDp = customTrackHeight ?: if (thickness == AppSliderThickness.Thin) 5.dp else 14.dp
+    val trackHeightDp = customTrackHeight ?: if (thickness == AppSliderThickness.Thin) 4.dp else 10.dp
     val thumbSizeDp = customThumbSize ?: when (headStyle) {
-        AppSliderHeadStyle.Bar -> DpSize(8.dp, 18.dp)
-        AppSliderHeadStyle.Circular -> if (thickness == AppSliderThickness.Thin) DpSize(12.dp, 12.dp) else DpSize(24.dp, 24.dp)
+        AppSliderHeadStyle.Bar -> DpSize(8.dp, 16.dp)
+        AppSliderHeadStyle.Circular -> if (thickness == AppSliderThickness.Thin) DpSize(10.dp, 10.dp) else DpSize(14.dp, 14.dp)
     }
 
     Box(
@@ -152,31 +153,33 @@ fun AppSlider(
                 )
             }
 
-            // 1.5 Draw Ticks (Steps) - Including Start and End Dots
-            val tickColor = if (style == AppSliderStyle.Glossy) Color.White.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.65f)
-            
-            // Start dot
-            drawCircle(
-                color = tickColor,
-                radius = 1.5.dp.toPx(),
-                center = Offset(trackStart, centerY)
-            )
-            // End dot
-            drawCircle(
-                color = tickColor,
-                radius = 1.5.dp.toPx(),
-                center = Offset(trackEnd, centerY)
-            )
+            // 1.5 Draw Ticks (Steps) - Only if drawTicks is true
+            if (drawTicks) {
+                val tickColor = if (style == AppSliderStyle.Glossy) Color.White.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.65f)
+                
+                // Start dot
+                drawCircle(
+                    color = tickColor,
+                    radius = 1.5.dp.toPx(),
+                    center = Offset(trackStart, centerY)
+                )
+                // End dot
+                drawCircle(
+                    color = tickColor,
+                    radius = 1.5.dp.toPx(),
+                    center = Offset(trackEnd, centerY)
+                )
 
-            if (steps > 0) {
-                for (i in 1..steps) {
-                    val tickFrac = i.toFloat() / (steps + 1)
-                    val tickX = trackStart + (tickFrac * usableWidth)
-                    drawCircle(
-                        color = tickColor,
-                        radius = 1.5.dp.toPx(),
-                        center = Offset(tickX, centerY)
-                    )
+                if (steps > 0) {
+                    for (i in 1..steps) {
+                        val tickFrac = i.toFloat() / (steps + 1)
+                        val tickX = trackStart + (tickFrac * usableWidth)
+                        drawCircle(
+                            color = tickColor,
+                            radius = 1.5.dp.toPx(),
+                            center = Offset(tickX, centerY)
+                        )
+                    }
                 }
             }
 

@@ -52,6 +52,8 @@ fun ImagesFolderGrid(
     onFolderInfoRequest: (String) -> Unit,
     onToggleFolderHidden: (String, List<MediaItem>, Boolean) -> Unit,
     isFolderHidden: (String, List<MediaItem>?) -> Boolean,
+    isFolderExcluded: (String, List<MediaItem>?) -> Boolean = { _, _ -> false },
+    onRescanHiddenMedia: () -> Unit = {},
     gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState()
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -72,7 +74,15 @@ fun ImagesFolderGrid(
                 color = Color(0xFFC0C5D0)
             )
 
-            Row {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED") {
+                    com.medianest.ui.components.RescanHiddenMediaButton(
+                        isScanning = isScanningHidden,
+                        onRescanClick = onRescanHiddenMedia
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                }
+
                 if (isFolderSelectionActive) {
                     TextButton(onClick = {
                         onSelectedFolderNamesChange(
@@ -162,6 +172,7 @@ fun ImagesFolderGrid(
                 items(visibleFolders, key = { it }) { folderName ->
                     val folderItems = folderGroups[folderName] ?: emptyList()
                     val isChecked = selectedFolderNames.contains(folderName)
+                    val isExcluded = isFolderExcluded(folderName, folderItems)
                     val isHidden = isFolderHidden(folderName, folderItems)
 
                     val totalSizeBytes = remember(folderItems) { folderItems.sumOf { it.size } }
@@ -391,17 +402,17 @@ fun ImagesFolderGrid(
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text(if (isHidden) "Include Folder" else "Exclude Folder", color = Color.White) },
+                                            text = { Text(if (isExcluded) "Include Folder" else "Exclude Folder", color = Color.White) },
                                             leadingIcon = {
                                                 Icon(
-                                                    imageVector = if (isHidden) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                                    imageVector = if (isExcluded) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                                     contentDescription = null,
                                                     tint = Color.White
                                                 )
                                             },
                                             onClick = {
                                                 showFolderMenu = false
-                                                onToggleFolderHidden(folderName, folderItems, isHidden)
+                                                onToggleFolderHidden(folderName, folderItems, isExcluded)
                                             }
                                         )
                                         DropdownMenuItem(

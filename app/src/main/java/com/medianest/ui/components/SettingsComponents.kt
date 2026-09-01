@@ -141,6 +141,13 @@ fun HdrPlaybackSetting(
     
     val hdrEnabled by settingsManager.hdrPlaybackEnabled.collectAsState(initial = isHdrSupported)
 
+    val customSwitchColors = SwitchDefaults.colors(
+        checkedThumbColor = Color.White,
+        checkedTrackColor = Color(0xFF3F51B5),
+        uncheckedThumbColor = Color.Gray,
+        uncheckedTrackColor = Color.DarkGray
+    )
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -163,12 +170,7 @@ fun HdrPlaybackSetting(
             checked = hdrEnabled && isHdrSupported,
             enabled = isHdrSupported,
             onCheckedChange = { scope.launch { settingsManager.setHdrPlaybackEnabled(it) } },
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = Color(0xFFE91E63),
-                uncheckedThumbColor = Color.Gray,
-                uncheckedTrackColor = Color.DarkGray
-            )
+            colors = customSwitchColors
         )
     }
 }

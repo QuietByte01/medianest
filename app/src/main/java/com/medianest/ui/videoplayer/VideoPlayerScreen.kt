@@ -84,6 +84,8 @@ import com.medianest.ui.components.MediaInfoBottomSheet
 import com.medianest.ui.videoplayer.studio.VideoEditorStudioSheet
 import com.medianest.ui.videoplayer.panels.*
 import com.medianest.util.BlurUtils.videoBlur
+import com.medianest.ui.components.backdropSource
+import com.medianest.ui.components.rememberBackdropBlurState
 import com.medianest.ui.components.SidebarQueueDrawer
 import com.medianest.ui.components.media.*
 import com.medianest.ui.components.dismissKeyboardOnOutsideTap
@@ -169,6 +171,35 @@ fun VideoPlayerScreen(
     var decoderMode by remember(savedDecoderMode) { mutableStateOf(savedDecoderMode) }
     var showAspectRatioMenu by remember { mutableStateOf(false) }
     var showSpeedMenu by remember { mutableStateOf(false) }
+
+    val rememberVideoPosition by settingsManager.rememberVideoPosition.collectAsState(initial = true)
+    var resumePromptPositionMs by remember { mutableStateOf<Long?>(null) }
+
+    LaunchedEffect(currentItem?.id, currentItem?.uri) {
+        resumePromptPositionMs = null
+        val item = currentItem ?: return@LaunchedEffect
+        if (rememberVideoPosition) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val db = com.medianest.MediaNestApp.instance.database
+                    val savedState = db.playbackStateDao().getPlaybackState(item.uri.toString())
+                    if (savedState != null && savedState.positionMs > 5000L && savedState.durationMs > 10000L && savedState.positionMs < (savedState.durationMs - 5000L)) {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            resumePromptPositionMs = savedState.positionMs
+                        }
+                        kotlinx.coroutines.delay(7000L)
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            resumePromptPositionMs = null
+                        }
+                    }
+                } catch (e: Exception) {
+                    Logger.e("VideoPlayerScreen", "Failed to query playback state", e)
+                }
+            }
+        }
+    }
+
+    val playerBackdropState = rememberBackdropBlurState()
 
     var gestureFeedbackText by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(gestureFeedbackText) {
@@ -378,7 +409,7 @@ fun VideoPlayerScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .videoBlur(showSettingsSheet, radius = 60f)
+                .backdropSource(state = playerBackdropState, backgroundColor = Color.Black)
         ) {
             Box(
                 modifier = Modifier
@@ -557,8 +588,9 @@ fun VideoPlayerScreen(
                                         if (playerState.activeEngineName.contains("Media3")) {
                                             AndroidView(
                                                 factory = { ctx ->
-                                                    Logger.i("VideoPlayerScreen", "Creating NEW PlayerView for Media3 for item: ${currentItem?.id}")
-                                                    androidx.media3.ui.PlayerView(ctx).apply {
+                                                    Logger.i("VideoPlayerScreen", "Creating NEW TextureView PlayerView for Media3 for item: ${currentItem?.id}")
+                                                    val view = android.view.LayoutInflater.from(ctx).inflate(com.medianest.R.layout.player_view_texture, null, false) as androidx.media3.ui.PlayerView
+                                                    view.apply {
                                                         useController = false
                                                         try {
                                                             this.player = playerManager.exoPlayer
@@ -790,6 +822,84 @@ fun VideoPlayerScreen(
             )
         }
 
+        // Floating Resume / Restart Playback prompt
+        AnimatedVisibility(
+            visible = resumePromptPositionMs != null && !isControlsLocked && !showDrawer,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = if (showControls && !showAbRepeatBar) 90.dp else 24.dp)
+        ) {
+            resumePromptPositionMs?.let { resumePos ->
+                GlassSurface(
+                    shape = RoundedCornerShape(16.dp),
+                    backgroundColor = Color(0xEE111827),
+                    borderColor = Color(0x3338BDF8),
+                    borderWidth = 1.dp,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = null,
+                            tint = Color(0xFF38BDF8),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "Resume from ${formatDuration(resumePos)}?",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Button(
+                            onClick = {
+                                playerManager.seekTo(resumePos)
+                                resumePromptPositionMs = null
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF38BDF8),
+                                contentColor = Color.Black
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text(text = "Resume", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                playerManager.seekTo(0L)
+                                resumePromptPositionMs = null
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, Color.White.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text(text = "Restart", fontSize = 12.sp)
+                        }
+                        IconButton(
+                            onClick = { resumePromptPositionMs = null },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Dismiss",
+                                tint = Color.White.copy(alpha = 0.6f),
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         if (showDrawer) {
             Box(
                 modifier = Modifier
@@ -912,7 +1022,7 @@ fun VideoPlayerScreen(
             onFilmGrainEnabledChange = { scope.launch { settingsManager.setFilmGrainEnabled(it) } },
             filmGrainIntensity = filmGrainIntensity,
             onFilmGrainIntensityChange = { scope.launch { settingsManager.setFilmGrainIntensity(it) } },
-            onShowDetails = { showSettingsSheet = false; showDetailsSheet = true }
+            backdropState = playerBackdropState
         )
 
         if (showAspectRatioMenu) AspectRatioModal(currentMode = cropMode, onModeChange = { mode: MediaAspectRatio ->

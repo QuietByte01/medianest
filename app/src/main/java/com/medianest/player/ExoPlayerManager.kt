@@ -39,6 +39,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -257,9 +258,16 @@ class ExoPlayerManager private constructor(private val context: Context) {
         val state = _playerState.value
         val item = state.currentItem ?: return
         val db = com.medianest.MediaNestApp.instance.database
+        val settings = com.medianest.MediaNestApp.instance.settingsManager
         
         scope.launch(Dispatchers.IO) {
             try {
+                val shouldRemember = if (item.type == com.medianest.data.db.MediaType.VIDEO) {
+                    settings.rememberVideoPosition.first()
+                } else true
+
+                if (!shouldRemember) return@launch
+
                 val existing = db.playbackStateDao().getPlaybackState(item.uri.toString())
                 val newState = com.medianest.data.db.PlaybackState(
                     mediaUri = item.uri.toString(),

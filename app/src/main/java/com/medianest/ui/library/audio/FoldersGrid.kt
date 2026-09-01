@@ -45,6 +45,7 @@ fun FoldersGrid(
     onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?, targetSongUri: String?) -> Unit = { _, _, _, _, _ -> },
     isLoading: Boolean = false,
     isScanningHidden: Boolean = false,
+    onRescanHiddenMedia: () -> Unit = {},
     sortField: String = "Name",
     isAscending: Boolean = true
 ) {
@@ -92,30 +93,43 @@ fun FoldersGrid(
         (appHiddenFolders + selectiveAudioHidden).map { it.lowercase() }.toSet()
     }
 
-    fun isFolderExcluded(folderKey: String, items: List<MediaItem>?): Boolean {
-        val lowerKey = folderKey.lowercase()
-        val folderName = lowerKey.substringAfterLast('/')
-        if (com.medianest.util.FolderHiddenUtils.isFolderExcludedByDefault(folderKey, folderName)) return true
-        if (lowerKey in allHiddenAudioFolders || folderName in allHiddenAudioFolders) return true
-        return items?.any { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) } == true
+    val folderStatusMap = remember(folderMap, allHiddenAudioFolders) {
+        folderMap.keys.associateWith { folderKey ->
+            val items = folderMap[folderKey]
+            val lowerKey = folderKey.lowercase().trim('/')
+            val folderName = lowerKey.substringAfterLast('/')
+            val isExcluded = com.medianest.util.FolderHiddenUtils.isFolderExcludedByDefault(folderKey, folderName) ||
+                    lowerKey in allHiddenAudioFolders ||
+                    folderName in allHiddenAudioFolders ||
+                    allHiddenAudioFolders.any { hf -> lowerKey == hf || lowerKey.startsWith("$hf/") || lowerKey.contains("/$hf/") } ||
+                    (items?.firstOrNull()?.let { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) } == true)
+
+            val isSystemHidden = if (isExcluded) false else {
+                (items?.firstOrNull()?.let { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) } == true) ||
+                lowerKey.split('/').any { it.startsWith(".") && it.length > 1 } ||
+                folderName.startsWith(".")
+            }
+            Pair(isExcluded, isSystemHidden)
+        }
     }
 
-    fun isFolderSystemHidden(folderKey: String, items: List<MediaItem>?): Boolean {
-        if (isFolderExcluded(folderKey, items)) return false
-        val lowerKey = folderKey.lowercase().trim('/')
-        val folderName = lowerKey.substringAfterLast('/')
-        if (items?.any { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) } == true) return true
-        return lowerKey.split('/').any { it.startsWith(".") && it.length > 1 } || folderName.startsWith(".")
+    fun isFolderExcluded(folderKey: String, items: List<MediaItem>? = null): Boolean {
+        return folderStatusMap[folderKey]?.first ?: false
     }
 
-    fun isFolderHidden(folderKey: String, items: List<MediaItem>?): Boolean {
-        return isFolderExcluded(folderKey, items) || isFolderSystemHidden(folderKey, items)
+    fun isFolderSystemHidden(folderKey: String, items: List<MediaItem>? = null): Boolean {
+        return folderStatusMap[folderKey]?.second ?: false
+    }
+
+    fun isFolderHidden(folderKey: String, items: List<MediaItem>? = null): Boolean {
+        val status = folderStatusMap[folderKey]
+        return (status?.first == true) || (status?.second == true)
     }
 
     val isExcludedFeed = remember(songs) { songs.isNotEmpty() && songs.all { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) } }
     val isHiddenFeed = remember(songs) { songs.isNotEmpty() && songs.all { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) } }
 
-    val sortedFolderNames = remember(folderMap, sortField, isAscending, isExcludedFeed, isHiddenFeed, showAllFoldersMode) {
+    val sortedFolderNames = remember(folderMap, folderStatusMap, sortField, isAscending, isExcludedFeed, isHiddenFeed, showAllFoldersMode) {
         val keys = folderMap.keys.toList()
         val comp = when (sortField) {
             "Name" -> compareBy<String> { it.lowercase() }
@@ -129,16 +143,15 @@ fun FoldersGrid(
         }
         
         val baseSorted = if (isAscending) keys.sortedWith(comp) else keys.sortedWith(comp).reversed()
-        baseSorted.sortedBy { fn -> isFolderHidden(fn, folderMap[fn]) && !showAllFoldersMode && !isHiddenFeed && !isExcludedFeed }
+        baseSorted.sortedBy { fn -> isFolderHidden(fn) && !showAllFoldersMode && !isHiddenFeed && !isExcludedFeed }
     }
 
-    val visibleFolderNames = remember(sortedFolderNames, folderMap, isExcludedFeed, isHiddenFeed, showHiddenSetting, allHiddenAudioFolders) {
+    val visibleFolderNames = remember(sortedFolderNames, folderStatusMap, isExcludedFeed, isHiddenFeed, showHiddenSetting) {
         when {
-            isExcludedFeed -> sortedFolderNames.filter { fn -> isFolderExcluded(fn, folderMap[fn]) }
-            isHiddenFeed -> sortedFolderNames.filter { fn -> isFolderSystemHidden(fn, folderMap[fn]) }
+            isExcludedFeed -> sortedFolderNames.filter { fn -> isFolderExcluded(fn) }
+            isHiddenFeed -> sortedFolderNames.filter { fn -> isFolderSystemHidden(fn) }
             else -> sortedFolderNames.filter { fn ->
-                val items = folderMap[fn]
-                !isFolderExcluded(fn, items) && (showHiddenSetting || !isFolderSystemHidden(fn, items))
+                !isFolderExcluded(fn) && (showHiddenSetting || !isFolderSystemHidden(fn))
             }
         }
     }
@@ -479,13 +492,27 @@ fun FoldersGrid(
                         letterSpacing = 0.8.sp
                     )
 
-                    Text(
-                        text = "Show All",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFE2E8F0),
-                        modifier = Modifier.clickable { showAllFoldersMode = true }
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (isHiddenFeed || isExcludedFeed) {
+                            com.medianest.ui.components.RescanHiddenMediaButton(
+                                isScanning = isScanningHidden,
+                                onRescanClick = onRescanHiddenMedia,
+                                buttonSize = 24.dp,
+                                iconSize = 16.dp
+                            )
+                        }
+
+                        Text(
+                            text = "Show All",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFE2E8F0),
+                            modifier = Modifier.clickable { showAllFoldersMode = true }
+                        )
+                    }
                 }
 
                 LazyRow(

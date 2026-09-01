@@ -11,7 +11,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,7 +42,8 @@ internal fun VideoPlayerSettingsOverlay(
     onFilmGrainEnabledChange: (Boolean) -> Unit,
     filmGrainIntensity: Float,
     onFilmGrainIntensityChange: (Float) -> Unit,
-    onShowDetails: () -> Unit
+    onShowDetails: (() -> Unit)? = null,
+    backdropState: BackdropBlurState? = null
 ) {
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
@@ -47,7 +52,7 @@ internal fun VideoPlayerSettingsOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.25f))
+            .background(Color.Black.copy(alpha = 0.50f))
             .clickable(
                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                 indication = null
@@ -59,13 +64,25 @@ internal fun VideoPlayerSettingsOverlay(
                 .fillMaxWidth(if (isTablet) 0.96f else 0.94f)
                 .fillMaxHeight(if (isLandscape) 0.92f else 0.86f)
                 .padding(if (isTablet) 20.dp else 10.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .then(
+                    if (backdropState != null) {
+                        Modifier.backdropReceiver(
+                            state = backdropState,
+                            blurRadius = 28.dp,
+                            tint = Color(0xCC0E111A),
+                            baseColor = Color(0xFF0E111A),
+                            showTopBorder = true,
+                            borderColor = Color(0x33FFFFFF)
+                        )
+                    } else Modifier
+                )
                 .clickable(enabled = false) {},
             shape = RoundedCornerShape(22.dp),
-            backgroundColor = Color(0x990E111A), // More transparent
+            backgroundColor = if (backdropState != null) Color.Transparent else Color(0xB30E111A),
             borderColor = Color(0x33FFFFFF),
             borderWidth = 0.5.dp,
-            enableBlur = true,
-            blurRadius = 16.dp
+            enableBlur = false
         ) {
             Column(
                 modifier = Modifier
@@ -140,8 +157,7 @@ internal fun VideoPlayerSettingsOverlay(
                         isFilmGrainEnabled = isFilmGrainEnabled,
                         onFilmGrainEnabledChange = onFilmGrainEnabledChange,
                         filmGrainIntensity = filmGrainIntensity,
-                        onFilmGrainIntensityChange = onFilmGrainIntensityChange,
-                        onShowDetails = onShowDetails
+                        onFilmGrainIntensityChange = onFilmGrainIntensityChange
                     )
                 }
             }
@@ -160,9 +176,15 @@ private fun SettingsContent(
     isFilmGrainEnabled: Boolean,
     onFilmGrainEnabledChange: (Boolean) -> Unit,
     filmGrainIntensity: Float,
-    onFilmGrainIntensityChange: (Float) -> Unit,
-    onShowDetails: () -> Unit
+    onFilmGrainIntensityChange: (Float) -> Unit
 ) {
+    val customSwitchColors = SwitchDefaults.colors(
+        checkedThumbColor = Color.White,
+        checkedTrackColor = Color(0xFF3F51B5),
+        uncheckedThumbColor = Color.Gray,
+        uncheckedTrackColor = Color.DarkGray
+    )
+
     val glossyChipColors = FilterChipDefaults.filterChipColors(
         containerColor = Color(0x1AFFFFFF),
         labelColor = Color(0xFF9EA3B0),
@@ -172,24 +194,6 @@ private fun SettingsContent(
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        GlassSurface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onShowDetails() },
-            shape = RoundedCornerShape(16.dp),
-            backgroundColor = Color(0x1AFFFFFF),
-            borderColor = Color(0x33FFFFFF)
-        ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(Icons.Default.Info, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(10.dp))
-                Text("View Detailed File Info", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            }
-        }
 
         // Hardware & Performance Section
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -221,6 +225,29 @@ private fun SettingsContent(
                     }
                 }
             }
+        }
+
+        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
+        val rememberPosition by settingsManager.rememberVideoPosition.collectAsState(initial = true)
+        val settingsScope = rememberCoroutineScope()
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                Text(text = "Remember Playback Position", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(text = "Prompt to resume videos where you left off", fontSize = 11.sp, color = Color.White.copy(alpha = 0.65f))
+            }
+            Switch(
+                checked = rememberPosition,
+                onCheckedChange = { checked ->
+                    settingsScope.launch { settingsManager.setRememberVideoPosition(checked) }
+                },
+                colors = customSwitchColors
+            )
         }
 
         HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
@@ -280,11 +307,10 @@ private fun SettingsContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(text = "5-Band Native Equalizer", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    AppSwitch(
+                    Switch(
                         checked = playerState.isEqEnabled,
                         onCheckedChange = { playerManager.setEqEnabled(it) },
-                        style = AppSwitchStyle.Glossy,
-                        accentColor = Color(0xFF38BDF8)
+                        colors = customSwitchColors
                     )
                 }
 
@@ -355,11 +381,10 @@ private fun SettingsContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(text = "Film Grain Overlay", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
-                AppSwitch(
+                Switch(
                     checked = isFilmGrainEnabled,
                     onCheckedChange = onFilmGrainEnabledChange,
-                    style = AppSwitchStyle.Glossy,
-                    accentColor = Color(0xFF38BDF8)
+                    colors = customSwitchColors
                 )
             }
 

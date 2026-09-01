@@ -48,6 +48,8 @@ import com.medianest.data.repository.MediaStoreRepository
 import com.medianest.player.ExoPlayerManager
 import com.medianest.ui.audioplayer.AudioPlayerScreen
 import com.medianest.ui.components.AppLockDialog
+import com.medianest.ui.components.backdropSource
+import com.medianest.ui.components.rememberBackdropBlurState
 import com.medianest.ui.library.LibraryScreen
 import com.medianest.ui.quickview.QuickViewActivity
 import com.medianest.ui.settings.SettingsScreen
@@ -107,27 +109,34 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    var imagesList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
-                    var videosList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
-                    var audioList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
+                    val autoPlayVideoPreviews by settingsManager.autoPlayVideoPreviews.collectAsState(initial = true)
+                    val autoPlayGifPreviews by settingsManager.autoPlayGifPreviews.collectAsState(initial = true)
 
-                    var videoCategories by remember { mutableStateOf<List<MediaCategory>>(emptyList()) }
-                    var audioPlaylists by remember { mutableStateOf<List<MediaCategory>>(emptyList()) }
-                    var imageCollections by remember { mutableStateOf<List<MediaCategory>>(emptyList()) }
+                    CompositionLocalProvider(
+                        com.medianest.ui.components.LocalAutoPlayVideoPreviews provides autoPlayVideoPreviews,
+                        com.medianest.ui.components.LocalAutoPlayGifPreviews provides autoPlayGifPreviews
+                    ) {
+                        var imagesList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
+                        var videosList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
+                        var audioList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
 
-                    val gridGapDp by settingsManager.gridGapDp.collectAsState(initial = 8)
-                    val gridSizeLevel by settingsManager.gridSizeLevel.collectAsState(initial = 1)
-                    val cornerRadiusDp by settingsManager.gridCornerRadiusDp.collectAsState(initial = 8)
-                    val roundedCornersEnabled by settingsManager.roundedCornersEnabled.collectAsState(initial = true)
+                        var videoCategories by remember { mutableStateOf<List<MediaCategory>>(emptyList()) }
+                        var audioPlaylists by remember { mutableStateOf<List<MediaCategory>>(emptyList()) }
+                        var imageCollections by remember { mutableStateOf<List<MediaCategory>>(emptyList()) }
 
-                    val appLockEnabled by settingsManager.appLockEnabled.collectAsState(initial = false)
-                    val appLockPin by settingsManager.appLockPin.collectAsState(initial = "")
-                    val hideFromRecents by settingsManager.hideFromRecents.collectAsState(initial = false)
-                    val showHiddenFiles by settingsManager.showHiddenFiles.collectAsState(initial = false)
-                    val hiddenFolders by settingsManager.hiddenFolders.collectAsState(initial = emptySet())
-                    val enableAnalyticsTab by settingsManager.enableAnalyticsTab.collectAsState(initial = true)
+                        val gridGapDp by settingsManager.gridGapDp.collectAsState(initial = 8)
+                        val gridSizeLevel by settingsManager.gridSizeLevel.collectAsState(initial = 1)
+                        val cornerRadiusDp by settingsManager.gridCornerRadiusDp.collectAsState(initial = 8)
+                        val roundedCornersEnabled by settingsManager.roundedCornersEnabled.collectAsState(initial = true)
 
-                    val analyticsSnapshot by analyticsRepository.snapshot.collectAsState(initial = null)
+                        val appLockEnabled by settingsManager.appLockEnabled.collectAsState(initial = false)
+                        val appLockPin by settingsManager.appLockPin.collectAsState(initial = "")
+                        val hideFromRecents by settingsManager.hideFromRecents.collectAsState(initial = false)
+                        val showHiddenFiles by settingsManager.showHiddenFiles.collectAsState(initial = false)
+                        val hiddenFolders by settingsManager.hiddenFolders.collectAsState(initial = emptySet())
+                        val enableAnalyticsTab by settingsManager.enableAnalyticsTab.collectAsState(initial = true)
+
+                        val analyticsSnapshot by analyticsRepository.snapshot.collectAsState(initial = null)
                     val analyticsFormatStats by analyticsRepository.formatStats.collectAsState(initial = emptyList())
                     var isAnalyticsRefreshing by remember { mutableStateOf(false) }
                     var isScanLoading by remember { mutableStateOf(true) }
@@ -198,10 +207,10 @@ class MainActivity : ComponentActivity() {
                             val msVideos = mediaStoreRepository.getVideos(videoHiddenPaths, showHidden = true, includeFileSystemScan = false)
                             val msAudio = mediaStoreRepository.getAudio(audioHiddenPaths, showHidden = true, includeFileSystemScan = false)
 
-                            // Seamlessly merge without dropping previously scanned hidden files
-                            imagesList = (imagesList.filter { it.isHidden } + msImages).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
-                            videosList = (videosList.filter { it.isHidden } + msVideos).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
-                            audioList = (audioList.filter { it.isHidden } + msAudio).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
+                            // Seamlessly merge without dropping previously scanned hidden files, while pruning deleted/renamed paths
+                            imagesList = (imagesList.filter { it.isHidden && (it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists())) } + msImages).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}_${it.bucketName}" else it.id.toString() }
+                            videosList = (videosList.filter { it.isHidden && (it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists())) } + msVideos).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}_${it.bucketName}" else it.id.toString() }
+                            audioList = (audioList.filter { it.isHidden && (it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists())) } + msAudio).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}_${it.bucketName}" else it.id.toString() }
                             isScanLoading = false
                             
                             Logger.i("MainActivity", "MediaStore Load DONE: imgs=${imagesList.size}, vids=${videosList.size}, audio=${audioList.size}")
@@ -214,20 +223,20 @@ class MainActivity : ComponentActivity() {
                             Logger.i("MainActivity", "Hidden File Scan STARTING...")
                             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                                 kotlinx.coroutines.delay(100) // Yield to allow initial compose of categories and filters
-                                val hiddenImages = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.IMAGE, imageHiddenPaths)
-                                val hiddenVideos = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.VIDEO, videoHiddenPaths)
-                                val hiddenAudio = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.AUDIO, audioHiddenPaths)
+                                val hiddenImages = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.IMAGE, imageHiddenPaths).filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) }
+                                val hiddenVideos = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.VIDEO, videoHiddenPaths).filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) }
+                                val hiddenAudio = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.AUDIO, audioHiddenPaths).filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) }
 
                                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                                     Logger.i("MainActivity", "Hidden File Scan COMPLETE: imgs=${hiddenImages.size}, vids=${hiddenVideos.size}, audio=${hiddenAudio.size}")
                                     if (hiddenImages.isNotEmpty()) {
-                                        imagesList = (imagesList + hiddenImages).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
+                                        imagesList = (imagesList.filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) } + hiddenImages).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}_${it.bucketName}" else it.id.toString() }
                                     }
                                     if (hiddenVideos.isNotEmpty()) {
-                                        videosList = (videosList + hiddenVideos).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
+                                        videosList = (videosList.filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) } + hiddenVideos).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}_${it.bucketName}" else it.id.toString() }
                                     }
                                     if (hiddenAudio.isNotEmpty()) {
-                                        audioList = (audioList + hiddenAudio).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}" else it.id.toString() }
+                                        audioList = (audioList.filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) } + hiddenAudio).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}_${it.bucketName}" else it.id.toString() }
                                     }
                                     isScanningHidden = false
                                     Logger.i("MainActivity", "Total Merged List: imgs=${imagesList.size}, vids=${videosList.size}, audio=${audioList.size}")
@@ -278,6 +287,8 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    val settingsBackdropState = rememberBackdropBlurState()
+
                     if (appLockEnabled && !isUnlocked && appLockPin.isNotEmpty()) {
                         AppLockDialog(
                             correctPin = appLockPin,
@@ -286,7 +297,15 @@ class MainActivity : ComponentActivity() {
                     } else {
                         Box(modifier = Modifier.fillMaxSize()) {
                             // Persistent Base Library Screen (never destroyed on navigation to Settings/Player)
-                            LibraryScreen(
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .backdropSource(
+                                        state = settingsBackdropState,
+                                        backgroundColor = MaterialTheme.colorScheme.background
+                                    )
+                            ) {
+                                LibraryScreen(
                                 imagesList = imagesList,
                                 videosList = videosList,
                                 audioList = audioList,
@@ -308,6 +327,25 @@ class MainActivity : ComponentActivity() {
                                         isAnalyticsRefreshing = true
                                         analyticsRepository.refreshAnalytics(showHiddenFiles)
                                         isAnalyticsRefreshing = false
+                                    }
+                                },
+                                onRescanHiddenMedia = {
+                                    lifecycleScope.launch {
+                                        isScanningHidden = true
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                            com.medianest.data.repository.MediaStoreRepository.clearHiddenMediaCache(this@MainActivity)
+                                            val hiddenImages = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.IMAGE, emptySet(), forceRescan = true).filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) }
+                                            val hiddenVideos = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.VIDEO, emptySet(), forceRescan = true).filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) }
+                                            val hiddenAudio = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.AUDIO, emptySet(), forceRescan = true).filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) }
+
+                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                imagesList = (imagesList.filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) } + hiddenImages).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}_${it.bucketName}" else it.id.toString() }
+                                                videosList = (videosList.filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) } + hiddenVideos).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}_${it.bucketName}" else it.id.toString() }
+                                                audioList = (audioList.filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) } + hiddenAudio).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}_${it.bucketName}" else it.id.toString() }
+                                                isScanningHidden = false
+                                                android.widget.Toast.makeText(this@MainActivity, "Hidden & excluded folders refreshed!", android.widget.Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
                                     }
                                 },
                                 exoPlayerManager = exoPlayerManager,
@@ -414,6 +452,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             )
+                            }
 
                             // Settings Overlay Screen
                             AnimatedVisibility(
@@ -431,7 +470,8 @@ class MainActivity : ComponentActivity() {
                                             db.metadataCacheDao().clearCache()
                                         }
                                     },
-                                    onClose = { currentScreen = "LIBRARY" }
+                                    onClose = { currentScreen = "LIBRARY" },
+                                    backdropState = settingsBackdropState
                                 )
                             }
 
@@ -475,6 +515,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
     }
 
     private fun requestMediaPermissions() {

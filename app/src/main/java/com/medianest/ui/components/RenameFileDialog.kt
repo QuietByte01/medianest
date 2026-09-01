@@ -34,14 +34,14 @@ fun RenameFileDialog(
     Dialog(onDismissRequest = onDismiss) {
         GlassSurface(
             shape = RoundedCornerShape(24.dp),
-            backgroundColor = Color(0xEF141722),
+            backgroundColor = Color(0xEF12151E),
             borderColor = Color(0x38FFFFFF),
             modifier = Modifier.fillMaxWidth(0.92f)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp),
+                    .padding(22.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Row(
@@ -51,8 +51,8 @@ fun RenameFileDialog(
                     Icon(
                         imageVector = Icons.Default.Edit,
                         contentDescription = "Rename File",
-                        tint = Color(0xFF6366F1),
-                        modifier = Modifier.size(24.dp)
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
                     )
                     Text(
                         text = "Rename File",
@@ -67,15 +67,26 @@ fun RenameFileDialog(
                     onValueChange = { newTitle = it },
                     label = { Text("File Name", color = Color(0xFF9EA3B0)) },
                     singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color(0xFF6366F1),
-                        unfocusedBorderColor = Color(0x44FFFFFF),
-                        cursorColor = Color(0xFF6366F1)
+                        focusedBorderColor = Color(0x88FFFFFF),
+                        unfocusedBorderColor = Color(0x33FFFFFF),
+                        cursorColor = Color.White
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                if (isRenaming) {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        color = Color.White,
+                        trackColor = Color(0x33FFFFFF)
+                    )
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -105,9 +116,13 @@ fun RenameFileDialog(
                             }
                         },
                         enabled = !isRenaming && newTitle.trim().isNotBlank(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1))
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White,
+                            contentColor = Color.Black
+                        )
                     ) {
-                        Text("Rename", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Rename", color = Color.Black, fontWeight = FontWeight.Bold)
                     }
                 }
             }

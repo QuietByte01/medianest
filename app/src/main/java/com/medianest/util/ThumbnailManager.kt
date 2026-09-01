@@ -17,27 +17,70 @@ import kotlinx.coroutines.sync.withPermit
 object ThumbnailManager {
     private const val TAG = "ThumbnailManager"
 
-    // Max 20MB for thumbnail cache (enough for ~20-30 hardware-sized bitmaps)
-    private val memoryCache = object : LruCache<String, Bitmap>(20 * 1024 * 1024) {
+    // 64MB Memory Cache for instant scroll response
+    private val memoryCache = object : LruCache<String, Bitmap>(64 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
 
-    // Strictly limit concurrency to prevent Samsung MediaService exhaustion
-    private val extractionSemaphore = Semaphore(1)
+    private val extractionSemaphore = Semaphore(2)
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    private fun getDiskCacheDir(context: Context): java.io.File {
+        val dir = java.io.File(context.cacheDir, "video_thumb_disk_cache")
+        if (!dir.exists()) dir.mkdirs()
+        return dir
+    }
+
+    private fun getDiskCacheFile(context: Context, cacheKey: String): java.io.File {
+        val safeHash = (cacheKey.hashCode().toLong() and 0xFFFFFFFFL).toString(16)
+        val safePrefix = cacheKey.substringAfterLast('/').filter { it.isLetterOrDigit() || it == '_' }.take(30)
+        return java.io.File(getDiskCacheDir(context), "${safePrefix}_${safeHash}.webp")
+    }
 
     suspend fun getThumbnail(context: Context, uri: Uri, rebuildToken: Int = 0): Bitmap? {
         val cacheKey = "${uri}_$rebuildToken"
+
+        // 1. Instant Memory Cache Check (0ms)
         memoryCache.get(cacheKey)?.let { return it }
 
+        // 2. Fast Persistent Disk Cache Check (1-2ms)
+        val diskFile = getDiskCacheFile(context, cacheKey)
+        if (diskFile.exists() && diskFile.length() > 0) {
+            try {
+                val cached = android.graphics.BitmapFactory.decodeFile(diskFile.absolutePath)
+                if (cached != null) {
+                    memoryCache.put(cacheKey, cached)
+                    return cached
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 3. Fallback extraction via MediaMetadataRetriever (Only executed once per video ever)
         return try {
             extractionSemaphore.withPermit {
-                // Double check cache under lock
+                // Double check under permit
                 memoryCache.get(cacheKey)?.let { return@withPermit it }
+                if (diskFile.exists() && diskFile.length() > 0) {
+                    val cached = android.graphics.BitmapFactory.decodeFile(diskFile.absolutePath)
+                    if (cached != null) {
+                        memoryCache.put(cacheKey, cached)
+                        return@withPermit cached
+                    }
+                }
 
                 val bitmap = extractVideoThumbnail(context, uri, rebuildToken)
                 if (bitmap != null) {
                     memoryCache.put(cacheKey, bitmap)
+                    // Persist to disk cache
+                    try {
+                        java.io.FileOutputStream(diskFile).use { out ->
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                                bitmap.compress(android.graphics.Bitmap.CompressFormat.WEBP_LOSSY, 85, out)
+                            } else {
+                                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
+                            }
+                        }
+                    } catch (_: Exception) {}
                 }
                 bitmap
             }

@@ -2,10 +2,12 @@ package com.medianest.ui.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,6 +28,7 @@ import coil.request.videoFrameMicros
 import coil.decode.VideoFrameDecoder
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.theme.LocalDarkTheme
+import com.medianest.util.ThumbnailManager
 import com.medianest.util.formatBytesReport
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withPermit
@@ -57,8 +60,19 @@ fun WideVideoCard(
     val timeMillis = if (item.dateAdded > 10_000_000_000L) item.dateAdded else item.dateAdded * 1000L
     val timeStr = if (item.dateAdded > 0) timeFormat.format(Date(timeMillis)) else "N/A"
     val context = androidx.compose.ui.platform.LocalContext.current
+    val autoPlayVideoPreviews = LocalAutoPlayVideoPreviews.current
+
     var fallbackBitmap by remember(item.uri) { mutableStateOf<android.graphics.Bitmap?>(null) }
     var rebuildToken by remember(item.uri) { mutableStateOf(0) }
+
+    LaunchedEffect(item.uri, rebuildToken) {
+        if (fallbackBitmap == null) {
+            val bmp = ThumbnailManager.getThumbnail(context, item.uri, rebuildToken)
+            if (bmp != null) {
+                fallbackBitmap = bmp
+            }
+        }
+    }
 
     val coroutineScope = rememberCoroutineScope()
     val rebuildOffsets = remember { listOf(0.15f, 0.35f, 0.55f, 0.75f, 0.25f, 0.05f) }
@@ -139,6 +153,44 @@ fun WideVideoCard(
                         )
                     }
 
+                    // Live In-Place Video Auto-Preview when visible in viewport
+                    if (autoPlayVideoPreviews) {
+                        LibraryVideoPreviewView(
+                            uri = item.uri,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
+                    val activeUri by SlideShowVideoPreviewCoordinator.activeUri.collectAsState()
+                    val isAudioMuted by SlideShowVideoPreviewCoordinator.isAudioMuted.collectAsState()
+                    val isCurrentlyPreviewing = autoPlayVideoPreviews && activeUri == item.uri
+
+                    // Speaker toggle on the left side (BottomStart)
+                    if (isCurrentlyPreviewing) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color.Black.copy(alpha = 0.55f),
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(6.dp)
+                                .clickable {
+                                    SlideShowVideoPreviewCoordinator.toggleAudio()
+                                }
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 3.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (isAudioMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                                    contentDescription = if (isAudioMuted) "Turn Audio On" else "Mute Audio",
+                                    tint = if (isAudioMuted) Color.White.copy(alpha = 0.9f) else Color(0xFF4ADE80),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+                    }
+
                     if (!placeName.isNullOrBlank()) {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
@@ -170,26 +222,27 @@ fun WideVideoCard(
                         }
                     }
 
+                    // Compact Duration badge on bottom-right (BottomEnd)
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color.Black.copy(alpha = 0.30f),
+                        shape = RoundedCornerShape(5.dp),
+                        color = Color.Black.copy(alpha = 0.35f),
                         modifier = Modifier
-                            .padding(8.dp)
+                            .padding(6.dp)
                             .align(Alignment.BottomEnd)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            horizontalArrangement = Arrangement.spacedBy(2.5.dp)
                         ) {
                             RoundedPlayIcon(
-                                modifier = Modifier.size(10.dp),
+                                modifier = Modifier.size(10.5.dp),
                                 tint = Color.White
                             )
                             Text(
                                 text = formatDuration(item.durationMs),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.SemiBold,
                                 color = Color.White
                             )
                         }

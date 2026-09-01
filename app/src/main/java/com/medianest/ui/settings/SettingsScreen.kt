@@ -36,7 +36,9 @@ import com.medianest.data.db.HiddenFolderDao
 import com.medianest.data.repository.MediaStoreRepository
 import com.medianest.data.settings.SettingsManager
 import com.medianest.ui.components.AppSlider
+import com.medianest.ui.components.BackdropBlurState
 import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.components.backdropReceiver
 import com.medianest.ui.components.dismissKeyboardOnOutsideTap
 import kotlinx.coroutines.launch
 
@@ -47,7 +49,8 @@ fun SettingsScreen(
     hiddenFolderDao: HiddenFolderDao,
     mediaStoreRepository: MediaStoreRepository,
     onClearHistory: () -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    backdropState: BackdropBlurState? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -71,6 +74,8 @@ fun SettingsScreen(
     val autoResumeOnBluetooth by settingsManager.autoResumeOnBluetooth.collectAsState(initial = false)
     val audioBackgroundPlay by settingsManager.audioBackgroundPlay.collectAsState(initial = true)
     val videoBackgroundPlay by settingsManager.videoBackgroundPlay.collectAsState(initial = false)
+    val autoPlayVideoPreviews by settingsManager.autoPlayVideoPreviews.collectAsState(initial = true)
+    val autoPlayGifPreviews by settingsManager.autoPlayGifPreviews.collectAsState(initial = true)
     val dailySubtitleCount by settingsManager.dailySubtitleSearchCount.collectAsState(initial = 0)
     val offlineMode by settingsManager.offlineMode.collectAsState(initial = false)
     val showHiddenFiles by settingsManager.showHiddenFiles.collectAsState(initial = false)
@@ -81,7 +86,7 @@ fun SettingsScreen(
     val packageInfo = remember { context.packageManager.getPackageInfo(context.packageName, 0) }
     val versionText = "v${packageInfo.versionName} (${packageInfo.versionCode})"
 
-    // Selective Hidden Folders State
+    /* Selective Hidden Folders State (Commented out - exclude option available in library)
     var folderCategoryTab by remember { mutableIntStateOf(0) } // 0: Audio, 1: Images, 2: Videos
     val selectiveHiddenDao = remember { com.medianest.MediaNestApp.instance.database.selectiveHiddenFolderDao() }
     val allSelectiveFolders by selectiveHiddenDao.getAllHiddenFolders().collectAsState(initial = emptyList())
@@ -100,6 +105,7 @@ fun SettingsScreen(
         }
         isLoadingFolders = false
     }
+    */
 
     /*
     var hwAccelMode by remember { mutableStateOf("Enabled (Full GPU/DSP)") }
@@ -240,7 +246,7 @@ fun SettingsScreen(
             }
 
             // SECTION 1: DISPLAY & INTERFACE
-            SettingsGlassCard(title = "DISPLAY & INTERFACE") {
+            SettingsGlassCard(title = "DISPLAY & INTERFACE", backdropState = backdropState) {
                 // Grid Spacing (Gap) Discrete Slider
                 val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
                 SettingsRowItem(
@@ -342,7 +348,7 @@ fun SettingsScreen(
             }
 
             // SECTION 2: LIBRARY & FOLDER FILTERS
-            SettingsGlassCard(title = "LIBRARY & FOLDER FILTERS") {
+            SettingsGlassCard(title = "LIBRARY & FOLDER FILTERS", backdropState = backdropState) {
                 // Show Hidden Files & Folders
                 SettingsRowItem(
                     title = "Show Hidden Files & Folders",
@@ -361,7 +367,11 @@ fun SettingsScreen(
                     }
                 )
 
-                // Folders to Hide From Library
+                // Rescan All Media (Separate Reusable Component)
+                RescanAllMediaSettingItem(mediaStoreRepository = mediaStoreRepository)
+
+                /*
+                // Folders to Hide From Library (Commented out - exclude option available in library)
                 Column(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -457,16 +467,16 @@ fun SettingsScreen(
                                 .fillMaxWidth()
                                 .heightIn(max = 220.dp)
                                 .verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             folderNamesList.forEach { folderName ->
                                 val isHidden = hiddenForType.contains(folderName)
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
+                                        .clip(RoundedCornerShape(10.dp))
                                         .background(Color(0x1AFFFFFF))
-                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                        .padding(horizontal = 12.dp, vertical = 4.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -497,6 +507,7 @@ fun SettingsScreen(
                         }
                     }
                 }
+                */
 
                 /*
                 // Import External Playlists
@@ -533,7 +544,7 @@ fun SettingsScreen(
             }
 
             // SECTION 3: PLAYBACK & ENGINE
-            SettingsGlassCard(title = "PLAYBACK & ENGINE") {
+            SettingsGlassCard(title = "PLAYBACK & ENGINE", backdropState = backdropState) {
                 
                 // Keep Screen On During Playback
                 SettingsRowItem(
@@ -613,6 +624,32 @@ fun SettingsScreen(
                     }
                 )
 
+                // Auto-Play Video Previews
+                SettingsRowItem(
+                    title = "Auto-Play Video Previews",
+                    subtitle = "Play in-place muted video previews for visible items as you scroll",
+                    control = {
+                        Switch(
+                            checked = autoPlayVideoPreviews,
+                            onCheckedChange = { scope.launch { settingsManager.setAutoPlayVideoPreviews(it) } },
+                            colors = customSwitchColors
+                        )
+                    }
+                )
+
+                // Auto-Play GIFs
+                SettingsRowItem(
+                    title = "Auto-Play Animated GIFs",
+                    subtitle = "Play animated GIFs in-place for visible items in library",
+                    control = {
+                        Switch(
+                            checked = autoPlayGifPreviews,
+                            onCheckedChange = { scope.launch { settingsManager.setAutoPlayGifPreviews(it) } },
+                            colors = customSwitchColors
+                        )
+                    }
+                )
+
                 // Subtitle Search Quota
                 SettingsRowItem(
                     title = "Subtitle Search Limit",
@@ -665,7 +702,7 @@ fun SettingsScreen(
             }
 
             // SECTION 4: NOTIFICATIONS & DATA
-            SettingsGlassCard(title = "NOTIFICATIONS & DATA") {
+            SettingsGlassCard(title = "NOTIFICATIONS & DATA", backdropState = backdropState) {
                 // Audio Playback Notifications
                 SettingsRowItem(
                     title = "Audio Playback Notifications",
@@ -765,7 +802,8 @@ fun SettingsScreen(
             // Developer Options
             DeveloperSettingsSection(
                 settingsManager = settingsManager,
-                onDisableDevMode = { versionTapCount = 0 }
+                onDisableDevMode = { versionTapCount = 0 },
+                backdropState = backdropState
             )
 
             // Version info at the bottom
@@ -817,22 +855,38 @@ fun SettingsScreen(
 @Composable
 fun SettingsGlassCard(
     title: String,
+    backdropState: BackdropBlurState? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val isDark = com.medianest.ui.theme.LocalDarkTheme.current
     val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
+    val shape = RoundedCornerShape(20.dp)
     
     // Obsidian Tint for Dark Mode, Light Glossy for Light Mode
     val cardBg = if (isDark) Color(0xBF0F1015) else Color(0xA6FFFFFF)
     val cardBorder = if (isDark) Color(0x26FFFFFF) else Color(0x33000000)
 
+    val cardModifier = Modifier
+        .fillMaxWidth()
+        .clip(shape)
+        .then(
+            if (backdropState != null) {
+                Modifier.backdropReceiver(
+                    state = backdropState,
+                    blurRadius = 24.dp,
+                    tint = cardBg,
+                    baseColor = if (isDark) Color(0xFF0F1015) else Color(0xFFFFFFFF),
+                    showTopBorder = false
+                )
+            } else Modifier
+        )
+
     GlassSurface(
-        shape = RoundedCornerShape(20.dp),
-        backgroundColor = cardBg,
+        shape = shape,
+        backgroundColor = if (backdropState != null) Color.Transparent else cardBg,
         borderColor = cardBorder,
-        enableBlur = true,
-        blurRadius = 24.dp,
-        modifier = Modifier.fillMaxWidth()
+        enableBlur = false,
+        modifier = cardModifier
     ) {
         Column(
             modifier = Modifier

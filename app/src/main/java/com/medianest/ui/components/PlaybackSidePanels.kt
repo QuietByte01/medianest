@@ -1617,12 +1617,12 @@ fun SidebarQueueDrawer(
                                         .padding(4.dp)
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(3.dp)
                                     ) {
                                         RoundedPlayIcon(
-                                            modifier = Modifier.size(9.dp),
+                                            modifier = Modifier.size(10.5.dp),
                                             tint = Color.White
                                         )
                                         Text(

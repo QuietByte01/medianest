@@ -29,7 +29,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.player.PlayerState
+import com.medianest.ui.components.BackdropBlurState
 import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.components.backdropReceiver
 import kotlin.math.roundToInt
 
 /**
@@ -382,19 +384,36 @@ fun AudioDebugOverlay(
 @Composable
 fun HardwarePipelineDiagnosticsCard(
     context: android.content.Context,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    backdropState: BackdropBlurState? = null
 ) {
     val hwCaps = androidx.compose.runtime.remember {
         com.medianest.hardware.AndroidHardwareEngine.detectCapabilities(context)
     }
+    val shape = RoundedCornerShape(16.dp)
+    val cardBg = Color(0x1A6366F1)
+
+    val cardModifier = modifier
+        .fillMaxWidth()
+        .clip(shape)
+        .then(
+            if (backdropState != null) {
+                Modifier.backdropReceiver(
+                    state = backdropState,
+                    blurRadius = 24.dp,
+                    tint = cardBg,
+                    baseColor = Color(0xFF0F1015),
+                    showTopBorder = false
+                )
+            } else Modifier
+        )
 
     GlassSurface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        backgroundColor = Color(0x1A6366F1),
+        modifier = cardModifier,
+        shape = shape,
+        backgroundColor = if (backdropState != null) Color.Transparent else cardBg,
         borderColor = Color(0x336366F1),
-        enableBlur = true,
-        blurRadius = 16.dp
+        enableBlur = false
     ) {
         Column(
             modifier = Modifier
@@ -402,28 +421,56 @@ fun HardwarePipelineDiagnosticsCard(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "REAL-TIME HARDWARE & MEDIA PROFILE",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFA5B4FC)
-                )
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color(0x3334D399)
+            val isPhoneScreen = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 600
+
+            if (isPhoneScreen) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = "GPU ACCELERATED",
-                        fontSize = 9.sp,
-                        color = Color(0xFF34D399),
+                        text = "REAL-TIME HARDWARE & MEDIA PROFILE",
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        color = Color(0xFFA5B4FC)
                     )
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0x3334D399)
+                    ) {
+                        Text(
+                            text = "GPU ACCELERATED",
+                            fontSize = 9.sp,
+                            color = Color(0xFF34D399),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "REAL-TIME HARDWARE & MEDIA PROFILE",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFA5B4FC)
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0x3334D399)
+                    ) {
+                        Text(
+                            text = "GPU ACCELERATED",
+                            fontSize = 9.sp,
+                            color = Color(0xFF34D399),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
                 }
             }
 

@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.data.settings.SettingsManager
 import com.medianest.ui.components.debug.HardwarePipelineDiagnosticsCard
+import com.medianest.ui.components.BackdropBlurState
 import com.medianest.util.LogLevel
 import com.medianest.util.Logger
 import kotlinx.coroutines.launch
@@ -38,7 +39,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun DeveloperSettingsSection(
     settingsManager: SettingsManager,
-    onDisableDevMode: () -> Unit
+    onDisableDevMode: () -> Unit,
+    backdropState: BackdropBlurState? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -54,23 +56,10 @@ fun DeveloperSettingsSection(
     var showLogs by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        SettingsGlassCard(title = "DEVICE INFORMATION") {
-            val deviceModel = android.os.Build.MODEL
-            val androidVersion = android.os.Build.VERSION.RELEASE
-            val sdkVersion = android.os.Build.VERSION.SDK_INT
-            val manufacturer = android.os.Build.MANUFACTURER
-
-            Column(modifier = Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                DeviceInfoRow("Model", deviceModel)
-                DeviceInfoRow("Manufacturer", manufacturer)
-                DeviceInfoRow("Android Version", "$androidVersion (SDK $sdkVersion)")
-            }
-        }
-
         // Hardware Pipeline Diagnostics Component
-        HardwarePipelineDiagnosticsCard(context = context)
+        HardwarePipelineDiagnosticsCard(context = context, backdropState = backdropState)
 
-        SettingsGlassCard(title = "PLAYER & ENGINE DEBUGGING") {
+        SettingsGlassCard(title = "PLAYER & ENGINE DEBUGGING", backdropState = backdropState) {
             SettingsRowItem(
                 title = "Media3 Debug Overlay",
                 subtitle = "Show real-time video codec, bitrate, and drop-frame stats in player",
@@ -120,7 +109,7 @@ fun DeveloperSettingsSection(
             )
         }
 
-        SettingsGlassCard(title = "DEVELOPER TOOLS") {
+        SettingsGlassCard(title = "DEVELOPER TOOLS", backdropState = backdropState) {
             SettingsRowItem(
                 title = "In-App Log Viewer",
                 subtitle = "View application logs and filter by level",

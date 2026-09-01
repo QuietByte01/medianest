@@ -1021,33 +1021,37 @@ private fun GlossyActionButton(
 
     Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .height(52.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(bgBrush)
-            .border(1.dp, borderBrush, RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick),
+            .fillMaxWidth(),
         contentAlignment = Alignment.Center
     ) {
-
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+        Box(
+            modifier = Modifier
+                .height(42.dp)
+                .clip(CircleShape)
+                .background(bgBrush)
+                .border(1.dp, borderBrush, CircleShape)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 22.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = text,
-                fontSize = 14.5.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = text,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 1
+                )
+            }
         }
     }
 }

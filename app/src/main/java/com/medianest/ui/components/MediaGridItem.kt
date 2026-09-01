@@ -2,11 +2,14 @@ package com.medianest.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -87,8 +90,8 @@ fun MediaGridItem(
     val applyToThumbnails by settingsManager.applyPictureModeToThumbnails.collectAsState(initial = false)
     val pictureMode by settingsManager.pictureMode.collectAsState(initial = "BALANCED")
     val customSat by settingsManager.customSaturation.collectAsState(initial = 1.18f)
-    val customCon by settingsManager.customContrast.collectAsState(initial = 1.06f)
-    val customWarmth by settingsManager.customWarmth.collectAsState(initial = 0.03f)
+    val autoPlayVideoPreviews = LocalAutoPlayVideoPreviews.current
+    val autoPlayGifPreviews = LocalAutoPlayGifPreviews.current
 
     val colorFilter = remember(pictureModeEnabled, applyToThumbnails, pictureMode) {
         if (applyToThumbnails && pictureModeEnabled) {
@@ -100,6 +103,15 @@ fun MediaGridItem(
     var fallbackBitmap by remember(item.uri) { mutableStateOf<android.graphics.Bitmap?>(null) }
     // Rebuild trigger: incrementing this forces the image request to be recreated
     var rebuildToken by remember(item.uri) { mutableStateOf(0) }
+
+    LaunchedEffect(item.uri, rebuildToken, item.type) {
+        if (item.type == MediaType.VIDEO && fallbackBitmap == null) {
+            val cachedBmp = ThumbnailManager.getThumbnail(context, item.uri, rebuildToken)
+            if (cachedBmp != null) {
+                fallbackBitmap = cachedBmp
+            }
+        }
+    }
 
     Card(
         modifier = modifier
@@ -133,12 +145,16 @@ fun MediaGridItem(
         }
     }
 
-    val imageRequest = remember(item.uri, item.type, item.durationMs, context, item.size, item.dateAdded, isTablet, rebuildToken) {
+    val isGif = remember(item.mimeType, item.title, item.uri) {
+        item.mimeType == "image/gif" || item.title.endsWith(".gif", ignoreCase = true) || item.uri.toString().endsWith(".gif", ignoreCase = true)
+    }
+
+    val imageRequest = remember(item.uri, item.type, item.durationMs, context, item.size, item.dateAdded, isTablet, rebuildToken, isGif, autoPlayGifPreviews) {
         val builder = ImageRequest.Builder(context)
             .data(item.uri)
-            // Include rebuildToken so invalidation works on demand
-            .diskCacheKey("${item.uri}_${item.size}_${item.dateAdded}_$rebuildToken")
-            .memoryCacheKey("${item.uri}_${item.size}_${item.dateAdded}_$rebuildToken")
+            // Include rebuildToken and autoPlayGifPreviews so cache correctly invalidates
+            .diskCacheKey("${item.uri}_${item.size}_${item.dateAdded}_${rebuildToken}_${autoPlayGifPreviews}")
+            .memoryCacheKey("${item.uri}_${item.size}_${item.dateAdded}_${rebuildToken}_${autoPlayGifPreviews}")
             .crossfade(true)
             .precision(Precision.INEXACT)
 
@@ -151,6 +167,8 @@ fun MediaGridItem(
         if (item.type == MediaType.VIDEO) {
             builder.decoderFactory(VideoFrameDecoder.Factory())
             builder.videoFrameMicros(videoSeekMicros)
+        } else if (isGif && !autoPlayGifPreviews) {
+            builder.decoderFactory(coil.decode.BitmapFactoryDecoder.Factory())
         }
         builder.build()
     }
@@ -198,36 +216,81 @@ fun MediaGridItem(
             )
         }
 
-            // Video duration overlay badge
-            if (item.type == MediaType.VIDEO) {
+        // Live In-Place Video Auto-Preview when visible in viewport
+        if (item.type == MediaType.VIDEO && autoPlayVideoPreviews) {
+            LibraryVideoPreviewView(
+                uri = item.uri,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        // Video duration overlay badge (compact) & Speaker Audio Toggle (bottom row)
+        if (item.type == MediaType.VIDEO) {
+            val activeUri by SlideShowVideoPreviewCoordinator.activeUri.collectAsState()
+            val isAudioMuted by SlideShowVideoPreviewCoordinator.isAudioMuted.collectAsState()
+            val isCurrentlyPreviewing = autoPlayVideoPreviews && activeUri == item.uri
+
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(5.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Speaker toggle on the left side (BottomStart)
+                if (isCurrentlyPreviewing) {
+                    Surface(
+                        shape = RoundedCornerShape(5.dp),
+                        color = Color.Black.copy(alpha = 0.55f),
+                        modifier = Modifier
+                            .clickable {
+                                SlideShowVideoPreviewCoordinator.toggleAudio()
+                            }
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isAudioMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = if (isAudioMuted) "Turn Audio On" else "Mute Audio",
+                                tint = if (isAudioMuted) Color.White.copy(alpha = 0.9f) else Color(0xFF4ADE80),
+                                modifier = Modifier.size(11.dp)
+                            )
+                        }
+                    }
+                } else {
+                    Spacer(modifier = Modifier.width(1.dp))
+                }
+
+                // Compact Duration badge on bottom-right (BottomEnd)
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color.Black.copy(alpha = 0.30f),
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(6.dp)
+                    shape = RoundedCornerShape(5.dp),
+                    color = Color.Black.copy(alpha = 0.35f)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        horizontalArrangement = Arrangement.spacedBy(2.5.dp)
                     ) {
                         RoundedPlayIcon(
-                            modifier = Modifier.size(10.dp),
+                            modifier = Modifier.size(11.dp),
                             tint = Color.White
                         )
                         Text(
                             text = formatDuration(item.durationMs),
                             color = Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = if (isTablet) 9.sp else 9.5.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
             }
+        }
 
-            // Selection checkbox overlay
-            if (isSelectionMode) {
+        // Selection checkbox overlay
+        if (isSelectionMode) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()

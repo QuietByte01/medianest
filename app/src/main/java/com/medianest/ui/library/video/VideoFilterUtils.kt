@@ -39,16 +39,35 @@ fun filterVideoList(videos: List<MediaItem>, filterTab: String, showHidden: Bool
     }
 }
 
+private val wordRegexCache = java.util.concurrent.ConcurrentHashMap<String, Regex>()
+
 /**
  * Checks if [keyword] exists in [text] as an isolated whole word/token,
  * preventing false substring matches on random/garbage strings (e.g. "insta" or "snap" in "RUIDecdb251fb26insta142snap").
  */
 fun containsWord(text: String, keyword: String): Boolean {
     if (text.isBlank() || keyword.isBlank()) return false
-    val escaped = Regex.escape(keyword.lowercase())
-    val pattern = Regex("(?i)(?:^|[^a-zA-Z0-9])$escaped(?:[^a-zA-Z0-9]|$)")
+    val pattern = wordRegexCache.computeIfAbsent(keyword.lowercase()) { kw ->
+        val escaped = Regex.escape(kw)
+        Regex("(?i)(?:^|[^a-zA-Z0-9])$escaped(?:[^a-zA-Z0-9]|$)")
+    }
     return pattern.containsMatchIn(text)
 }
+
+private val patternVideoEditor = Regex("(?i)\\bvideo\\s*editor\\b")
+private val patternSeasonEpisode = Regex("(?i)s\\d{1,2}e\\d{1,2}")
+private val patternNumberXNumber = Regex("(?i)\\d{1,2}x\\d{1,2}")
+private val patternEpisodeExplicit = Regex("(?i)\\b(?:episode|ep|e)[\\s._-]*(\\d{1,3})\\b")
+private val patternAnimeEpisode = Regex("(?i)(?:[_\\-]+\\s*|\\s+0)(\\d{1,4})(?:\\s*[(\\[]|\\s*$)|(?:\\s+)(?!19\\d{2}|20\\d{2})(\\d{3,4})(?:\\s*[(\\[]|\\s*$)")
+private val patternSeasonRemoval = Regex("(?i)\\b(season\\s*(?:[1-9][0-9]?|100)|s(?:[1-9][0-9]?|100)|s0?[1-9]|s[1-9][0-9]|s100)\\b")
+private val patternSpecialChars = Regex("[.,#!?\\-_+=()\\[\\]/{}&$@*]")
+private val patternWhitespace = Regex("\\s+")
+private val patternSeasonExtract = Regex("(?i)\\b(?:season|s)[\\s\\-_()\\[\\]]*((?:[1-9][0-9]?|100)|(?:0[1-9]|[1-9][0-9]|100))\\b")
+private val patternDigitsOnly = Regex("\\d+")
+private val patternAlphanumericWord = Regex("[^a-zA-Z0-9]+")
+private val patternPathSegments = Regex("[/_\\s.\\-]+")
+private val patternSeasonExplicit = Regex("(?i)\\bs\\d{1,3}\\b")
+private val patternPureSeason = Regex("(?i)^(season\\s*(?:[1-9][0-9]?|100)|s(?:[1-9][0-9]?|100)|s0?[1-9]|s[1-9][0-9]|s100)$")
 
 /**
  * Checks if a filename title looks like a random hex/hash/cache string
@@ -80,7 +99,6 @@ fun isEditedVideo(item: MediaItem): Boolean {
 
     if (isFromExcludedCategoryFolder(item)) return false
 
-    val videoEditorRegex = Regex("(?i)\\bvideo\\s*editor\\b")
     val editKeywords = listOf(
         "editor",
         "studio",
@@ -96,7 +114,7 @@ fun isEditedVideo(item: MediaItem): Boolean {
     val matchesKeyword = editKeywords.any { containsWord(path, it) }
 
     return path.contains("/dcim/video editor/") ||
-            videoEditorRegex.containsMatchIn(path) ||
+            patternVideoEditor.containsMatchIn(path) ||
             matchesKeyword
 }
 
@@ -141,14 +159,13 @@ fun isShorts(item: MediaItem): Boolean {
 
 private fun cleanSeriesName(name: String): String {
     // Remove season patterns ranging from 1 to 100 (e.g., "season 1", "season 100", "s01", "s100")
-    val seasonRemovalPattern = Regex("(?i)\\b(season\\s*(?:[1-9][0-9]?|100)|s(?:[1-9][0-9]?|100)|s0?[1-9]|s[1-9][0-9]|s100)\\b")
-    val withoutSeason = name.replace(seasonRemovalPattern, "")
+    val withoutSeason = name.replace(patternSeasonRemoval, "")
 
     // Remove specified special characters and symbols: . , # ! ? - _ + = ) ( [ ] / { } & $ @ *
-    val sanitized = withoutSeason.replace(Regex("[.,#!?\\-_+=()\\[\\]/{}&$@*]"), " ")
+    val sanitized = withoutSeason.replace(patternSpecialChars, " ")
 
     // Trim extra whitespace resulting from replacements
-    return sanitized.replace(Regex("\\s+"), " ").trim()
+    return sanitized.replace(patternWhitespace, " ").trim()
 }
 
 fun extractSeriesName(item: MediaItem): String {
@@ -156,21 +173,18 @@ fun extractSeriesName(item: MediaItem): String {
     val bucket = item.bucketName ?: "Web Series"
     val parts = relPath.split('/').filter { it.isNotBlank() }
 
-    // Regex matching season numbers from 1 up to 100 (e.g., season 1, season 100, s1, s99, s01)
-    val seasonPattern = Regex("(?i)^(season\\s*(?:[1-9][0-9]?|100)|s(?:[1-9][0-9]?|100)|s0?[1-9]|s[1-9][0-9]|s100)$")
-
     for (i in parts.indices) {
         val p = parts[i]
 
         // Check if the directory name matches pure season patterns from 1 to 100
-        val isSeasonDirOnly = seasonPattern.matches(p.trim())
+        val isSeasonDirOnly = patternPureSeason.matches(p.trim())
 
         if (isSeasonDirOnly) {
             // If the folder is only a season tag, return the parent directory if it exists
             if (i > 0) {
                 return cleanSeriesName(parts[i - 1])
             }
-        } else if (p.contains("season", ignoreCase = true) || Regex("(?i)\\bs\\d{1,3}\\b").containsMatchIn(p)) {
+        } else if (p.contains("season", ignoreCase = true) || patternSeasonExplicit.containsMatchIn(p)) {
             // If it contains season info alongside other words, clean the current directory name
             return cleanSeriesName(p)
         }
@@ -190,17 +204,11 @@ fun extractSeriesName(item: MediaItem): String {
 fun extractSeasonName(item: MediaItem): String {
     val path = ((item.relativePath ?: "") + "/" + item.title).lowercase()
 
-    // Comprehensive regex covering:
-    // - "season", "s"
-    // - Optional separators: spaces, hyphens, underscores, brackets, or no separator at all
-    // - Numbers from 1 to 100 (supports leading zeros like 01 as well as single digits like 1)
-    val seasonPattern = Regex("(?i)\\b(?:season|s)[\\s\\-_()\\[\\]]*((?:[1-9][0-9]?|100)|(?:0[1-9]|[1-9][0-9]|100))\\b")
-
-    val matchResult = seasonPattern.find(path)
+    val matchResult = patternSeasonExtract.find(path)
     if (matchResult != null) {
         // Group 1 contains the actual matched number captured inside the pattern
         val numStr = matchResult.groupValues.getOrNull(1) ?: matchResult.value
-        val num = Regex("\\d+").find(numStr)?.value?.toIntOrNull() ?: 1
+        val num = patternDigitsOnly.find(numStr)?.value?.toIntOrNull() ?: 1
 
         // Format as a zero-padded two-digit string (e.g., Season 01, Season 10)
         return "Season %02d".format(num)
@@ -234,7 +242,7 @@ fun isTVSeries(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean 
     
     // Segmented folder check
     val folderPath = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "")).lowercase()
-    val pathSegments = folderPath.split(Regex("[/_\\s.\\-]+")).filter { it.isNotBlank() }.toSet()
+    val pathSegments = folderPath.split(patternPathSegments).filter { it.isNotBlank() }.toSet()
     val seriesFolders = setOf("series", "tv", "shows", "web-series", "webseries", "anime")
     val isSeriesFolder = pathSegments.any { it in seriesFolders }
 
@@ -243,16 +251,6 @@ fun isTVSeries(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean 
     if (exclusionKeywords.any { containsWord(title, it) || containsWord(fullPath, it) }) return false
 
     if (isGarbageOrHashTitle(item.title) && !isSeriesFolder && !fullPath.contains("season")) return false
-
-    // 3. Define regular expressions for standard TV show naming conventions
-    val patternSeasonEpisode = Regex("(?i)s\\d{1,2}e\\d{1,2}")
-    val patternNumberXNumber = Regex("(?i)\\d{1,2}x\\d{1,2}")
-    
-    // Anime/Series episode patterns: "Episode 10", "Ep 10", "E10"
-    val patternEpisodeExplicit = Regex("(?i)\\b(?:episode|ep|e)[\\s._-]*(\\d{1,3})\\b")
-    
-    // " - 10 ", "_366", " 01", or " 1071 " (prevents "Spiderman 1" while catching anime)
-    val patternAnimeEpisode = Regex("(?i)(?:[_\\-]+\\s*|\\s+0)(\\d{1,4})(?:\\s*[(\\[]|\\s*$)|(?:\\s+)(?!19\\d{2}|20\\d{2})(\\d{3,4})(?:\\s*[(\\[]|\\s*$)")
 
     // Check if path or title contains explicit episode/season formatting
     val hasPattern = patternSeasonEpisode.containsMatchIn(fullPath) || 
@@ -265,25 +263,8 @@ fun isTVSeries(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean 
 
     if (matchesExplicitCriteria) return true
 
-    // 4. Fallback: Check if this video shares significant repeated words with other videos in O(1) (Disabled: causes false positives with movies)
-    /*
-    if (sharedWords.isNotEmpty()) {
-        val cleanedTitleWords = extractSignificantWords(item.title)
-        if (cleanedTitleWords.any { it in sharedWords }) {
-            return true
-        }
-    }
-    */
-
     return false
 }
-
-/*
-// Backward compatibility overload
-fun isTVSeries(item: MediaItem, allItems: List<MediaItem>): Boolean {
-    return isTVSeries(item, computeSharedTitleWords(allItems))
-}
-*/
 
 fun isMovie(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean {
     // 1. Fundamental duration requirement (User specified: 20 min is right)
@@ -295,7 +276,7 @@ fun isMovie(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean {
     
     // Segmented folder check
     val folderPath = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "")).lowercase()
-    val pathSegments = folderPath.split(Regex("[/_\\s.\\-]+")).filter { it.isNotBlank() }.toSet()
+    val pathSegments = folderPath.split(patternPathSegments).filter { it.isNotBlank() }.toSet()
     val movieFolders = setOf("movies", "movie", "cinema", "films", "film")
     val inMovieFolder = pathSegments.any { it in movieFolders }
 
@@ -332,13 +313,6 @@ fun isMovie(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean {
     return hasStrongMarkers || (inGeneralFolder && isVeryLong) || isVeryLong
 }
 
-/*
-// Backward compatibility overload
-fun isMovie(item: MediaItem, allItems: List<MediaItem>): Boolean {
-    return isMovie(item, computeSharedTitleWords(allItems))
-}
-*/
-
 /**
  * Helper function to tokenize a title and filter out allowed exceptions
  * like quality tags, generic words, and codecs.
@@ -363,7 +337,7 @@ private fun extractSignificantWords(title: String): Set<String> {
     )
 
     // Split title into alphanumeric words, filter out short tokens (<3 chars), stop words, and numbers
-    return normalized.split(Regex("[^a-zA-Z0-9]+"))
+    return normalized.split(patternAlphanumericWord)
         .filter { it.length >= 3 && it !in ignoredTerms && !it.all { char -> char.isDigit() } }
         .toSet()
 }

@@ -129,6 +129,7 @@ fun VideosTab(
     initialFolder: String? = null,
     initialTargetVideoUri: String? = null,
     onBackToDashboard: () -> Unit = {},
+    onRescanHiddenMedia: () -> Unit = {},
     viewModel: com.medianest.ui.MediaViewModel = viewModel()
 ) {
     val currentContext = LocalContext.current
@@ -295,7 +296,7 @@ fun VideosTab(
     Box(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection)) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Top Filter Tabs
-        VideoFilterRow(
+            VideoFilterRow(
             isFolderViewActive = isFolderViewActive,
             selectedCategory = selectedCategory,
             activeFilterTab = activeFilterTab,
@@ -381,20 +382,44 @@ fun VideosTab(
             }
         )
 
+        if ((isFolderViewActive || activeFilterTab in listOf("FOLDERS", "HIDDEN", "EXCLUDED")) && selectedFolder != null) {
+            com.medianest.ui.components.FolderBreadcrumbBar(
+                rootTab = activeFilterTab,
+                selectedFolder = selectedFolder,
+                onNavigateToRoot = { selectedFolder = null },
+                onNavigateToSegment = { targetSubPath ->
+                    selectedFolder = targetSubPath
+                }
+            )
+        }
+
         val displayList = remember(videosList, videoFolderGroups, activeFilterTab, isFolderViewActive, selectedFolder, selectedCategory, categoryUris, showHiddenSetting, searchQuery) {
             val raw = if (isFolderViewActive || selectedFolder != null) {
                 if (selectedFolder != null) {
-                    videoFolderGroups[selectedFolder]
-                        ?: videoFolderGroups.entries.firstOrNull { (k, _) ->
+                    val directItems = videoFolderGroups[selectedFolder]
+                    if (directItems != null) {
+                        directItems
+                    } else {
+                        val subfolderItems = videoFolderGroups.entries.filter { (k, _) ->
                             val normKey = k.trim('/').lowercase()
                             val normTarget = selectedFolder!!.trim('/').lowercase()
                             normKey == normTarget ||
-                            normKey.substringAfterLast('/') == normTarget ||
-                            normTarget.substringAfterLast('/') == normKey ||
-                            normKey.endsWith("/$normTarget") ||
-                            normTarget.endsWith("/$normKey")
-                        }?.value
-                        ?: emptyList()
+                            normKey.startsWith("$normTarget/") ||
+                            normKey.contains("/$normTarget/") ||
+                            normKey.substringAfterLast('/') == normTarget
+                        }.flatMap { it.value }
+
+                        if (subfolderItems.isNotEmpty()) {
+                            subfolderItems.distinctBy { it.uri }
+                        } else {
+                            videosList.filter { item ->
+                                val rel = item.relativePath?.trim('/')?.lowercase() ?: ""
+                                val bucket = item.bucketName?.trim('/')?.lowercase() ?: ""
+                                val normTarget = selectedFolder!!.trim('/').lowercase()
+                                bucket == normTarget || rel == normTarget || rel.startsWith("$normTarget/") || rel.contains("/$normTarget/")
+                            }
+                        }
+                    }
                 } else {
                     videosList
                 }
@@ -542,6 +567,7 @@ fun VideosTab(
                 onCreateCategoryClick = onCreateCategoryClick,
                 isLoading = isLoading,
                 isScanningHidden = isScanningHidden,
+                onRescanHiddenMedia = onRescanHiddenMedia,
                 gridState = folderGridState
             )
         } else if (activeFilterTab == "SERIES") {
