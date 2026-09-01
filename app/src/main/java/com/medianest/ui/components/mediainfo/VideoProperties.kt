@@ -483,7 +483,16 @@ internal fun VideoFilePropertiesContent(
             }
         }
 
-        val realStream = remember(item.uri) { extractRealStreamDetails(context, item) }
+        val realStream by produceState(initialValue = RealVideoAudioDetails(), key1 = item.uri) {
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    extractRealStreamDetails(context, item)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    RealVideoAudioDetails()
+                }
+            }
+        }
 
         // VIDEO STREAM TECHNICAL SPECS Section
         InfoSectionCard(

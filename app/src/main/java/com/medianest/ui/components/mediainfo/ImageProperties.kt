@@ -41,11 +41,11 @@ internal fun ImageFilePropertiesContent(
     var currentItemTitle by remember(item.id, item.title) { mutableStateOf(item.title) }
     var renameInputText by remember { mutableStateOf(currentItemTitle) }
 
-    val width = if (extracted.width > 0) extracted.width else 1920
-    val height = if (extracted.height > 0) extracted.height else 1080
+    val width = (if (extracted.width > 0) extracted.width else 1920).coerceAtLeast(1)
+    val height = (if (extracted.height > 0) extracted.height else 1080).coerceAtLeast(1)
     val megapixels = String.format(Locale.US, "%.1f MP", (width.toLong() * height.toLong()) / 1_000_000.0)
 
-    fun gcd(a: Int, b: Int): Int = if (b == 0) a else gcd(b, a % b)
+    fun gcd(a: Int, b: Int): Int = if (b <= 0) a.coerceAtLeast(1) else gcd(b, a % b)
     val g = gcd(width, height).coerceAtLeast(1)
     val aspectRatio = "${width / g}:${height / g}"
 
