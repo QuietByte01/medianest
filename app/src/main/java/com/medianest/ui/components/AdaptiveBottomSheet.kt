@@ -84,13 +84,14 @@ fun AdaptiveBottomSheet(
             contentAlignment = if (isTablet) Alignment.Center else Alignment.BottomCenter
         ) {
             val sheetShape = if (isTablet) RoundedCornerShape(24.dp) else shape
+            val maxSheetHeight = (configuration.screenHeightDp * 0.88f).dp
             val sheetModifier = modifier
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     enabled = false
                 ) {}
-                .then(if (isTablet) Modifier.fillMaxWidth(0.74f) else Modifier.fillMaxWidth())
+                .then(if (isTablet) Modifier.fillMaxWidth(0.74f).heightIn(max = maxSheetHeight) else Modifier.fillMaxWidth().heightIn(max = maxSheetHeight))
                 .clip(sheetShape)
                 .backdropReceiver(
                     state = backdropState,
