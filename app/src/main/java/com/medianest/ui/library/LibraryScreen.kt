@@ -72,6 +72,8 @@ fun LibraryScreen(
     val settingsManager = com.medianest.MediaNestApp.instance.settingsManager
     val showHiddenFiles by settingsManager.showHiddenFiles.collectAsState(initial = false)
     val hiddenFolders by settingsManager.hiddenFolders.collectAsState(initial = emptySet())
+    val autoPlayVideoPreviews by settingsManager.autoPlayVideoPreviews.collectAsState(initial = true)
+    val autoPlayGifPreviews by settingsManager.autoPlayGifPreviews.collectAsState(initial = true)
 
         val totalTabs = if (enableAnalyticsTab) 4 else 3
         val pagerState = androidx.compose.foundation.pager.rememberPagerState(initialPage = initialTab.coerceIn(0, totalTabs - 1)) { totalTabs }
@@ -197,8 +199,8 @@ fun LibraryScreen(
                     ) { page ->
                         val isPageImages = (enableAnalyticsTab && page == 1) || (!enableAnalyticsTab && page == 0)
                         val isPageVideos = (enableAnalyticsTab && page == 2) || (!enableAnalyticsTab && page == 1)
-                        val shouldAutoPlayVideos = isVideosTab && isPageVideos
-                        val shouldAutoPlayGifs = isImagesTab && isPageImages
+                        val shouldAutoPlayVideos = autoPlayVideoPreviews && isVideosTab && isPageVideos
+                        val shouldAutoPlayGifs = autoPlayGifPreviews && isImagesTab && isPageImages
 
                         CompositionLocalProvider(
                             com.medianest.ui.components.LocalAutoPlayVideoPreviews provides shouldAutoPlayVideos,

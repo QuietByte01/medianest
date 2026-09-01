@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +32,11 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+
+/**
+ * CompositionLocal providing active backdrop blur state for surface overlays.
+ */
+val LocalBackdropBlurState = compositionLocalOf<BackdropBlurState?> { null }
 
 /**
  * Reusable Backdrop Blur Engine for Jetpack Compose.
@@ -119,6 +125,7 @@ fun Modifier.backdropReceiver(
     blurRadius: Dp = 28.dp,
     tint: Color = Color(0xBF0F0F0F),
     baseColor: Color = Color(0xFF0F0F0F),
+    blurAlpha: Float = 0.45f,
     showTopBorder: Boolean = false,
     borderColor: Color = Color.White.copy(alpha = 0.12f),
     downscaleFactor: Float = 8f
@@ -145,6 +152,14 @@ fun Modifier.backdropReceiver(
                 size.height.toInt().coerceAtLeast(1)
             )
 
+            // Clamp offsets to sourceLayer bounds so sampled slice is always 100% full
+            val srcSize = sourceLayer.size
+            val maxX = (srcSize.width - receiverSize.width).coerceAtLeast(0).toFloat()
+            val maxY = (srcSize.height - receiverSize.height).coerceAtLeast(0).toFloat()
+
+            val clampedX = offset.x.coerceIn(0f, maxX)
+            val clampedY = offset.y.coerceIn(0f, maxY)
+
             // Stage 1: Downsample background slice (8x factor)
             val factor = downscaleFactor.coerceAtLeast(1f)
             val downsampledSize = IntSize(
@@ -154,13 +169,14 @@ fun Modifier.backdropReceiver(
 
             downsampleLayer.record(size = downsampledSize) {
                 scale(scaleX = 1f / factor, scaleY = 1f / factor, pivot = Offset.Zero) {
-                    translate(left = -offset.x, top = -offset.y) {
+                    translate(left = -clampedX, top = -clampedY) {
                         drawLayer(sourceLayer)
                     }
                 }
             }
 
             // Stage 2: Upscale with Bilinear Interpolation + GPU Gaussian BlurEffect
+            blurLayer.alpha = blurAlpha.coerceIn(0f, 1f)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 blurLayer.renderEffect = BlurEffect(
                     radiusX = radiusPx,

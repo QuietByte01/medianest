@@ -391,27 +391,16 @@ fun HardwarePipelineDiagnosticsCard(
         com.medianest.hardware.AndroidHardwareEngine.detectCapabilities(context)
     }
     val shape = RoundedCornerShape(16.dp)
-    val cardBg = Color(0x1A6366F1)
+    val cardBg = Color(0x1A6366F1) // Maintain translucent tint
 
     val cardModifier = modifier
         .fillMaxWidth()
         .clip(shape)
-        .then(
-            if (backdropState != null) {
-                Modifier.backdropReceiver(
-                    state = backdropState,
-                    blurRadius = 24.dp,
-                    tint = cardBg,
-                    baseColor = Color(0xFF0F1015),
-                    showTopBorder = false
-                )
-            } else Modifier
-        )
 
     GlassSurface(
         modifier = cardModifier,
         shape = shape,
-        backgroundColor = if (backdropState != null) Color.Transparent else cardBg,
+        backgroundColor = cardBg,
         borderColor = Color(0x336366F1),
         enableBlur = false
     ) {

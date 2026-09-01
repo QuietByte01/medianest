@@ -41,15 +41,12 @@ import com.medianest.ui.theme.LocalDarkTheme
 fun NativeAudioDspSheet(
     playerState: PlayerState,
     playerManager: ExoPlayerManager,
-    onDismiss: () -> Unit,
-    backgroundImage: Any? = null
+    onDismiss: () -> Unit
 ) {
     val isDark = LocalDarkTheme.current
-    val effectiveBg = backgroundImage ?: R.drawable.bg_596
 
     AdaptiveBottomSheet(
         onDismissRequest = onDismiss,
-        backgroundImage = effectiveBg,
         isSolidGlossy = false,
         dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.3f)) }
     ) {

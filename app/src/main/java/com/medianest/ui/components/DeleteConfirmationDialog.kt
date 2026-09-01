@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -31,9 +32,13 @@ fun DeleteConfirmationDialog(
     itemTitle: String? = null,
     confirmButtonText: String = "Delete",
     onConfirm: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    backdropState: BackdropBlurState? = LocalBackdropBlurState.current
 ) {
     val isDark = LocalDarkTheme.current
+    val cardBg = if (isDark) Color(0xCC08090E) else Color(0xBFFFFFFF)
+    val shape = RoundedCornerShape(24.dp)
+
     val effectiveMessage = message ?: if (itemTitle != null) {
         "Are you sure you want to delete '$itemTitle'? This will permanently remove the file from your device storage."
     } else {
@@ -44,14 +49,28 @@ fun DeleteConfirmationDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        val cardModifier = Modifier
+            .fillMaxWidth(0.88f)
+            .wrapContentHeight()
+            .padding(16.dp)
+            .clip(shape)
+            .then(
+                if (backdropState != null) {
+                    Modifier.backdropReceiver(
+                        state = backdropState,
+                        blurRadius = 24.dp,
+                        tint = cardBg,
+                        baseColor = if (isDark) Color(0xFF08090E) else Color(0xFFFFFFFF),
+                        showTopBorder = false
+                    )
+                } else Modifier
+            )
+
         GlassSurface(
-            shape = RoundedCornerShape(24.dp),
-            backgroundColor = if (isDark) Color(0xCC08090E) else Color(0xBFFFFFFF),
+            shape = shape,
+            backgroundColor = if (backdropState != null) Color.Transparent else cardBg,
             borderColor = if (isDark) Color(0x28FFFFFF) else Color(0x28000000),
-            modifier = Modifier
-                .fillMaxWidth(0.88f)
-                .wrapContentHeight()
-                .padding(16.dp)
+            modifier = cardModifier
         ) {
             Column(
                 modifier = Modifier

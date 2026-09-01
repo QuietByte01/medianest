@@ -119,6 +119,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
     val abRepeatController = AbRepeatController { activeEngine?.seekTo(it) }
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private val settingsManager by lazy { com.medianest.MediaNestApp.instance.settingsManager }
     private var currentDecoderPreference = "AUTO"
     private var isHwAccelEnabled = true
     private var isUninterruptedMode = false
@@ -1431,7 +1432,12 @@ class ExoPlayerManager private constructor(private val context: Context) {
         }
     }
 
-    fun setVideoBackgroundPlayEnabled(enabled: Boolean) { _playerState.value = _playerState.value.copy(isVideoBackgroundPlayEnabled = enabled) }
+    fun setVideoBackgroundPlayEnabled(enabled: Boolean) {
+        _playerState.value = _playerState.value.copy(isVideoBackgroundPlayEnabled = enabled)
+        scope.launch(Dispatchers.IO) {
+            settingsManager.setVideoBackgroundPlay(enabled)
+        }
+    }
     fun clearAllCache(onComplete: () -> Unit = {}) { onComplete() }
     fun addToQueue(items: List<MediaItem>) {}
     fun stopPlayback() { 

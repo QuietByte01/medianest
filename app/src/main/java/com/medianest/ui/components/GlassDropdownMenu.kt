@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
@@ -36,6 +37,8 @@ fun GlassDropdownMenu(
     hue: Float? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val backdropState = LocalBackdropBlurState.current
+
     DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismissRequest,
@@ -48,12 +51,24 @@ fun GlassDropdownMenu(
         tonalElevation = 0.dp,
         shadowElevation = shadowElevation
     ) {
-        AmbientGlassSurface(
+        val baseMod = if (backdropState != null) {
+            Modifier
+                .clip(shape)
+                .backdropReceiver(
+                    state = backdropState,
+                    blurRadius = 28.dp,
+                    tint = Color(0x660A0C10),
+                    baseColor = Color.Transparent
+                )
+        } else {
+            Modifier.clip(shape)
+        }
+        
+        GlassSurface(
+            modifier = baseMod,
             shape = shape,
-            backgroundImage = backgroundImage,
-            hue = hue,
-            borderWidth = 0.5.dp,
-            containerColor = containerColor
+            backgroundColor = if (containerColor != Color.Transparent) containerColor else Color(0x330F1015),
+            borderWidth = 0.5.dp
         ) {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                 content()

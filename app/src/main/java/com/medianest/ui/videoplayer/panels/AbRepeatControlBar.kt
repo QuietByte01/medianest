@@ -21,7 +21,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.player.AbRepeatState
+import com.medianest.ui.components.BackdropBlurState
 import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.components.backdropReceiver
 import com.medianest.ui.components.formatDuration
 
 /**
@@ -40,19 +42,38 @@ fun AbRepeatControlBar(
     onToggleActive: () -> Unit,
     onClear: () -> Unit,
     onClose: () -> Unit,
+    backdropState: BackdropBlurState? = null,
     modifier: Modifier = Modifier
 ) {
+    val isDark = com.medianest.ui.theme.LocalDarkTheme.current
+    val cardBg = if (isDark) Color(0xCC0E111A) else Color(0xCCE3E3E3)
+    val shape = RoundedCornerShape(20.dp)
+
     val pointA = abRepeatState.pointA
     val pointB = abRepeatState.pointB
     val isActive = abRepeatState.isActive && pointA != null && pointB != null
 
+    val cardModifier = modifier
+        .fillMaxWidth(0.96f)
+        .clip(shape)
+        .then(
+            if (backdropState != null) {
+                Modifier.backdropReceiver(
+                    state = backdropState,
+                    blurRadius = 24.dp,
+                    tint = cardBg,
+                    baseColor = if (isDark) Color(0xFF0E111A) else Color(0xFFE3E3E3),
+                    showTopBorder = false
+                )
+            } else Modifier
+        )
+        .clickable(enabled = false) {}
+
     GlassSurface(
-        modifier = modifier
-            .fillMaxWidth(0.96f)
-            .clickable(enabled = false) {},
-        shape = RoundedCornerShape(20.dp),
-        backgroundColor = Color(0xF20E111A),
-        borderColor = Color(0x33FFFFFF),
+        modifier = cardModifier,
+        shape = shape,
+        backgroundColor = if (backdropState != null) Color.Transparent else cardBg,
+        borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x33000000),
         borderWidth = 0.5.dp
     ) {
         Column(

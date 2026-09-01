@@ -60,12 +60,29 @@ object SlideShowVideoPreviewCoordinator {
     val isAudioMuted: StateFlow<Boolean> = _isAudioMuted
 
     private var timerJob: Job? = null
+    private var isPaused = false
     private val scope = CoroutineScope(Dispatchers.Main)
+
+    fun pause() {
+        isPaused = true
+        timerJob?.cancel()
+        _activeUri.value = null
+    }
+
+    fun resume() {
+        isPaused = false
+        if (_activeUri.value == null && visibleUris.isNotEmpty()) {
+            _activeUri.value = visibleUris.firstOrNull()
+            startTimer()
+        }
+    }
 
     fun register(uri: Uri) {
         if (!visibleUris.contains(uri)) {
             visibleUris.add(uri)
         }
+        if (isPaused) return
+
         // Always start with the first item in the visible area if not currently playing a valid item
         if (_activeUri.value == null || !visibleUris.contains(_activeUri.value)) {
             _activeUri.value = visibleUris.firstOrNull()
@@ -78,6 +95,11 @@ object SlideShowVideoPreviewCoordinator {
     fun unregister(uri: Uri) {
         visibleUris.remove(uri)
         if (_activeUri.value == uri) {
+            if (isPaused) {
+                _activeUri.value = null
+                timerJob?.cancel()
+                return
+            }
             // Pick the next available visible video or start from the top
             _activeUri.value = visibleUris.firstOrNull()
             if (_activeUri.value != null) {
@@ -89,7 +111,7 @@ object SlideShowVideoPreviewCoordinator {
     }
 
     fun onVideoEnded(uri: Uri) {
-        if (_activeUri.value == uri) {
+        if (!isPaused && _activeUri.value == uri) {
             next()
         }
     }
@@ -99,7 +121,7 @@ object SlideShowVideoPreviewCoordinator {
     }
 
     fun next() {
-        if (visibleUris.isEmpty()) {
+        if (isPaused || visibleUris.isEmpty()) {
             _activeUri.value = null
             timerJob?.cancel()
             return
@@ -112,9 +134,10 @@ object SlideShowVideoPreviewCoordinator {
 
     private fun startTimer() {
         timerJob?.cancel()
+        if (isPaused) return
         timerJob = scope.launch {
             delay(12_000L) // Advance every 12 seconds if video hasn't ended sooner
-            if (visibleUris.size > 1) {
+            if (!isPaused && visibleUris.size > 1) {
                 next()
             }
         }

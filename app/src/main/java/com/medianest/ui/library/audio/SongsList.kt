@@ -419,6 +419,16 @@ private fun SongRow(
                             onInfoClick(item)
                         }
                     )
+                    if (showDeleteOption) {
+                        DropdownMenuItem(
+                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                            onClick = {
+                                showMenu = false
+                                onDeleteClick(item)
+                            }
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text("Edit Tag & Metadata") },
                         leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null, tint = Color.White) },
@@ -478,16 +488,6 @@ private fun SongRow(
                             }
                         }
                     )
-                    if (showDeleteOption) {
-                        DropdownMenuItem(
-                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                            onClick = {
-                                showMenu = false
-                                onDeleteClick(item)
-                            }
-                        )
-                    }
                 }
             }
         }

@@ -783,6 +783,7 @@ fun VideoPlayerScreen(
         ) {
             AbRepeatControlBar(
                 abRepeatState = playerState.abRepeatState,
+                backdropState = playerBackdropState,
                 onSetPointA = {
                     playerManager.setAbRepeatPointA()
                     val pos = playerManager.playerState.value.abRepeatA ?: 0L
@@ -917,6 +918,7 @@ fun VideoPlayerScreen(
                 context = context,
                 showHidden = showHiddenFiles,
                 hiddenFolders = hiddenFolders,
+                backdropState = playerBackdropState,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .statusBarsPadding()
@@ -970,6 +972,7 @@ fun VideoPlayerScreen(
                 },
                 statusMessage = subtitleStatusMessage,
                 onClose = { showSubtitleSheet = false },
+                backdropState = playerBackdropState,
                 modifier = Modifier.width(420.dp).padding(20.dp)
             )
         }
@@ -1000,7 +1003,8 @@ fun VideoPlayerScreen(
                         }
                     }
                 },
-                onDismiss = { showVideoFxSheet = false }
+                onDismiss = { showVideoFxSheet = false },
+                backdropState = playerBackdropState
             )
         }
 
@@ -1029,16 +1033,16 @@ fun VideoPlayerScreen(
             cropMode = mode
             scale = 1f
             gestureFeedbackText = "Aspect Ratio: ${mode.label}"
-        }, onDismiss = { showAspectRatioMenu = false })
+        }, onDismiss = { showAspectRatioMenu = false }, backdropState = playerBackdropState)
 
-        if (showSpeedMenu) PlaybackSpeedModal(currentSpeed = playerState.playbackSpeed, onSpeedChange = { playerManager.setPlaybackSpeed(it) }, onDismiss = { showSpeedMenu = false })
+        if (showSpeedMenu) PlaybackSpeedModal(currentSpeed = playerState.playbackSpeed, onSpeedChange = { playerManager.setPlaybackSpeed(it) }, onDismiss = { showSpeedMenu = false }, backdropState = playerBackdropState)
 
         if (showDetailsSheet && currentItem != null) MediaInfoBottomSheet(item = currentItem, onDismiss = { showDetailsSheet = false })
 
         if (showOverflowMenu) {
             VideoPlayerOverflowMenu(
                 onDismiss = { showOverflowMenu = false },
-                backgroundImage = currentItem?.uri,
+                backdropState = playerBackdropState,
                 onOpenWith = {
                     currentItem?.let { item ->
                         val sharingUri = com.medianest.util.ContentUriUtils.getSharingUri(context, item.uri)

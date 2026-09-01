@@ -589,6 +589,14 @@ fun QuickViewScreen(
                                         )
                                     }
                                     DropdownMenuItem(
+                                        text = { Text("File Info", color = Color.White) },
+                                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = Color.White) },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            showInfoBottomSheet = true
+                                        }
+                                    )
+                                    DropdownMenuItem(
                                         text = { Text("Delete", color = Color.Red) },
                                         leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red) },
                                         onClick = {

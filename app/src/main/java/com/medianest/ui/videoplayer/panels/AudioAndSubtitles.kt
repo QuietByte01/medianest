@@ -39,13 +39,33 @@ internal fun SubtitleOptionsDialog(
     onOnlineSubClick: (SubtitleItem) -> Unit,
     statusMessage: String?,
     onClose: () -> Unit,
+    backdropState: BackdropBlurState? = null,
     modifier: Modifier = Modifier
 ) {
+    val isDark = com.medianest.ui.theme.LocalDarkTheme.current
+    val cardBg = if (isDark) Color(0xCC0E111A) else Color(0xCCE3E3E3)
+    val shape = RoundedCornerShape(20.dp)
+
+    val cardModifier = modifier
+        .clip(shape)
+        .then(
+            if (backdropState != null) {
+                Modifier.backdropReceiver(
+                    state = backdropState,
+                    blurRadius = 24.dp,
+                    tint = cardBg,
+                    baseColor = if (isDark) Color(0xFF0E111A) else Color(0xFFE3E3E3),
+                    showTopBorder = false
+                )
+            } else Modifier
+        )
+
     GlassSurface(
-        modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
-        backgroundColor = Color(0xF20E111A),
-        borderColor = Color(0x33FFFFFF)
+        modifier = cardModifier,
+        shape = shape,
+        backgroundColor = if (backdropState != null) Color.Transparent else cardBg,
+        borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x33000000),
+        borderWidth = 0.5.dp
     ) {
         Column(
             modifier = Modifier

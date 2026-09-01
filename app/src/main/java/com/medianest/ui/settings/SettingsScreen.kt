@@ -195,10 +195,22 @@ fun SettingsScreen(
         uncheckedBorderColor = Color.Transparent
     )
 
+    val rootModifier = if (backdropState != null) {
+        Modifier.backdropReceiver(
+            state = backdropState,
+            blurRadius = 32.dp,
+            tint = Color(0x99040507),
+            baseColor = Color(0xFF040507),
+            showTopBorder = false
+        )
+    } else {
+        Modifier.background(darkBackgroundGradient)
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(darkBackgroundGradient)
+            .then(rootModifier)
             .drawBehind {
                 val gridSpacing = 16.dp.toPx()
                 val lineWeight = 1.dp.toPx()
@@ -762,20 +774,6 @@ fun SettingsScreen(
                 //     )
                 // }
 
-                // SECTION: PICTURE MODE
-                val pictureModeEnabled by settingsManager.pictureModeEnabled.collectAsState(initial = true)
-                SettingsRowItem(
-                    title = "Enable Picture Mode",
-                    subtitle = "Enhance photo & video display colors",
-                    control = {
-                        Switch(
-                            checked = pictureModeEnabled,
-                            onCheckedChange = { scope.launch { settingsManager.setPictureModeEnabled(it) } },
-                            colors = customSwitchColors
-                        )
-                    }
-                )
-
                 // Clear All Cache & Playback History
                 SettingsRowItem(
                     title = "Clean Storage & History",
@@ -862,28 +860,17 @@ fun SettingsGlassCard(
     val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
     val shape = RoundedCornerShape(20.dp)
     
-    // Obsidian Tint for Dark Mode, Light Glossy for Light Mode
-    val cardBg = if (isDark) Color(0xBF0F1015) else Color(0xA6FFFFFF)
+    // Translucent Tint for cards since background is blurred
+    val cardBg = if (isDark) Color(0x660F1015) else Color(0x4DFFFFFF)
     val cardBorder = if (isDark) Color(0x26FFFFFF) else Color(0x33000000)
 
     val cardModifier = Modifier
         .fillMaxWidth()
         .clip(shape)
-        .then(
-            if (backdropState != null) {
-                Modifier.backdropReceiver(
-                    state = backdropState,
-                    blurRadius = 24.dp,
-                    tint = cardBg,
-                    baseColor = if (isDark) Color(0xFF0F1015) else Color(0xFFFFFFFF),
-                    showTopBorder = false
-                )
-            } else Modifier
-        )
 
     GlassSurface(
         shape = shape,
-        backgroundColor = if (backdropState != null) Color.Transparent else cardBg,
+        backgroundColor = cardBg,
         borderColor = cardBorder,
         enableBlur = false,
         modifier = cardModifier

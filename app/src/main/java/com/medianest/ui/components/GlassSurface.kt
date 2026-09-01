@@ -71,7 +71,9 @@ fun GlassSurface(
     )
 
     Box(
-        modifier = modifier
+        modifier = Modifier
+            .clip(shape)
+            .then(modifier)
             .border(
                 width = borderWidth,
                 brush = Brush.verticalGradient(

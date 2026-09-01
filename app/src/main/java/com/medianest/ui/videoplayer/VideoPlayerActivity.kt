@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import com.medianest.data.repository.NetworkRepository
 import com.medianest.player.ExoPlayerManager
 import com.medianest.player.FloatingPlayerService
+import com.medianest.ui.components.SlideShowVideoPreviewCoordinator
 import com.medianest.ui.theme.MediaNestTheme
 
 class VideoPlayerActivity : ComponentActivity() {
@@ -45,6 +46,9 @@ class VideoPlayerActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Pause all in-grid video previews so the full video player has 100% decoder access
+        SlideShowVideoPreviewCoordinator.pause()
 
         if (android.os.Build.VERSION.SDK_INT >= 34) {
             overrideActivityTransition(
@@ -196,6 +200,7 @@ class VideoPlayerActivity : ComponentActivity() {
             if (isFinishing) {
                 activeList = null
                 activeContextTitle = null
+                SlideShowVideoPreviewCoordinator.resume()
             }
         } catch (e: Exception) {
             e.printStackTrace()

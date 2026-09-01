@@ -154,20 +154,40 @@ fun AdaptiveBottomSheet(
                         }
                     }
                 } else {
-                    GlassSurface(
-                        modifier = modifier
+                    val backdropState = LocalBackdropBlurState.current
+                    val shape24 = RoundedCornerShape(24.dp)
+                    val dialogModifier = if (backdropState != null) {
+                        modifier
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                                 enabled = false
                             ) {}
-                            .fillMaxWidth(0.74f),
+                            .fillMaxWidth(0.74f)
+                            .clip(shape24)
+                            .backdropReceiver(
+                                state = backdropState,
+                                blurRadius = 24.dp,
+                                tint = resolvedColor,
+                                baseColor = if (isDark) Color(0xFF08090E) else Color(0xFFFFFFFF),
+                                showTopBorder = false
+                            )
+                    } else {
+                        modifier
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                enabled = false
+                            ) {}
+                            .fillMaxWidth(0.74f)
+                    }
+
+                    GlassSurface(
+                        modifier = dialogModifier,
                         shape = RoundedCornerShape(24.dp),
-                        backgroundColor = resolvedColor,
+                        backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color(0x4D0F1015),
                         borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
-                        backgroundImage = backgroundImage,
-                        backgroundImageAlpha = backgroundImageAlpha,
-                        enableBlur = enableBlur
+                        enableBlur = false
                     ) {
                         Column(
                             modifier = Modifier
@@ -252,13 +272,28 @@ fun AdaptiveBottomSheet(
                     }
                 }
             } else {
+                val backdropState = LocalBackdropBlurState.current
+                val sheetModifier = if (backdropState != null) {
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(shape)
+                        .backdropReceiver(
+                            state = backdropState,
+                            blurRadius = 24.dp,
+                            tint = resolvedColor,
+                            baseColor = if (isDark) Color(0xFF08090E) else Color(0xFFFFFFFF),
+                            showTopBorder = false
+                        )
+                } else {
+                    Modifier.fillMaxWidth()
+                }
+
                 GlassSurface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = sheetModifier,
                     shape = shape,
-                    backgroundColor = resolvedColor,
-                    backgroundImage = backgroundImage,
-                    backgroundImageAlpha = backgroundImageAlpha,
-                    enableBlur = enableBlur
+                    backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color(0x4D0F1015),
+                    borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
+                    enableBlur = false
                 ) {
                     Column(modifier = Modifier.navigationBarsPadding()) {
                         if (dragHandle != null) {
@@ -291,13 +326,22 @@ private fun SheetAmbientSurface(
     containerColor: Color,
     content: @Composable BoxScope.() -> Unit
 ) {
-    AmbientGlassSurface(
-        modifier = modifier,
+    val backdropState = LocalBackdropBlurState.current
+    val baseMod = if (backdropState != null) {
+        modifier.backdropReceiver(
+            state = backdropState,
+            blurRadius = 32.dp,
+            tint = Color(0x990A0C10)
+        )
+    } else {
+        modifier
+    }
+
+    GlassSurface(
+        modifier = baseMod,
         shape = shape,
-        backgroundImage = backgroundImage,
-        hue = hue,
+        backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color(0x660F1015),
         borderWidth = 0.5.dp,
-        containerColor = containerColor,
         content = content
     )
 }

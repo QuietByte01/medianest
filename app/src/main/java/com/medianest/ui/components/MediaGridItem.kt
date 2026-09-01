@@ -267,7 +267,7 @@ fun MediaGridItem(
                 // Compact Duration badge on bottom-right (BottomEnd)
                 Surface(
                     shape = RoundedCornerShape(5.dp),
-                    color = Color.Black.copy(alpha = 0.35f)
+                    color = Color.Black.copy(alpha = 0.25f)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.dp),
@@ -281,7 +281,7 @@ fun MediaGridItem(
                         Text(
                             text = formatDuration(item.durationMs),
                             color = Color.White,
-                            fontSize = 9.sp,
+                            fontSize = 8.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -355,6 +355,16 @@ fun MediaGridItem(
                                 if (onInfo != null) onInfo()
                             }
                         )
+                        if (onDelete != null) {
+                            DropdownMenuItem(
+                                text = { Text("Delete File", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                onClick = {
+                                    showMenu = false
+                                    onDelete()
+                                }
+                            )
+                        }
                         if (onOpenFolder != null) {
                             DropdownMenuItem(
                                 text = { Text(if (showInGallery) "Open with" else "Show in Folder", color = if (isDark) Color.White else Color.Black) },
@@ -433,16 +443,6 @@ fun MediaGridItem(
                                 onClick = {
                                     showMenu = false
                                     onRemoveFromCategory()
-                                }
-                            )
-                        }
-                        if (onDelete != null) {
-                            DropdownMenuItem(
-                                text = { Text("Delete File", color = MaterialTheme.colorScheme.error) },
-                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                                onClick = {
-                                    showMenu = false
-                                    onDelete()
                                 }
                             )
                         }
