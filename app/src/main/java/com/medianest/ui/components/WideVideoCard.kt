@@ -229,12 +229,12 @@ fun WideVideoCard(
                             .padding(6.dp)
                             .align(Alignment.BottomEnd)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(Color.Black.copy(alpha = 0.70f))
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                            .background(Color.Black.copy(alpha = 0.30f))
+                            .padding(horizontal = 4.dp, vertical = 3.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.5.dp)
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             RoundedPlayIcon(
                                 modifier = Modifier.size(10.dp),

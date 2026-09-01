@@ -261,12 +261,12 @@ private fun SongRow(
             .clickable { onSongClick(item) },
         shape = RoundedCornerShape(20.dp),
         backgroundColor = when {
-            isHighlighted -> Color(0x3D38BDF8)
+            isHighlighted -> Color.White.copy(alpha = 0.22f)
             isCurrentlyPlaying -> Color(0x33FFFFFF)
             else -> Color(0x221C1F2B)
         },
         borderColor = when {
-            isHighlighted -> Color(0xFF38BDF8).copy(alpha = pulseAlpha)
+            isHighlighted -> Color.White.copy(alpha = 0.70f * pulseAlpha)
             isCurrentlyPlaying -> Color(0x66FFFFFF)
             else -> Color(0x2EFFFFFF)
         },

@@ -106,7 +106,7 @@ fun MediaGridItem(
         modifier = modifier
             .fillMaxWidth()
             .then(
-                if (isHighlighted) Modifier.border(BorderStroke(2.5.dp, Color(0xFF38BDF8).copy(alpha = pulseAlpha)), itemShape)
+                if (isHighlighted) Modifier.border(BorderStroke(2.5.dp, Color.White.copy(alpha = 0.70f * pulseAlpha)), itemShape)
                 else Modifier
             )
             .clip(itemShape)
@@ -116,7 +116,7 @@ fun MediaGridItem(
             ),
         shape = itemShape,
         colors = CardDefaults.cardColors(
-            containerColor = if (isHighlighted) Color(0x3338BDF8)
+            containerColor = if (isHighlighted) Color.White.copy(alpha = 0.20f)
             else if (com.medianest.ui.theme.LocalDarkTheme.current) 
                 Color.White.copy(alpha = 0.10f) 
             else 
@@ -255,12 +255,12 @@ fun MediaGridItem(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
-                        .background(Color.Black.copy(alpha = 0.70f))
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                        .background(Color.Black.copy(alpha = 0.30f))
+                        .padding(horizontal = 4.dp, vertical = 3.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.5.dp)
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         RoundedPlayIcon(
                             modifier = Modifier.size(9.5.dp),
