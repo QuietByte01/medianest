@@ -249,7 +249,7 @@ fun MediaGridItem(
                             }
                     ) {
                         Box(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -281,7 +281,7 @@ fun MediaGridItem(
                         Text(
                             text = formatDuration(item.durationMs),
                             color = Color.White,
-                            fontSize = if (isTablet) 9.sp else 9.5.sp,
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                     }

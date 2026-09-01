@@ -198,7 +198,8 @@ fun LibraryVideoPreviewView(
         Box(modifier = modifier.fillMaxSize()) {
             AndroidView(
                 factory = { ctx ->
-                    PlayerView(ctx).apply {
+                    val view = android.view.LayoutInflater.from(ctx).inflate(com.medianest.R.layout.player_view_texture, null, false) as PlayerView
+                    view.apply {
                         useController = false
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                         setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
