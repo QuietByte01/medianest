@@ -296,7 +296,7 @@ class MainActivity : ComponentActivity() {
                         )
                     } else {
                         androidx.compose.runtime.CompositionLocalProvider(
-                            com.medianest.ui.components.LocalBackdropBlurState provides settingsBackdropState
+                            com.medianest.ui.components.LocalBackdropState provides settingsBackdropState
                         ) {
                             Box(modifier = Modifier.fillMaxSize()) {
                                 // Persistent Base Library Screen (never destroyed on navigation to Settings/Player)

@@ -37,7 +37,7 @@ fun GlassDropdownMenu(
     hue: Float? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val backdropState = LocalBackdropBlurState.current
+    val backdropState = LocalBackdropState.current
 
     DropdownMenu(
         expanded = expanded,

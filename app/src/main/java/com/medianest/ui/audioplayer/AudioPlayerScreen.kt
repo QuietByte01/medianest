@@ -42,7 +42,7 @@ import com.medianest.ui.components.extractBaseHueFromArt
 import com.medianest.ui.components.debug.AudioDebugOverlay
 import com.medianest.ui.components.backdropSource
 import com.medianest.ui.components.rememberBackdropBlurState
-import com.medianest.ui.components.LocalBackdropBlurState
+import com.medianest.ui.components.LocalBackdropState
 import com.medianest.ui.library.audio.AudioMetadataEditDialog
 import com.medianest.ui.theme.LocalDarkTheme
 import kotlinx.coroutines.Dispatchers
@@ -377,7 +377,7 @@ fun AudioPlayerScreen(
     val playerBackdropState = rememberBackdropBlurState()
 
     androidx.compose.runtime.CompositionLocalProvider(
-        com.medianest.ui.components.LocalBackdropBlurState provides playerBackdropState
+        com.medianest.ui.components.LocalBackdropState provides playerBackdropState
     ) {
         Box(
             modifier = Modifier

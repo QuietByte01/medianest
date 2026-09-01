@@ -37,7 +37,7 @@ import com.medianest.player.PlayerState
 import com.medianest.ui.components.AmbientGlassSurface
 import com.medianest.ui.components.BackdropBlurState
 import com.medianest.ui.components.GlassSurface
-import com.medianest.ui.components.LocalBackdropBlurState
+import com.medianest.ui.components.LocalBackdropState
 import com.medianest.ui.components.backdropReceiver
 import com.medianest.ui.components.extractBaseHueFromArt
 import com.medianest.ui.components.media.*
@@ -74,7 +74,7 @@ internal fun VideoPlayerOverflowMenu(
     onCast: () -> Unit,
     onSettings: () -> Unit,
     onShowInfo: () -> Unit = {},
-    backdropState: BackdropBlurState? = LocalBackdropBlurState.current,
+    backdropState: BackdropBlurState? = LocalBackdropState.current,
     modifier: Modifier = Modifier
 ) {
     val isDark = LocalDarkTheme.current
@@ -215,7 +215,7 @@ internal fun AspectRatioModal(
     currentMode: MediaAspectRatio,
     onModeChange: (MediaAspectRatio) -> Unit,
     onDismiss: () -> Unit,
-    backdropState: BackdropBlurState? = LocalBackdropBlurState.current
+    backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     val isDark = LocalDarkTheme.current
     val cardBg = if (isDark) Color(0xCC0E111A) else Color(0xCCE3E3E3)
@@ -281,7 +281,7 @@ internal fun PlaybackSpeedModal(
     currentSpeed: Float,
     onSpeedChange: (Float) -> Unit,
     onDismiss: () -> Unit,
-    backdropState: BackdropBlurState? = LocalBackdropBlurState.current
+    backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     val isDark = LocalDarkTheme.current
     val cardBg = if (isDark) Color(0xCC0E111A) else Color(0xCCE3E3E3)
@@ -355,7 +355,7 @@ internal fun VideoPostProcessingPanel(
     currentEffect: MediaEffect,
     onEffectChange: (MediaEffect) -> Unit,
     onDismiss: () -> Unit,
-    backdropState: BackdropBlurState? = LocalBackdropBlurState.current
+    backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     val isDark = LocalDarkTheme.current
     val cardBg = if (isDark) Color(0xCC0E111A) else Color(0xCCE3E3E3)

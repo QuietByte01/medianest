@@ -34,11 +34,6 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 
 /**
- * CompositionLocal providing active backdrop blur state for surface overlays.
- */
-val LocalBackdropBlurState = compositionLocalOf<BackdropBlurState?> { null }
-
-/**
  * Reusable Backdrop Blur Engine for Jetpack Compose.
  *
  * Implements YouTube's native frosted glass backdrop blur pipeline:
@@ -52,6 +47,8 @@ val LocalBackdropBlurState = compositionLocalOf<BackdropBlurState?> { null }
  *    - Draws opaque base occlusion layer (to block unblurred background text/pixels),
  *      the downsampled & blurred backdrop layer, translucent theme tint, and optional frosted top border line.
  */
+import androidx.compose.ui.layout.positionOnScreen
+
 @Stable
 class BackdropBlurState {
     var sourceLayer: GraphicsLayer? = null
@@ -66,12 +63,21 @@ class BackdropBlurState {
             val src = sourceCoordinates ?: return Offset.Zero
             val rec = receiverCoordinates ?: return Offset.Zero
             if (!src.isAttached || !rec.isAttached) return Offset.Zero
-            val srcBounds = src.boundsInRoot()
-            val recBounds = rec.boundsInRoot()
-            return Offset(
-                x = recBounds.left - srcBounds.left,
-                y = recBounds.top - srcBounds.top
-            )
+            return try {
+                val srcPos = src.positionOnScreen()
+                val recPos = rec.positionOnScreen()
+                Offset(
+                    x = recPos.x - srcPos.x,
+                    y = recPos.y - srcPos.y
+                )
+            } catch (e: Throwable) {
+                val srcBounds = src.boundsInRoot()
+                val recBounds = rec.boundsInRoot()
+                Offset(
+                    x = recBounds.left - srcBounds.left,
+                    y = recBounds.top - srcBounds.top
+                )
+            }
         }
 }
 
@@ -86,6 +92,8 @@ fun rememberBackdropBlurState(): BackdropBlurState {
     state.blurLayer = blurLayer
     return state
 }
+
+val LocalBackdropState = compositionLocalOf<BackdropBlurState?> { null }
 
 /**
  * Marks the composable (e.g. main screen or video player) as the backdrop source to be sampled and blurred.
@@ -123,9 +131,8 @@ fun Modifier.backdropSource(
 fun Modifier.backdropReceiver(
     state: BackdropBlurState,
     blurRadius: Dp = 28.dp,
-    tint: Color = Color(0xBF0F0F0F),
-    baseColor: Color = Color(0xFF0F0F0F),
-    blurAlpha: Float = 0.45f,
+    tint: Color = Color(0x6608090E),
+    baseColor: Color = Color.Transparent,
     showTopBorder: Boolean = false,
     borderColor: Color = Color.White.copy(alpha = 0.12f),
     downscaleFactor: Float = 8f
@@ -152,14 +159,6 @@ fun Modifier.backdropReceiver(
                 size.height.toInt().coerceAtLeast(1)
             )
 
-            // Clamp offsets to sourceLayer bounds so sampled slice is always 100% full
-            val srcSize = sourceLayer.size
-            val maxX = (srcSize.width - receiverSize.width).coerceAtLeast(0).toFloat()
-            val maxY = (srcSize.height - receiverSize.height).coerceAtLeast(0).toFloat()
-
-            val clampedX = offset.x.coerceIn(0f, maxX)
-            val clampedY = offset.y.coerceIn(0f, maxY)
-
             // Stage 1: Downsample background slice (8x factor)
             val factor = downscaleFactor.coerceAtLeast(1f)
             val downsampledSize = IntSize(
@@ -167,16 +166,31 @@ fun Modifier.backdropReceiver(
                 (receiverSize.height / factor).toInt().coerceAtLeast(1)
             )
 
+            val srcSize = sourceLayer.size
+            val srcW = srcSize.width.toFloat().coerceAtLeast(1f)
+            val srcH = srcSize.height.toFloat().coerceAtLeast(1f)
+            val recW = receiverSize.width.toFloat().coerceAtLeast(1f)
+            val recH = receiverSize.height.toFloat().coerceAtLeast(1f)
+
+            val sampleX = offset.x
+            val sampleY = offset.y
+
+            val coverScaleX = if (recW > srcW) (recW / srcW) else 1f
+            val coverScaleY = if (recH > srcH) (recH / srcH) else 1f
+
             downsampleLayer.record(size = downsampledSize) {
-                scale(scaleX = 1f / factor, scaleY = 1f / factor, pivot = Offset.Zero) {
-                    translate(left = -clampedX, top = -clampedY) {
+                scale(
+                    scaleX = coverScaleX / factor,
+                    scaleY = coverScaleY / factor,
+                    pivot = Offset.Zero
+                ) {
+                    translate(left = -sampleX, top = -sampleY) {
                         drawLayer(sourceLayer)
                     }
                 }
             }
 
             // Stage 2: Upscale with Bilinear Interpolation + GPU Gaussian BlurEffect
-            blurLayer.alpha = blurAlpha.coerceIn(0f, 1f)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 blurLayer.renderEffect = BlurEffect(
                     radiusX = radiusPx,

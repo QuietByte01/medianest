@@ -154,7 +154,7 @@ fun AdaptiveBottomSheet(
                         }
                     }
                 } else {
-                    val backdropState = LocalBackdropBlurState.current
+                    val backdropState = LocalBackdropState.current
                     val shape24 = RoundedCornerShape(24.dp)
                     val dialogModifier = if (backdropState != null) {
                         modifier
@@ -272,7 +272,7 @@ fun AdaptiveBottomSheet(
                     }
                 }
             } else {
-                val backdropState = LocalBackdropBlurState.current
+                val backdropState = LocalBackdropState.current
                 val sheetModifier = if (backdropState != null) {
                     Modifier
                         .fillMaxWidth()
@@ -326,7 +326,7 @@ private fun SheetAmbientSurface(
     containerColor: Color,
     content: @Composable BoxScope.() -> Unit
 ) {
-    val backdropState = LocalBackdropBlurState.current
+    val backdropState = LocalBackdropState.current
     val baseMod = if (backdropState != null) {
         modifier.backdropReceiver(
             state = backdropState,

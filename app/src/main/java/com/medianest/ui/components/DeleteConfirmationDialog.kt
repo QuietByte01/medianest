@@ -33,7 +33,7 @@ fun DeleteConfirmationDialog(
     confirmButtonText: String = "Delete",
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
-    backdropState: BackdropBlurState? = LocalBackdropBlurState.current
+    backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     val isDark = LocalDarkTheme.current
     val cardBg = if (isDark) Color(0xCC08090E) else Color(0xBFFFFFFF)
