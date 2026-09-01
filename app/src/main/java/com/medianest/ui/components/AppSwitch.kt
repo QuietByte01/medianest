@@ -14,7 +14,7 @@ enum class AppSwitchStyle {
 
 /**
  * Reusable switch component supporting both Solid and Glossy visual styles.
- * Glossy style renders a translucent switch with 10% track opacity when unchecked and 30% track opacity when selected.
+ * Glossy style renders a translucent switch with 10% track opacity when unchecked and 30% track opacity when selected, with no track border.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,7 +53,7 @@ fun AppSwitch(
 }
 
 /**
- * A translucent switch with 10% track opacity when unchecked and 30% white track opacity when selected.
+ * A translucent switch with 10% track opacity when unchecked and 30% white track opacity when selected (no track border).
  */
 @Composable
 fun GlossySwitch(
@@ -70,10 +70,10 @@ fun GlossySwitch(
         colors = SwitchDefaults.colors(
             checkedThumbColor = Color.White,
             checkedTrackColor = Color.White.copy(alpha = 0.30f),
-            checkedBorderColor = Color.White.copy(alpha = 0.40f),
+            checkedBorderColor = Color.Transparent,
             uncheckedThumbColor = Color.White.copy(alpha = 0.70f),
             uncheckedTrackColor = Color.White.copy(alpha = 0.10f),
-            uncheckedBorderColor = Color.White.copy(alpha = 0.20f),
+            uncheckedBorderColor = Color.Transparent,
             disabledCheckedThumbColor = Color.White.copy(alpha = 0.40f),
             disabledCheckedTrackColor = Color.White.copy(alpha = 0.15f),
             disabledUncheckedThumbColor = Color.White.copy(alpha = 0.30f),

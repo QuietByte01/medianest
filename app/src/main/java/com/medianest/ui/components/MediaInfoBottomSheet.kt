@@ -44,7 +44,8 @@ fun MediaInfoBottomSheet(
     item: MediaItem?,
     onDismiss: () -> Unit,
     onShowFileLocation: ((MediaItem) -> Unit)? = null,
-    onFetchInfo: ((MediaItem) -> Unit)? = null
+    onFetchInfo: ((MediaItem) -> Unit)? = null,
+    backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     if (item == null) return
 
@@ -80,6 +81,7 @@ fun MediaInfoBottomSheet(
         contentColor = if (isDark) Color.White else Color.Black,
         backgroundImage = null,
         hue = null,
+        backdropState = backdropState,
         dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
         if (item.type == MediaType.VIDEO) {

@@ -56,13 +56,13 @@ fun AdaptiveBottomSheet(
     enableBlur: Boolean = true,
     hue: Float? = null,
     isSolidGlossy: Boolean = false,
+    backdropState: BackdropBlurState? = LocalBackdropState.current,
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
     content: @Composable ColumnScope.() -> Unit
 ) {
     val isDark = LocalDarkTheme.current
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
-    val backdropState = LocalBackdropState.current
 
     // Translucent obsidian for dark with active backdrop blur; frosted white for light
     val resolvedColor = when {
@@ -97,7 +97,7 @@ fun AdaptiveBottomSheet(
                     state = backdropState,
                     blurRadius = 24.dp,
                     tint = resolvedColor,
-                    baseColor = if (isDark) Color(0xFF08090E) else Color(0xFFFFFFFF),
+                    baseColor = Color.Transparent,
                     showTopBorder = false
                 )
 
