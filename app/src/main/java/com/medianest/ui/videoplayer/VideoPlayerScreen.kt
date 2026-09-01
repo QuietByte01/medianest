@@ -882,7 +882,7 @@ fun VideoPlayerScreen(
                                 resumePromptPositionMs = null
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.White,
+                                containerColor = Color.White.copy(alpha = 0.70f),
                                 contentColor = Color.Black
                             ),
                             shape = RoundedCornerShape(10.dp),

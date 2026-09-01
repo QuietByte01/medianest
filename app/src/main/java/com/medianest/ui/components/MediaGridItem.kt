@@ -229,7 +229,7 @@ fun MediaGridItem(
                 if (isCurrentlyPreviewing) {
                     Surface(
                         shape = RoundedCornerShape(5.dp),
-                        color = Color.Black.copy(alpha = 0.55f),
+                        color = Color.Black.copy(alpha = 0.3f),
                         modifier = Modifier
                             .clickable {
                                 SlideShowVideoPreviewCoordinator.toggleAudio()
@@ -242,7 +242,7 @@ fun MediaGridItem(
                             Icon(
                                 imageVector = if (isAudioMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
                                 contentDescription = if (isAudioMuted) "Turn Audio On" else "Mute Audio",
-                                tint = if (isAudioMuted) Color.White.copy(alpha = 0.9f) else Color(0xFF4ADE80),
+                                tint = if (isAudioMuted) Color.White.copy(alpha = 0.3f) else Color(0xFF4ADE80),
                                 modifier = Modifier.size(11.dp)
                             )
                         }
