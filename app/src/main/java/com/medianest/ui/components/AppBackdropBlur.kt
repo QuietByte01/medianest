@@ -166,25 +166,9 @@ fun Modifier.backdropReceiver(
                 (receiverSize.height / factor).toInt().coerceAtLeast(1)
             )
 
-            val srcSize = sourceLayer.size
-            val srcW = srcSize.width.toFloat().coerceAtLeast(1f)
-            val srcH = srcSize.height.toFloat().coerceAtLeast(1f)
-            val recW = receiverSize.width.toFloat().coerceAtLeast(1f)
-            val recH = receiverSize.height.toFloat().coerceAtLeast(1f)
-
-            val sampleX = offset.x
-            val sampleY = offset.y
-
-            val coverScaleX = if (recW > srcW) (recW / srcW) else 1f
-            val coverScaleY = if (recH > srcH) (recH / srcH) else 1f
-
             downsampleLayer.record(size = downsampledSize) {
-                scale(
-                    scaleX = coverScaleX / factor,
-                    scaleY = coverScaleY / factor,
-                    pivot = Offset.Zero
-                ) {
-                    translate(left = -sampleX, top = -sampleY) {
+                scale(scaleX = 1f / factor, scaleY = 1f / factor, pivot = Offset.Zero) {
+                    translate(left = -offset.x, top = -offset.y) {
                         drawLayer(sourceLayer)
                     }
                 }

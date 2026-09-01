@@ -837,7 +837,7 @@ fun VideoPlayerScreen(
         ) {
             resumePromptPositionMs?.let { resumePos ->
                 val shape = RoundedCornerShape(16.dp)
-                val cardBg = Color(0xCC111827)
+                val cardBg = Color(0x6608090E)
                 GlassSurface(
                     shape = shape,
                     backgroundColor = if (playerBackdropState != null) Color.Transparent else cardBg,
@@ -852,7 +852,7 @@ fun VideoPlayerScreen(
                                     state = playerBackdropState,
                                     blurRadius = 24.dp,
                                     tint = cardBg,
-                                    baseColor = Color(0xFF111827),
+                                    baseColor = Color.Transparent,
                                     showTopBorder = false
                                 )
                             } else Modifier

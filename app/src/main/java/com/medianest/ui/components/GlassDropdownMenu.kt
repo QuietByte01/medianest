@@ -31,7 +31,7 @@ fun GlassDropdownMenu(
     properties: PopupProperties = PopupProperties(focusable = true),
     shape: Shape = RoundedCornerShape(16.dp),
     containerColor: Color = Color.Transparent,
-    shadowElevation: Dp = 12.dp,
+    shadowElevation: Dp = 0.dp,
     useImageBackground: Boolean = false,
     backgroundImage: Any? = null,
     hue: Float? = null,

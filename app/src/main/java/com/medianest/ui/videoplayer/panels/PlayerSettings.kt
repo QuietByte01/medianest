@@ -70,8 +70,8 @@ internal fun VideoPlayerSettingsOverlay(
                         Modifier.backdropReceiver(
                             state = backdropState,
                             blurRadius = 28.dp,
-                            tint = Color(0xCC0E111A),
-                            baseColor = Color(0xFF0E111A),
+                            tint = Color(0x6608090E),
+                            baseColor = Color.Transparent,
                             showTopBorder = true,
                             borderColor = Color(0x33FFFFFF)
                         )

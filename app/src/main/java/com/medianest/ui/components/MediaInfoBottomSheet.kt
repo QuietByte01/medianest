@@ -79,7 +79,6 @@ fun MediaInfoBottomSheet(
         containerColor = Color.Unspecified,
         contentColor = if (isDark) Color.White else Color.Black,
         backgroundImage = item.albumArtUri ?: item.uri,
-        enableBlur = true,
         dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
         if (item.type == MediaType.VIDEO) {

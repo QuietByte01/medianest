@@ -46,7 +46,7 @@ fun AbRepeatControlBar(
     modifier: Modifier = Modifier
 ) {
     val isDark = com.medianest.ui.theme.LocalDarkTheme.current
-    val cardBg = if (isDark) Color(0xCC0E111A) else Color(0xCCE3E3E3)
+    val cardBg = if (isDark) Color(0x6608090E) else Color(0x80FFFFFF)
     val shape = RoundedCornerShape(20.dp)
 
     val pointA = abRepeatState.pointA
@@ -62,7 +62,7 @@ fun AbRepeatControlBar(
                     state = backdropState,
                     blurRadius = 24.dp,
                     tint = cardBg,
-                    baseColor = if (isDark) Color(0xFF0E111A) else Color(0xFFE3E3E3),
+                    baseColor = Color.Transparent,
                     showTopBorder = false
                 )
             } else Modifier
