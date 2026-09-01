@@ -3,7 +3,6 @@ package com.medianest.ui.components
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,7 +18,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -38,10 +36,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 enum class AppSwitchStyle {
     Solid,
@@ -50,7 +46,7 @@ enum class AppSwitchStyle {
 
 /**
  * Reusable switch/toggle component supporting both Solid and Glossy visual styles.
- * When set to [AppSwitchStyle.Glossy], renders a custom 3D frosted glassmorphic switch with "ON" / "OFF" labels.
+ * When set to [AppSwitchStyle.Glossy], renders a transparent frosted glassmorphic switch.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,23 +56,20 @@ fun AppSwitch(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     style: AppSwitchStyle = AppSwitchStyle.Solid,
-    showLabels: Boolean = true,
-    accentColor: Color = Color(0xFF6366F1),
+    accentColor: Color = Color.Unspecified,
     checkedThumbColor: Color = Color.White,
-    checkedTrackColor: Color = if (style == AppSwitchStyle.Glossy) accentColor.copy(alpha = 0.4f) else accentColor,
+    checkedTrackColor: Color = if (style == AppSwitchStyle.Glossy) Color.White.copy(alpha = 0.4f) else accentColor,
     uncheckedThumbColor: Color = if (style == AppSwitchStyle.Glossy) Color.White.copy(alpha = 0.6f) else Color(0xFF717D96),
     uncheckedTrackColor: Color = if (style == AppSwitchStyle.Glossy) Color.White.copy(alpha = 0.08f) else Color(0x3D2D3748),
-    checkedBorderColor: Color = if (style == AppSwitchStyle.Glossy) accentColor.copy(alpha = 0.5f) else Color.Transparent,
-    uncheckedBorderColor: Color = if (style == AppSwitchStyle.Glossy) Color.White.copy(alpha = 0.15f) else Color.Transparent
+    checkedBorderColor: Color = if (style == AppSwitchStyle.Glossy) Color.White.copy(alpha = 0.6f) else Color.Transparent,
+    uncheckedBorderColor: Color = if (style == AppSwitchStyle.Glossy) Color.White.copy(alpha = 0.2f) else Color.Transparent
 ) {
     if (style == AppSwitchStyle.Glossy) {
         GlossySwitch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             modifier = modifier,
-            enabled = enabled,
-            showLabels = showLabels,
-            accentColor = accentColor
+            enabled = enabled
         )
     } else {
         Switch(
@@ -101,8 +94,9 @@ fun AppSwitch(
 }
 
 /**
- * A glossy, 3D frosted glass-like toggle switch component with inner "ON" / "OFF" labels,
- * glass reflection highlights, dynamic glass border outlines, and smooth spring thumb physics.
+ * A transparent, frosted glassmorphic toggle switch component.
+ * Features a frosted glass capsule track with soft white stroke highlights,
+ * pure white frosted tint when selected (no colors or labels), and a 3D frosted glass thumb knob.
  */
 @Composable
 fun GlossySwitch(
@@ -110,11 +104,9 @@ fun GlossySwitch(
     onCheckedChange: ((Boolean) -> Unit)?,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    width: Dp = 76.dp,
-    height: Dp = 34.dp,
-    thumbSize: Dp = 26.dp,
-    showLabels: Boolean = true,
-    accentColor: Color = Color(0xFF6366F1)
+    width: Dp = 52.dp,
+    height: Dp = 28.dp,
+    thumbSize: Dp = 22.dp
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -129,24 +121,12 @@ fun GlossySwitch(
     )
 
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1.0f,
+        targetValue = if (isPressed) 0.94f else 1.0f,
         animationSpec = spring(stiffness = Spring.StiffnessHigh),
         label = "glossy_switch_scale"
     )
 
-    val offLabelAlpha by animateFloatAsState(
-        targetValue = if (!checked) 1f else 0f,
-        animationSpec = tween(150),
-        label = "glossy_switch_off_alpha"
-    )
-
-    val onLabelAlpha by animateFloatAsState(
-        targetValue = if (checked) 1f else 0f,
-        animationSpec = tween(150),
-        label = "glossy_switch_on_alpha"
-    )
-
-    val padding = 4.dp
+    val padding = 3.dp
 
     Box(
         modifier = modifier
@@ -158,9 +138,9 @@ fun GlossySwitch(
                 this.alpha = if (enabled) 1f else 0.4f
             }
             .shadow(
-                elevation = 6.dp,
+                elevation = if (checked) 6.dp else 3.dp,
                 shape = CircleShape,
-                ambientColor = Color.Black.copy(alpha = 0.25f),
+                ambientColor = Color.Black.copy(alpha = 0.20f),
                 spotColor = Color.Black.copy(alpha = 0.25f)
             )
             .clip(CircleShape)
@@ -173,21 +153,23 @@ fun GlossySwitch(
             },
         contentAlignment = Alignment.Center
     ) {
-        // 1. Frosted Glass Capsule Track Background & Border Outline
-        val trackGradient = if (checked && accentColor != Color.Unspecified && accentColor != Color(0xFF6366F1)) {
+        // 1. Transparent Frosted Glass Capsule Track Background & Border Highlight
+        val trackGradient = if (checked) {
+            // Selected state: Brighter frosted white tint
             Brush.verticalGradient(
                 colors = listOf(
-                    accentColor.copy(alpha = 0.40f),
-                    accentColor.copy(alpha = 0.22f),
-                    Color.White.copy(alpha = 0.12f)
+                    Color.White.copy(alpha = 0.48f),
+                    Color.White.copy(alpha = 0.32f),
+                    Color.White.copy(alpha = 0.22f)
                 )
             )
         } else {
+            // Unselected state: Subtle clear frosted glass
             Brush.verticalGradient(
                 colors = listOf(
-                    Color.White.copy(alpha = 0.38f),
-                    Color.White.copy(alpha = 0.20f),
-                    Color.White.copy(alpha = 0.12f)
+                    Color.White.copy(alpha = 0.25f),
+                    Color.White.copy(alpha = 0.12f),
+                    Color.White.copy(alpha = 0.06f)
                 )
             )
         }
@@ -199,12 +181,12 @@ fun GlossySwitch(
                 .drawWithContent {
                     drawContent()
 
-                    // Top Glass Specular Reflection Streak
-                    val glossHeight = size.height * 0.45f
+                    // Top Glass Specular Streak Highlight
+                    val glossHeight = size.height * 0.48f
                     drawRect(
                         brush = Brush.verticalGradient(
                             colors = listOf(
-                                Color.White.copy(alpha = 0.45f),
+                                Color.White.copy(alpha = if (checked) 0.60f else 0.38f),
                                 Color.White.copy(alpha = 0.10f),
                                 Color.Transparent
                             ),
@@ -214,13 +196,13 @@ fun GlossySwitch(
                         size = Size(size.width, glossHeight)
                     )
 
-                    // Bright Glass Outer Rim / Border Stroke
-                    val strokeWidth = 1.5.dp.toPx()
+                    // Soft White Glass Rim / Border Stroke
+                    val strokeWidth = 1.2.dp.toPx()
                     val borderBrush = Brush.verticalGradient(
                         colors = listOf(
-                            Color.White.copy(alpha = 0.75f),
-                            Color.White.copy(alpha = 0.40f),
-                            Color.White.copy(alpha = 0.20f)
+                            Color.White.copy(alpha = if (checked) 0.85f else 0.55f),
+                            Color.White.copy(alpha = if (checked) 0.45f else 0.25f),
+                            Color.White.copy(alpha = if (checked) 0.25f else 0.10f)
                         )
                     )
                     drawRoundRect(
@@ -231,37 +213,7 @@ fun GlossySwitch(
                 }
         )
 
-        // 2. "ON" / "OFF" Text Labels Inside Track
-        if (showLabels) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 14.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                // "ON" Label (Visible on left when checked)
-                Text(
-                    text = "ON",
-                    color = Color.White.copy(alpha = onLabelAlpha),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.sp,
-                    modifier = Modifier.align(Alignment.CenterStart)
-                )
-
-                // "OFF" Label (Visible on right when unchecked)
-                Text(
-                    text = "OFF",
-                    color = Color.White.copy(alpha = offLabelAlpha),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.sp,
-                    modifier = Modifier.align(Alignment.CenterEnd)
-                )
-            }
-        }
-
-        // 3. 3D Glass Sphere / Disc Thumb Knob
+        // 2. 3D Frosted Glass Sphere / Disc Thumb Knob
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
@@ -275,27 +227,28 @@ fun GlossySwitch(
                     .offset(x = currentOffset)
                     .size(thumbSize)
                     .shadow(
-                        elevation = 6.dp,
+                        elevation = if (checked) 5.dp else 2.dp,
                         shape = CircleShape,
-                        ambientColor = Color.Black.copy(alpha = 0.30f),
-                        spotColor = Color.Black.copy(alpha = 0.35f)
+                        ambientColor = Color.Black.copy(alpha = 0.20f),
+                        spotColor = Color.Black.copy(alpha = 0.25f)
                     )
                     .background(
                         brush = Brush.linearGradient(
                             colors = listOf(
                                 Color(0xFFFFFFFF),
-                                Color(0xFFF1F5F9),
+                                Color(0xFFF8FAFC),
+                                Color(0xFFE2E8F0),
                                 Color(0xFFCBD5E1)
                             )
                         ),
                         shape = CircleShape
                     )
                     .border(
-                        width = 1.2.dp,
+                        width = 1.dp,
                         brush = Brush.verticalGradient(
                             colors = listOf(
                                 Color.White.copy(alpha = 0.95f),
-                                Color.White.copy(alpha = 0.40f)
+                                Color.White.copy(alpha = 0.45f)
                             )
                         ),
                         shape = CircleShape
@@ -304,11 +257,11 @@ fun GlossySwitch(
                         drawContent()
 
                         // Specular Glare Ellipse on top-left of the Thumb knob
-                        val glareRadius = size.minDimension * 0.32f
+                        val glareRadius = size.minDimension * 0.30f
                         drawCircle(
                             brush = Brush.radialGradient(
                                 colors = listOf(
-                                    Color.White.copy(alpha = 0.95f),
+                                    Color.White.copy(alpha = 0.90f),
                                     Color.White.copy(alpha = 0.0f)
                                 ),
                                 center = Offset(size.width * 0.35f, size.height * 0.32f),

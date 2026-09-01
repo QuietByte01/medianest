@@ -106,16 +106,32 @@ fun AdaptiveBottomSheet(
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
-                if (isSolidGlossy) {
+                val backdropState = LocalBackdropState.current
+                val shape24 = RoundedCornerShape(24.dp)
+                val dialogModifier = modifier
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        enabled = false
+                    ) {}
+                    .fillMaxWidth(0.74f)
+                    .clip(shape24)
+                    .then(
+                        if (backdropState != null) {
+                            Modifier.backdropReceiver(
+                                state = backdropState,
+                                blurRadius = 24.dp,
+                                tint = resolvedColor,
+                                baseColor = if (isDark) Color(0xFF08090E) else Color(0xFFFFFFFF),
+                                showTopBorder = false
+                            )
+                        } else Modifier
+                    )
+
+                if (backdropState == null && isSolidGlossy) {
                     SolidGlossySurface(
-                        modifier = modifier
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                enabled = false
-                            ) {}
-                            .fillMaxWidth(0.74f),
-                        shape = RoundedCornerShape(24.dp),
+                        modifier = dialogModifier,
+                        shape = shape24,
                         backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color.Unspecified,
                         borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.10f),
                         borderWidth = 1.dp,
@@ -130,16 +146,10 @@ fun AdaptiveBottomSheet(
                             content()
                         }
                     }
-                } else if (backgroundImage != null) {
+                } else if (backdropState == null && backgroundImage != null) {
                     SheetAmbientSurface(
-                        modifier = modifier
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                enabled = false
-                            ) {}
-                            .fillMaxWidth(0.74f),
-                        shape = RoundedCornerShape(24.dp),
+                        modifier = dialogModifier,
+                        shape = shape24,
                         isDark = isDark,
                         backgroundImage = backgroundImage,
                         hue = hue,
@@ -154,39 +164,13 @@ fun AdaptiveBottomSheet(
                         }
                     }
                 } else {
-                    val backdropState = LocalBackdropState.current
-                    val shape24 = RoundedCornerShape(24.dp)
-                    val dialogModifier = if (backdropState != null) {
-                        modifier
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                enabled = false
-                            ) {}
-                            .fillMaxWidth(0.74f)
-                            .clip(shape24)
-                            .backdropReceiver(
-                                state = backdropState,
-                                blurRadius = 24.dp,
-                                tint = resolvedColor,
-                                baseColor = if (isDark) Color(0xFF08090E) else Color(0xFFFFFFFF),
-                                showTopBorder = false
-                            )
-                    } else {
-                        modifier
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                enabled = false
-                            ) {}
-                            .fillMaxWidth(0.74f)
-                    }
-
                     GlassSurface(
                         modifier = dialogModifier,
-                        shape = RoundedCornerShape(24.dp),
-                        backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color(0x4D0F1015),
+                        shape = shape24,
+                        backgroundColor = if (backdropState != null) Color.Transparent else (if (containerColor != Color.Unspecified) containerColor else Color(0x4D0F1015)),
                         borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
+                        backgroundImage = if (backdropState != null) backgroundImage else null,
+                        backgroundImageAlpha = 0.20f,
                         enableBlur = false
                     ) {
                         Column(
@@ -228,9 +212,25 @@ fun AdaptiveBottomSheet(
                 onDispose {}
             }
 
-            if (isSolidGlossy) {
+            val backdropState = LocalBackdropState.current
+            val sheetModifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .then(
+                    if (backdropState != null) {
+                        Modifier.backdropReceiver(
+                            state = backdropState,
+                            blurRadius = 24.dp,
+                            tint = resolvedColor,
+                            baseColor = if (isDark) Color(0xFF08090E) else Color(0xFFFFFFFF),
+                            showTopBorder = false
+                        )
+                    } else Modifier
+                )
+
+            if (backdropState == null && isSolidGlossy) {
                 SolidGlossySurface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = sheetModifier,
                     shape = shape,
                     backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color.Unspecified,
                     borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.10f),
@@ -250,9 +250,9 @@ fun AdaptiveBottomSheet(
                         content()
                     }
                 }
-            } else if (backgroundImage != null) {
+            } else if (backdropState == null && backgroundImage != null) {
                 SheetAmbientSurface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = sheetModifier,
                     shape = shape,
                     isDark = isDark,
                     backgroundImage = backgroundImage,
@@ -272,27 +272,13 @@ fun AdaptiveBottomSheet(
                     }
                 }
             } else {
-                val backdropState = LocalBackdropState.current
-                val sheetModifier = if (backdropState != null) {
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(shape)
-                        .backdropReceiver(
-                            state = backdropState,
-                            blurRadius = 24.dp,
-                            tint = resolvedColor,
-                            baseColor = if (isDark) Color(0xFF08090E) else Color(0xFFFFFFFF),
-                            showTopBorder = false
-                        )
-                } else {
-                    Modifier.fillMaxWidth()
-                }
-
                 GlassSurface(
                     modifier = sheetModifier,
                     shape = shape,
-                    backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color(0x4D0F1015),
+                    backgroundColor = if (backdropState != null) Color.Transparent else (if (containerColor != Color.Unspecified) containerColor else Color(0x4D0F1015)),
                     borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
+                    backgroundImage = if (backdropState != null) backgroundImage else null,
+                    backgroundImageAlpha = 0.20f,
                     enableBlur = false
                 ) {
                     Column(modifier = Modifier.navigationBarsPadding()) {
