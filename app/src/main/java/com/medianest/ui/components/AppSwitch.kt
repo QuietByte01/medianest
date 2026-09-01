@@ -14,7 +14,7 @@ enum class AppSwitchStyle {
 
 /**
  * Reusable switch component.
- * Features a warm Clay / Terracotta color palette for checked and unchecked states with no track border.
+ * Features a transparent fluid toggle with 30% opacity checked thumb and 10% opacity unchecked thumb.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,20 +26,19 @@ fun AppSwitch(
     style: AppSwitchStyle = AppSwitchStyle.Glossy,
     accentColor: Color = Color.Unspecified,
 ) {
-    val clayColor = if (accentColor != Color.Unspecified) accentColor else Color(0xFFD97757)
-    if (style == AppSwitchStyle.Solid) {
+    if ((style == AppSwitchStyle.Solid) && (accentColor != Color.Unspecified)) {
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             modifier = modifier,
             enabled = enabled,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = clayColor,
+                checkedThumbColor = Color.White.copy(alpha = 0.30f),
+                checkedTrackColor = accentColor.copy(alpha = 0.30f),
                 checkedBorderColor = Color.Transparent,
-                uncheckedThumbColor = Color(0xFF717D96),
-                uncheckedTrackColor = Color(0x3D2D3748),
-                uncheckedBorderColor = Color.Transparent
+                uncheckedThumbColor = Color.White.copy(alpha = 0.10f),
+                uncheckedTrackColor = Color.White.copy(alpha = 0.05f),
+                uncheckedBorderColor = Color.Transparent,
             )
         )
     } else {
@@ -48,13 +47,12 @@ fun AppSwitch(
             onCheckedChange = onCheckedChange,
             modifier = modifier,
             enabled = enabled,
-            clayColor = clayColor,
         )
     }
 }
 
 /**
- * A switch styled with a warm Clay / Terracotta color palette (no track border).
+ * Transparent fluid toggle switch with 30% opacity checked white thumb and 10% opacity unchecked white thumb.
  */
 @Composable
 fun GlossySwitch(
@@ -62,7 +60,6 @@ fun GlossySwitch(
     onCheckedChange: ((Boolean) -> Unit)?,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    clayColor: Color = Color(0xFFD97757),
 ) {
     Switch(
         checked = checked,
@@ -70,16 +67,16 @@ fun GlossySwitch(
         modifier = modifier,
         enabled = enabled,
         colors = SwitchDefaults.colors(
-            checkedThumbColor = Color(0xFFFFF8F5),
-            checkedTrackColor = clayColor,
+            checkedThumbColor = Color.White.copy(alpha = 0.30f),
+            checkedTrackColor = Color.White.copy(alpha = 0.20f),
             checkedBorderColor = Color.Transparent,
-            uncheckedThumbColor = Color(0xFFB8ADA8),
-            uncheckedTrackColor = Color(0xFF382F2E),
+            uncheckedThumbColor = Color.White.copy(alpha = 0.10f),
+            uncheckedTrackColor = Color.White.copy(alpha = 0.05f),
             uncheckedBorderColor = Color.Transparent,
-            disabledCheckedThumbColor = Color(0xFFFFF8F5).copy(alpha = 0.40f),
-            disabledCheckedTrackColor = clayColor.copy(alpha = 0.30f),
-            disabledUncheckedThumbColor = Color(0xFFB8ADA8).copy(alpha = 0.40f),
-            disabledUncheckedTrackColor = Color(0xFF382F2E).copy(alpha = 0.30f)
+            disabledCheckedThumbColor = Color.White.copy(alpha = 0.10f),
+            disabledCheckedTrackColor = Color.White.copy(alpha = 0.08f),
+            disabledUncheckedThumbColor = Color.White.copy(alpha = 0.05f),
+            disabledUncheckedTrackColor = Color.White.copy(alpha = 0.02f),
         )
     )
 }

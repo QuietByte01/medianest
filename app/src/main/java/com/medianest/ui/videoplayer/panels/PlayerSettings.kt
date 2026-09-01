@@ -102,14 +102,14 @@ internal fun VideoPlayerSettingsOverlay(
                         Box(
                             modifier = Modifier
                                 .size(32.dp)
-                                .clip(androidx.compose.foundation.shape.CircleShape)
-                                .background(Color(0x334FC3F7)),
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.10f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
                                 contentDescription = null,
-                                tint = Color(0xFF4FC3F7),
+                                tint = Color.White.copy(alpha = 0.70f),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -125,7 +125,7 @@ internal fun VideoPlayerSettingsOverlay(
                     Box(
                         modifier = Modifier
                             .size(30.dp)
-                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .clip(CircleShape)
                             .background(Color.White.copy(alpha = 0.12f))
                             .clickable { onDismiss() },
                         contentAlignment = Alignment.Center
@@ -190,8 +190,6 @@ private fun SettingsContent(
 
         // Hardware & Performance Section
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(text = "Hardware & Performance", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF38BDF8))
-            
             com.medianest.ui.components.HardwareAccelerationSetting(settingsManager = settingsManager)
             
             Spacer(modifier = Modifier.height(4.dp))
@@ -267,7 +265,7 @@ private fun SettingsContent(
                             enabled = true,
                             selected = isSelected,
                             borderColor = Color(0x33FFFFFF),
-                            selectedBorderColor = Color.White,
+                            selectedBorderColor = Color.White.copy(alpha = 0.70f),
                             borderWidth = 0.5.dp,
                             selectedBorderWidth = 1.0.dp
                         )
