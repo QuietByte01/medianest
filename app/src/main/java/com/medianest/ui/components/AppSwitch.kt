@@ -33,7 +33,7 @@ fun AppSwitch(
             modifier = modifier,
             enabled = enabled,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White.copy(alpha = 0.30f),
+                checkedThumbColor = Color.White.copy(alpha = 0.70f),
                 checkedTrackColor = accentColor.copy(alpha = 0.30f),
                 checkedBorderColor = Color.Transparent,
                 uncheckedThumbColor = Color.White.copy(alpha = 0.10f),

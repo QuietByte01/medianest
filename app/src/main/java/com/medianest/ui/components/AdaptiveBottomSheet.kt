@@ -62,7 +62,6 @@ fun AdaptiveBottomSheet(
     val isDark = LocalDarkTheme.current
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
-    val backdropState = LocalBackdropState.current
 
     // Translucent obsidian for dark, translucent frosted white for light
     val resolvedColor = when {
@@ -165,23 +164,11 @@ fun AdaptiveBottomSheet(
                             enabled = false
                         ) {}
                         .fillMaxWidth(0.74f)
-                        .clip(RoundedCornerShape(24.dp))
-                        .then(
-                            if (backdropState != null) {
-                                Modifier.backdropReceiver(
-                                    state = backdropState,
-                                    blurRadius = 32.dp,
-                                    tint = resolvedColor,
-                                    baseColor = Color.Transparent,
-                                    showTopBorder = false
-                                )
-                            } else Modifier
-                        )
 
                     GlassSurface(
                         modifier = tabletMod,
                         shape = RoundedCornerShape(24.dp),
-                        backgroundColor = if (backdropState != null) Color.Transparent else resolvedColor,
+                        backgroundColor = resolvedColor,
                         borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
                         backgroundImage = backgroundImage,
                         backgroundImageAlpha = backgroundImageAlpha,
@@ -273,25 +260,10 @@ fun AdaptiveBottomSheet(
                     }
                 }
             } else {
-                val phoneMod = Modifier
-                    .fillMaxWidth()
-                    .clip(shape)
-                    .then(
-                        if (backdropState != null) {
-                            Modifier.backdropReceiver(
-                                state = backdropState,
-                                blurRadius = 32.dp,
-                                tint = resolvedColor,
-                                baseColor = Color.Transparent,
-                                showTopBorder = false
-                            )
-                        } else Modifier
-                    )
-
                 GlassSurface(
-                    modifier = phoneMod,
+                    modifier = Modifier.fillMaxWidth(),
                     shape = shape,
-                    backgroundColor = if (backdropState != null) Color.Transparent else resolvedColor,
+                    backgroundColor = resolvedColor,
                     borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
                     backgroundImage = backgroundImage,
                     backgroundImageAlpha = backgroundImageAlpha,
