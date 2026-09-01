@@ -295,12 +295,9 @@ class MainActivity : ComponentActivity() {
                             onUnlocked = { isUnlocked = true }
                         )
                     } else {
-                        androidx.compose.runtime.CompositionLocalProvider(
-                            com.medianest.ui.components.LocalBackdropState provides settingsBackdropState
-                        ) {
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                // Persistent Base Library Screen (never destroyed on navigation to Settings/Player)
-                                Box(
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            // Persistent Base Library Screen (never destroyed on navigation to Settings/Player)
+                            Box(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .backdropSource(
@@ -513,7 +510,6 @@ class MainActivity : ComponentActivity() {
                                     hiddenFolders = hiddenFolders
                                 )
                             }
-                        }
                         }
                     }
                 }
