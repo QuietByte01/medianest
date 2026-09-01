@@ -138,7 +138,7 @@ fun LibraryScreen(
             }
         }
 
-        val currentPlayingTrack = playerState.currentItem
+        val currentPlayingTrack = remember(playerState.currentItem) { playerState.currentItem }
         var libraryInfoItem by remember { mutableStateOf<MediaItem?>(null) }
         val libraryBackdropState = rememberBackdropBlurState()
 

@@ -56,6 +56,7 @@ fun MediaGridItem(
     onInfo: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     onRemoveFromCategory: (() -> Unit)? = null,
+    onAddToCategory: (() -> Unit)? = null,
     showRemoveOption: Boolean = false,
     onOpenFolder: ((String, String?) -> Unit)? = null,
     onRename: (() -> Unit)? = null,
@@ -85,20 +86,8 @@ fun MediaGridItem(
         label = "PulseAlpha"
     )
 
-    val settingsManager = com.medianest.MediaNestApp.instance.settingsManager
-    val pictureModeEnabled by settingsManager.pictureModeEnabled.collectAsState(initial = true)
-    val applyToThumbnails by settingsManager.applyPictureModeToThumbnails.collectAsState(initial = false)
-    val pictureMode by settingsManager.pictureMode.collectAsState(initial = "BALANCED")
-    val customSat by settingsManager.customSaturation.collectAsState(initial = 1.18f)
     val autoPlayVideoPreviews = LocalAutoPlayVideoPreviews.current
     val autoPlayGifPreviews = LocalAutoPlayGifPreviews.current
-
-    val colorFilter = remember(pictureModeEnabled, applyToThumbnails, pictureMode) {
-        if (applyToThumbnails && pictureModeEnabled) {
-            val effect = try { com.medianest.ui.components.media.MediaEffect.fromString(pictureMode) } catch(e:Exception) { com.medianest.ui.components.media.MediaEffect.OFF }
-            com.medianest.player.fx.MediaFxPipeline.getComposeColorFilter(effect)
-        } else null
-    }
 
     var fallbackBitmap by remember(item.uri) { mutableStateOf<android.graphics.Bitmap?>(null) }
     // Rebuild trigger: incrementing this forces the image request to be recreated
@@ -183,7 +172,6 @@ fun MediaGridItem(
                 bitmap = fallbackBitmap!!.asImageBitmap(),
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,
-                colorFilter = colorFilter,
                 modifier = Modifier.fillMaxSize()
             )
         } else {
@@ -191,7 +179,6 @@ fun MediaGridItem(
                 model = imageRequest,
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,
-                colorFilter = colorFilter,
                 modifier = Modifier.fillMaxSize(),
                 onSuccess = { success ->
                     val intrinsicSize = success.painter.intrinsicSize
@@ -349,16 +336,26 @@ fun MediaGridItem(
                     ) {
                         DropdownMenuItem(
                             text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
-                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(15.dp)) },
                             onClick = {
                                 showMenu = false
                                 if (onInfo != null) onInfo()
                             }
                         )
+                        if (onAddToCategory != null) {
+                            DropdownMenuItem(
+                                text = { Text("Add to Category", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.FolderSpecial, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(15.dp)) },
+                                onClick = {
+                                    showMenu = false
+                                    onAddToCategory()
+                                }
+                            )
+                        }
                         if (onDelete != null) {
                             DropdownMenuItem(
                                 text = { Text("Delete File", color = MaterialTheme.colorScheme.error) },
-                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(15.dp)) },
                                 onClick = {
                                     showMenu = false
                                     onDelete()
@@ -372,7 +369,8 @@ fun MediaGridItem(
                                     Icon(
                                         imageVector = if (showInGallery) Icons.Default.Image else Icons.Default.Folder, 
                                         contentDescription = null, 
-                                        tint = if (isDark) Color.White else Color.Black
+                                        tint = if (isDark) Color.White else Color.Black,
+                                        modifier = Modifier.size(15.dp)
                                     ) 
                                 },
                                 onClick = {
@@ -390,7 +388,7 @@ fun MediaGridItem(
                         if (item.type == MediaType.VIDEO) {
                             DropdownMenuItem(
                                 text = { Text("Rebuild Thumbnail", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(15.dp)) },
                                 onClick = {
                                     showMenu = false
                                     fallbackBitmap = null
@@ -409,7 +407,7 @@ fun MediaGridItem(
                         if (onRename != null) {
                             DropdownMenuItem(
                                 text = { Text("Rename", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(15.dp)) },
                                 onClick = {
                                     showMenu = false
                                     onRename()
@@ -419,7 +417,7 @@ fun MediaGridItem(
                         if (onMove != null) {
                             DropdownMenuItem(
                                 text = { Text("Move to Folder", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(15.dp)) },
                                 onClick = {
                                     showMenu = false
                                     onMove()
@@ -429,7 +427,7 @@ fun MediaGridItem(
                         if (onCopy != null) {
                             DropdownMenuItem(
                                 text = { Text("Copy to Folder", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(15.dp)) },
                                 onClick = {
                                     showMenu = false
                                     onCopy()
@@ -439,7 +437,7 @@ fun MediaGridItem(
                         if (showRemoveOption && onRemoveFromCategory != null) {
                             DropdownMenuItem(
                                 text = { Text("Remove", color = MaterialTheme.colorScheme.error) },
-                                leadingIcon = { Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(15.dp)) },
                                 onClick = {
                                     showMenu = false
                                     onRemoveFromCategory()

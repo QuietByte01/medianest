@@ -47,6 +47,7 @@ fun VideosMainGrid(
     onInfoItem: (MediaItem) -> Unit,
     onVideoDelete: (MediaItem) -> Unit,
     onRemoveFromCategory: (MediaItem) -> Unit,
+    onAddToCategory: ((MediaItem) -> Unit)? = null,
     onOpenFolder: (String, String?) -> Unit,
     onRename: (MediaItem) -> Unit,
     onMove: ((MediaItem) -> Unit)? = null,
@@ -99,6 +100,7 @@ fun VideosMainGrid(
                         placeName = null,
                         onDelete = { onVideoDelete(item) },
                         onRemoveFromCategory = if (selectedCategory != null) { { onRemoveFromCategory(item) } } else null,
+                        onAddToCategory = if (onAddToCategory != null) { { onAddToCategory(item) } } else null,
                         onRename = { onRename(item) },
                         onMove = if (onMove != null) { { onMove(item) } } else null,
                         onCopy = if (onCopy != null) { { onCopy(item) } } else null,
@@ -128,6 +130,7 @@ fun VideosMainGrid(
                         placeName = null,
                         onDelete = { onVideoDelete(item) },
                         onRemoveFromCategory = if (selectedCategory != null) { { onRemoveFromCategory(item) } } else null,
+                        onAddToCategory = if (onAddToCategory != null) { { onAddToCategory(item) } } else null,
                         onRename = { onRename(item) },
                         onMove = if (onMove != null) { { onMove(item) } } else null,
                         onCopy = if (onCopy != null) { { onCopy(item) } } else null,
@@ -167,6 +170,7 @@ fun VideosMainGrid(
                     onDelete = { onVideoDelete(item) },
                     showRemoveOption = selectedCategory != null,
                     onRemoveFromCategory = { onRemoveFromCategory(item) },
+                    onAddToCategory = if (onAddToCategory != null) { { onAddToCategory(item) } } else null,
                     onOpenFolder = { targetFolder, targetUri ->
                         val matchedKey = videoFolderGroups.keys.firstOrNull { key ->
                             key.equals(targetFolder, ignoreCase = true) ||

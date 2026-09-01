@@ -122,32 +122,32 @@ internal fun VideoPlayerOverflowMenu(
             ) {
                 DropdownMenuItem(
                     text = { Text("File Info", color = Color.White, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.Info, null, tint = Color.White, modifier = Modifier.size(18.dp)) },
+                    leadingIcon = { Icon(Icons.Default.Info, null, tint = Color.White, modifier = Modifier.size(15.dp)) },
                     onClick = { onShowInfo(); onDismiss() }
                 )
                 DropdownMenuItem(
                     text = { Text("Open with", color = Color.White, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.OpenInNew, null, tint = Color.White, modifier = Modifier.size(18.dp)) },
+                    leadingIcon = { Icon(Icons.Default.OpenInNew, null, tint = Color.White, modifier = Modifier.size(15.dp)) },
                     onClick = { onOpenWith(); onDismiss() }
                 )
                 DropdownMenuItem(
                     text = { Text("Show in folder", color = Color.White, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.Folder, null, tint = Color.White, modifier = Modifier.size(18.dp)) },
+                    leadingIcon = { Icon(Icons.Default.Folder, null, tint = Color.White, modifier = Modifier.size(15.dp)) },
                     onClick = { onShowInFolder(); onDismiss() }
                 )
                 DropdownMenuItem(
                     text = { Text("Delete", color = Color.White, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) },
+                    leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(15.dp)) },
                     onClick = { onDelete(); onDismiss() }
                 )
                 DropdownMenuItem(
                     text = { Text("Share", color = Color.White, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.Share, null, tint = Color.White, modifier = Modifier.size(18.dp)) },
+                    leadingIcon = { Icon(Icons.Default.Share, null, tint = Color.White, modifier = Modifier.size(15.dp)) },
                     onClick = { onShare(); onDismiss() }
                 )
                 DropdownMenuItem(
                     text = { Text("Edit Video", color = Color.White, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.Edit, null, tint = Color.White, modifier = Modifier.size(18.dp)) },
+                    leadingIcon = { Icon(Icons.Default.Edit, null, tint = Color.White, modifier = Modifier.size(15.dp)) },
                     onClick = { onEdit(); onDismiss() }
                 )
                 
@@ -155,12 +155,12 @@ internal fun VideoPlayerOverflowMenu(
                 
                 DropdownMenuItem(
                     text = { Text("Background Play: ${if (isBackgroundPlayEnabled) "On" else "Off"}", color = Color.White, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.MusicNote, null, tint = Color.White, modifier = Modifier.size(18.dp)) },
+                    leadingIcon = { Icon(Icons.Default.MusicNote, null, tint = Color.White, modifier = Modifier.size(15.dp)) },
                     onClick = { onToggleBackgroundPlay(!isBackgroundPlayEnabled) }
                 )
                 DropdownMenuItem(
                     text = { Text("Auto Repeat: ${if (isAutoRepeatEnabled) "On" else "Off"}", color = Color.White, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.Repeat, null, tint = Color.White, modifier = Modifier.size(18.dp)) },
+                    leadingIcon = { Icon(Icons.Default.Repeat, null, tint = Color.White, modifier = Modifier.size(15.dp)) },
                     onClick = { onToggleAutoRepeat(!isAutoRepeatEnabled) }
                 )
                 DropdownMenuItem(
@@ -177,24 +177,24 @@ internal fun VideoPlayerOverflowMenu(
                             Icons.Default.RepeatOne,
                             null,
                             tint = if (isAbRepeatActive) Color(0xFF4FC3F7) else Color.White,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                     },
                     onClick = { onAbRepeat(); onDismiss() }
                 )
                 DropdownMenuItem(
                     text = { Text("Audio Tracks", color = Color.White, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.Audiotrack, null, tint = Color.White, modifier = Modifier.size(18.dp)) },
+                    leadingIcon = { Icon(Icons.Default.Audiotrack, null, tint = Color.White, modifier = Modifier.size(15.dp)) },
                     onClick = { onAudioTracks(); onDismiss() }
                 )
                 DropdownMenuItem(
                     text = { Text("Cast to TV", color = Color.White, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.Tv, null, tint = Color.White, modifier = Modifier.size(18.dp)) },
+                    leadingIcon = { Icon(Icons.Default.Tv, null, tint = Color.White, modifier = Modifier.size(15.dp)) },
                     onClick = { onCast(); onDismiss() }
                 )
                 DropdownMenuItem(
                     text = { Text("Video FX & Filters", color = Color.White, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.Tune, null, tint = Color.White, modifier = Modifier.size(18.dp)) },
+                    leadingIcon = { Icon(Icons.Default.Tune, null, tint = Color.White, modifier = Modifier.size(15.dp)) },
                     onClick = { onVideoFx(); onDismiss() }
                 )
                 
@@ -202,7 +202,7 @@ internal fun VideoPlayerOverflowMenu(
                 
                 DropdownMenuItem(
                     text = { Text("Settings", color = Color.White, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.Settings, null, tint = Color.White, modifier = Modifier.size(18.dp)) },
+                    leadingIcon = { Icon(Icons.Default.Settings, null, tint = Color.White, modifier = Modifier.size(15.dp)) },
                     onClick = { onSettings(); onDismiss() }
                 )
             }

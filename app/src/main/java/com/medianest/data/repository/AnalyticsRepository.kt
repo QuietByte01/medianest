@@ -18,6 +18,9 @@ class AnalyticsRepository(
     val snapshot: Flow<FileStatSnapshot?> = analyticsDao.getLatestSnapshot()
     val formatStats: Flow<List<FormatStat>> = analyticsDao.getAllFormatStats()
 
+    private var lastSavedCount = -1
+    private var lastSavedSize = -1L
+
     suspend fun refreshAnalytics(showHidden: Boolean) = withContext(Dispatchers.IO) {
         val selectiveHidden = selectiveHiddenFolderDao.getAllHiddenFoldersList()
         val imageHidden = selectiveHidden.filter { it.mediaType == "IMAGE" && it.isHidden }
@@ -50,6 +53,13 @@ class AnalyticsRepository(
 
         val totalCount = imageCount + videoCount + audioCount
         val totalSize = imageSize + videoSize + audioSize
+
+        // Skip redundant database write if file counts and total sizes have not changed
+        if (totalCount == lastSavedCount && totalSize == lastSavedSize && totalCount > 0) {
+            return@withContext
+        }
+        lastSavedCount = totalCount
+        lastSavedSize = totalSize
 
         val snapshot = FileStatSnapshot(
             id = 1,

@@ -245,9 +245,12 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    // Auto background scan for analytics
-                    LaunchedEffect(imagesList, videosList, audioList) {
-                        analyticsRepository.scanAndSaveAnalytics(imagesList, videosList, audioList)
+                    // Auto background scan for analytics (debounced to avoid circular DB update loops)
+                    LaunchedEffect(imagesList.size, videosList.size, audioList.size) {
+                        if (imagesList.isNotEmpty() || videosList.isNotEmpty() || audioList.isNotEmpty()) {
+                            kotlinx.coroutines.delay(2000)
+                            analyticsRepository.scanAndSaveAnalytics(imagesList, videosList, audioList)
+                        }
                     }
 
                     // Observe categories from Room

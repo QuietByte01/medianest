@@ -50,6 +50,7 @@ fun WideVideoCard(
     isLocationFallback: Boolean = false,
     onDelete: () -> Unit,
     onRemoveFromCategory: (() -> Unit)? = null,
+    onAddToCategory: (() -> Unit)? = null,
     onRename: (() -> Unit)? = null,
     onMove: (() -> Unit)? = null,
     onCopy: (() -> Unit)? = null,
@@ -295,15 +296,25 @@ fun WideVideoCard(
                 ) {
                     DropdownMenuItem(
                         text = { Text("File Info") },
-                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(15.dp)) },
                         onClick = {
                             menuExpanded = false
                             if (onShowInfo != null) onShowInfo()
                         }
                     )
+                    if (onAddToCategory != null) {
+                        DropdownMenuItem(
+                            text = { Text("Add to Category") },
+                            leadingIcon = { Icon(Icons.Default.FolderSpecial, contentDescription = null, modifier = Modifier.size(15.dp)) },
+                            onClick = {
+                                menuExpanded = false
+                                onAddToCategory()
+                            }
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text("Rebuild Thumbnail") },
-                        leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(15.dp)) },
                         onClick = {
                             menuExpanded = false
                             fallbackBitmap = null
@@ -320,7 +331,7 @@ fun WideVideoCard(
                     if (onRemoveFromCategory != null) {
                         DropdownMenuItem(
                             text = { Text("Remove from Category") },
-                            leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, contentDescription = null) },
+                            leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, contentDescription = null, modifier = Modifier.size(15.dp)) },
                             onClick = { 
                                 menuExpanded = false
                                 onRemoveFromCategory() 
@@ -330,7 +341,7 @@ fun WideVideoCard(
                     if (onRename != null) {
                         DropdownMenuItem(
                             text = { Text("Rename") },
-                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(15.dp)) },
                             onClick = { 
                                 menuExpanded = false
                                 onRename() 
@@ -340,7 +351,7 @@ fun WideVideoCard(
                     if (onMove != null) {
                         DropdownMenuItem(
                             text = { Text("Move to Folder") },
-                            leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null) },
+                            leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, modifier = Modifier.size(15.dp)) },
                             onClick = { 
                                 menuExpanded = false
                                 onMove() 
@@ -350,7 +361,7 @@ fun WideVideoCard(
                     if (onCopy != null) {
                         DropdownMenuItem(
                             text = { Text("Copy to Folder") },
-                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(15.dp)) },
                             onClick = { 
                                 menuExpanded = false
                                 onCopy() 
@@ -359,7 +370,7 @@ fun WideVideoCard(
                     }
                     DropdownMenuItem(
                         text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(15.dp)) },
                         onClick = { 
                             menuExpanded = false
                             onDelete() 

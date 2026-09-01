@@ -9,6 +9,7 @@ import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import com.medianest.data.db.AppDatabase
 import com.medianest.data.settings.SettingsManager
+import kotlinx.coroutines.launch
 
 class MediaNestApp : Application() {
     
@@ -34,9 +35,17 @@ class MediaNestApp : Application() {
         settingsManager = SettingsManager(this)
         artistMetadataRepository = com.medianest.data.repository.ArtistMetadataRepository(this)
 
-        // Initialize Android Hardware Engine & Capability Detection
-        val hwCaps = com.medianest.hardware.AndroidHardwareEngine.detectCapabilities(this)
-        val hwMemConfig = com.medianest.hardware.AndroidHardwareEngine.getRecommendedMemoryConfig(hwCaps.ramTier)
+        // Initialize Hardware Memory Config with safe default for fast UI launch
+        val hwMemConfig = com.medianest.hardware.AndroidHardwareEngine.getRecommendedMemoryConfig("4GB")
+
+        // Offload hardware capability detection to background thread so main thread launch is not blocked
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
+            try {
+                com.medianest.hardware.AndroidHardwareEngine.detectCapabilities(this@MediaNestApp)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
 
         val imageLoader = ImageLoader.Builder(this)
             .allowHardware(true) // Enable Hardware Bitmaps stored in VRAM for zero-copy UI rendering
@@ -51,7 +60,7 @@ class MediaNestApp : Application() {
             }
             .memoryCache {
                 MemoryCache.Builder(this)
-                    .maxSizePercent(if (hwCaps.totalRamMb <= 2048) 0.15 else 0.25)
+                    .maxSizePercent(0.20)
                     .build()
             }
             .diskCache {

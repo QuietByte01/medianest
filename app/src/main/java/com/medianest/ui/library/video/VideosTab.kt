@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridS
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import com.medianest.ui.components.LocalBackdropState
+import com.medianest.ui.components.backdropReceiver
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Cake
@@ -619,6 +621,7 @@ fun VideosTab(
                         db.categoryDao().removeMediaFromCategory(selectedCategory!!.id, item.uri.toString())
                     }
                 },
+                onAddToCategory = { _ -> showAddVideosToCategoryDialog = true },
                 onOpenFolder = { matchedKey, targetUri ->
                     isFolderViewActive = true
                     selectedFolder = matchedKey
@@ -763,13 +766,30 @@ fun VideosTab(
                             })
                 }
             }
+            val backdropState = LocalBackdropState.current
             Dialog(onDismissRequest = {
                 showCategoryInfoDialog = false
                 categoryForOptions = null
             }) {
+                val dialogMod = Modifier
+                    .fillMaxWidth(0.92f)
+                    .clip(RoundedCornerShape(24.dp))
+                    .then(
+                        if (backdropState != null) {
+                            Modifier.backdropReceiver(
+                                state = backdropState,
+                                blurRadius = 24.dp,
+                                tint = Color(0x6608090E),
+                                baseColor = Color.Transparent,
+                                showTopBorder = false
+                            )
+                        } else Modifier
+                    )
+
                 GlassSurface(
                     shape = RoundedCornerShape(24.dp),
-                    modifier = Modifier.fillMaxWidth(0.92f)
+                    backgroundColor = if (backdropState != null) Color.Transparent else Color.Unspecified,
+                    modifier = dialogMod
                 ) {
                     Column(
                         modifier = Modifier
@@ -784,7 +804,7 @@ fun VideosTab(
                             Icon(
                                 imageVector = Icons.Default.Info,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = Color.White,
                                 modifier = Modifier.size(24.dp)
                             )
                             Text(
