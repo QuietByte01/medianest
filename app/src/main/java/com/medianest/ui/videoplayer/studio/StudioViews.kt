@@ -35,6 +35,8 @@ import coil.compose.AsyncImage
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
+import com.medianest.ui.components.media.MediaAspectRatio
+import com.medianest.util.MediaProcessorEngine
 import kotlin.math.roundToInt
 
 @Composable
@@ -682,6 +684,168 @@ internal fun StudioTopBar(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
             ) {
                 Text("Export", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            }
+        }
+    }
+}
+
+@Composable
+internal fun GifMakerControlPanel(
+    durationMs: Long,
+    maxDurationMs: Long = 60_000L,
+    direction: MediaProcessorEngine.GifDirection,
+    onDirectionChange: (MediaProcessorEngine.GifDirection) -> Unit,
+    qualityPreset: String,
+    onQualityPresetChange: (String) -> Unit,
+    cropPreset: MediaAspectRatio,
+    onCropPresetChange: (MediaAspectRatio) -> Unit,
+    onCreateGif: () -> Unit
+) {
+    val durationSec = (durationMs / 1000f).coerceIn(0.5f, 60f)
+    val estSizeMb = remember(durationSec, qualityPreset, direction) {
+        val baseSizePerSec = when (qualityPreset) {
+            "MAX_CLARITY" -> if (durationSec <= 10f) 1.6f else if (durationSec <= 30f) 0.75f else 0.35f
+            "BALANCED" -> if (durationSec <= 10f) 1.1f else if (durationSec <= 30f) 0.5f else 0.25f
+            else -> 0.18f // Compact
+        }
+        val mult = if (direction == MediaProcessorEngine.GifDirection.PING_PONG) 1.8f else 1.0f
+        val est = (durationSec * baseSizePerSec * mult).coerceIn(0.5f, 24.5f)
+        String.format(java.util.Locale.US, "%.1f", est)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Row 1: Direction & Quality Presets & Duration Badge (Fully Scrollable)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Direction Chips
+            MediaProcessorEngine.GifDirection.values().forEach { dir ->
+                val isSel = direction == dir
+                Surface(
+                    color = if (isSel) Color(0xFFFFD54F) else Color(0x22FFFFFF),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.clickable { onDirectionChange(dir) }
+                ) {
+                    Text(
+                        text = "${dir.arrowSymbol} ${dir.label}",
+                        fontSize = 11.sp,
+                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isSel) Color.Black else Color.White,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            // Quality Presets
+            listOf(
+                "MAX_CLARITY" to "Ultra HD",
+                "BALANCED" to "Balanced",
+                "COMPACT" to "Compact"
+            ).forEach { (preset, label) ->
+                val isSel = qualityPreset == preset
+                Surface(
+                    color = if (isSel) Color(0xFF6366F1) else Color(0x1AFFFFFF),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.clickable { onQualityPresetChange(preset) }
+                ) {
+                    Text(
+                        text = label,
+                        fontSize = 10.sp,
+                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isSel) Color.White else Color.White.copy(0.8f),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            // Duration Cap Badge
+            Surface(
+                color = if (durationMs > maxDurationMs) Color(0x33EF4444) else Color(0x336366F1),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = "${String.format(java.util.Locale.US, "%.1fs", durationSec)} / 60s Max",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (durationMs > maxDurationMs) Color(0xFFFCA5A5) else Color(0xFFA5B4FC),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+        }
+
+        // Row 2: Aspect Ratio & Create Action
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Aspect Ratio Chips
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf(
+                    MediaAspectRatio.ORIGINAL to "Original",
+                    MediaAspectRatio.P_1_1 to "1:1 Square",
+                    MediaAspectRatio.P_16_9 to "16:9 Wide",
+                    MediaAspectRatio.P_9_16 to "9:16 Story",
+                    MediaAspectRatio.P_4_3 to "4:3 Classic"
+                ).forEach { (preset, label) ->
+                    val isSel = cropPreset == preset
+                    Surface(
+                        color = if (isSel) Color.White else Color(0x1AFFFFFF),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.clickable { onCropPresetChange(preset) }
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 10.sp,
+                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSel) Color.Black else Color.White.copy(0.85f),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Create GIF Button
+            Button(
+                onClick = onCreateGif,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD54F)),
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Animation,
+                        contentDescription = null,
+                        tint = Color.Black,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "Create HD GIF (~${estSizeMb}MB)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                }
             }
         }
     }

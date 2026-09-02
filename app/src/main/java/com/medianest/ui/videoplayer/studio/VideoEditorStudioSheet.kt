@@ -30,6 +30,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,6 +51,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -131,6 +133,100 @@ fun VideoEditorStudioSheet(
     var showExportSheet by remember { mutableStateOf(false) }
     var isExporting by remember { mutableStateOf(false) }
     val processingState by MediaProcessorEngine.processingState.collectAsState()
+
+    var gifDirection by remember { mutableStateOf(MediaProcessorEngine.GifDirection.FORWARD) }
+    var gifQualityPreset by remember { mutableStateOf("MAX_CLARITY") }
+
+    var videoWidth by remember { mutableIntStateOf(1920) }
+    var videoHeight by remember { mutableIntStateOf(1080) }
+    var containerWidthPx by remember { mutableFloatStateOf(1f) }
+    var containerHeightPx by remember { mutableFloatStateOf(1f) }
+
+    fun applyCropPreset(preset: MediaAspectRatio) {
+        cropPreset = preset
+        isCustomCrop = false
+        val vW = videoWidth.toFloat().coerceAtLeast(1f)
+        val vH = videoHeight.toFloat().coerceAtLeast(1f)
+        val vRatio = vW / vH
+
+        when (preset) {
+            MediaAspectRatio.ORIGINAL -> {
+                cropNormX = 0f; cropNormY = 0f; cropNormW = 1f; cropNormH = 1f
+            }
+            MediaAspectRatio.P_1_1 -> {
+                if (vRatio >= 1.0f) {
+                    val wNorm = (1.0f / vRatio).coerceIn(0.1f, 1f)
+                    cropNormX = (1f - wNorm) / 2f
+                    cropNormY = 0f
+                    cropNormW = wNorm
+                    cropNormH = 1f
+                } else {
+                    val hNorm = vRatio.coerceIn(0.1f, 1f)
+                    cropNormX = 0f
+                    cropNormY = (1f - hNorm) / 2f
+                    cropNormW = 1f
+                    cropNormH = hNorm
+                }
+            }
+            MediaAspectRatio.P_16_9 -> {
+                val targetRatio = 16f / 9f
+                if (vRatio >= targetRatio) {
+                    val wNorm = (targetRatio / vRatio).coerceIn(0.1f, 1f)
+                    cropNormX = (1f - wNorm) / 2f; cropNormY = 0f; cropNormW = wNorm; cropNormH = 1f
+                } else {
+                    val hNorm = (vRatio / targetRatio).coerceIn(0.1f, 1f)
+                    cropNormX = 0f; cropNormY = (1f - hNorm) / 2f; cropNormW = 1f; cropNormH = hNorm
+                }
+            }
+            MediaAspectRatio.P_9_16 -> {
+                val targetRatio = 9f / 16f
+                if (vRatio >= targetRatio) {
+                    val wNorm = (targetRatio / vRatio).coerceIn(0.1f, 1f)
+                    cropNormX = (1f - wNorm) / 2f; cropNormY = 0f; cropNormW = wNorm; cropNormH = 1f
+                } else {
+                    val hNorm = (vRatio / targetRatio).coerceIn(0.1f, 1f)
+                    cropNormX = 0f; cropNormY = (1f - hNorm) / 2f; cropNormW = 1f; cropNormH = hNorm
+                }
+            }
+            MediaAspectRatio.P_4_3 -> {
+                val targetRatio = 4f / 3f
+                if (vRatio >= targetRatio) {
+                    val wNorm = (targetRatio / vRatio).coerceIn(0.1f, 1f)
+                    cropNormX = (1f - wNorm) / 2f; cropNormY = 0f; cropNormW = wNorm; cropNormH = 1f
+                } else {
+                    val hNorm = (vRatio / targetRatio).coerceIn(0.1f, 1f)
+                    cropNormX = 0f; cropNormY = (1f - hNorm) / 2f; cropNormW = 1f; cropNormH = hNorm
+                }
+            }
+            else -> {
+                cropNormX = 0f; cropNormY = 0f; cropNormW = 1f; cropNormH = 1f
+            }
+        }
+    }
+
+    DisposableEffect(exoPlayer) {
+        val listener = object : androidx.media3.common.Player.Listener {
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                if (videoSize.width > 0 && videoSize.height > 0) {
+                    videoWidth = videoSize.width
+                    videoHeight = videoSize.height
+                    if (cropPreset != MediaAspectRatio.ORIGINAL && !isCustomCrop) {
+                        applyCropPreset(cropPreset)
+                    }
+                }
+            }
+        }
+        exoPlayer.addListener(listener)
+        onDispose { exoPlayer.removeListener(listener) }
+    }
+
+    LaunchedEffect(activeTool) {
+        if (activeTool == StudioTool.GIF_MAKER) {
+            if (trimEndMs - trimStartMs > 60_000L) {
+                trimEndMs = (trimStartMs + 60_000L).coerceAtMost(videoDurationMs)
+            }
+        }
+    }
 
     val addClipLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
@@ -306,21 +402,32 @@ fun VideoEditorStudioSheet(
                     onExport = { showExportSheet = true }
                 )
 
-                Box(
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .background(Color(0xFF070709)),
+                        .background(Color(0xFF070709))
+                        .padding(12.dp),
                     contentAlignment = Alignment.Center
                 ) {
+                    val vAspect = if (videoHeight > 0) videoWidth.toFloat() / videoHeight.toFloat() else 16f / 9f
+                    val availW = maxWidth.value.coerceAtLeast(1f)
+                    val availH = maxHeight.value.coerceAtLeast(1f)
+                    val cAspect = availW / availH
+
+                    val (renderWidthDp, renderHeightDp) = if (vAspect > cAspect) {
+                        Pair(availW.dp, (availW / vAspect).dp)
+                    } else {
+                        Pair((availH * vAspect).dp, availH.dp)
+                    }
+
                     val blurMod = if (blurIntensity > 0.01f && blurMode == StudioBlurMode.GAUSSIAN) {
                         Modifier.blur((blurIntensity * 18).dp)
                     } else Modifier
 
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(12.dp)
+                            .size(renderWidthDp, renderHeightDp)
                             .clip(RoundedCornerShape(10.dp))
                             .graphicsLayer {
                                 rotationZ = rotationDegrees.toFloat()
@@ -336,6 +443,7 @@ fun VideoEditorStudioSheet(
                                     player = exoPlayer
                                     useController = false
                                     keepScreenOn = true
+                                    resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                                 }
                             },
                             modifier = Modifier.fillMaxSize()
@@ -366,7 +474,7 @@ fun VideoEditorStudioSheet(
                             }
                         }
 
-                        if (activeTool == StudioTool.CROP) {
+                        if (activeTool == StudioTool.CROP || (activeTool == StudioTool.GIF_MAKER && (cropPreset != MediaAspectRatio.ORIGINAL || isCustomCrop))) {
                             CropViewfinderView(
                                 isCustomCrop = isCustomCrop,
                                 cropNormX = cropNormX,
@@ -577,6 +685,7 @@ fun VideoEditorStudioSheet(
                             currentPositionMs = currentPositionMs,
                             startMs = trimStartMs,
                             endMs = trimEndMs,
+                            maxDurationMs = if (activeTool == StudioTool.GIF_MAKER) 60_000L else null,
                             onRangeChange = { s, e ->
                                 trimStartMs = s
                                 trimEndMs = e
@@ -587,7 +696,7 @@ fun VideoEditorStudioSheet(
                                 exoPlayer.seekTo(scrubMs)
                             },
                             modifier = Modifier.weight(1f),
-                            accentColor = Color.White,
+                            accentColor = if (activeTool == StudioTool.GIF_MAKER) Color(0xFFFFD54F) else Color.White,
                             handleWidthDp = 24,
                             showPlayhead = true
                         )
@@ -617,21 +726,7 @@ fun VideoEditorStudioSheet(
                             CropControlPanel(
                                 currentPreset = cropPreset,
                                 isCustomCrop = isCustomCrop,
-                                onSelectPreset = { preset ->
-                                    cropPreset = preset
-                                    isCustomCrop = false
-                                    when (preset) {
-                                        MediaAspectRatio.ORIGINAL -> { cropNormX = 0f; cropNormY = 0f; cropNormW = 1f; cropNormH = 1f }
-                                        MediaAspectRatio.P_1_1 -> { cropNormX = 0.15f; cropNormY = 0f; cropNormW = 0.7f; cropNormH = 1f }
-                                        MediaAspectRatio.P_9_16 -> { cropNormX = 0.22f; cropNormY = 0f; cropNormW = 0.56f; cropNormH = 1f }
-                                        MediaAspectRatio.P_16_9 -> { cropNormX = 0f; cropNormY = 0.15f; cropNormW = 1f; cropNormH = 0.7f }
-                                        MediaAspectRatio.P_4_3 -> { cropNormX = 0.1f; cropNormY = 0f; cropNormW = 0.8f; cropNormH = 1f }
-                                        MediaAspectRatio.P_3_4 -> { cropNormX = 0.125f; cropNormY = 0f; cropNormW = 0.75f; cropNormH = 1f }
-                                        MediaAspectRatio.P_4_5 -> { cropNormX = 0.15f; cropNormY = 0f; cropNormW = 0.7f; cropNormH = 0.875f }
-                                        MediaAspectRatio.P_21_9 -> { cropNormX = 0f; cropNormY = 0.25f; cropNormW = 1f; cropNormH = 0.5f }
-                                        else -> {}
-                                    }
-                                },
+                                onSelectPreset = { preset -> applyCropPreset(preset) },
                                 onEnableCustomCrop = {
                                     isCustomCrop = true
                                     Toast.makeText(context, "Drag corners/edges on the video canvas to crop", Toast.LENGTH_SHORT).show()
@@ -680,6 +775,47 @@ fun VideoEditorStudioSheet(
                                 onRemoveBgm = { bgmUri = null; bgmTitle = null }
                             )
                         }
+                        StudioTool.GIF_MAKER -> {
+                            val durationMs = (trimEndMs - trimStartMs).coerceAtLeast(500L)
+                            GifMakerControlPanel(
+                                durationMs = durationMs,
+                                direction = gifDirection,
+                                onDirectionChange = { gifDirection = it },
+                                qualityPreset = gifQualityPreset,
+                                onQualityPresetChange = { gifQualityPreset = it },
+                                cropPreset = cropPreset,
+                                onCropPresetChange = { preset -> applyCropPreset(preset) },
+                                onCreateGif = {
+                                    isExporting = true
+                                    scope.launch {
+                                        MediaProcessorEngine.createStudioGif(
+                                            context = context,
+                                            inputPath = currentActiveClip.uri.toString(),
+                                            inputUri = currentActiveClip.uri,
+                                            startMs = trimStartMs,
+                                            endMs = trimEndMs,
+                                            direction = gifDirection,
+                                            cropPreset = cropPreset.name,
+                                            cropNormX = cropNormX,
+                                            cropNormY = cropNormY,
+                                            cropNormW = cropNormW,
+                                            cropNormH = cropNormH,
+                                            isCustomCrop = isCustomCrop,
+                                            videoSpeed = videoSpeed,
+                                            rotationDegrees = rotationDegrees,
+                                            flipH = flipHorizontal,
+                                            flipV = flipVertical,
+                                            filterEffect = activeFilter.name,
+                                            brightness = brightness,
+                                            contrast = contrast,
+                                            saturation = saturation,
+                                            targetQualityPreset = gifQualityPreset
+                                        )
+                                        isExporting = false
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -688,8 +824,9 @@ fun VideoEditorStudioSheet(
                         .fillMaxWidth()
                         .background(Color.Black)
                         .navigationBarsPadding()
-                        .padding(horizontal = 4.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
+                        .padding(horizontal = 4.dp, vertical = 6.dp)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     StudioToolItem(
@@ -703,6 +840,12 @@ fun VideoEditorStudioSheet(
                         label = "Crop",
                         isSelected = activeTool == StudioTool.CROP,
                         onClick = { activeTool = StudioTool.CROP }
+                    )
+                    StudioToolItem(
+                        icon = Icons.Default.Animation,
+                        label = "GIF Maker",
+                        isSelected = activeTool == StudioTool.GIF_MAKER,
+                        onClick = { activeTool = StudioTool.GIF_MAKER }
                     )
                     StudioToolItem(
                         icon = Icons.Default.ColorLens,
@@ -896,6 +1039,148 @@ fun VideoEditorStudioSheet(
                         ) {
                             Text("Cancel Export", fontSize = 12.sp)
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    if (processingState is MediaProcessorEngine.ProcessingState.Completed) {
+        val completed = processingState as MediaProcessorEngine.ProcessingState.Completed
+        Dialog(
+            onDismissRequest = { MediaProcessorEngine.resetState() }
+        ) {
+            GlassSurface(
+                shape = RoundedCornerShape(24.dp),
+                backgroundColor = Color(0xF0111625),
+                borderColor = Color(0x33FFFFFF),
+                modifier = Modifier.width(320.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF22C55E).copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = Color(0xFF22C55E),
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+
+                    Text(
+                        text = if (completed.outputFile.extension.equals("gif", ignoreCase = true)) "GIF Created Successfully!" else "Video Exported Successfully!",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Surface(
+                        color = Color(0x1AFFFFFF),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "File: ${completed.outputFile.name}",
+                                fontSize = 12.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "Size: ${String.format(Locale.US, "%.1f MB", completed.newSizeBytes / (1024f * 1024f))}",
+                                fontSize = 12.sp,
+                                color = Color(0xFFFFD54F),
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Saved in: Movies / MediaNest Studio",
+                                fontSize = 11.sp,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            MediaProcessorEngine.resetState()
+                            Toast.makeText(context, "Saved to MediaNest Studio", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD54F)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Done", fontWeight = FontWeight.Bold, color = Color.Black)
+                    }
+                }
+            }
+        }
+    }
+
+    if (processingState is MediaProcessorEngine.ProcessingState.Failed) {
+        val failed = processingState as MediaProcessorEngine.ProcessingState.Failed
+        Dialog(
+            onDismissRequest = { MediaProcessorEngine.resetState() }
+        ) {
+            GlassSurface(
+                shape = RoundedCornerShape(24.dp),
+                backgroundColor = Color(0xF0111625),
+                borderColor = Color(0x33EF4444),
+                modifier = Modifier.width(320.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFEF4444).copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ErrorOutline,
+                            contentDescription = null,
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+
+                    Text(
+                        text = "Creation Failed",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Text(
+                        text = failed.errorMessage,
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.8f),
+                        textAlign = TextAlign.Center
+                    )
+
+                    Button(
+                        onClick = { MediaProcessorEngine.resetState() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Close", fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }

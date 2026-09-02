@@ -153,56 +153,7 @@ fun AnalyticsScreen(
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
 
-        // Stale warning banner if data > 24 hours
-        if (isStale) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f)),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            Icons.Default.Warning,
-                            contentDescription = "Stale warning",
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                        Column {
-                            Text(
-                                text = "Data is stale (older than 24h)",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                            Text(
-                                text = "Tap refresh to scan recent files.",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
-                    Button(
-                        onClick = onRefresh,
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        Text("Refresh", fontSize = 12.sp)
-                    }
-                }
-            }
-        }
-
-        if (isRefreshing || snapshot == null) {
+        if (snapshot == null) {
             AnalyticsSkeletonLoader()
         } else {
             // 1. Device Storage Analysis Card
@@ -211,6 +162,7 @@ fun AnalyticsScreen(
                 usedBytes = usedStorageBytes,
                 totalBytes = totalStorageBytes,
                 isRefreshing = isRefreshing,
+                isStale = isStale,
                 rotationAngle = rotationAngle,
                 onRefresh = onRefresh
             )
@@ -346,6 +298,7 @@ fun DeviceStorageAnalysisCard(
     usedBytes: Long,
     totalBytes: Long,
     isRefreshing: Boolean,
+    isStale: Boolean = false,
     rotationAngle: Float,
     onRefresh: () -> Unit
 ) {
@@ -498,6 +451,66 @@ fun DeviceStorageAnalysisCard(
                         color = colorOthers,
                         label = "Others (${AnalyticsColors.formatBytes(othersSize)})",
                         modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            // Bottom Status: Scanning Progress Bar or Stale Message
+            if (isRefreshing) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Scanning device storage...",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Rescanning media...",
+                            fontSize = 11.sp,
+                            color = Color(0xFF34D399),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        color = Color(0xFF34D399),
+                        trackColor = Color(0x33FFFFFF)
+                    )
+                }
+            } else if (isStale) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.65f))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Stale warning",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "Data is stale (older than 24h). Tap refresh icon to rescan recent media.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }

@@ -791,6 +791,160 @@ object MediaProcessorEngine {
     }
 
     // ==========================================
+    // 6.5 DEDICATED HIGH-CLARITY GIF MAKER (MAX 1 MINUTE, DIRECTION, & <25MB BUDGET)
+    // ==========================================
+    enum class GifDirection(val label: String, val arrowSymbol: String) {
+        FORWARD("Forward", "->"),
+        REVERSE("Reverse", "<-"),
+        PING_PONG("Ping-Pong Loop", "<->")
+    }
+
+    suspend fun createStudioGif(
+        context: Context,
+        inputPath: String,
+        inputUri: Uri?,
+        originalName: String? = null,
+        startMs: Long = 0L,
+        endMs: Long = 0L,
+        direction: GifDirection = GifDirection.FORWARD,
+        cropPreset: String = "ORIGINAL",
+        cropNormX: Float = 0f,
+        cropNormY: Float = 0f,
+        cropNormW: Float = 1f,
+        cropNormH: Float = 1f,
+        isCustomCrop: Boolean = false,
+        videoSpeed: Float = 1.0f,
+        rotationDegrees: Int = 0,
+        flipH: Boolean = false,
+        flipV: Boolean = false,
+        filterEffect: String = "ORIGINAL",
+        brightness: Float = 0f,
+        contrast: Float = 1f,
+        saturation: Float = 1f,
+        targetQualityPreset: String = "MAX_CLARITY" // "MAX_CLARITY", "BALANCED", "COMPACT"
+    ): Boolean = withContext(Dispatchers.IO) {
+        val resolvedInput = resolveInputPath(context, inputPath, inputUri) ?: return@withContext false
+        val inputFile = File(inputPath)
+        val origSize = if (inputFile.exists()) inputFile.length() else 0L
+        val baseName = getBaseName(inputPath, originalName)
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val outputDir = getOutputDirForFormat("gif", "Customized")
+        val outputFile = File(outputDir, "${baseName}_gif_${timeStamp}.gif")
+
+        val totalDurationMs = estimateDurationMs(resolvedInput)
+        val effectiveStartMs = startMs.coerceAtLeast(0L)
+        // Hard enforce maximum 60 seconds (1 minute) duration cap
+        val maxDurationCapMs = 60_000L
+        val requestedDuration = if (endMs > effectiveStartMs) endMs - effectiveStartMs else totalDurationMs - effectiveStartMs
+        val cappedDurationMs = requestedDuration.coerceIn(500L, maxDurationCapMs)
+        val startSec = effectiveStartMs / 1000.0
+        val clipSec = cappedDurationMs / 1000.0
+
+        // Calculate dynamic dimensions & FPS to strictly optimize clarity and stay under 15-20MB
+        val durationSeconds = (cappedDurationMs / 1000f) / videoSpeed.coerceIn(0.25f, 4.0f)
+        val (gifWidth, gifFps) = when {
+            durationSeconds <= 6f -> when (targetQualityPreset) {
+                "MAX_CLARITY" -> Pair(720, 20)
+                "BALANCED" -> Pair(540, 18)
+                else -> Pair(400, 14)
+            }
+            durationSeconds <= 15f -> when (targetQualityPreset) {
+                "MAX_CLARITY" -> Pair(600, 16)
+                "BALANCED" -> Pair(480, 14)
+                else -> Pair(360, 12)
+            }
+            durationSeconds <= 30f -> when (targetQualityPreset) {
+                "MAX_CLARITY" -> Pair(480, 14)
+                "BALANCED" -> Pair(400, 12)
+                else -> Pair(320, 10)
+            }
+            else -> when (targetQualityPreset) { // 30s to 60s
+                "MAX_CLARITY" -> Pair(440, 12)
+                "BALANCED" -> Pair(360, 10)
+                else -> Pair(280, 8)
+            }
+        }
+
+        val vFilters = mutableListOf<String>()
+
+        // 1. Playback Speed
+        if (kotlin.math.abs(videoSpeed - 1.0f) > 0.01f) {
+            val ptsMultiplier = 1.0f / videoSpeed.coerceIn(0.25f, 4.0f)
+            vFilters.add("setpts=${String.format(Locale.US, "%.4f", ptsMultiplier)}*PTS")
+        }
+
+        // 2. Crop & Aspect Ratio
+        if (isCustomCrop && cropNormW in 0.05f..1f && cropNormH in 0.05f..1f) {
+            val wExpr = "trunc(iw*${String.format(Locale.US, "%.4f", cropNormW.coerceIn(0.05f, 1f))}/2)*2"
+            val hExpr = "trunc(ih*${String.format(Locale.US, "%.4f", cropNormH.coerceIn(0.05f, 1f))}/2)*2"
+            val xExpr = "trunc(iw*${String.format(Locale.US, "%.4f", cropNormX.coerceIn(0f, 0.95f))}/2)*2"
+            val yExpr = "trunc(ih*${String.format(Locale.US, "%.4f", cropNormY.coerceIn(0f, 0.95f))}/2)*2"
+            vFilters.add("crop=$wExpr:$hExpr:$xExpr:$yExpr")
+        } else {
+            when (cropPreset) {
+                "P_9_16", "9_16" -> vFilters.add("crop='min(iw,ih*9/16)':'min(ih,iw*16/9)':(iw-out_w)/2:(ih-out_h)/2")
+                "P_1_1", "1_1" -> vFilters.add("crop='min(iw,ih)':'min(iw,ih)':(iw-out_w)/2:(ih-out_h)/2")
+                "P_16_9", "16_9" -> vFilters.add("crop='min(iw,ih*16/9)':'min(ih,iw*9/16)':(iw-out_w)/2:(ih-out_h)/2")
+                "P_21_9", "21_9" -> vFilters.add("crop='min(iw,ih*21/9)':'min(ih,iw*9/21)':(iw-out_w)/2:(ih-out_h)/2")
+                "P_4_3", "4_3" -> vFilters.add("crop='min(iw,ih*4/3)':'min(ih,iw*3/4)':(iw-out_w)/2:(ih-out_h)/2")
+                "P_3_4", "3_4" -> vFilters.add("crop='min(iw,ih*3/4)':'min(ih,iw*4/3)':(iw-out_w)/2:(ih-out_h)/2")
+                "P_4_5", "4_5" -> vFilters.add("crop='min(iw,ih*4/5)':'min(ih,iw*5/4)':(iw-out_w)/2:(ih-out_h)/2")
+            }
+        }
+
+        // 3. Rotation & Flip
+        when (rotationDegrees % 360) {
+            90 -> vFilters.add("transpose=1")
+            180 -> { vFilters.add("hflip"); vFilters.add("vflip") }
+            270 -> vFilters.add("transpose=2")
+        }
+        if (flipH) vFilters.add("hflip")
+        if (flipV) vFilters.add("vflip")
+
+        // 4. Color Adjustments
+        if (kotlin.math.abs(brightness) > 0.01f || kotlin.math.abs(contrast - 1f) > 0.01f || kotlin.math.abs(saturation - 1f) > 0.01f) {
+            vFilters.add("eq=brightness=${String.format(Locale.US, "%.2f", brightness)}:contrast=${String.format(Locale.US, "%.2f", contrast)}:saturation=${String.format(Locale.US, "%.2f", saturation)}")
+        }
+
+        // 5. Stylized Filters
+        when (filterEffect.uppercase()) {
+            "CINEMA" -> vFilters.add("curves=preset=cross_process,colorbalance=rs=0.1:gs=-0.05:bs=-0.1")
+            "VIVID" -> vFilters.add("eq=contrast=1.2:saturation=1.35")
+            "NOIR" -> vFilters.add("hue=s=0,eq=contrast=1.35:brightness=-0.02")
+            "VINTAGE" -> vFilters.add("curves=vintage,eq=saturation=0.85")
+            "WARM" -> vFilters.add("colorbalance=rs=0.15:gs=0.05:bs=-0.1")
+            "COOL" -> vFilters.add("colorbalance=rs=-0.1:gs=0.0:bs=0.15")
+            "CYBERPUNK" -> vFilters.add("colorbalance=rs=0.2:bs=0.3:gs=-0.1,eq=contrast=1.3")
+            "DREAMY" -> vFilters.add("gblur=sigma=1:steps=1,eq=brightness=0.05:contrast=1.1")
+        }
+
+        // 6. Direction handling (Reverse)
+        if (direction == GifDirection.REVERSE) {
+            vFilters.add("reverse")
+        }
+
+        // 7. Base filter chain + 2-pass Palette Generation (Lanczos scaling + diff stats 256 colors + Bayer scale 2 rectangle diff_mode)
+        val baseVf = if (vFilters.isNotEmpty()) vFilters.joinToString(",") + "," else ""
+        val filterComplex = if (direction == GifDirection.PING_PONG) {
+            "${baseVf}fps=$gifFps,scale=$gifWidth:-2:flags=lanczos+accurate_rnd,split[f0][f1];[f1]reverse[f1r];[f0][f1r]concat=n=2:v=1[vjoined];[vjoined]split[s0][s1];[s0]palettegen=max_colors=256:stats_mode=diff:reserve_transparent=0[p];[s1][p]paletteuse=dither=bayer:bayer_scale=2:diff_mode=rectangle"
+        } else {
+            "${baseVf}fps=$gifFps,scale=$gifWidth:-2:flags=lanczos+accurate_rnd,split[s0][s1];[s0]palettegen=max_colors=256:stats_mode=diff:reserve_transparent=0[p];[s1][p]paletteuse=dither=bayer:bayer_scale=2:diff_mode=rectangle"
+        }
+
+        val cmd = StringBuilder("-y ")
+        if (startSec > 0.0) {
+            cmd.append("-ss ${String.format(Locale.US, "%.3f", startSec)} ")
+        }
+        cmd.append("-i \"$resolvedInput\" ")
+        if (clipSec > 0.0) {
+            cmd.append("-t ${String.format(Locale.US, "%.3f", clipSec)} ")
+        }
+        cmd.append("-filter_complex \"$filterComplex\" -loop 0 \"${outputFile.absolutePath}\"")
+
+        executeFFmpegCommand(context, cmd.toString(), outputFile, origSize, cappedDurationMs, "Rendering Ultra-Clear 60s GIF...")
+    }
+
+    // ==========================================
     // 7. DETERMINISTIC NON-AI VIDEO COLORIZER
     // ==========================================
     suspend fun colorizeMedia(

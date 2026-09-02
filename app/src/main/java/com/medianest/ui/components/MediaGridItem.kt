@@ -138,7 +138,12 @@ fun MediaGridItem(
         item.mimeType == "image/gif" || item.title.endsWith(".gif", ignoreCase = true) || item.uri.toString().endsWith(".gif", ignoreCase = true)
     }
 
-    val imageRequest = remember(item.uri, item.type, item.durationMs, context, item.size, item.dateAdded, isTablet, rebuildToken, isGif, autoPlayGifPreviews) {
+    val isAnimatedWebpOrAvif = remember(item.mimeType, item.title, item.uri) {
+        val s = (item.mimeType + " " + item.title + " " + item.uri.toString()).lowercase()
+        s.contains("webp") || s.contains("avif")
+    }
+
+    val imageRequest = remember(item.uri, item.type, item.durationMs, context, item.size, item.dateAdded, isTablet, rebuildToken, isGif, isAnimatedWebpOrAvif, autoPlayGifPreviews) {
         val builder = ImageRequest.Builder(context)
             .data(item.uri)
             // Include rebuildToken and autoPlayGifPreviews so cache correctly invalidates
@@ -157,7 +162,7 @@ fun MediaGridItem(
             builder.decoderFactory(VideoFrameDecoder.Factory())
             builder.videoFrameMicros(videoSeekMicros)
         } else if (isGif) {
-            if (!autoPlayGifPreviews) {
+            if (!autoPlayGifPreviews || item.size >= 25 * 1024 * 1024L) {
                 builder.decoderFactory(coil.decode.BitmapFactoryDecoder.Factory())
             } else if (item.size >= 10 * 1024 * 1024L) {
                 builder.decoderFactory(coil.decode.GifDecoder.Factory(enforceMinimumFrameDelay = true))
@@ -166,6 +171,8 @@ fun MediaGridItem(
             } else {
                 builder.decoderFactory(coil.decode.GifDecoder.Factory(enforceMinimumFrameDelay = true))
             }
+        } else if (isAnimatedWebpOrAvif && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            builder.decoderFactory(coil.decode.ImageDecoderDecoder.Factory())
         }
         builder.build()
     }

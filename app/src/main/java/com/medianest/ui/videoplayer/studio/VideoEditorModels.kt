@@ -7,7 +7,7 @@ import java.util.Locale
 import java.util.UUID
 
 enum class StudioTool {
-    TRIM, CROP, FILTERS, ADJUST, TEXT, AUDIO
+    TRIM, CROP, FILTERS, ADJUST, TEXT, AUDIO, GIF_MAKER
 }
 
 enum class StudioBlurMode(val label: String) {

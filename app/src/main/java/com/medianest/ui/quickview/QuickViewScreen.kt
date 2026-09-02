@@ -309,30 +309,32 @@ fun QuickViewScreen(
                             } else null
                         }
                         val zoomPadding = if (showControls) 150.dp else 24.dp
-                        
-                        HybridImageViewer(
-                            source = ImageSource.from(item.uri),
-                            colorFilter = colorFilter,
-                            backgroundColor = if (isDynamicGradient) Color.Transparent else effectiveBgColor,
-                            zoomControlsBottomPadding = zoomPadding,
-                            onDismiss = { onClose() },
-                            onInteraction = { resetControlsTimer() },
-                            onZoomChanged = { zoomed ->
-                                if (pagerState.currentPage == page) {
-                                    isCurrentPageZoomed = zoomed
-                                    if (zoomed) {
-                                        showControls = false
+
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            HybridImageViewer(
+                                source = ImageSource.from(item.uri),
+                                colorFilter = colorFilter,
+                                backgroundColor = if (isDynamicGradient) Color.Transparent else effectiveBgColor,
+                                zoomControlsBottomPadding = zoomPadding,
+                                onDismiss = { onClose() },
+                                onInteraction = { resetControlsTimer() },
+                                onZoomChanged = { zoomed ->
+                                    if (pagerState.currentPage == page) {
+                                        isCurrentPageZoomed = zoomed
+                                        if (zoomed) {
+                                            showControls = false
+                                        }
                                     }
-                                }
-                            },
-                            onDismissProgress = { progress ->
-                                if (pagerState.currentPage == page) {
-                                    currentDismissProgress = progress
-                                }
-                            },
-                            onToggleControls = { toggleControls() },
-                            onSwipeUpForInfo = { showInfoBottomSheet = true }
-                        )
+                                },
+                                onDismissProgress = { progress ->
+                                    if (pagerState.currentPage == page) {
+                                        currentDismissProgress = progress
+                                    }
+                                },
+                                onToggleControls = { toggleControls() },
+                                onSwipeUpForInfo = { showInfoBottomSheet = true }
+                            )
+                        }
                     }
 
                     MediaType.VIDEO -> QuickVideoPreview(item = item, onOpenFullPlayer = { onOpenFullPlayer(item) })

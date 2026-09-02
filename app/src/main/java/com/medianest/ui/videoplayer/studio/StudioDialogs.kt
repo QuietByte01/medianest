@@ -388,10 +388,10 @@ internal fun ExportStudioDialog(
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf("MP4", "GIF", "WEBP").forEach { fmt ->
+                    listOf("MP4", "WEBP").forEach { fmt ->
                         val isSel = selectedFormat == fmt
                         PaletteTagChip(
-                            label = if (fmt == "MP4") "MP4 (Video)" else if (fmt == "GIF") "GIF (Animation)" else "WEBP (Animated)",
+                            label = if (fmt == "MP4") "MP4 (Video)" else "WEBP (Animated)",
                             formatKey = fmt,
                             isSelected = isSel,
                             onClick = { selectedFormat = fmt }
@@ -399,7 +399,7 @@ internal fun ExportStudioDialog(
                     }
                 }
 
-                if (selectedFormat == "GIF" || selectedFormat == "WEBP") {
+                if (selectedFormat == "WEBP") {
                     Text("Framerate: ${gifFps}fps • Width: ${gifWidth}px", fontSize = 11.sp, color = Color(0xFFFFD54F))
                     AppSlider(
                         value = gifFps.toFloat(),

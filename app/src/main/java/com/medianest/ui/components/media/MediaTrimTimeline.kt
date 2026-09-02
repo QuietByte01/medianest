@@ -35,6 +35,7 @@ fun MediaTrimTimeline(
     currentPositionMs: Long = 0L,
     startMs: Long,
     endMs: Long,
+    maxDurationMs: Long? = null,
     onRangeChange: (startMs: Long, endMs: Long) -> Unit,
     onScrubPosition: ((scrubMs: Long) -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -56,6 +57,13 @@ fun MediaTrimTimeline(
 
     val handleWidthPx = with(density) { handleWidthDp.dp.toPx() }
 
+    val currentStartMs by rememberUpdatedState(startMs)
+    val currentEndMs by rememberUpdatedState(endMs)
+    val currentVideoDurationMs by rememberUpdatedState(videoDurationMs)
+    val currentMaxDurationMs by rememberUpdatedState(maxDurationMs)
+    val currentOnRangeChange by rememberUpdatedState(onRangeChange)
+    val currentOnScrubPosition by rememberUpdatedState(onScrubPosition)
+
     Column(modifier = modifier.fillMaxWidth()) {
         if (showDurationLabels) {
             Row(
@@ -76,14 +84,12 @@ fun MediaTrimTimeline(
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color(0xFF0F172A))
                 .onSizeChanged { trackWidthPx = it.width.toFloat() }
-                .pointerInput(onScrubPosition) {
-                    if (onScrubPosition != null) {
-                        detectTapGestures { offset ->
-                            val tw = trackWidthPx
-                            if (tw > 0f) {
-                                val frac = (offset.x / tw).coerceIn(0f, 1f)
-                                onScrubPosition((frac * durationFloat).toLong())
-                            }
+                .pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        val tw = trackWidthPx
+                        if (tw > 0f) {
+                            val frac = (offset.x / tw).coerceIn(0f, 1f)
+                            currentOnScrubPosition?.invoke((frac * currentVideoDurationMs.toFloat().coerceAtLeast(1000f)).toLong())
                         }
                     }
                 }
@@ -151,26 +157,31 @@ fun MediaTrimTimeline(
                     Box(modifier = Modifier.fillMaxHeight().offset { IntOffset(endRightPx.roundToInt(), 0) }.width(with(density) { (trackWidthPx - endRightPx).toDp() }).background(Color.Black.copy(alpha = 0.7f)))
                 }
 
-                // Selection Box
+                // Selection Box (Drag whole window)
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
                         .offset { IntOffset(startLeftPx.roundToInt(), 0) }
                         .width(with(density) { selectionWidthPx.toDp() })
                         .border(2.dp, accentColor, RoundedCornerShape(8.dp))
-                        .pointerInput(startMs, endMs, videoDurationMs, trackWidthPx) {
+                        .pointerInput(Unit) {
                             detectHorizontalDragGestures { change, dragAmount ->
                                 change.consume()
-                                val deltaMs = (dragAmount / usableWidth * durationFloat).toLong()
-                                val curLen = endMs - startMs
-                                val newStart = (startMs + deltaMs).coerceIn(0L, videoDurationMs - curLen)
-                                onRangeChange(newStart, newStart + curLen)
+                                val uWidth = (trackWidthPx - (handleWidthPx * 2)).coerceAtLeast(10f)
+                                val vDur = currentVideoDurationMs.toFloat().coerceAtLeast(1000f)
+                                val deltaMs = (dragAmount / uWidth * vDur).toLong()
+                                val maxDur = currentMaxDurationMs
+                                val curStart = currentStartMs
+                                val curEnd = currentEndMs
+                                val curLen = if (maxDur != null) (curEnd - curStart).coerceIn(500L, maxDur) else (curEnd - curStart).coerceAtLeast(500L)
+                                val newStart = (curStart + deltaMs).coerceIn(0L, currentVideoDurationMs - curLen)
+                                currentOnRangeChange(newStart, newStart + curLen)
                             }
                         }
                 )
 
                 // Handles
-                // Left
+                // Left Handle
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
@@ -178,13 +189,19 @@ fun MediaTrimTimeline(
                         .width(handleWidthDp.dp)
                         .clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp))
                         .background(handleColor)
-                        .pointerInput(startMs, endMs, trackWidthPx) {
+                        .pointerInput(Unit) {
                             detectHorizontalDragGestures { change, dragAmount ->
                                 change.consume()
-                                val deltaMs = (dragAmount / usableWidth * durationFloat).toLong()
-                                val newStart = (startMs + deltaMs).coerceIn(0L, endMs - 500L)
-                                onRangeChange(newStart, endMs)
-                                onScrubPosition?.invoke(newStart)
+                                val uWidth = (trackWidthPx - (handleWidthPx * 2)).coerceAtLeast(10f)
+                                val vDur = currentVideoDurationMs.toFloat().coerceAtLeast(1000f)
+                                val deltaMs = (dragAmount / uWidth * vDur).toLong()
+                                val maxDur = currentMaxDurationMs
+                                val curStart = currentStartMs
+                                val curEnd = currentEndMs
+                                val minStart = if (maxDur != null) (curEnd - maxDur).coerceAtLeast(0L) else 0L
+                                val newStart = (curStart + deltaMs).coerceIn(minStart, curEnd - 500L)
+                                currentOnRangeChange(newStart, curEnd)
+                                currentOnScrubPosition?.invoke(newStart)
                             }
                         },
                     contentAlignment = Alignment.Center
@@ -193,7 +210,8 @@ fun MediaTrimTimeline(
                         repeat(2) { Box(modifier = Modifier.width(1.dp).height(16.dp).background(Color.Black.copy(0.4f))) }
                     }
                 }
-                // Right
+
+                // Right Handle
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
@@ -201,13 +219,19 @@ fun MediaTrimTimeline(
                         .width(handleWidthDp.dp)
                         .clip(RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp))
                         .background(handleColor)
-                        .pointerInput(startMs, endMs, videoDurationMs, trackWidthPx) {
+                        .pointerInput(Unit) {
                             detectHorizontalDragGestures { change, dragAmount ->
                                 change.consume()
-                                val deltaMs = (dragAmount / usableWidth * durationFloat).toLong()
-                                val newEnd = (endMs + deltaMs).coerceIn(startMs + 500L, videoDurationMs)
-                                onRangeChange(startMs, newEnd)
-                                onScrubPosition?.invoke(newEnd)
+                                val uWidth = (trackWidthPx - (handleWidthPx * 2)).coerceAtLeast(10f)
+                                val vDur = currentVideoDurationMs.toFloat().coerceAtLeast(1000f)
+                                val deltaMs = (dragAmount / uWidth * vDur).toLong()
+                                val maxDur = currentMaxDurationMs
+                                val curStart = currentStartMs
+                                val curEnd = currentEndMs
+                                val maxEnd = if (maxDur != null) (curStart + maxDur).coerceAtMost(currentVideoDurationMs) else currentVideoDurationMs
+                                val newEnd = (curEnd + deltaMs).coerceIn(curStart + 500L, maxEnd)
+                                currentOnRangeChange(curStart, newEnd)
+                                currentOnScrubPosition?.invoke(newEnd)
                             }
                         },
                     contentAlignment = Alignment.Center

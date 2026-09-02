@@ -1396,7 +1396,7 @@ private fun ConvertControlsCard(
     onKeepSubtitlesChange: (Boolean) -> Unit
 ) {
     val isAudioSource = selectedItem?.type == MediaType.AUDIO
-    val videoFormats = listOf("mp4", "mkv", "webm", "mov", "avi", "gif")
+    val videoFormats = listOf("mp4", "mkv", "webm", "mov", "avi")
     val audioFormats = listOf("mp3", "flac", "wav", "aac", "m4a", "opus", "ogg")
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -2054,7 +2054,6 @@ private fun ExtractControlsCard(
         ) {
             listOf(
                 "AUDIO" to "Audio Track",
-                "GIF" to "Cinema GIF",
                 "FRAME" to "Keyframe",
                 "SUBTITLE" to "Subtitles"
             ).forEach { (type, label) ->
