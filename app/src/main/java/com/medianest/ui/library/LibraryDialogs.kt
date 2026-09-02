@@ -15,7 +15,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FolderSpecial
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,6 +35,9 @@ import androidx.compose.ui.window.DialogWindowProvider
 import com.medianest.data.db.MediaCategory
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.BackdropBlurState
+import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.components.backdropReceiver
+import com.medianest.ui.components.rememberBackdropBlurState
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.LocalBackdropState
 import com.medianest.ui.components.backdropReceiver
@@ -289,6 +294,10 @@ fun BatchInfoDialog(
     currentTabItems: List<MediaItem>,
     onDismiss: () -> Unit
 ) {
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp >= 600
+    val maxDialogWidth = if (isTablet) 520.dp else 340.dp
+
     val selectedItems = remember(selectedUris, currentTabItems) {
         currentTabItems.filter { selectedUris.contains(it.uri.toString()) }
     }
@@ -301,30 +310,103 @@ fun BatchInfoDialog(
         }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-        shape = RoundedCornerShape(24.dp),
-        title = { Text("Selection Info", color = Color.White, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Total Selected: ${selectedItems.size} file(s)", color = Color.White)
-                Text("Total Size: $formattedSize", color = Color(0xFF6366F1), fontWeight = FontWeight.SemiBold)
-                val typesCount = selectedItems.groupBy { it.type }.map { "${it.key}: ${it.value.size}" }.joinToString(", ")
-                if (typesCount.isNotBlank()) {
-                    Text("Media Types: $typesCount", color = Color(0xFF9EA3B0), fontSize = 13.sp)
+    val blurState = rememberBackdropBlurState()
+
+    // Full screen dim backdrop with blur and black tint
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.55f))
+            .backdropReceiver(blurState, blurRadius = 24.dp)
+            .clickable { onDismiss() },
+        contentAlignment = Alignment.Center
+    ) {
+        GlassSurface(
+            modifier = Modifier
+                .widthIn(max = maxDialogWidth)
+                .padding(horizontal = 16.dp, vertical = 24.dp)
+                .clickable(enabled = false) {}, // Intercept click inside card
+            shape = RoundedCornerShape(22.dp),
+            backgroundColor = Color.Black.copy(alpha = 0.72f), // Black tint with blur
+            borderColor = Color(0x3334D399),
+            enableBlur = true,
+            blurRadius = 24.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Header with Title and Red Close X Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = null,
+                            tint = Color(0xFF34D399),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "SELECTION INFO",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF34D399)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close dialog",
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Total Selected", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                        Text("${selectedItems.size} file(s)", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Total Size", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                        Text(formattedSize, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+
+                    val typesCount = selectedItems.groupBy { it.type }.map { "${it.key}: ${it.value.size}" }.joinToString(", ")
+                    if (typesCount.isNotBlank()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Media Types", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                            Text(typesCount, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 12.sp)
+                        }
+                    }
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1))
-            ) {
-                Text("OK", color = Color.White)
-            }
         }
-    )
+    }
 }
 
 @Composable

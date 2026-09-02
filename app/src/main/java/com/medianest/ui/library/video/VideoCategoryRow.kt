@@ -141,7 +141,7 @@ fun VideoCategoryRow(
                                     imageVector = Icons.Default.MoreVert,
                                     contentDescription = "Category Options",
                                     tint = Color.White.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
                             }
                         } else {
@@ -150,14 +150,29 @@ fun VideoCategoryRow(
                     }
                 }
 
+                val isDark = LocalDarkTheme.current
                 GlassDropdownMenu(
                     expanded = showCatMenu,
                     onDismissRequest = { showCatMenu = false },
+                    modifier = Modifier.width(200.dp),
+                    shape = RoundedCornerShape(20.dp),
                     backgroundImage = firstVideoUri
                 ) {
+                    Text(
+                        text = cat.name,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = if (isDark) Color.White else Color.Black,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                    )
+
+                    HorizontalDivider(color = if (isDark) Color(0x1AFFFFFF) else Color(0x1A000000))
+
                     DropdownMenuItem(
-                        text = { Text("Category Info") },
-                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                        text = { Text("Category Info", color = if (isDark) Color.White else Color.Black) },
+                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                         onClick = {
                             showCatMenu = false
                             onCategoryInfoClick(cat)
@@ -173,7 +188,7 @@ fun VideoCategoryRow(
                     if (!isProtected) {
                         DropdownMenuItem(
                             text = { Text("Delete Category", color = MaterialTheme.colorScheme.error) },
-                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
                             onClick = {
                                 showCatMenu = false
                                 onCategoryDeleteClick(cat)

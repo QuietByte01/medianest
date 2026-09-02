@@ -2,9 +2,11 @@ package com.medianest.ui.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
@@ -292,35 +294,59 @@ fun WideVideoCard(
             var menuExpanded by remember { mutableStateOf(false) }
             Box(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) {
                 IconButton(onClick = { menuExpanded = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "More", tint = Color.White)
+                    Icon(Icons.Default.MoreVert, contentDescription = "More", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
+                val isDark = LocalDarkTheme.current
                 GlassDropdownMenu(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false },
-                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.width(200.dp),
+                    shape = RoundedCornerShape(20.dp),
                     backgroundImage = item.albumArtUri ?: item.uri
                 ) {
+                    Text(
+                        text = item.title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = if (isDark) Color.White else Color.Black,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                    )
+
+                    HorizontalDivider(color = if (isDark) Color(0x1AFFFFFF) else Color(0x1A000000))
+
                     DropdownMenuItem(
-                        text = { Text("File Info") },
-                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(15.dp)) },
+                        text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
+                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                         onClick = {
                             menuExpanded = false
                             if (onShowInfo != null) onShowInfo()
                         }
                     )
-                    if (onAddToCategory != null) {
+                    if (onDelete != null) {
                         DropdownMenuItem(
-                            text = { Text("Add to Category") },
-                            leadingIcon = { Icon(Icons.Default.FolderSpecial, contentDescription = null, modifier = Modifier.size(15.dp)) },
-                            onClick = {
+                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
+                            onClick = { 
                                 menuExpanded = false
-                                onAddToCategory()
+                                onDelete() 
+                            }
+                        )
+                    }
+                    if (onRename != null) {
+                        DropdownMenuItem(
+                            text = { Text("Rename", color = if (isDark) Color.White else Color.Black) },
+                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                            onClick = { 
+                                menuExpanded = false
+                                onRename() 
                             }
                         )
                     }
                     DropdownMenuItem(
-                        text = { Text("Rebuild Thumbnail") },
-                        leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(15.dp)) },
+                        text = { Text("Rebuild Thumbnail", color = if (isDark) Color.White else Color.Black) },
+                        leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                         onClick = {
                             menuExpanded = false
                             fallbackBitmap = null
@@ -334,30 +360,30 @@ fun WideVideoCard(
                             }
                         }
                     )
+                    if (onAddToCategory != null) {
+                        DropdownMenuItem(
+                            text = { Text("Add to Category", color = if (isDark) Color.White else Color.Black) },
+                            leadingIcon = { Icon(Icons.Default.FolderSpecial, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                            onClick = {
+                                menuExpanded = false
+                                onAddToCategory()
+                            }
+                        )
+                    }
                     if (onRemoveFromCategory != null) {
                         DropdownMenuItem(
-                            text = { Text("Remove from Category") },
-                            leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, contentDescription = null, modifier = Modifier.size(15.dp)) },
+                            text = { Text("Remove from Category", color = if (isDark) Color.White else Color.Black) },
+                            leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                             onClick = { 
                                 menuExpanded = false
                                 onRemoveFromCategory() 
                             }
                         )
                     }
-                    if (onRename != null) {
-                        DropdownMenuItem(
-                            text = { Text("Rename") },
-                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(15.dp)) },
-                            onClick = { 
-                                menuExpanded = false
-                                onRename() 
-                            }
-                        )
-                    }
                     if (onMove != null) {
                         DropdownMenuItem(
-                            text = { Text("Move to Folder") },
-                            leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, modifier = Modifier.size(15.dp)) },
+                            text = { Text("Move to Folder", color = if (isDark) Color.White else Color.Black) },
+                            leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                             onClick = { 
                                 menuExpanded = false
                                 onMove() 
@@ -366,35 +392,54 @@ fun WideVideoCard(
                     }
                     if (onCopy != null) {
                         DropdownMenuItem(
-                            text = { Text("Copy to Folder") },
-                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(15.dp)) },
+                            text = { Text("Copy to Folder", color = if (isDark) Color.White else Color.Black) },
+                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                             onClick = { 
                                 menuExpanded = false
                                 onCopy() 
                             }
                         )
                     }
-                    DropdownMenuItem(
-                        text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(15.dp)) },
-                        onClick = { 
-                            menuExpanded = false
-                            onDelete() 
-                        }
-                    )
+                    if (onDelete != null) {
+                        DropdownMenuItem(
+                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
+                            onClick = { 
+                                menuExpanded = false
+                                onDelete() 
+                            }
+                        )
+                    }
                 }
             }
 
             if (isSelectionMode) {
-                Checkbox(
-                    checked = isSelected,
-                    onCheckedChange = { onLongClick() },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
-                    colors = CheckboxDefaults.colors(
-                        checkedColor = MaterialTheme.colorScheme.primary,
-                        uncheckedColor = Color.White
-                    )
-                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .border(
+                            width = if (isSelected) 1.0.dp else 0.5.dp,
+                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
+                            shape = CircleShape
+                        )
+                        .background(
+                            if (isSelected) Color(0xFF6366F1)
+                            else Color.Black.copy(alpha = 0.25f)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSelected) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = "Selected",
+                            tint = Color.White,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
             }
         }
     }

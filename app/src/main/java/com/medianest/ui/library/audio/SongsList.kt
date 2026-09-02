@@ -5,11 +5,13 @@ import android.widget.Toast
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -234,6 +236,7 @@ private fun SongRow(
     context: android.content.Context
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    val isDark = LocalDarkTheme.current
     val albumArtModel = item.albumArtUri ?: item.uri
     val isCurrentlyPlaying = item.uri.toString() == currentlyPlayingUri
 
@@ -278,6 +281,28 @@ private fun SongRow(
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .border(
+                            width = 1.0.dp,
+                            color = Color.White,
+                            shape = CircleShape
+                        )
+                        .background(Color(0xFF6366F1)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Selected",
+                        tint = Color.White,
+                        modifier = Modifier.size(13.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+            }
             // Artwork Container with Frosty Fallback
             Box(
                 modifier = Modifier
@@ -379,12 +404,25 @@ private fun SongRow(
                 GlassDropdownMenu(
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false },
-                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.width(200.dp),
+                    shape = RoundedCornerShape(20.dp),
                     backgroundImage = item.albumArtUri ?: item.uri
                 ) {
+                    Text(
+                        text = item.title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = if (isDark) Color.White else Color.Black,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                    )
+
+                    HorizontalDivider(color = if (isDark) Color(0x1AFFFFFF) else Color(0x1A000000))
+
                     DropdownMenuItem(
-                        text = { Text("Add to Playlist") },
-                        leadingIcon = { Icon(Icons.Default.PlaylistAdd, contentDescription = null, tint = Color.White) },
+                        text = { Text("Add to Playlist", color = if (isDark) Color.White else Color.Black) },
+                        leadingIcon = { Icon(Icons.Default.PlaylistAdd, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                         onClick = {
                             showMenu = false
                             onAddToPlaylist(item)
@@ -392,8 +430,8 @@ private fun SongRow(
                     )
                     if (onRemoveFromPlaylist != null) {
                         DropdownMenuItem(
-                            text = { Text("Remove from Playlist") },
-                            leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, contentDescription = null, tint = Color.White) },
+                            text = { Text("Remove from Playlist", color = if (isDark) Color.White else Color.Black) },
+                            leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                             onClick = {
                                 showMenu = false
                                 onRemoveFromPlaylist(item)
@@ -401,8 +439,8 @@ private fun SongRow(
                         )
                     }
                     DropdownMenuItem(
-                        text = { Text("File Info") },
-                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = Color.White) },
+                        text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
+                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                         onClick = {
                             showMenu = false
                             onInfoClick(item)
@@ -411,7 +449,7 @@ private fun SongRow(
                     if (showDeleteOption) {
                         DropdownMenuItem(
                             text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
                             onClick = {
                                 showMenu = false
                                 onDeleteClick(item)
@@ -419,52 +457,53 @@ private fun SongRow(
                         )
                     }
                     DropdownMenuItem(
-                        text = { Text("Edit Tag & Metadata") },
-                        leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null, tint = Color.White) },
+                        text = { Text("Edit Tag & Metadata", color = if (isDark) Color.White else Color.Black) },
+                        leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                         onClick = {
                             showMenu = false
                             onEditMetadataClick(item)
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Move to Folder") },
-                        leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = Color.White) },
+                        text = { Text("Move to Folder", color = if (isDark) Color.White else Color.Black) },
+                        leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                         onClick = {
                             showMenu = false
                             onMoveClick(item)
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Copy to Folder") },
-                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.White) },
+                        text = { Text("Copy to Folder", color = if (isDark) Color.White else Color.Black) },
+                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                         onClick = {
                             showMenu = false
                             onCopyClick(item)
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Show Album") },
-                        leadingIcon = { Icon(Icons.Default.Album, contentDescription = null, tint = Color.White) },
+                        text = { Text("Show Album", color = if (isDark) Color.White else Color.Black) },
+                        leadingIcon = { Icon(Icons.Default.Album, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                         onClick = {
                             showMenu = false
                             onNavigateSubTab(3, item.album ?: "Unknown Album", null, null, null)
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Show Artist") },
-                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = Color.White) },
+                        text = { Text("Show Artist", color = if (isDark) Color.White else Color.Black) },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                         onClick = {
                             showMenu = false
                             onNavigateSubTab(4, null, item.artist ?: "Unknown Artist", null, null)
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text(if (showInGallery) "Open with" else "Show in Folder") },
+                        text = { Text(if (showInGallery) "Open with" else "Show in Folder", color = if (isDark) Color.White else Color.Black) },
                         leadingIcon = { 
                             Icon(
                                 if (showInGallery) Icons.Default.MusicNote else Icons.Default.Folder, 
                                 contentDescription = null,
-                                tint = Color.White
+                                tint = if (isDark) Color.White else Color.Black,
+                                modifier = Modifier.size(20.dp)
                             ) 
                         },
                         onClick = {

@@ -52,7 +52,8 @@ fun ImagesMainGrid(
     activeFilterTab: String,
     targetImageUri: String? = null,
     onTargetImageChange: ((String?) -> Unit)? = null,
-    gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState()
+    gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState(),
+    gridSizeLevel: Int = 1
 ) {
     var highlightedImageUri by remember { mutableStateOf<String?>(null) }
 
@@ -159,7 +160,8 @@ fun ImagesMainGrid(
                             if (targetUri != null) onTargetImageChange?.invoke(targetUri)
                         },
                         onMoreClick = { onContextSheetItemChange(item) },
-                        showInGallery = (viewMode == 1 && selectedFolder != null)
+                        showInGallery = (viewMode == 1 && selectedFolder != null),
+                        gridSizeLevel = gridSizeLevel
                     )
                 }
             }

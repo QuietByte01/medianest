@@ -48,6 +48,7 @@ fun NativeAudioDspSheet(
     AdaptiveBottomSheet(
         onDismissRequest = onDismiss,
         isSolidGlossy = false,
+        backgroundImage = playerState.currentItem?.albumArtUri ?: playerState.currentItem?.uri,
         dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.3f)) }
     ) {
         Column(

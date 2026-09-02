@@ -56,6 +56,7 @@ fun RescanAllMediaSettingItem(
         scope.launch(Dispatchers.IO) {
             try {
                 MediaStoreRepository.clearHiddenMediaCache(context)
+                com.medianest.util.ThumbnailManager.clearCache()
                 val images = mediaStoreRepository.scanHiddenMedia(MediaType.IMAGE, emptySet(), forceRescan = true) { path, count ->
                     currentScanPath = path
                     scannedItemsCount = count
@@ -72,6 +73,7 @@ fun RescanAllMediaSettingItem(
                     scanProgress = 0.75f + 0.20f * (count.coerceAtMost(100) / 100f)
                 }
                 scanProgress = 1.0f
+                com.medianest.util.InitialIndexingManager.resetState()
                 withContext(Dispatchers.Main) {
                     val total = images.size + videos.size + audio.size
                     Toast.makeText(context, "Rescan completed! Discovered $total media files.", Toast.LENGTH_SHORT).show()

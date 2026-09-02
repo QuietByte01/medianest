@@ -21,19 +21,22 @@ import androidx.compose.ui.unit.dp
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.theme.LocalDarkTheme
 
 @Composable
 fun LibraryBatchActionBar(
     isSelectionMode: Boolean,
     selectedUris: Set<String>,
     currentTabItems: List<MediaItem>,
-    isVideosTab: Boolean,
+    isVideosTab: Boolean = false,
+    isImagesTab: Boolean = false,
     onSelectAll: () -> Unit,
     onShowBatchInfo: () -> Unit,
     onDeleteSelected: () -> Unit,
     onMoveSelected: () -> Unit,
     onCopySelected: () -> Unit,
-    onAddToCategory: () -> Unit,
+    onAddToCategory: () -> Unit = {},
+    onMoveToFilter: (() -> Unit)? = null,
     onClearSelection: () -> Unit,
     context: Context
 ) {
@@ -51,8 +54,10 @@ fun LibraryBatchActionBar(
                     .fillMaxWidth()
                     .padding(16.dp),
                 shape = RoundedCornerShape(20.dp),
-                backgroundColor = Color(0x331C1F2B),
-                borderColor = Color(0x38FFFFFF)
+                backgroundColor = Color(0x330F1015),
+                borderColor = Color(0x38FFFFFF),
+                enableBlur = true,
+                blurRadius = 24.dp
             ) {
                 Row(
                     modifier = Modifier
@@ -86,30 +91,40 @@ fun LibraryBatchActionBar(
                                 IconButton(onClick = { showSelectionMoreMenu = true }) {
                                     Icon(Icons.Default.MoreVert, contentDescription = "More Options", tint = Color.White)
                                 }
+                                val isDark = LocalDarkTheme.current
                                 GlassDropdownMenu(
                                     expanded = showSelectionMoreMenu,
-                                    onDismissRequest = { showSelectionMoreMenu = false }
+                                    onDismissRequest = { showSelectionMoreMenu = false },
+                                    modifier = Modifier.width(200.dp),
+                                    shape = RoundedCornerShape(20.dp)
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text("Move Selected") },
-                                        leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = Color.White) },
+                                        text = { Text("Move Selected", color = if (isDark) Color.White else Color.Black) },
+                                        leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                                         onClick = { showSelectionMoreMenu = false; onMoveSelected() }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Copy Selected") },
-                                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.White) },
+                                        text = { Text("Copy Selected", color = if (isDark) Color.White else Color.Black) },
+                                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                                         onClick = { showSelectionMoreMenu = false; onCopySelected() }
                                     )
+                                    if (isImagesTab && onMoveToFilter != null) {
+                                        DropdownMenuItem(
+                                            text = { Text("Move to Filter...", color = if (isDark) Color.White else Color.Black) },
+                                            leadingIcon = { Icon(Icons.Default.FilterList, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                                            onClick = { showSelectionMoreMenu = false; onMoveToFilter() }
+                                        )
+                                    }
                                     if (isVideosTab) {
                                         DropdownMenuItem(
-                                            text = { Text("Add to Category") },
-                                            leadingIcon = { Icon(Icons.Default.LibraryAdd, contentDescription = null, tint = Color.White) },
+                                            text = { Text("Add to Category", color = if (isDark) Color.White else Color.Black) },
+                                            leadingIcon = { Icon(Icons.Default.LibraryAdd, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                                             onClick = { showSelectionMoreMenu = false; onAddToCategory() }
                                         )
                                     }
                                     DropdownMenuItem(
-                                        text = { Text("Share Selected") },
-                                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null, tint = Color.White) },
+                                        text = { Text("Share Selected", color = if (isDark) Color.White else Color.Black) },
+                                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                                         onClick = {
                                             showSelectionMoreMenu = false
                                             val urisToShare = selectedUris.map { Uri.parse(it) }
@@ -129,6 +144,12 @@ fun LibraryBatchActionBar(
 
                             IconButton(onClick = onCopySelected) {
                                 Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = Color.White)
+                            }
+
+                            if (isImagesTab && onMoveToFilter != null) {
+                                IconButton(onClick = onMoveToFilter) {
+                                    Icon(Icons.Default.FilterList, contentDescription = "Move to Filter", tint = Color.White)
+                                }
                             }
 
                             if (isVideosTab) {

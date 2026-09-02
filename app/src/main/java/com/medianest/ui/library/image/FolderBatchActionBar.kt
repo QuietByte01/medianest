@@ -1,11 +1,12 @@
 package com.medianest.ui.library.image
 
 import android.content.Context
-import java.util.Locale
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -15,13 +16,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.GlassSurface
-import com.medianest.ui.theme.LocalDarkTheme
+import com.medianest.ui.components.backdropReceiver
+import com.medianest.ui.components.rememberBackdropBlurState
 import com.medianest.util.FolderHiddenUtils
+import java.util.Locale
 
 @Composable
 fun FolderBatchActionBar(
@@ -45,8 +49,10 @@ fun FolderBatchActionBar(
                     .fillMaxWidth()
                     .padding(16.dp),
                 shape = RoundedCornerShape(20.dp),
-                backgroundColor = Color(0x331C1F2B),
-                borderColor = Color(0x38FFFFFF)
+                backgroundColor = Color(0x330F1015),
+                borderColor = Color(0x38FFFFFF),
+                enableBlur = true,
+                blurRadius = 24.dp
             ) {
                 Row(
                     modifier = Modifier
@@ -112,6 +118,10 @@ fun FolderBatchInfoModal(
     folderGroups: Map<String, List<MediaItem>>,
     onDismiss: () -> Unit
 ) {
+    val configuration = LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp >= 600
+    val maxDialogWidth = if (isTablet) 520.dp else 340.dp
+
     val selectedItems = remember(selectedFolderNames, folderGroups) {
         selectedFolderNames.flatMap { folderGroups[it] ?: emptyList() }
     }
@@ -124,25 +134,98 @@ fun FolderBatchInfoModal(
         }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = if (LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF),
-        shape = RoundedCornerShape(24.dp),
-        title = { Text("Folder Selection Info", color = Color.White, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Selected Folders: ${selectedFolderNames.size}", color = Color.White)
-                Text("Total Files: ${selectedItems.size}", color = Color.White)
-                Text("Total Size: $formattedSize", color = Color(0xFF6366F1), fontWeight = FontWeight.SemiBold)
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1))
+    val blurState = rememberBackdropBlurState()
+
+    // Full screen dim backdrop with blur and black tint
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.55f))
+            .backdropReceiver(blurState, blurRadius = 24.dp)
+            .clickable { onDismiss() },
+        contentAlignment = Alignment.Center
+    ) {
+        GlassSurface(
+            modifier = Modifier
+                .widthIn(max = maxDialogWidth)
+                .padding(horizontal = 16.dp, vertical = 24.dp)
+                .clickable(enabled = false) {}, // Intercept click inside card
+            shape = RoundedCornerShape(22.dp),
+            backgroundColor = Color.Black.copy(alpha = 0.72f), // Black tint with blur
+            borderColor = Color(0x3334D399),
+            enableBlur = true,
+            blurRadius = 24.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("OK", color = Color.White)
+                // Header with Title and Red Close X Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = null,
+                            tint = Color(0xFF34D399),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "FOLDER SELECTION INFO",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF34D399)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close dialog",
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Selected Folders", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                        Text("${selectedFolderNames.size}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Total Files", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                        Text("${selectedItems.size}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Total Size", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                        Text(formattedSize, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
             }
         }
-    )
+    }
 }

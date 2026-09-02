@@ -1,5 +1,6 @@
 package com.medianest.ui.library.image
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -119,7 +120,7 @@ fun ImagesTab(
         kotlinx.coroutines.delay(600)
         withContext(Dispatchers.Default) {
             val counts = mutableMapOf<String, Int>()
-            val ids = listOf("CAMERA", "FAVORITES", "NOTES", "SCREENSHOTS", "GIFS", "SOCIAL", "PNG_SVG", "EDITED", "AI_GENERATED", "ANIME", "COOKING", "GARDENING", "WALLPAPERS", "EXCLUDED", "HIDDEN")
+            val ids = listOf("CAMERA", "FAVORITES", "COOKING", "TRAVEL", "NOTES", "AI_GENERATED", "GARDENING", "ANIME", "PETS", "FAMILY", "DOCUMENTS", "MEMES", "SCREENSHOTS", "GIFS", "SOCIAL", "PNG_SVG", "EDITED", "WALLPAPERS", "EXCLUDED", "HIDDEN")
             ids.forEach { id ->
                 counts[id] = filterImageList(imagesList, id, favoriteUris).size
             }
@@ -138,6 +139,7 @@ fun ImagesTab(
     var itemToRename by remember { mutableStateOf<MediaItem?>(null) }
     var itemToMove by remember { mutableStateOf<MediaItem?>(null) }
     var itemToCopy by remember { mutableStateOf<MediaItem?>(null) }
+    var itemToMoveFilter by remember { mutableStateOf<MediaItem?>(null) }
     var infoItem by remember { mutableStateOf<MediaItem?>(null) }
     var contextSheetItem by remember { mutableStateOf<MediaItem?>(null) }
     var showFolderBatchInfoModal by remember { mutableStateOf(false) }
@@ -503,7 +505,8 @@ fun ImagesTab(
                             activeFilterTab = activeFilterTab,
                             targetImageUri = targetImageUri,
                             onTargetImageChange = { targetImageUri = it },
-                            gridState = mainGridState
+                            gridState = mainGridState,
+                            gridSizeLevel = gridSizeLevel
                         )
                     }
                 }
@@ -587,6 +590,14 @@ fun ImagesTab(
             )
         }
 
+        if (itemToMoveFilter != null) {
+            MoveToFilterDialog(
+                item = itemToMoveFilter!!,
+                currentFilterTab = activeFilterTab,
+                onDismiss = { itemToMoveFilter = null }
+            )
+        }
+
         if (contextSheetItem != null) {
             val activeItem = contextSheetItem!!
             val isDark = LocalDarkTheme.current
@@ -594,7 +605,7 @@ fun ImagesTab(
             GlassDropdownMenu(
                 expanded = true,
                 onDismissRequest = { contextSheetItem = null },
-                modifier = Modifier.width(220.dp),
+                modifier = Modifier.width(200.dp),
                 shape = RoundedCornerShape(20.dp)
             ) {
                 Text(
@@ -619,16 +630,12 @@ fun ImagesTab(
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("View Image", color = if (isDark) Color.White else Color.Black) },
-                    leadingIcon = { Icon(Icons.Default.Image, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                    text = { Text("Delete Image", color = MaterialTheme.colorScheme.error) },
+                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
                     onClick = {
                         val target = activeItem
                         contextSheetItem = null
-                        val listForContext = when {
-                            selectedFolder != null -> folderGroups[selectedFolder] ?: emptyList()
-                            else -> imagesList
-                        }
-                        onImageClick(target, listForContext)
+                        imageToDelete = target
                     }
                 )
                 DropdownMenuItem(
@@ -659,14 +666,74 @@ fun ImagesTab(
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("Select", color = if (isDark) Color.White else Color.Black) },
-                    leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                    text = { Text(if (viewMode == 1 && selectedFolder != null) "Open with" else "Show in Folder", color = if (isDark) Color.White else Color.Black) },
+                    leadingIcon = {
+                        Icon(
+                            if (viewMode == 1 && selectedFolder != null) Icons.Default.Image else Icons.Default.Folder,
+                            contentDescription = null,
+                            tint = if (isDark) Color.White else Color.Black,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
                     onClick = {
                         val target = activeItem
                         contextSheetItem = null
-                        onImageLongClick(target)
+                        if (viewMode == 1 && selectedFolder != null) {
+                            com.medianest.util.IntentUtils.openInGallery(currentContext, target)
+                        } else {
+                            val targetFolderKey = target.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (target.bucketName ?: "DCIM")
+                            viewMode = 1
+                            selectedFolder = targetFolderKey
+                        }
                     }
                 )
+
+                if (activeFilterTab !in listOf("FOLDERS", "HIDDEN", "EXCLUDED")) {
+                    DropdownMenuItem(
+                        text = { Text("Move to Filter...", color = if (isDark) Color.White else Color.Black) },
+                        leadingIcon = { Icon(Icons.Default.FilterList, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                        onClick = {
+                            val target = activeItem
+                            contextSheetItem = null
+                            itemToMoveFilter = target
+                        }
+                    )
+
+                    if (activeFilterTab != "ALL") {
+                        val filterLabel = when (activeFilterTab) {
+                            "CAMERA" -> "Camera"
+                            "FAVORITES" -> "Favorites"
+                            "NOTES" -> "Notes & Studies"
+                            "SCREENSHOTS" -> "Screenshots"
+                            "GIFS" -> "GIFs"
+                            "SOCIAL" -> "Social Media"
+                            "PNG_SVG" -> "PNG & SVG"
+                            "EDITED" -> "Edited"
+                            "AI_GENERATED" -> "AI Generated"
+                            "ANIME" -> "Anime & Art"
+                            "COOKING" -> "Cooking & Food"
+                            "TRAVEL" -> "Travel & Places"
+                            "GARDENING" -> "Gardening & Nature"
+                            "PETS" -> "Pets & Animals"
+                            "FAMILY" -> "Family & People"
+                            "DOCUMENTS" -> "Receipts & Docs"
+                            "MEMES" -> "Memes & Funny"
+                            "WALLPAPERS" -> "Wallpapers"
+                            else -> activeFilterTab.lowercase().replaceFirstChar { it.uppercase() }
+                        }
+
+                        DropdownMenuItem(
+                            text = { Text("Remove from $filterLabel", color = MaterialTheme.colorScheme.error) },
+                            leadingIcon = { Icon(Icons.Default.FilterListOff, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
+                            onClick = {
+                                val target = activeItem
+                                contextSheetItem = null
+                                com.medianest.util.ImageExclusionManager.excludeFromFilter(currentContext, target.uri.toString(), activeFilterTab)
+                                Toast.makeText(currentContext, "Removed from $filterLabel", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    }
+                }
 
                 if (selectedFolder != null) {
                     DropdownMenuItem(

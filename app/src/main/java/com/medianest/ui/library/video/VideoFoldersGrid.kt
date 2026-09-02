@@ -32,6 +32,7 @@ import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.data.model.MediaItem
 import com.medianest.data.settings.SettingsManager
 import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.theme.LocalDarkTheme
 import com.medianest.ui.components.translucentScrollBarGrid
 import com.medianest.ui.theme.LocalDarkTheme
 import kotlinx.coroutines.flow.first
@@ -294,52 +295,67 @@ fun VideoFoldersGrid(
                                 var showFolderMenu by remember { mutableStateOf(false) }
                                 Box {
                                     IconButton(
-                                        onClick = { showFolderMenu = true },
-                                        modifier = Modifier.size(28.dp)
+                                        onClick = { showFolderMenu = true }
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.MoreVert,
                                             contentDescription = "Folder options",
                                             tint = Color(0xFF9EA3B0),
-                                            modifier = Modifier.size(18.dp)
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
+                                    val isDark = LocalDarkTheme.current
                                     GlassDropdownMenu(
                                         expanded = showFolderMenu,
                                         onDismissRequest = { showFolderMenu = false },
+                                        modifier = Modifier.width(200.dp),
+                                        shape = RoundedCornerShape(20.dp),
                                         backgroundImage = folderItems.firstOrNull()?.uri
                                     ) {
+                                        Text(
+                                            text = folderName,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
+                                            color = if (isDark) Color.White else Color.Black,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                                        )
+
+                                        HorizontalDivider(color = if (isDark) Color(0x1AFFFFFF) else Color(0x1A000000))
+
                                         DropdownMenuItem(
-                                            text = { Text("Rename Folder", color = Color.White) },
-                                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White) },
+                                            text = { Text("Rename Folder", color = if (isDark) Color.White else Color.Black) },
+                                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                                             onClick = {
                                                 showFolderMenu = false
                                                 onFolderRename(folderName)
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("Move Folder", color = Color.White) },
-                                            leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = Color.White) },
+                                            text = { Text("Move Folder", color = if (isDark) Color.White else Color.Black) },
+                                            leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                                             onClick = {
                                                 showFolderMenu = false
                                                 onFolderMove(folderName)
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("Folder Info", color = Color.White) },
-                                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = Color.White) },
+                                            text = { Text("Folder Info", color = if (isDark) Color.White else Color.Black) },
+                                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                                             onClick = {
                                                 showFolderMenu = false
                                                 onFolderInfo(folderName)
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text(if (isExcluded) "Include Folder" else "Exclude Folder", color = Color.White) },
+                                            text = { Text(if (isExcluded) "Include Folder" else "Exclude Folder", color = if (isDark) Color.White else Color.Black) },
                                             leadingIcon = {
                                                 Icon(
                                                     imageVector = if (isExcluded) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                                     contentDescription = null,
-                                                    tint = Color.White
+                                                    tint = if (isDark) Color.White else Color.Black,
+                                                    modifier = Modifier.size(20.dp)
                                                 )
                                             },
                                             onClick = {
@@ -367,7 +383,7 @@ fun VideoFoldersGrid(
                                         )
                                         DropdownMenuItem(
                                             text = { Text("Delete Folder", color = MaterialTheme.colorScheme.error) },
-                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
                                             onClick = {
                                                 showFolderMenu = false
                                                 onFolderDelete(folderName)

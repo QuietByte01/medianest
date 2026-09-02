@@ -1,17 +1,33 @@
 package com.medianest.ui.library.image
 
+import com.medianest.MediaNestApp
 import com.medianest.data.model.MediaItem
+import com.medianest.util.ImageExclusionManager
+import com.medianest.util.ImageTagManager
 
 fun filterImageList(
     imagesList: List<MediaItem>,
     activeFilterTab: String,
     favoriteUris: Set<String> = emptySet()
 ): List<MediaItem> {
+    val context = MediaNestApp.instance
+
+    // Pre-filter items explicitly excluded by the user from this filter tab
+    val candidateList = if (activeFilterTab in listOf("ALL", "FOLDERS", "HIDDEN", "EXCLUDED")) {
+        imagesList
+    } else {
+        imagesList.filter { item ->
+            !ImageExclusionManager.isExcludedFromFilter(context, item.uri.toString(), activeFilterTab)
+        }
+    }
+
     val result = when (activeFilterTab) {
-        "HIDDEN" -> imagesList.filter { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
-        "EXCLUDED" -> imagesList.filter { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
-        "ALL" -> imagesList
-        "CAMERA" -> imagesList.filter { item ->
+        "HIDDEN" -> candidateList.filter { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
+        "EXCLUDED" -> candidateList.filter { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
+        "ALL" -> candidateList
+        "CAMERA" -> candidateList.filter { item ->
+            if (ImageTagManager.hasTag(context, item.uri.toString(), "CAMERA")) return@filter true
+
             val bucket = (item.bucketName ?: "").lowercase()
             val path = (item.relativePath ?: "").lowercase()
             val title = item.title.lowercase()
@@ -25,8 +41,10 @@ fun filterImageList(
             val isExcluded = excluded.any { exc -> full.contains(exc) }
             !isExcluded
         }
-        "FAVORITES" -> imagesList.filter { favoriteUris.contains(it.uri.toString()) }
-        "SOCIAL" -> imagesList.filter { item ->
+        "FAVORITES" -> candidateList.filter { favoriteUris.contains(it.uri.toString()) }
+        "SOCIAL" -> candidateList.filter { item ->
+            if (ImageTagManager.hasTag(context, item.uri.toString(), "SOCIAL")) return@filter true
+
             val title = (item.title ?: "").lowercase()
             val path = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
 
@@ -56,21 +74,25 @@ fun filterImageList(
             val matchesTitle = socialNames.any { title.contains(it) }
             matchesFolder || matchesAndroidDir || matchesTitle
         }
-        "GIFS" -> imagesList.filter { item ->
+        "GIFS" -> candidateList.filter { item ->
+            if (ImageTagManager.hasTag(context, item.uri.toString(), "GIFS")) return@filter true
             val full = ((item.relativePath ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
             full.contains("gif")
         }
-        "PNG_SVG" -> imagesList.filter { item ->
+        "PNG_SVG" -> candidateList.filter { item ->
+            if (ImageTagManager.hasTag(context, item.uri.toString(), "PNG_SVG")) return@filter true
             val full = ((item.relativePath ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
             full.endsWith(".png") || full.endsWith(".svg") || full.contains("png") || full.contains("svg")
         }
-        "EDITED" -> imagesList.filter { item ->
+        "EDITED" -> candidateList.filter { item ->
+            if (ImageTagManager.hasTag(context, item.uri.toString(), "EDITED")) return@filter true
             val full = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
             val editKeywords = listOf("edited", "snapseed", "lightroom", "picsart", "vsco", "photoshop", "canva", "enhance", "remini")
             val isWallpaper = full.contains("wallpaper") || full.contains("wallpapers") || full.contains("wallhaven") || full.contains("zedge") || full.contains("backdrops") || full.contains("live wallpaper")
             !isWallpaper && editKeywords.any { full.contains(it) }
         }
-        "AI_GENERATED" -> imagesList.filter { item ->
+        "AI_GENERATED" -> candidateList.filter { item ->
+            if (ImageTagManager.hasTag(context, item.uri.toString(), "AI_GENERATED")) return@filter true
             val path = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
 
             val aiKeywords = listOf(
@@ -95,7 +117,8 @@ fun filterImageList(
 
             matchesKeywords || matchesFolder
         }
-        "ANIME" -> imagesList.filter { item ->
+        "ANIME" -> candidateList.filter { item ->
+            if (ImageTagManager.hasTag(context, item.uri.toString(), "ANIME")) return@filter true
             val full = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
             val animeKeywords = listOf(
                 "anime", "manga", "otaku", "crunchyroll", "goku", "naruto", "Itachi", "shakura", "hinata", "kakashi", "pain", "luffy",
@@ -105,7 +128,8 @@ fun filterImageList(
             )
             animeKeywords.any { full.contains(it) }
         }
-        "COOKING" -> imagesList.filter { item ->
+        "COOKING" -> candidateList.filter { item ->
+            if (ImageTagManager.hasTag(context, item.uri.toString(), "COOKING")) return@filter true
             val path = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "")).lowercase()
             val title = item.title.lowercase()
             
@@ -132,11 +156,21 @@ fun filterImageList(
             
             folderMatch || titleMatch
         }
-        "GARDENING" -> imagesList.filter { item ->
+        "TRAVEL" -> candidateList.filter { item ->
+            if (ImageTagManager.hasTag(context, item.uri.toString(), "TRAVEL")) return@filter true
+            val full = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
+            val travelKeywords = listOf(
+                "travel", "trip", "vacation", "tour", "beach", "mountain", "flight", "hotel", 
+                "resort", "passport", "airport", "holiday", "location", "geocoded", "tourist", 
+                "country", "city", "place", "sightseeing", "nature"
+            )
+            travelKeywords.any { full.contains(it) }
+        }
+        "GARDENING" -> candidateList.filter { item ->
+            if (ImageTagManager.hasTag(context, item.uri.toString(), "GARDENING")) return@filter true
             val path = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "")).lowercase()
             val title = item.title.lowercase()
 
-            // 1. Exclude Documents, Notes, Screenshots, Quick Share, WhatsApp, Telegram directories
             val excludedFolders = setOf(
                 "screenshot", "screenshots", "quick share", "quickshare", "quick", "share",
                 "whatsapp", "telegram", "documents", "document", "notes", "note", "doc", "docs"
@@ -150,7 +184,6 @@ fun filterImageList(
 
             if (isExcluded) return@filter false
 
-            // 2. Gardening matching logic
             val gardeningFolders = setOf("gardening", "garden", "flowers", "flower", "nature", "farm", "park", "botany", "botanical", "plants")
             val folderMatch = pathSegments.any { it in gardeningFolders }
 
@@ -163,12 +196,38 @@ fun filterImageList(
 
             folderMatch || titleMatch
         }
-        "WALLPAPERS" -> imagesList.filter { item ->
+        "PETS" -> candidateList.filter { item ->
+            if (ImageTagManager.hasTag(context, item.uri.toString(), "PETS")) return@filter true
+            val full = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title).lowercase()
+            val keywords = listOf("pet", "pets", "dog", "dogs", "cat", "cats", "puppy", "kitten", "animal", "animals")
+            keywords.any { full.contains(it) }
+        }
+        "FAMILY" -> candidateList.filter { item ->
+            if (ImageTagManager.hasTag(context, item.uri.toString(), "FAMILY")) return@filter true
+            val full = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title).lowercase()
+            val keywords = listOf("family", "people", "friend", "friends", "wedding", "party", "birthday", "baby", "portrait")
+            keywords.any { full.contains(it) }
+        }
+        "DOCUMENTS" -> candidateList.filter { item ->
+            if (ImageTagManager.hasTag(context, item.uri.toString(), "DOCUMENTS")) return@filter true
+            val full = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title).lowercase()
+            val keywords = listOf("document", "doc", "docs", "receipt", "bill", "invoice", "card", "passport", "form", "ticket", "scan")
+            keywords.any { full.contains(it) }
+        }
+        "MEMES" -> candidateList.filter { item ->
+            if (ImageTagManager.hasTag(context, item.uri.toString(), "MEMES")) return@filter true
+            val full = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title).lowercase()
+            val keywords = listOf("meme", "memes", "funny", "humor", "joke", "dank")
+            keywords.any { full.contains(it) }
+        }
+        "WALLPAPERS" -> candidateList.filter { item ->
+            if (ImageTagManager.hasTag(context, item.uri.toString(), "WALLPAPERS")) return@filter true
             val full = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
             val wallpaperKeywords = listOf("wallpaper", "wallpapers", "background", "lockscreen", "zedge", "unsplash")
             wallpaperKeywords.any { full.contains(it) }
         }
-        "SCREENSHOTS" -> imagesList.filter { item ->
+        "SCREENSHOTS" -> candidateList.filter { item ->
+            if (ImageTagManager.hasTag(context, item.uri.toString(), "SCREENSHOTS")) return@filter true
             val full = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "") + "/" + item.title + "/" + item.uri.toString()).lowercase()
             full.contains("screenshot") || full.contains("screenshots")
         }
@@ -190,7 +249,9 @@ fun filterImageList(
                 "education", "tutorial"
             )
 
-            imagesList.filter { item ->
+            candidateList.filter { item ->
+                if (ImageTagManager.hasTag(context, item.uri.toString(), "NOTES")) return@filter true
+
                 val path = ((item.relativePath ?: "") + "/" + (item.bucketName ?: "")).lowercase()
 
                 if (path.contains("whatsapp")) {
@@ -206,7 +267,7 @@ fun filterImageList(
                 words.any { it in notesKeywordsSet }
             }
         }
-        else -> imagesList
+        else -> candidateList
     }
 
     return result

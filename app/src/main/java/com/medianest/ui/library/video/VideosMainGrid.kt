@@ -183,7 +183,8 @@ fun VideosMainGrid(
                     onRename = { onRename(item) },
                     onMove = if (onMove != null) { { onMove(item) } } else null,
                     onCopy = if (onCopy != null) { { onCopy(item) } } else null,
-                    showInGallery = (isFolderViewActive && selectedFolder != null)
+                    showInGallery = (isFolderViewActive && selectedFolder != null),
+                    gridSizeLevel = gridSizeLevel
                 )
             }
         }

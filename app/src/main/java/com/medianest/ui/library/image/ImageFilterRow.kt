@@ -45,20 +45,24 @@ fun ImageFilterRow(
             FilterItem("Folders & Albums", "FOLDERS", Icons.Default.FolderCopy, 1),
             FilterItem("Camera", "CAMERA", Icons.Default.PhotoCamera, 0),
             FilterItem("Favorites", "FAVORITES", Icons.Default.Favorite, 0),
+            FilterItem("Cooking & Food", "COOKING", Icons.Default.Restaurant, 0),
+            FilterItem("Travel & Places", "TRAVEL", Icons.Default.Flight, 0),
             FilterItem("Notes & Studies", "NOTES", Icons.Default.Note, 0),
+            FilterItem("AI Generated", "AI_GENERATED", Icons.Default.AutoAwesome, 0),
+            FilterItem("Gardening & Nature", "GARDENING", Icons.Default.Park, 0),
+            FilterItem("Anime & Art", "ANIME", Icons.Default.Brush, 0),
+            FilterItem("Pets & Animals", "PETS", Icons.Default.Pets, 0),
+            FilterItem("Family & People", "FAMILY", Icons.Default.People, 0),
+            FilterItem("Receipts & Docs", "DOCUMENTS", Icons.Default.Description, 0),
+            FilterItem("Memes & Funny", "MEMES", Icons.Default.EmojiEmotions, 0),
             FilterItem("Screenshots", "SCREENSHOTS", Icons.Default.Screenshot, 0),
             FilterItem("GIFs", "GIFS", Icons.Default.Animation, 0),
             FilterItem("Social Media", "SOCIAL", Icons.Default.Share, 0),
             FilterItem("PNG & SVG", "PNG_SVG", Icons.Default.HighQuality, 0),
             FilterItem("Edited", "EDITED", Icons.Default.Edit, 0),
-            FilterItem("AI Generated", "AI_GENERATED", Icons.Default.AutoAwesome, 0),
-            FilterItem("Anime", "ANIME", Icons.Default.Brush, 0),
-            FilterItem("Cooking", "COOKING", Icons.Default.Restaurant, 0),
-            FilterItem("Gardening", "GARDENING", Icons.Default.Park, 0),
             FilterItem("Wallpapers", "WALLPAPERS", Icons.Default.Wallpaper, 0),
             FilterItem("Hidden Folders", "HIDDEN", Icons.Default.FolderZip, 1),
             FilterItem("Excluded", "EXCLUDED", Icons.Default.VisibilityOff, 1)
-            // FilterItem("Trash", "TRASH", Icons.Default.Delete, 0)
         )
 
         // Filter out empty categories unless they are selected (or if counts are not yet computed)

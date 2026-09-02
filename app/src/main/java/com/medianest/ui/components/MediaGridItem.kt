@@ -62,7 +62,8 @@ fun MediaGridItem(
     onRename: (() -> Unit)? = null,
     onMove: (() -> Unit)? = null,
     onCopy: (() -> Unit)? = null,
-    showInGallery: Boolean = false
+    showInGallery: Boolean = false,
+    gridSizeLevel: Int = 1
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -143,20 +144,16 @@ fun MediaGridItem(
         s.contains("webp") || s.contains("avif")
     }
 
-    val imageRequest = remember(item.uri, item.type, item.durationMs, context, item.size, item.dateAdded, isTablet, rebuildToken, isGif, isAnimatedWebpOrAvif, autoPlayGifPreviews) {
+    val imageRequest = remember(item.uri, item.type, item.durationMs, context, item.size, item.dateAdded, isTablet, rebuildToken, isGif, isAnimatedWebpOrAvif, autoPlayGifPreviews, gridSizeLevel) {
+        val targetSize = if (gridSizeLevel >= 3) 800 else 400
         val builder = ImageRequest.Builder(context)
             .data(item.uri)
-            // Include rebuildToken and autoPlayGifPreviews so cache correctly invalidates
-            .diskCacheKey("${item.uri}_${item.size}_${item.dateAdded}_${rebuildToken}_${autoPlayGifPreviews}")
-            .memoryCacheKey("${item.uri}_${item.size}_${item.dateAdded}_${rebuildToken}_${autoPlayGifPreviews}")
+            // Include rebuildToken, gridSizeLevel, and autoPlayGifPreviews so cache correctly invalidates
+            .diskCacheKey("${item.uri}_${item.size}_${item.dateAdded}_${rebuildToken}_${gridSizeLevel}_${autoPlayGifPreviews}")
+            .memoryCacheKey("${item.uri}_${item.size}_${item.dateAdded}_${rebuildToken}_${gridSizeLevel}_${autoPlayGifPreviews}")
             .crossfade(true)
             .precision(Precision.INEXACT)
-
-        if (isTablet) {
-            builder.size(600)
-        } else {
-            builder.size(400)
-        }
+            .size(targetSize)
 
         if (item.type == MediaType.VIDEO) {
             builder.decoderFactory(VideoFrameDecoder.Factory())
@@ -308,8 +305,8 @@ fun MediaGridItem(
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .padding(8.dp)
-                            .size(24.dp)
+                            .padding(6.dp)
+                            .size(20.dp)
                             .clip(CircleShape)
                             .border(
                                 width = if (isSelected) 1.0.dp else 0.5.dp,
@@ -317,8 +314,8 @@ fun MediaGridItem(
                                 shape = CircleShape
                             )
                             .background(
-                                if (isSelected) Color.White.copy(alpha = 0.2f)
-                                else Color.Black.copy(alpha = 0.2f)
+                                if (isSelected) Color(0xFF6366F1)
+                                else Color.Black.copy(alpha = 0.25f)
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -327,7 +324,7 @@ fun MediaGridItem(
                                 imageVector = Icons.Default.Check,
                                 contentDescription = "Selected",
                                 tint = Color.White,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(13.dp)
                             )
                         }
                     }
@@ -335,7 +332,13 @@ fun MediaGridItem(
             } else if (onMoreClick != null || onInfo != null) {
                 Box(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) {
                     IconButton(
-                        onClick = { showMenu = true },
+                        onClick = {
+                            if (onMoreClick != null) {
+                                onMoreClick()
+                            } else {
+                                showMenu = true
+                            }
+                        },
                         modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
@@ -352,57 +355,47 @@ fun MediaGridItem(
                     GlassDropdownMenu(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false },
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.width(180.dp),
+                        modifier = Modifier.width(200.dp),
+                        shape = RoundedCornerShape(20.dp),
                         backgroundImage = item.albumArtUri ?: item.uri
                     ) {
+                        Text(
+                            text = item.title,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = if (isDark) Color.White else Color.Black,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                        )
+
+                        HorizontalDivider(color = if (isDark) Color(0x1AFFFFFF) else Color(0x1A000000))
+
                         DropdownMenuItem(
                             text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
-                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(15.dp)) },
+                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                             onClick = {
                                 showMenu = false
                                 if (onInfo != null) onInfo()
                             }
                         )
-                        if (onAddToCategory != null) {
-                            DropdownMenuItem(
-                                text = { Text("Add to Category", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { Icon(Icons.Default.FolderSpecial, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(15.dp)) },
-                                onClick = {
-                                    showMenu = false
-                                    onAddToCategory()
-                                }
-                            )
-                        }
                         if (onDelete != null) {
                             DropdownMenuItem(
                                 text = { Text("Delete File", color = MaterialTheme.colorScheme.error) },
-                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(15.dp)) },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
                                 onClick = {
                                     showMenu = false
                                     onDelete()
                                 }
                             )
                         }
-                        if (onOpenFolder != null) {
+                        if (onRename != null) {
                             DropdownMenuItem(
-                                text = { Text(if (showInGallery) "Open with" else "Show in Folder", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { 
-                                    Icon(
-                                        imageVector = if (showInGallery) Icons.Default.Image else Icons.Default.Folder, 
-                                        contentDescription = null, 
-                                        tint = if (isDark) Color.White else Color.Black,
-                                        modifier = Modifier.size(15.dp)
-                                    ) 
-                                },
+                                text = { Text("Rename", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                                 onClick = {
                                     showMenu = false
-                                    if (showInGallery) {
-                                        com.medianest.util.IntentUtils.openInGallery(context, item)
-                                    } else {
-                                        val folderKey = item.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (item.bucketName ?: "Folder")
-                                        onOpenFolder(folderKey, item.uri.toString())
-                                    }
+                                    onRename()
                                 }
                             )
                         }
@@ -410,7 +403,7 @@ fun MediaGridItem(
                         if (item.type == MediaType.VIDEO) {
                             DropdownMenuItem(
                                 text = { Text("Rebuild Thumbnail", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(15.dp)) },
+                                leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                                 onClick = {
                                     showMenu = false
                                     fallbackBitmap = null
@@ -426,20 +419,30 @@ fun MediaGridItem(
                                 }
                             )
                         }
-                        if (onRename != null) {
+                        if (onAddToCategory != null) {
                             DropdownMenuItem(
-                                text = { Text("Rename", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(15.dp)) },
+                                text = { Text("Add to Category", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.FolderSpecial, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                                 onClick = {
                                     showMenu = false
-                                    onRename()
+                                    onAddToCategory()
+                                }
+                            )
+                        }
+                        if (showRemoveOption && onRemoveFromCategory != null) {
+                            DropdownMenuItem(
+                                text = { Text("Remove Category", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
+                                onClick = {
+                                    showMenu = false
+                                    onRemoveFromCategory()
                                 }
                             )
                         }
                         if (onMove != null) {
                             DropdownMenuItem(
                                 text = { Text("Move to Folder", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(15.dp)) },
+                                leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                                 onClick = {
                                     showMenu = false
                                     onMove()
@@ -449,20 +452,32 @@ fun MediaGridItem(
                         if (onCopy != null) {
                             DropdownMenuItem(
                                 text = { Text("Copy to Folder", color = if (isDark) Color.White else Color.Black) },
-                                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(15.dp)) },
+                                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                                 onClick = {
                                     showMenu = false
                                     onCopy()
                                 }
                             )
                         }
-                        if (showRemoveOption && onRemoveFromCategory != null) {
+                        if (onOpenFolder != null) {
                             DropdownMenuItem(
-                                text = { Text("Remove", color = MaterialTheme.colorScheme.error) },
-                                leadingIcon = { Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(15.dp)) },
+                                text = { Text(if (showInGallery) "Open with" else "Show in Folder", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { 
+                                    Icon(
+                                        imageVector = if (showInGallery) Icons.Default.Image else Icons.Default.Folder, 
+                                        contentDescription = null, 
+                                        tint = if (isDark) Color.White else Color.Black,
+                                        modifier = Modifier.size(20.dp)
+                                    ) 
+                                },
                                 onClick = {
                                     showMenu = false
-                                    onRemoveFromCategory()
+                                    if (showInGallery) {
+                                        com.medianest.util.IntentUtils.openInGallery(context, item)
+                                    } else {
+                                        val folderKey = item.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (item.bucketName ?: "Folder")
+                                        onOpenFolder(folderKey, item.uri.toString())
+                                    }
                                 }
                             )
                         }

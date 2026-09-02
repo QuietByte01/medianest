@@ -937,11 +937,12 @@ fun LibraryDebugOverlay(
 
                     HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
 
-                    // Active View & Filter Telemetry
+                    // Active View & Paging Telemetry
                     DebugStatRow("Active Context", activeTabName, valueColor = tabBadgeColor)
-                    if (isSearchActive || filteredItemsCount > 0) {
-                        DebugStatRow("Visible Result Set", "$filteredItemsCount items", valueColor = Color(0xFFFFD54F))
-                    }
+                    val estimatedViewportItems = if (filteredItemsCount > 0) (filteredItemsCount.coerceAtMost(24)) else 0
+                    DebugStatRow("Lazy Viewport Buffer", "~$estimatedViewportItems items rendered", valueColor = Color(0xFF34D399))
+                    DebugStatRow("Filter Dataset Total", "$filteredItemsCount total items", valueColor = Color(0xFFFFD54F))
+                    DebugStatRow("Composition Strategy", "Lazy Windowing & Item Recycler")
 
                     // Memory & Heap Footprint
                     DebugStatRow("JVM Heap Used", "$usedHeapMb MB / $maxHeapMb MB ($memoryUtilizationPercent%)", valueColor = if (memoryUtilizationPercent > 75) Color(0xFFEF4444) else Color(0xFF94A3B8))

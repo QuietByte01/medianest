@@ -51,10 +51,12 @@ import com.medianest.ui.components.AppLockDialog
 import com.medianest.ui.components.backdropSource
 import com.medianest.ui.components.rememberBackdropBlurState
 import com.medianest.ui.library.LibraryScreen
+import com.medianest.ui.onboarding.FirstLaunchIndexingScreen
 import com.medianest.ui.quickview.QuickViewActivity
 import com.medianest.ui.settings.SettingsScreen
 import com.medianest.ui.theme.MediaNestTheme
 import com.medianest.ui.videoplayer.VideoPlayerActivity
+import com.medianest.util.InitialIndexingManager
 import com.medianest.util.PermissionUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -135,6 +137,21 @@ class MainActivity : ComponentActivity() {
                         val showHiddenFiles by settingsManager.showHiddenFiles.collectAsState(initial = false)
                         val hiddenFolders by settingsManager.hiddenFolders.collectAsState(initial = emptySet())
                         val enableAnalyticsTab by settingsManager.enableAnalyticsTab.collectAsState(initial = true)
+                        val isFirstLaunchCompleted by settingsManager.isFirstLaunchCompleted.collectAsState(initial = true)
+                        val indexingState by InitialIndexingManager.progressState.collectAsState()
+                        val scope = rememberCoroutineScope()
+
+                        LaunchedEffect(isFirstLaunchCompleted, hiddenFolders) {
+                            if (!isFirstLaunchCompleted) {
+                                InitialIndexingManager.startIndexing(
+                                    context = applicationContext,
+                                    mediaStoreRepository = mediaStoreRepository,
+                                    analyticsRepository = analyticsRepository,
+                                    settingsManager = settingsManager,
+                                    hiddenFolders = hiddenFolders
+                                )
+                            }
+                        }
 
                         val analyticsSnapshot by analyticsRepository.snapshot.collectAsState(initial = null)
                     val analyticsFormatStats by analyticsRepository.formatStats.collectAsState(initial = emptyList())
@@ -292,7 +309,16 @@ class MainActivity : ComponentActivity() {
 
                     val settingsBackdropState = rememberBackdropBlurState()
 
-                    if (appLockEnabled && !isUnlocked && appLockPin.isNotEmpty()) {
+                    if (!isFirstLaunchCompleted) {
+                        FirstLaunchIndexingScreen(
+                            progressState = indexingState,
+                            onSkip = {
+                                scope.launch {
+                                    settingsManager.setFirstLaunchCompleted(true)
+                                }
+                            }
+                        )
+                    } else if (appLockEnabled && !isUnlocked && appLockPin.isNotEmpty()) {
                         AppLockDialog(
                             correctPin = appLockPin,
                             onUnlocked = { isUnlocked = true }
@@ -456,7 +482,8 @@ class MainActivity : ComponentActivity() {
                                         db.categoryDao().deleteCategoryById(catId)
                                         db.categoryDao().clearCategoryMedia(catId)
                                     }
-                                }
+                                },
+                                isSettingsOpen = currentScreen == "SETTINGS"
                             )
                             }
 

@@ -64,6 +64,7 @@ fun LibraryScreen(
     onCreateImageCollection: (String, List<String>, String?) -> Unit = { _, _, _ -> },
     onUpdateImageCollection: (Long, String, List<String>, String?) -> Unit = { _, _, _, _ -> },
     onDeleteImageCollection: (Long) -> Unit = {},
+    isSettingsOpen: Boolean = false,
     viewModel: MediaViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -102,6 +103,7 @@ fun LibraryScreen(
         var showBatchInfoModal by remember { mutableStateOf(false) }
         var showMoveModal by remember { mutableStateOf(false) }
         var showCopyModal by remember { mutableStateOf(false) }
+        var showBatchMoveToFilterModal by remember { mutableStateOf(false) }
 
         val coroutineScope = rememberCoroutineScope()
         val playerState by exoPlayerManager.playerState.collectAsState()
@@ -187,19 +189,45 @@ fun LibraryScreen(
                     )
                 },
                 bottomBar = {
-                    LibraryBottomBar(
-                        currentTab = currentTab,
-                        onTabSelected = { targetTab ->
-                            coroutineScope.launch {
-                                pagerState.animateScrollToPage(targetTab)
-                            }
-                        },
-                        enableAnalyticsTab = enableAnalyticsTab,
-                        isAudioTab = isAudioTab,
-                        playerState = playerState,
-                        exoPlayerManager = exoPlayerManager,
-                        onOpenAudioPlayer = onOpenAudioPlayer
-                    )
+                    if (isSelectionMode) {
+                        LibraryBatchActionBar(
+                            isSelectionMode = isSelectionMode,
+                            selectedUris = selectedUris,
+                            currentTabItems = currentTabItems,
+                            isVideosTab = isVideosTab,
+                            isImagesTab = isImagesTab,
+                            onSelectAll = {
+                                val allUris = currentTabItems.map { it.uri.toString() }.toSet()
+                                selectedUris = if (selectedUris.size == allUris.size && allUris.isNotEmpty()) {
+                                    emptySet()
+                                } else {
+                                    allUris
+                                }
+                            },
+                            onShowBatchInfo = { showBatchInfoModal = true },
+                            onDeleteSelected = { showDeleteSelectedModal = true },
+                            onMoveSelected = { showMoveModal = true },
+                            onCopySelected = { showCopyModal = true },
+                            onAddToCategory = { showAddVideosToCategoryModal = true },
+                            onMoveToFilter = { showBatchMoveToFilterModal = true },
+                            onClearSelection = { selectedUris = emptySet() },
+                            context = context
+                        )
+                    } else {
+                        LibraryBottomBar(
+                            currentTab = currentTab,
+                            onTabSelected = { targetTab ->
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(targetTab)
+                                }
+                            },
+                            enableAnalyticsTab = enableAnalyticsTab,
+                            isAudioTab = isAudioTab,
+                            playerState = playerState,
+                            exoPlayerManager = exoPlayerManager,
+                            onOpenAudioPlayer = onOpenAudioPlayer
+                        )
+                    }
                 }
             ) { innerPadding ->
                 Box(
@@ -441,28 +469,6 @@ fun LibraryScreen(
                         }
                     }
                 }
-
-                LibraryBatchActionBar(
-                    isSelectionMode = isSelectionMode,
-                    selectedUris = selectedUris,
-                    currentTabItems = currentTabItems,
-                    isVideosTab = isVideosTab,
-                    onSelectAll = {
-                        val allUris = currentTabItems.map { it.uri.toString() }.toSet()
-                        selectedUris = if (selectedUris.size == allUris.size && allUris.isNotEmpty()) {
-                            emptySet()
-                        } else {
-                            allUris
-                        }
-                    },
-                    onShowBatchInfo = { showBatchInfoModal = true },
-                    onDeleteSelected = { showDeleteSelectedModal = true },
-                    onMoveSelected = { showMoveModal = true },
-                    onCopySelected = { showCopyModal = true },
-                    onAddToCategory = { showAddVideosToCategoryModal = true },
-                    onClearSelection = { selectedUris = emptySet() },
-                    context = context
-                )
             }
         }
 
@@ -511,6 +517,16 @@ fun LibraryScreen(
             )
         }
 
+        if (showBatchMoveToFilterModal) {
+            com.medianest.ui.library.image.BatchMoveToFilterDialog(
+                selectedUris = selectedUris,
+                onDismiss = {
+                    showBatchMoveToFilterModal = false
+                    selectedUris = emptySet()
+                }
+            )
+        }
+
         if (libraryInfoItem != null) {
             com.medianest.ui.components.MediaInfoBottomSheet(
                 item = libraryInfoItem,
@@ -519,7 +535,7 @@ fun LibraryScreen(
         }
 
         val showLibraryDebug by settingsManager.showLibraryDebugInfo.collectAsState(initial = false)
-        if (showLibraryDebug) {
+        if (showLibraryDebug && !isSettingsOpen) {
             val activeTabName = when {
                 isDashboardTab -> "DASHBOARD"
                 isImagesTab -> "IMAGES"

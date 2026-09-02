@@ -85,6 +85,7 @@ class SettingsManager(private val context: Context) {
 
         val KEY_DAILY_SUBTITLE_SEARCH_COUNT = intPreferencesKey("daily_subtitle_search_count")
         val KEY_LAST_SUBTITLE_SEARCH_DATE = stringPreferencesKey("last_subtitle_search_date")
+        val KEY_FIRST_LAUNCH_COMPLETED = booleanPreferencesKey("first_launch_completed")
     }
 
     val theme: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_THEME] ?: "DARK" }
@@ -160,6 +161,10 @@ class SettingsManager(private val context: Context) {
 
     val autoPlayVideoPreviews: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUTO_PLAY_VIDEO_PREVIEWS] ?: true }
     val autoPlayGifPreviews: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUTO_PLAY_GIF_PREVIEWS] ?: true }
+
+    val isFirstLaunchCompleted: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_FIRST_LAUNCH_COMPLETED] ?: false }
+
+    suspend fun setFirstLaunchCompleted(completed: Boolean) = context.dataStore.edit { it[KEY_FIRST_LAUNCH_COMPLETED] = completed }
 
     suspend fun setAutoPlayVideoPreviews(enabled: Boolean) = context.dataStore.edit { it[KEY_AUTO_PLAY_VIDEO_PREVIEWS] = enabled }
     suspend fun setAutoPlayGifPreviews(enabled: Boolean) = context.dataStore.edit { it[KEY_AUTO_PLAY_GIF_PREVIEWS] = enabled }

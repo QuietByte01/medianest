@@ -67,8 +67,8 @@ fun AdaptiveBottomSheet(
     // Frosted obsidian glass for dark mode, frosted white for light mode
     val resolvedColor = when {
         containerColor != Color.Unspecified -> containerColor
-        isDark -> Color(0xCC0B0D14)
-        else   -> Color(0xE6FFFFFF)
+        isDark -> Color(0x330B0D14)
+        else   -> Color(0x44FFFFFF)
     }
 
     if (isTablet) {
@@ -260,7 +260,18 @@ fun AdaptiveBottomSheet(
                 }
             } else {
                 GlassSurface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (backdropState != null) {
+                                Modifier.backdropReceiver(
+                                    state = backdropState,
+                                    blurRadius = 28.dp,
+                                    tint = Color(0x660A0C10),
+                                    baseColor = Color.Transparent
+                                )
+                            } else Modifier
+                        ),
                     shape = shape,
                     backgroundColor = resolvedColor,
                     borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),

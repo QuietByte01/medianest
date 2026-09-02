@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import com.medianest.ui.components.GlassDropdownMenu
+import com.medianest.ui.theme.LocalDarkTheme
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -136,22 +137,37 @@ fun UserPlaylistCard(
                         modifier = Modifier.size(20.dp)
                     )
                 }
+                val isDark = LocalDarkTheme.current
                 GlassDropdownMenu(
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false },
+                    modifier = Modifier.width(200.dp),
+                    shape = RoundedCornerShape(20.dp),
                     backgroundImage = artUri
                 ) {
+                    Text(
+                        text = pl.name,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = if (isDark) Color.White else Color.Black,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                    )
+
+                    HorizontalDivider(color = if (isDark) Color(0x1AFFFFFF) else Color(0x1A000000))
+
                     DropdownMenuItem(
-                        text = { Text("Open Playlist") },
-                        leadingIcon = { Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color.White) },
+                        text = { Text("Open Playlist", color = if (isDark) Color.White else Color.Black) },
+                        leadingIcon = { Icon(Icons.Default.FolderOpen, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                         onClick = {
                             showMenu = false
                             onClick()
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Export Playlist (.m3u)") },
-                        leadingIcon = { Icon(Icons.Default.Download, contentDescription = null, tint = Color.White) },
+                        text = { Text("Export Playlist (.m3u)", color = if (isDark) Color.White else Color.Black) },
+                        leadingIcon = { Icon(Icons.Default.Download, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                         onClick = {
                             showMenu = false
                             exportPlaylistToM3u(context, pl, audioList)
@@ -159,7 +175,7 @@ fun UserPlaylistCard(
                     )
                     DropdownMenuItem(
                         text = { Text("Delete Playlist", color = MaterialTheme.colorScheme.error) },
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
                         onClick = {
                             showMenu = false
                             onDelete()

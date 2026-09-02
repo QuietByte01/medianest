@@ -1,45 +1,59 @@
 package com.medianest.ui.components.mediainfo
 
 import android.content.Context
+import android.content.res.Configuration
+import android.os.Build
+import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.EmojiEmotions
+import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Note
+import androidx.compose.material.icons.filled.Park
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Pets
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Screenshot
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
-import coil.compose.AsyncImage
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.GlassSurface
-import com.medianest.ui.components.PlaybackSpeedChip
+import com.medianest.ui.components.backdropReceiver
+import com.medianest.ui.components.rememberBackdropBlurState
+import com.medianest.util.ImageTagManager
 import com.medianest.util.LocationUtils
 import com.medianest.util.MediaAnalyzer
 import kotlinx.coroutines.Dispatchers
@@ -70,23 +84,59 @@ data class ImageExifLocationData(
             !shutterSpeed.isNullOrBlank() || !iso.isNullOrBlank() || !dateTaken.isNullOrBlank()
 }
 
+internal data class ImageTagSpec(
+    val id: String,
+    val label: String,
+    val icon: ImageVector
+)
+
 internal fun extractImageExifAndLocation(context: Context, item: MediaItem?): ImageExifLocationData {
     if (item == null) return ImageExifLocationData()
     var exif: ExifInterface? = null
+
+    // 1. Try direct file on disk first
     try {
-        val uriPath = item.uri.path
-        if (!uriPath.isNullOrBlank()) {
-            val file = File(uriPath)
-            if (file.exists()) {
+        val relPath = item.relativePath.orEmpty()
+        if (relPath.isNotBlank()) {
+            val primaryStorage = android.os.Environment.getExternalStorageDirectory()
+            val candidateFile = File(primaryStorage, if (relPath.endsWith("/")) "$relPath${item.title}" else "$relPath/${item.title}")
+            if (candidateFile.exists() && candidateFile.canRead()) {
+                exif = ExifInterface(candidateFile)
+            }
+        }
+        if (exif == null && !item.uri.path.isNullOrBlank()) {
+            val file = File(item.uri.path!!)
+            if (file.exists() && file.canRead()) {
                 exif = ExifInterface(file)
             }
         }
-        if (exif == null) {
+    } catch (_: Exception) {}
+
+    // 2. Try MediaStore setRequireOriginal (prevents Android 10+ from scrubbing location EXIF)
+    if (exif == null) {
+        try {
+            val targetUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && item.uri.scheme == "content") {
+                try {
+                    MediaStore.setRequireOriginal(item.uri)
+                } catch (_: Exception) {
+                    item.uri
+                }
+            } else item.uri
+
+            context.contentResolver.openInputStream(targetUri)?.use { stream ->
+                exif = ExifInterface(stream)
+            }
+        } catch (_: Exception) {}
+    }
+
+    // 3. Fallback to standard openInputStream
+    if (exif == null) {
+        try {
             context.contentResolver.openInputStream(item.uri)?.use { stream ->
                 exif = ExifInterface(stream)
             }
-        }
-    } catch (_: Exception) {}
+        } catch (_: Exception) {}
+    }
 
     if (exif == null) return ImageExifLocationData()
 
@@ -148,6 +198,14 @@ internal fun extractImageExifAndLocation(context: Context, item: MediaItem?): Im
         }
     }
 
+    if (lat == null || lon == null) {
+        val output = FloatArray(2)
+        if (exif.getLatLong(output)) {
+            lat = output[0].toDouble()
+            lon = output[1].toDouble()
+        }
+    }
+
     val altVal = exif.getAltitude(Double.NaN)
     val altitude = if (!altVal.isNaN()) altVal else null
 
@@ -169,9 +227,10 @@ internal fun extractImageExifAndLocation(context: Context, item: MediaItem?): Im
 
 /**
  * Modern floating Glass Surface UI component for displaying complete image metadata,
- * file properties, rendering engine specs, camera EXIF, and geolocation details.
- * Replaces old image info bottom sheets with a sleek overlay card featuring an 'X' close button.
+ * file properties, rendering engine specs, camera EXIF, geolocation details,
+ * and interactive image categorization tags with smooth background blur.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ImageInfoOverlay(
     item: MediaItem?,
@@ -181,14 +240,27 @@ fun ImageInfoOverlay(
 ) {
     if (item == null) return
 
-    var offsetX by remember { mutableFloatStateOf(0f) }
-    var offsetY by remember { mutableFloatStateOf(0f) }
     var isCollapsed by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val isTablet = configuration.screenWidthDp >= 600
+    val maxOverlayWidth = when {
+        isLandscape -> 580.dp
+        isTablet -> 520.dp
+        else -> 340.dp
+    }
+
     var showRenameDialog by remember { mutableStateOf(false) }
     var currentItemTitle by remember(item.id, item.title) { mutableStateOf(item.title) }
     var renameInputText by remember { mutableStateOf(currentItemTitle) }
+
+    var userTags by remember(item.id, item.uri) {
+        mutableStateOf(ImageTagManager.getTags(context, item.uri.toString()))
+    }
+
+    val blurState = rememberBackdropBlurState()
 
     val isGif = item.mimeType.contains("gif", ignoreCase = true) || item.title.endsWith(".gif", ignoreCase = true) || (item.relativePath?.endsWith(".gif", ignoreCase = true) == true)
     val isHeavyGif = isGif && item.size >= 50 * 1024 * 1024L
@@ -262,6 +334,24 @@ fun ImageInfoOverlay(
 
     val imgInfo = ffmpegReport?.imageInfo
 
+    val availableTags = remember {
+        listOf(
+            ImageTagSpec("COOKING", "Cooking & Food", Icons.Default.Restaurant),
+            ImageTagSpec("TRAVEL", "Travel & Places", Icons.Default.Flight),
+            ImageTagSpec("NOTES", "Notes & Studies", Icons.Default.Note),
+            ImageTagSpec("AI_GENERATED", "AI Generated", Icons.Default.AutoAwesome),
+            ImageTagSpec("GARDENING", "Gardening & Nature", Icons.Default.Park),
+            ImageTagSpec("ANIME", "Anime & Art", Icons.Default.Brush),
+            ImageTagSpec("WALLPAPERS", "Wallpapers", Icons.Default.Wallpaper),
+            ImageTagSpec("PETS", "Pets & Animals", Icons.Default.Pets),
+            ImageTagSpec("FAMILY", "Family & People", Icons.Default.People),
+            ImageTagSpec("DOCUMENTS", "Receipts & Docs", Icons.Default.Description),
+            ImageTagSpec("MEMES", "Memes & Funny", Icons.Default.EmojiEmotions),
+            ImageTagSpec("SOCIAL", "Social Media", Icons.Default.Share),
+            ImageTagSpec("EDITED", "Edited", Icons.Default.Edit)
+        )
+    }
+
     if (showRenameDialog) {
         AlertDialog(
             onDismissRequest = { showRenameDialog = false },
@@ -304,38 +394,31 @@ fun ImageInfoOverlay(
         )
     }
 
-    // Centered Dim Backdrop Popup Container
+    // Centered Dim Backdrop Container with Blurred Background
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.55f))
+            .background(Color.Black.copy(alpha = 0.50f))
+            .backdropReceiver(blurState, blurRadius = 24.dp)
             .clickable { onClose() },
         contentAlignment = Alignment.Center
     ) {
         GlassSurface(
             modifier = modifier
-                .widthIn(max = 340.dp)
-                .padding(horizontal = 16.dp, vertical = 24.dp)
-                .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-                .pointerInput(Unit) {
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        offsetX += dragAmount.x
-                        offsetY += dragAmount.y
-                    }
-                }
+                .widthIn(max = maxOverlayWidth)
+                .padding(horizontal = 16.dp, vertical = 20.dp)
                 .clickable(enabled = false) {}, // Intercept click inside card
             shape = RoundedCornerShape(20.dp),
-            backgroundColor = Color(0xF2121522),
+            backgroundColor = Color(0xDC0F1015),
             borderColor = Color(0x3334D399),
             enableBlur = true,
-            blurRadius = 16.dp
+            blurRadius = 24.dp
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Header Row with Drag handle, Title, Collapse button, and Red Close 'X' Button
+                // Header Row with Title, Collapse button, and Red Close 'X' Button
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -400,120 +483,13 @@ fun ImageInfoOverlay(
 
                     Column(
                         modifier = Modifier
-                            .heightIn(max = 480.dp)
+                            .heightIn(max = if (isLandscape) 280.dp else 480.dp)
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Top Thumbnail & Action Buttons
-                        GlassSurface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            backgroundColor = Color(0x22FFFFFF),
-                            borderColor = Color(0x1AFFFFFF)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(10.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(60.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(Color(0xFF1E293B)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        AsyncImage(
-                                            model = item.uri,
-                                            contentDescription = currentItemTitle,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    }
-
-                                    Column(
-                                        modifier = Modifier.weight(1f),
-                                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                                    ) {
-                                        Text(
-                                            text = currentItemTitle,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            text = "$fileSizeFormatted • $width × $height ($megaPixels)",
-                                            fontSize = 11.sp,
-                                            color = Color(0xFF38BDF8)
-                                        )
-                                        Text(
-                                            text = "📁 ${filePath.ifBlank { item.relativePath ?: "/storage/emulated/0/DCIM/" }}",
-                                            fontSize = 10.sp,
-                                            color = Color(0xFF64748B),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    PlaybackSpeedChip(
-                                        label = "Share",
-                                        icon = Icons.Default.Share,
-                                        isSelected = false,
-                                        onClick = {
-                                            val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                                type = mimeType
-                                                putExtra(android.content.Intent.EXTRA_STREAM, item.uri)
-                                                putExtra(android.content.Intent.EXTRA_SUBJECT, currentItemTitle)
-                                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                            }
-                                            context.startActivity(android.content.Intent.createChooser(shareIntent, "Share Image"))
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    )
-
-                                    PlaybackSpeedChip(
-                                        label = "Rename",
-                                        icon = Icons.Default.Edit,
-                                        isSelected = false,
-                                        onClick = {
-                                            renameInputText = currentItemTitle
-                                            showRenameDialog = true
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    )
-
-                                    if (onShowFileLocation != null) {
-                                        PlaybackSpeedChip(
-                                            label = "Folder",
-                                            icon = Icons.Default.Folder,
-                                            isSelected = false,
-                                            onClick = {
-                                                onClose()
-                                                onShowFileLocation(item)
-                                            },
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
                         // 1. FILE & RESOLUTION DETAILS
                         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            DebugStatRow("File Name", currentItemTitle)
                             DebugStatRow("Resolution", "$width × $height ($megaPixels)")
                             DebugStatRow("Aspect Ratio", aspectRatio)
                             DebugStatRow("Format / MIME", "$formatName ($mimeType)")
@@ -635,6 +611,78 @@ fun ImageInfoOverlay(
 
                                     if (!exif.flash.isNullOrBlank()) {
                                         DebugStatRow("Flash", exif.flash)
+                                    }
+                                }
+                            }
+                        }
+
+                        // 5. INTERACTIVE IMAGE TAGS & CATEGORIES
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.LocalOffer,
+                                    contentDescription = "Tags",
+                                    tint = Color(0xFF34D399),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "IMAGE TAGS & CATEGORIES",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF34D399)
+                                )
+                            }
+
+                            Text(
+                                text = "Tap tags to assign or filter images in gallery:",
+                                fontSize = 9.sp,
+                                color = Color(0xFF94A3B8)
+                            )
+
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                availableTags.forEach { tagSpec ->
+                                    val isTagged = userTags.contains(tagSpec.id)
+
+                                    GlassSurface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        backgroundColor = if (isTagged) Color(0x5534D399) else Color(0x1F222736),
+                                        borderColor = if (isTagged) Color(0xFF34D399) else Color(0x2BFFFFFF),
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable {
+                                                val isAdded = ImageTagManager.toggleTag(context, item.uri.toString(), tagSpec.id)
+                                                userTags = ImageTagManager.getTags(context, item.uri.toString())
+                                                val msg = if (isAdded) "Tagged as '${tagSpec.label}'" else "Removed from '${tagSpec.label}'"
+                                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                            }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = tagSpec.icon,
+                                                contentDescription = tagSpec.label,
+                                                tint = if (isTagged) Color(0xFF34D399) else Color(0xFF94A3B8),
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                            Text(
+                                                text = tagSpec.label,
+                                                fontSize = 10.sp,
+                                                fontWeight = if (isTagged) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (isTagged) Color.White else Color(0xFFCBD5E1)
+                                            )
+                                        }
                                     }
                                 }
                             }

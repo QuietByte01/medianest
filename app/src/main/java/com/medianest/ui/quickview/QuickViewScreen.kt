@@ -92,6 +92,23 @@ fun QuickViewScreen(
 
     val quickViewBackdropState = rememberBackdropBlurState()
 
+    val view = LocalView.current
+    DisposableEffect(Unit) {
+        val window = (view.context as? android.app.Activity)?.window
+        val insetsController = if (window != null) {
+            androidx.core.view.WindowCompat.getInsetsController(window, view)
+        } else null
+
+        insetsController?.let { controller ->
+            controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+
+        onDispose {
+            insetsController?.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
     // Auto-hide controls timer
     LaunchedEffect(showControls, controlsTimerKey, showInfoBottomSheet, showOverflowMenu, showBgColorPicker, showPictureModeDialog, showDeleteDialog, showWallpaperDialog) {
         if (showControls && !showInfoBottomSheet && !showOverflowMenu && !showBgColorPicker && !showPictureModeDialog && !showDeleteDialog && !showWallpaperDialog) {
