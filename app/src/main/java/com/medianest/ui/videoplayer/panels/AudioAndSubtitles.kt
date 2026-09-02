@@ -43,7 +43,8 @@ internal fun SubtitleOptionsDialog(
     modifier: Modifier = Modifier
 ) {
     val isDark = com.medianest.ui.theme.LocalDarkTheme.current
-    val cardBg = if (isDark) Color(0x6608090E) else Color(0x80FFFFFF)
+    val cardBg = if (isDark) Color(0xE60D111A) else Color(0xF2FFFFFF)
+    val baseBg = if (isDark) Color(0x6608090E) else Color(0x66FFFFFF)
     val shape = RoundedCornerShape(20.dp)
 
     val cardModifier = modifier
@@ -54,8 +55,9 @@ internal fun SubtitleOptionsDialog(
                     state = backdropState,
                     blurRadius = 24.dp,
                     tint = cardBg,
-                    baseColor = Color.Transparent,
-                    showTopBorder = false
+                    baseColor = baseBg,
+                    showTopBorder = true,
+                    borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x22000000)
                 )
             } else Modifier
         )

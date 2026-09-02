@@ -501,6 +501,8 @@ fun AudioDebugOverlay(
                     DebugStatRow("Engine", playerState.activeEngineName, valueColor = Color(0xFFFFD54F))
                     DebugStatRow("Decoder", playerState.activeDecoderName)
                     DebugStatRow("Codec", playerState.audioCodec)
+                    DebugStatRow("PCM Precision", playerState.audioSampleFormat, valueColor = Color(0xFF34D399))
+                    DebugStatRow("Output Path", playerState.audioSharingMode, valueColor = Color(0xFF38BDF8))
                     if (playerState.containerName != "Unknown") {
                         DebugStatRow("Container", playerState.containerName)
                     }

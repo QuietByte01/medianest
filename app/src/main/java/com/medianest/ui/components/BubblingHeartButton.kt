@@ -183,16 +183,16 @@ fun BubblingHeartButton(
 
             // 1. Pop bounce on main heart
             launch {
-                mainHeartScale.snapTo(0.70f)
+                mainHeartScale.snapTo(0.75f)
                 mainHeartScale.animateTo(
-                    targetValue = 1.35f,
-                    animationSpec = tween(140, easing = FastOutSlowInEasing)
+                    targetValue = 1.25f,
+                    animationSpec = tween(220, easing = FastOutSlowInEasing)
                 )
                 mainHeartScale.animateTo(
                     targetValue = 1.0f,
                     animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessMedium
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessLow
                     )
                 )
             }
@@ -202,10 +202,10 @@ fun BubblingHeartButton(
                 haloScale.snapTo(0.5f)
                 haloAlpha.snapTo(0.85f)
                 launch {
-                    haloScale.animateTo(2.8f, tween(450, easing = FastOutSlowInEasing))
+                    haloScale.animateTo(2.8f, tween(700, easing = FastOutSlowInEasing))
                 }
                 launch {
-                    haloAlpha.animateTo(0f, tween(450, easing = FastOutSlowInEasing))
+                    haloAlpha.animateTo(0f, tween(700, easing = FastOutSlowInEasing))
                 }
             }
 
@@ -213,7 +213,7 @@ fun BubblingHeartButton(
             launch {
                 burstProgress.animateTo(
                     targetValue = 1f,
-                    animationSpec = tween(950, easing = LinearOutSlowInEasing)
+                    animationSpec = tween(1600, easing = LinearOutSlowInEasing)
                 )
                 particles = emptyList()
             }
@@ -251,7 +251,7 @@ fun BubblingHeartButton(
                 var frameProgress by remember { mutableStateOf(0f) }
 
                 LaunchedEffect(Unit) {
-                    val durationNanos = 950_000_000L
+                    val durationNanos = 1_600_000_000L
                     val startTime = withFrameNanos { it }
                     while (true) {
                         val now = withFrameNanos { it }

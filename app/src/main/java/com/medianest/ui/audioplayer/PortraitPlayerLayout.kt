@@ -388,7 +388,7 @@ fun PortraitPlayerLayout(
                                             .build(),
                                         contentDescription = "Artist Info",
                                         contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
+                                        modifier = Modifier.fillMaxSize().alpha(0.90f)
                                     ) {
                                         val state = painter.state
                                         if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {

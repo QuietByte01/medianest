@@ -37,12 +37,12 @@ static JavaVM *g_jvm = nullptr;
 
 // Lock-free atomic ring buffer for audio samples (zero allocations, zero mutexes in high-priority audio callback)
 struct AudioBuffer {
-    static constexpr size_t RING_SIZE = 768000; // 8 seconds of 48kHz stereo PCM for ultra stability
-    std::array<int16_t, RING_SIZE> ring_buffer{};
+    static constexpr size_t RING_SIZE = 1536000; // 8 seconds of 96kHz stereo Float32 PCM for high-res stability
+    std::array<float, RING_SIZE> ring_buffer{};
     std::atomic<size_t> write_pos{0};
     std::atomic<size_t> read_pos{0};
 
-    void push(const int16_t* data, size_t count) {
+    void push(const float* data, size_t count) {
         if (!data || count == 0) return;
 
         size_t w = write_pos.load(std::memory_order_relaxed);
@@ -53,7 +53,7 @@ struct AudioBuffer {
         write_pos.store(w, std::memory_order_release);
     }
 
-    size_t pull(int16_t* out, size_t count) {
+    size_t pull(float* out, size_t count) {
         if (!out || count == 0) return 0;
         size_t w = write_pos.load(std::memory_order_acquire);
         size_t r = read_pos.load(std::memory_order_relaxed);
@@ -293,7 +293,7 @@ struct PlayerContext {
         ret = avfilter_graph_create_filter(&a_buffersink_ctx, abuffersink, "out", nullptr, nullptr, a_filter_graph);
         if (ret < 0) goto end;
 
-        static const enum AVSampleFormat out_sample_fmts[] = { AV_SAMPLE_FMT_S16, AV_SAMPLE_FMT_NONE };
+        static const enum AVSampleFormat out_sample_fmts[] = { AV_SAMPLE_FMT_FLT, AV_SAMPLE_FMT_NONE };
         ret = av_opt_set_int_list(a_buffersink_ctx, "sample_fmts", out_sample_fmts, -1, AV_OPT_SEARCH_CHILDREN);
         if (ret < 0) goto end;
 
@@ -309,7 +309,7 @@ struct PlayerContext {
 
         {
             std::string full_filters = filters_desc.empty() ? "anull" : filters_desc;
-            full_filters += ",aformat=sample_fmts=s16:channel_layouts=stereo";
+            full_filters += ",aformat=sample_fmts=flt:channel_layouts=stereo";
 
             if ((ret = avfilter_graph_parse_ptr(a_filter_graph, full_filters.c_str(), &inputs, &outputs, nullptr)) < 0) goto end;
             if ((ret = avfilter_graph_config(a_filter_graph, nullptr)) < 0) goto end;
@@ -382,12 +382,12 @@ struct PlayerContext {
 
 oboe::DataCallbackResult OboeAudioCallback::onAudioReady(oboe::AudioStream *audioStream, void *audioData, int32_t numFrames) {
     if (!audioStream || !audioData || !ctx || ctx->is_stopping.load()) return oboe::DataCallbackResult::Stop;
-    auto *outputData = static_cast<int16_t *>(audioData);
+    auto *outputData = static_cast<float *>(audioData);
     size_t samplesNeeded = numFrames * audioStream->getChannelCount();
     size_t pulled = ctx->audio_buffer.pull(outputData, samplesNeeded);
 
     if (pulled < samplesNeeded) {
-        std::fill(outputData + pulled, outputData + samplesNeeded, 0);
+        std::fill(outputData + pulled, outputData + samplesNeeded, 0.0f);
     }
     return oboe::DataCallbackResult::Continue;
 }
@@ -608,7 +608,7 @@ void playback_loop(PlayerContext *ctx) {
             if (send_res >= 0) {
                 while (avcodec_receive_frame(ctx->a_codec_ctx, frame) >= 0 && !ctx->is_released) {
                     if (!ctx->audio_initialized.load() && ctx->a_codec_ctx->sample_rate > 0 && ctx->a_codec_ctx->sample_fmt != AV_SAMPLE_FMT_NONE) {
-                        LOGI("playback_loop: Initializing audio for stream %d, rate=%d", ctx->audio_stream_idx, ctx->a_codec_ctx->sample_rate);
+                        LOGI("playback_loop: Initializing AAudio stream for stream %d, rate=%d", ctx->audio_stream_idx, ctx->a_codec_ctx->sample_rate);
                         bool filter_ok = false;
                         {
                             std::lock_guard<std::recursive_mutex> lock(ctx->mutex);
@@ -616,10 +616,11 @@ void playback_loop(PlayerContext *ctx) {
                         }
                         if (filter_ok) {
                             oboe::AudioStreamBuilder builder;
+                            builder.setAudioApi(oboe::AudioApi::AAudio);
                             builder.setDirection(oboe::Direction::Output);
                             builder.setPerformanceMode(oboe::PerformanceMode::LowLatency);
                             builder.setSharingMode(oboe::SharingMode::Exclusive);
-                            builder.setFormat(oboe::AudioFormat::I16);
+                            builder.setFormat(oboe::AudioFormat::Float);
                             builder.setChannelCount(oboe::ChannelCount::Stereo);
                             builder.setSampleRate(ctx->a_codec_ctx->sample_rate);
                             ctx->oboe_callback = std::make_unique<OboeAudioCallback>(ctx);
@@ -630,9 +631,9 @@ void playback_loop(PlayerContext *ctx) {
                                     ctx->audio_stream->requestStart();
                                 }
                                 ctx->audio_initialized = true;
-                                LOGI("playback_loop: Oboe stream opened successfully");
+                                LOGI("playback_loop: Oboe AAudio Float32 stream opened successfully");
                             } else {
-                                LOGE("playback_loop: Failed to open Oboe stream");
+                                LOGE("playback_loop: Failed to open Oboe AAudio Float32 stream");
                             }
                         }
                     }
@@ -643,7 +644,7 @@ void playback_loop(PlayerContext *ctx) {
                             int filter_res = av_buffersrc_add_frame_flags(ctx->a_buffersrc_ctx, frame, AV_BUFFERSRC_FLAG_KEEP_REF);
                             if (filter_res >= 0) {
                                 while (av_buffersink_get_frame(ctx->a_buffersink_ctx, filter_frame) >= 0) {
-                                    ctx->audio_buffer.push(reinterpret_cast<int16_t*>(filter_frame->data[0]), filter_frame->nb_samples * 2);
+                                    ctx->audio_buffer.push(reinterpret_cast<float*>(filter_frame->data[0]), filter_frame->nb_samples * 2);
                                     av_frame_unref(filter_frame);
                                 }
                             } else {
@@ -794,10 +795,11 @@ Java_com_medianest_player_FFmpegPlaybackEngine_nativePrepare(JNIEnv *env, jobjec
     if (ctx->audio_stream_idx >= 0 && ctx->a_codec_ctx && ctx->a_codec_ctx->sample_rate > 0 && ctx->a_codec_ctx->sample_fmt != AV_SAMPLE_FMT_NONE) {
         if (ctx->init_audio_filter_graph(ctx->current_a_filter_desc) >= 0) {
             oboe::AudioStreamBuilder builder;
+            builder.setAudioApi(oboe::AudioApi::AAudio);
             builder.setDirection(oboe::Direction::Output);
             builder.setPerformanceMode(oboe::PerformanceMode::LowLatency);
             builder.setSharingMode(oboe::SharingMode::Exclusive);
-            builder.setFormat(oboe::AudioFormat::I16);
+            builder.setFormat(oboe::AudioFormat::Float);
             builder.setChannelCount(oboe::ChannelCount::Stereo);
             builder.setSampleRate(ctx->a_codec_ctx->sample_rate);
             ctx->oboe_callback = std::make_unique<OboeAudioCallback>(ctx);

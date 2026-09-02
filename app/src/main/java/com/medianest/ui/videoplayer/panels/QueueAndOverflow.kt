@@ -78,7 +78,8 @@ internal fun VideoPlayerOverflowMenu(
     modifier: Modifier = Modifier
 ) {
     val isDark = LocalDarkTheme.current
-    val cardBg = if (isDark) Color(0x6608090E) else Color(0x80FFFFFF)
+    val cardBg = if (isDark) Color(0xE60D111A) else Color(0xF2FFFFFF)
+    val baseBg = if (isDark) Color(0x6608090E) else Color(0x66FFFFFF)
     val shape = RoundedCornerShape(16.dp)
 
     Box(
@@ -101,8 +102,9 @@ internal fun VideoPlayerOverflowMenu(
                         state = backdropState,
                         blurRadius = 24.dp,
                         tint = cardBg,
-                        baseColor = Color.Transparent,
-                        showTopBorder = false
+                        baseColor = baseBg,
+                        showTopBorder = true,
+                        borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x22000000)
                     )
                 } else Modifier
             )
@@ -218,7 +220,8 @@ internal fun AspectRatioModal(
     backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     val isDark = LocalDarkTheme.current
-    val cardBg = if (isDark) Color(0xCC0E111A) else Color(0xCCE3E3E3)
+    val cardBg = if (isDark) Color(0xE60D111A) else Color(0xF2FFFFFF)
+    val baseBg = if (isDark) Color(0x6608090E) else Color(0x66FFFFFF)
     val shape = RoundedCornerShape(20.dp)
 
     Box(
@@ -237,8 +240,9 @@ internal fun AspectRatioModal(
                         state = backdropState,
                         blurRadius = 24.dp,
                         tint = cardBg,
-                        baseColor = Color.Transparent,
-                        showTopBorder = false
+                        baseColor = baseBg,
+                        showTopBorder = true,
+                        borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x22000000)
                     )
                 } else Modifier
             )
@@ -284,7 +288,8 @@ internal fun PlaybackSpeedModal(
     backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     val isDark = LocalDarkTheme.current
-    val cardBg = if (isDark) Color(0xCC0E111A) else Color(0xCCE3E3E3)
+    val cardBg = if (isDark) Color(0xE60D111A) else Color(0xF2FFFFFF)
+    val baseBg = if (isDark) Color(0x6608090E) else Color(0x66FFFFFF)
     val shape = RoundedCornerShape(20.dp)
 
     Box(
@@ -303,8 +308,9 @@ internal fun PlaybackSpeedModal(
                         state = backdropState,
                         blurRadius = 24.dp,
                         tint = cardBg,
-                        baseColor = Color.Transparent,
-                        showTopBorder = false
+                        baseColor = baseBg,
+                        showTopBorder = true,
+                        borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x22000000)
                     )
                 } else Modifier
             )
@@ -358,7 +364,8 @@ internal fun VideoPostProcessingPanel(
     backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     val isDark = LocalDarkTheme.current
-    val cardBg = if (isDark) Color(0xCC0E111A) else Color(0xCCE3E3E3)
+    val cardBg = if (isDark) Color(0xE60D111A) else Color(0xF2FFFFFF)
+    val baseBg = if (isDark) Color(0x6608090E) else Color(0x66FFFFFF)
     val shape = RoundedCornerShape(20.dp)
 
     Box(
@@ -377,8 +384,9 @@ internal fun VideoPostProcessingPanel(
                         state = backdropState,
                         blurRadius = 24.dp,
                         tint = cardBg,
-                        baseColor = Color.Transparent,
-                        showTopBorder = false
+                        baseColor = baseBg,
+                        showTopBorder = true,
+                        borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x22000000)
                     )
                 } else Modifier
             )

@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.player.PlayerState
 import com.medianest.ui.components.ControlButtonStyle
+import com.medianest.util.BlurUtils.backdropBlur
 import com.medianest.ui.components.CustomRoundedNextButton
 import com.medianest.ui.components.CustomRoundedPlayPauseButton
 import com.medianest.ui.components.CustomRoundedPreviousButton
@@ -213,10 +214,11 @@ fun SeekHUD(
     modifier: Modifier = Modifier
 ) {
     GlassSurface(
-        modifier = modifier,
+        modifier = modifier.backdropBlur(visible = true, radius = 16.dp),
         shape = RoundedCornerShape(20.dp),
-        backgroundColor = Color(0xB3000000),
-        borderColor = Color(0x33FFFFFF)
+        backgroundColor = Color.Black.copy(alpha = 0.15f),
+        borderColor = Color.Transparent,
+        borderWidth = 0.dp
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 14.dp),

@@ -7,7 +7,6 @@ import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,8 +17,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.paging.compose.LazyPagingItems
-import androidx.paging.compose.itemKey
 import com.medianest.data.db.MediaCategory
 import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
@@ -50,6 +47,10 @@ fun ImagesMainGrid(
     selectedCategory: MediaCategory?,
     isLoading: Boolean,
     activeFilterTab: String,
+    onRename: ((MediaItem) -> Unit)? = null,
+    onMove: ((MediaItem) -> Unit)? = null,
+    onCopy: ((MediaItem) -> Unit)? = null,
+    onMoveToFilter: ((MediaItem) -> Unit)? = null,
     targetImageUri: String? = null,
     onTargetImageChange: ((String?) -> Unit)? = null,
     gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState = androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState(),
@@ -152,6 +153,10 @@ fun ImagesMainGrid(
                         onLongClick = { onImageLongClick(item) },
                         onInfo = { onInfoItemChange(item) },
                         onDelete = { onImageToDeleteChange(item) },
+                        onRename = if (onRename != null) { { onRename(item) } } else null,
+                        onMove = if (onMove != null) { { onMove(item) } } else null,
+                        onCopy = if (onCopy != null) { { onCopy(item) } } else null,
+                        onMoveToFilter = if (activeFilterTab !in listOf("FOLDERS", "HIDDEN", "EXCLUDED") && onMoveToFilter != null) { { onMoveToFilter(item) } } else null,
                         showRemoveOption = selectedCategory != null,
                         onRemoveFromCategory = { onRemoveFromCategory(item) },
                         onOpenFolder = { folderName, targetUri ->
@@ -159,7 +164,6 @@ fun ImagesMainGrid(
                             onSelectedFolderChange(folderName)
                             if (targetUri != null) onTargetImageChange?.invoke(targetUri)
                         },
-                        onMoreClick = { onContextSheetItemChange(item) },
                         showInGallery = (viewMode == 1 && selectedFolder != null),
                         gridSizeLevel = gridSizeLevel
                     )

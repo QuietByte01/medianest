@@ -70,8 +70,8 @@ internal fun VideoPlayerSettingsOverlay(
                         Modifier.backdropReceiver(
                             state = backdropState,
                             blurRadius = 28.dp,
-                            tint = Color(0x6608090E),
-                            baseColor = Color.Transparent,
+                            tint = Color(0xE60D111A),
+                            baseColor = Color(0x6608090E),
                             showTopBorder = true,
                             borderColor = Color(0x33FFFFFF)
                         )
@@ -79,7 +79,7 @@ internal fun VideoPlayerSettingsOverlay(
                 )
                 .clickable(enabled = false) {},
             shape = RoundedCornerShape(22.dp),
-            backgroundColor = if (backdropState != null) Color.Transparent else Color(0xB30E111A),
+            backgroundColor = if (backdropState != null) Color.Transparent else Color(0xE60D111A),
             borderColor = Color(0x33FFFFFF),
             borderWidth = 0.5.dp,
             enableBlur = false

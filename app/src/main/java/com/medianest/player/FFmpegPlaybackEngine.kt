@@ -100,7 +100,9 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
             containerName = profile.container,
             videoCodec = profile.videoCodec,
             audioCodec = profile.audioCodec,
-            decoderName = "FFmpeg Native (Oboe Low Latency)"
+            decoderName = "FFmpeg Native (AAudio 32-bit Float)",
+            audioSampleFormat = "32-bit Float PCM",
+            audioSharingMode = "AAudio Exclusive"
         )
         
         try {

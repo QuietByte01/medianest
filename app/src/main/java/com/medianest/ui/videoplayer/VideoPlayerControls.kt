@@ -98,10 +98,10 @@ fun VideoPlayerTopBar(
 
             Surface(shape = RoundedCornerShape(24.dp), color = Color.Transparent, contentColor = Color.White) {
                 Row(modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onDrawerClick) { Icon(Icons.Default.FormatListBulleted, contentDescription = "Sidebar", tint = Color.White, modifier = Modifier.size(20.dp)) }
-                    IconButton(onClick = onSubtitleClick) { Icon(Icons.Default.ClosedCaption, contentDescription = "Subtitles", tint = Color.White, modifier = Modifier.size(20.dp)) }
-                    IconButton(onClick = onInfoClick) { Icon(Icons.Default.Info, contentDescription = "Info", tint = Color.White, modifier = Modifier.size(20.dp)) }
-                    IconButton(onClick = onMenuClick) { Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = Color.White, modifier = Modifier.size(20.dp)) }
+                    IconButton(onClick = onDrawerClick) { Icon(Icons.Default.FormatListBulleted, contentDescription = "Sidebar", tint = Color.White, modifier = Modifier.size(22.dp)) }
+                    IconButton(onClick = onSubtitleClick) { Icon(Icons.Default.ClosedCaption, contentDescription = "Subtitles", tint = Color.White, modifier = Modifier.size(22.dp)) }
+                    IconButton(onClick = onInfoClick) { Icon(Icons.Default.Info, contentDescription = "Info", tint = Color.White, modifier = Modifier.size(22.dp)) }
+                    IconButton(onClick = onMenuClick) { Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = Color.White, modifier = Modifier.size(24.dp)) }
                 }
             }
         }
@@ -155,8 +155,16 @@ fun VideoPlayerBottomBar(
             ),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        if (!isControlsLocked) {
+        if (!isControlsLocked && !isHorizontalDragging) {
+            // Seekbar code for swipe-to-seek commented out per request
+            /*
             val effectiveSeekPos = if (isHorizontalDragging) seekTargetPositionMs else playerState.currentPositionMs
+            ThinSeekBar(
+                value = if (playerState.durationMs > 0) effectiveSeekPos.toFloat() else 0f,
+                onValueChange = { onSeek(it.toLong()) }, ...
+            )
+            */
+            val effectiveSeekPos = playerState.currentPositionMs
             ThinSeekBar(
                 value = if (playerState.durationMs > 0) effectiveSeekPos.toFloat() else 0f,
                 onValueChange = { onSeek(it.toLong()) },

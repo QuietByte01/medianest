@@ -14,6 +14,8 @@ import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.MediaNestApp
@@ -120,17 +123,12 @@ fun AudioPlayerScreen(
     
     val context = LocalContext.current
     val activity = context as? Activity
-    val hideNotificationPanelInPlayer = !showArtistInfoPanel && !showSidePanelLandscape && !showQueueInPortraitBox && !isVisualizerFullscreen && !showOverflowMenu && !showDetailsSheet && !showMetadataModal && !showDspSheet
 
-    DisposableEffect(hideNotificationPanelInPlayer, isLandscape, configuration.orientation) {
+    DisposableEffect(Unit) {
         activity?.window?.let { window ->
             val controller = WindowInsetsControllerCompat(window, window.decorView)
-            if (hideNotificationPanelInPlayer) {
-                controller.hide(WindowInsetsCompat.Type.statusBars())
-                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            } else {
-                controller.show(WindowInsetsCompat.Type.statusBars())
-            }
+            controller.hide(WindowInsetsCompat.Type.statusBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         onDispose {
             activity?.window?.let { window ->
@@ -382,6 +380,10 @@ fun AudioPlayerScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {}
                 .backdropSource(
                     state = playerBackdropState,
                     backgroundColor = Color.Transparent
@@ -449,32 +451,81 @@ fun AudioPlayerScreen(
                         com.medianest.ui.components.GlassDropdownMenu(
                             expanded = showOverflowMenu,
                             onDismissRequest = { showOverflowMenu = false },
-                            shape = RoundedCornerShape(16.dp)
+                            modifier = Modifier.width(200.dp),
+                            shape = RoundedCornerShape(20.dp)
                         ) {
-                            DropdownMenuItem(text = { Text("File Info", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Info, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; showDetailsSheet = true })
+                            Text(
+                                text = currentItem?.title ?: "MediaNest Music",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = if (isDark) Color.White else Color.Black,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                            )
+
+                            HorizontalDivider(color = if (isDark) Color(0x1AFFFFFF) else Color(0x1A000000))
+
+                            DropdownMenuItem(
+                                text = { Text("File Info", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Info, null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                                onClick = { showOverflowMenu = false; showDetailsSheet = true }
+                            )
                             if (currentItem != null) {
                                 DropdownMenuItem(
                                     text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
                                     onClick = {
                                         showOverflowMenu = false
                                         showDeleteConfirmDialog = true
                                     }
                                 )
                             }
-                            DropdownMenuItem(text = { Text("Add to Playlist", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.PlaylistAdd, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; showAddAlbumToPlaylistDialog = true })
-                            DropdownMenuItem(text = { Text("Edit Tag & Metadata", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.EditNote, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; showMetadataModal = true })
+                            DropdownMenuItem(
+                                text = { Text("Edit Tag & Metadata", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.EditNote, null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                                onClick = { showOverflowMenu = false; showMetadataModal = true }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Add to Playlist", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.PlaylistAdd, null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                                onClick = { showOverflowMenu = false; showAddAlbumToPlaylistDialog = true }
+                            )
                             if (currentItem != null) {
-                                DropdownMenuItem(text = { Text("Show Album", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Album, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; onClose(); onOpenAlbum(currentItem.album ?: "Unknown Album") })
+                                DropdownMenuItem(
+                                    text = { Text("Show Album", color = if (isDark) Color.White else Color.Black) },
+                                    leadingIcon = { Icon(Icons.Default.Album, null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                                    onClick = { showOverflowMenu = false; onClose(); onOpenAlbum(currentItem.album ?: "Unknown Album") }
+                                )
                                 val currentArtist = artistInfo
                                 if (currentArtist != null && !currentArtist.isPlaceholder) {
-                                    DropdownMenuItem(text = { Text("Show Artist", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Person, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; onClose(); onOpenArtist(currentItem.artist ?: "Unknown Artist") })
+                                    DropdownMenuItem(
+                                        text = { Text("Show Artist", color = if (isDark) Color.White else Color.Black) },
+                                        leadingIcon = { Icon(Icons.Default.Person, null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                                        onClick = { showOverflowMenu = false; onClose(); onOpenArtist(currentItem.artist ?: "Unknown Artist") }
+                                    )
                                 }
-                                DropdownMenuItem(text = { Text("Show In Folder", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Folder, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; onClose(); onOpenFolder(currentItem.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (currentItem.bucketName ?: "Music"), currentItem.uri.toString()) })
+                                DropdownMenuItem(
+                                    text = { Text("Show In Folder", color = if (isDark) Color.White else Color.Black) },
+                                    leadingIcon = { Icon(Icons.Default.Folder, null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                                    onClick = { showOverflowMenu = false; onClose(); onOpenFolder(currentItem.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (currentItem.bucketName ?: "Music"), currentItem.uri.toString()) }
+                                )
                             }
-                            DropdownMenuItem(text = { Text("Native Audio DSP", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Equalizer, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; showDspSheet = true })
-                            DropdownMenuItem(text = { Text(if (showAudioVisualizer) "Hide Audio Visualizer" else "Show Audio Visualizer", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.GraphicEq, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) } })
-                            DropdownMenuItem(text = { Text("Settings", color = if (isDark) Color.White else Color.Black) }, leadingIcon = { Icon(Icons.Default.Settings, null, tint = if (isDark) Color.White else Color.Black) }, onClick = { showOverflowMenu = false; onClose(); onOpenSettings() })
+                            DropdownMenuItem(
+                                text = { Text("Native Audio DSP", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Equalizer, null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                                onClick = { showOverflowMenu = false; showDspSheet = true }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (showAudioVisualizer) "Hide Visualizer" else "Show Visualizer", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.GraphicEq, null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                                onClick = { showOverflowMenu = false; scope.launch { settingsManager.setShowAudioVisualizer(!showAudioVisualizer) } }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("App Settings", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Settings, null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                                onClick = { showOverflowMenu = false; onClose(); onOpenSettings() }
+                            )
                         }
                     }
                 }

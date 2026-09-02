@@ -276,6 +276,12 @@ fun VideoPlayerScreen(
             showAspectRatioMenu || showSpeedMenu || showAbRepeatBar || showEngineDialog ||
             showVideoFxSheet || showVideoEditorSheet || showDeleteDialog
 
+    LaunchedEffect(anyOverlayOpen) {
+        if (anyOverlayOpen) {
+            playerBackdropState.drawSignal++
+        }
+    }
+
     BackHandler(enabled = true) {
         if (anyOverlayOpen) {
             when {

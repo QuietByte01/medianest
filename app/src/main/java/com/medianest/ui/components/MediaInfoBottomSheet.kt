@@ -17,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -738,24 +739,42 @@ fun MediaInfoBottomSheet(
                         val displayArtistList = if (multipleArtists.isNotEmpty()) multipleArtists else listOf(artistName)
                         items(displayArtistList.size) { index ->
                             val currentArtist = displayArtistList[index]
-                            val currentArtistImgUrl = com.medianest.util.ArtistImageUtils.getArtistImageUrl(currentArtist)
+                            val currentArtistImgUrl = rememberArtistImageUrl(currentArtist)
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Box(
                                     modifier = Modifier
                                         .size(52.dp)
                                         .clip(CircleShape)
-                                        .background(Color.Transparent),
+                                        .background(Color(0xFF2A2E3B)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     SubcomposeAsyncImage(
-                                        model = ImageRequest.Builder(context).data(currentArtistImgUrl).crossfade(true).build(),
+                                        model = ImageRequest.Builder(context)
+                                            .data(currentArtistImgUrl ?: item.albumArtUri ?: ArtistImageUtils.getFallbackArtistImageUrl(currentArtist))
+                                            .crossfade(true)
+                                            .build(),
                                         contentDescription = currentArtist,
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier.fillMaxSize()
                                     ) {
                                         val state = painter.state
                                         if (state is AsyncImagePainter.State.Error) {
-                                            Icon(Icons.Default.Person, contentDescription = null, tint = Color.White.copy(0.8f), modifier = Modifier.size(26.dp))
+                                            SubcomposeAsyncImage(
+                                                model = ImageRequest.Builder(context)
+                                                    .data(item.albumArtUri ?: ArtistImageUtils.getFallbackArtistImageUrl(currentArtist))
+                                                    .crossfade(true)
+                                                    .build(),
+                                                contentDescription = currentArtist,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.fillMaxSize()
+                                            ) {
+                                                val fallbackState = painter.state
+                                                if (fallbackState is AsyncImagePainter.State.Error) {
+                                                    Icon(Icons.Default.Person, contentDescription = null, tint = Color.White.copy(0.8f), modifier = Modifier.size(26.dp))
+                                                } else {
+                                                    SubcomposeAsyncImageContent()
+                                                }
+                                            }
                                         } else {
                                             SubcomposeAsyncImageContent()
                                         }

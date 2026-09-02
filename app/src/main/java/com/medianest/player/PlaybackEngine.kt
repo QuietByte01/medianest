@@ -22,7 +22,10 @@ data class EngineDiagnosticState(
     val lastRecoveryReason: String? = null,
     val isHdr: Boolean = false,
     val hdrType: String = "SDR", // SDR, HDR10, HDR10+, Dolby Vision, HLG
-    val colorSpace: String = "SDR"
+    val colorSpace: String = "SDR",
+    val audioSampleRate: Int = 0,
+    val audioSampleFormat: String = "32-bit Float",
+    val audioSharingMode: String = "AAudio Exclusive"
 )
 
 interface PlaybackEngine {

@@ -62,6 +62,7 @@ fun MediaGridItem(
     onRename: (() -> Unit)? = null,
     onMove: (() -> Unit)? = null,
     onCopy: (() -> Unit)? = null,
+    onMoveToFilter: (() -> Unit)? = null,
     showInGallery: Boolean = false,
     gridSizeLevel: Int = 1
 ) {
@@ -478,6 +479,16 @@ fun MediaGridItem(
                                         val folderKey = item.relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: (item.bucketName ?: "Folder")
                                         onOpenFolder(folderKey, item.uri.toString())
                                     }
+                                }
+                            )
+                        }
+                        if (onMoveToFilter != null) {
+                            DropdownMenuItem(
+                                text = { Text("Move to Filter...", color = if (isDark) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.FilterList, contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
+                                onClick = {
+                                    showMenu = false
+                                    onMoveToFilter()
                                 }
                             )
                         }

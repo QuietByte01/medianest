@@ -79,6 +79,8 @@ data class PlayerState(
     val decoderFallbackReason: String? = null,
     val audioSessionId: Int = 0,
     val activeEngineName: String = "Media3",
+    val audioSampleFormat: String = "32-bit Float",
+    val audioSharingMode: String = "AAudio Exclusive",
     // DSP Settings
     val bassBoostPercent: Int = 0,
     val volumeBoostPercent: Int = 0,
@@ -251,7 +253,9 @@ class ExoPlayerManager private constructor(private val context: Context) {
                         isSystemVolumeMaxed = isMaxed,
                         isHdrContent = diag.isHdr,
                         hdrType = diag.hdrType,
-                        colorSpace = diag.colorSpace
+                        colorSpace = diag.colorSpace,
+                        audioSampleFormat = diag.audioSampleFormat,
+                        audioSharingMode = diag.audioSharingMode
                     )
 
                     // Periodically save progress to DB (every ~5 seconds)

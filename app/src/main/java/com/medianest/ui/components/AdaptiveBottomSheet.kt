@@ -29,6 +29,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -92,9 +93,11 @@ fun AdaptiveBottomSheet(
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         w.setBackgroundBlurRadius(80)
                     }
-                    WindowInsetsControllerCompat(w, w.decorView).let { controller ->
-                        controller.isAppearanceLightNavigationBars = !isDark
-                    }
+                    val controller = WindowInsetsControllerCompat(w, w.decorView)
+                    controller.isAppearanceLightNavigationBars = !isDark
+                    controller.isAppearanceLightStatusBars = !isDark
+                    controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    controller.hide(WindowInsetsCompat.Type.statusBars())
                 }
                 onDispose {}
             }
@@ -208,9 +211,11 @@ fun AdaptiveBottomSheet(
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         w.setBackgroundBlurRadius(80)
                     }
-                    WindowInsetsControllerCompat(w, w.decorView).let { controller ->
-                        controller.isAppearanceLightNavigationBars = !isDark
-                    }
+                    val controller = WindowInsetsControllerCompat(w, w.decorView)
+                    controller.isAppearanceLightNavigationBars = !isDark
+                    controller.isAppearanceLightStatusBars = !isDark
+                    controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    controller.hide(WindowInsetsCompat.Type.statusBars())
                 }
                 onDispose {}
             }
