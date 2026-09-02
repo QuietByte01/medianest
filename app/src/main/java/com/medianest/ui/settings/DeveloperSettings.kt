@@ -29,9 +29,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.medianest.data.settings.SettingsManager
-import com.medianest.ui.components.debug.HardwarePipelineDiagnosticsCard
+import com.medianest.ui.components.AppSwitch
+import com.medianest.ui.components.AppSwitchStyle
 import com.medianest.ui.components.BackdropBlurState
+import com.medianest.ui.components.debug.HardwarePipelineDiagnosticsCard
+import com.medianest.data.settings.SettingsManager
 import com.medianest.util.LogLevel
 import com.medianest.util.Logger
 import kotlinx.coroutines.launch
@@ -50,6 +52,7 @@ fun DeveloperSettingsSection(
     val showPlayerDebug by settingsManager.showPlayerDebugInfo.collectAsState(initial = false)
     val showImageDebug by settingsManager.showImageDebugInfo.collectAsState(initial = false)
     val showAudioDebug by settingsManager.showAudioDebugInfo.collectAsState(initial = false)
+    val showLibraryDebug by settingsManager.showLibraryDebugInfo.collectAsState(initial = true)
 
     if (!developerModeEnabled) return
 
@@ -59,39 +62,51 @@ fun DeveloperSettingsSection(
         // Hardware Pipeline Diagnostics Component
         HardwarePipelineDiagnosticsCard(context = context, backdropState = backdropState)
 
-        SettingsGlassCard(title = "PLAYER & ENGINE DEBUGGING", backdropState = backdropState) {
+        SettingsGlassCard(title = "DIAGNOSTICS & TELEMETRY OVERLAYS", backdropState = backdropState) {
             SettingsRowItem(
-                title = "Media3 Debug Overlay",
+                title = "Library Telemetry Overlay",
+                subtitle = "Show FPS, 3s frame drop window, memory pressure diagnosis, and thermal status in library tabs",
+                control = {
+                    AppSwitch(
+                        checked = showLibraryDebug,
+                        onCheckedChange = { scope.launch { settingsManager.setShowLibraryDebugInfo(it) } },
+                        style = AppSwitchStyle.Glossy
+                    )
+                }
+            )
+
+            SettingsRowItem(
+                title = "Media3 Player Debug Overlay",
                 subtitle = "Show real-time video codec, bitrate, and drop-frame stats in player",
                 control = {
-                    Switch(
+                    AppSwitch(
                         checked = showPlayerDebug,
                         onCheckedChange = { scope.launch { settingsManager.setShowPlayerDebugInfo(it) } },
-                        colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF6366F1))
+                        style = AppSwitchStyle.Glossy
                     )
                 }
             )
 
             SettingsRowItem(
-                title = "ImageViewer Debug Info",
+                title = "ImageViewer Debug Overlay",
                 subtitle = "Overlay image resolution, scale, and memory usage",
                 control = {
-                    Switch(
+                    AppSwitch(
                         checked = showImageDebug,
                         onCheckedChange = { scope.launch { settingsManager.setShowImageDebugInfo(it) } },
-                        colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF6366F1))
+                        style = AppSwitchStyle.Glossy
                     )
                 }
             )
 
             SettingsRowItem(
-                title = "AudioPlayer Debug Info",
+                title = "AudioPlayer Debug Overlay",
                 subtitle = "Show codec, session ID and native DSP states",
                 control = {
-                    Switch(
+                    AppSwitch(
                         checked = showAudioDebug,
                         onCheckedChange = { scope.launch { settingsManager.setShowAudioDebugInfo(it) } },
-                        colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF6366F1))
+                        style = AppSwitchStyle.Glossy
                     )
                 }
             )

@@ -161,8 +161,12 @@ class RegionDecoderEngine(
                     inPreferredColorSpace = ColorSpace.get(ColorSpace.Named.DISPLAY_P3)
                 }
                 
-                // Always use ARGB_8888 — RGBA_1010102 can cause visual artifacts with BitmapRegionDecoder
-                inPreferredConfig = Bitmap.Config.ARGB_8888
+                // Use HARDWARE config for zero JVM heap memory allocation on modern Android
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    inPreferredConfig = Bitmap.Config.HARDWARE
+                } else {
+                    inPreferredConfig = Bitmap.Config.RGB_565
+                }
             }
 
             val decodedRaw = try {

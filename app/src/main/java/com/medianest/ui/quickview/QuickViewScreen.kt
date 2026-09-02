@@ -40,6 +40,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogWindowProvider
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.size.Precision
 import com.medianest.MediaNestApp
 import com.medianest.data.db.CategoryMediaCrossRef
 import com.medianest.data.db.MediaCategory
@@ -313,6 +315,7 @@ fun QuickViewScreen(
                         Box(modifier = Modifier.fillMaxSize()) {
                             HybridImageViewer(
                                 source = ImageSource.from(item.uri),
+                                mimeType = item.mimeType,
                                 colorFilter = colorFilter,
                                 backgroundColor = if (isDynamicGradient) Color.Transparent else effectiveBgColor,
                                 zoomControlsBottomPadding = zoomPadding,
@@ -698,12 +701,22 @@ fun QuickViewScreen(
                                             },
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        AsyncImage(
-                                            model = item.albumArtUri ?: item.uri,
-                                            contentDescription = null,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
+                                         val filmstripThumbRequest = remember(item.uri, item.albumArtUri, context) {
+                                             ImageRequest.Builder(context)
+                                                 .data(item.albumArtUri ?: item.uri)
+                                                 .size(160, 160)
+                                                 .precision(Precision.INEXACT)
+                                                 .allowHardware(true)
+                                                 .decoderFactory(coil.decode.BitmapFactoryDecoder.Factory())
+                                                 .crossfade(true)
+                                                 .build()
+                                         }
+                                         AsyncImage(
+                                             model = filmstripThumbRequest,
+                                             contentDescription = null,
+                                             contentScale = ContentScale.Crop,
+                                             modifier = Modifier.fillMaxSize()
+                                         )
                                     }
                                 }
                             }

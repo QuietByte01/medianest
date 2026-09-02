@@ -39,6 +39,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -150,7 +151,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
     private val ffmpegEngine = FFmpegPlaybackEngine(context)
     private var media3Engine: Media3PlaybackEngine? = null
     private var activeEngine: PlaybackEngine? = null
-    private var lastSurface: Surface? = null
+    internal var lastSurface: Surface? = null
     private var activeAudioSessionId: Int = C.AUDIO_SESSION_ID_UNSET
     private var watchdogJob: kotlinx.coroutines.Job? = null
     private var isHardwareFaulty = false // Flag to disable Media3 if it keeps timing out
@@ -185,6 +186,14 @@ class ExoPlayerManager private constructor(private val context: Context) {
             launch { settings.videoBackgroundPlay.collectLatest { _playerState.value = _playerState.value.copy(isVideoBackgroundPlayEnabled = it) } }
             launch {
                 combine(settings.showPlaybackNotification, settings.showVideoNotification, _playerState) { a, v, s -> Triple(a, v, s) }
+                    .distinctUntilChanged { old, new ->
+                        old.first == new.first &&
+                        old.second == new.second &&
+                        old.third.currentItem?.uri == new.third.currentItem?.uri &&
+                        old.third.isPlaying == new.third.isPlaying &&
+                        old.third.isAudioBackgroundPlayEnabled == new.third.isAudioBackgroundPlayEnabled &&
+                        old.third.isVideoBackgroundPlayEnabled == new.third.isVideoBackgroundPlayEnabled
+                    }
                     .collectLatest { (audioNotif, videoNotif, state) -> handleNotificationUpdate(audioNotif, videoNotif, state) }
             }
             launch {
@@ -317,6 +326,10 @@ class ExoPlayerManager private constructor(private val context: Context) {
     @OptIn(DelicateCoroutinesApi::class)
     private fun rebuildEngineDueToDeadlock(reason: String) {
         if (isRebirthing) return
+        if (activeEngine == ffmpegEngine) {
+            Logger.d("ExoPlayerManager", "rebuildEngineDueToDeadlock ignored: active engine is already FFmpeg")
+            return
+        }
         isRebirthing = true
 
         scope.launch(Dispatchers.Main) {
@@ -360,11 +373,10 @@ class ExoPlayerManager private constructor(private val context: Context) {
             
             // 5. Restore state with Surface-First synchronization
             if (currentItem != null && media3Engine != null) {
-                // If this is the second time we are rebirthing for this specific item,
-                // the hardware is definitively unable to handle it.
-                if (av1FailureCount >= 2) {
-                    Logger.w("ExoPlayerManager", "Persistent deadlock for this item. Forcing FFmpeg fallback.")
-                    switchToFFmpegFallback("Persistent hardware deadlock")
+                val profile = MediaCapabilityInspector.inspect(currentItem.uri, null, currentItem.title)
+                if (profile.requiresFFmpegFallback || av1FailureCount >= 2) {
+                    Logger.w("ExoPlayerManager", "Item requires FFmpeg or persistent deadlock. Switching to FFmpeg.")
+                    switchToFFmpegFallback("Item requires FFmpeg")
                     isRebirthing = false
                     return@launch
                 }
@@ -423,11 +435,6 @@ class ExoPlayerManager private constructor(private val context: Context) {
         
         scope.launch(Dispatchers.Main) {
             Logger.e("ExoPlayerManager", "ENGINE SWITCH: Performing emergency swap to FFmpeg. Reason: $reason")
-            
-            if (reason.contains("watchdog", true) || reason.contains("timeout", true) || reason.contains("Black screen", true)) {
-                isHardwareFaulty = true
-                Logger.w("ExoPlayerManager", "Global Hardware Fault flag SET. Future playbacks will prefer FFmpeg.")
-            }
 
             val oldEngine = activeEngine
             activeEngine = ffmpegEngine
@@ -444,18 +451,26 @@ class ExoPlayerManager private constructor(private val context: Context) {
                     Logger.d("ExoPlayerManager", "Muting dead Media3 engine before swap")
                     oldEngine.player.volume = 0f
                     oldEngine.player.playWhenReady = false
+                    oldEngine.stop()
+                    brokenEngines.add(oldEngine)
+                    media3Engine = null // Discard broken Media3 engine so next Media3 video starts fresh
+                } else {
+                    oldEngine?.setSurface(null)
+                    oldEngine?.stop()
                 }
-                oldEngine?.setSurface(null)
-                oldEngine?.stop()
             } catch (e: Exception) {
                 Logger.w("ExoPlayerManager", "Non-fatal error clearing old engine during fallback: ${e.message}")
             }
 
             Logger.i("ExoPlayerManager", "FFmpeg Fallback Engine Ready. Resuming at $currentPos ms")
             ffmpegEngine.setSurface(lastSurface)
+            ffmpegEngine.setVolume(1.0f)
             updateNativeFilters()
             ffmpegEngine.prepare(currentItem.uri, true)
-            ffmpegEngine.seekTo(currentPos)
+            if (currentPos > 0) ffmpegEngine.seekTo(currentPos)
+            if (requestAudioFocus()) {
+                ffmpegEngine.play()
+            }
         }
     }
 
@@ -578,20 +593,11 @@ class ExoPlayerManager private constructor(private val context: Context) {
             .setConstantBitrateSeekingEnabled(true)
             .setMp4ExtractorFlags(androidx.media3.extractor.mp4.Mp4Extractor.FLAG_WORKAROUND_IGNORE_EDIT_LISTS)
         val mediaSourceFactory = DefaultMediaSourceFactory(context, extractorsFactory)
-        val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                /* minBufferMs = */ 15_000,
-                /* maxBufferMs = */ 50_000,
-                /* bufferForPlaybackMs = */ 1_500,
-                /* bufferForPlaybackAfterRebufferMs = */ 3_000
-            )
-            .build()
         val renderersFactory = DefaultRenderersFactory(context)
             .setEnableDecoderFallback(true)
             .setMediaCodecSelector(customMediaCodecSelector)
         val player = ExoPlayer.Builder(context, renderersFactory).setLooper(android.os.Looper.getMainLooper())
             .setMediaSourceFactory(mediaSourceFactory)
-            .setLoadControl(loadControl)
             .setAudioAttributes(AudioAttributes.Builder().setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).setUsage(C.USAGE_MEDIA).build(), false)
             .build()
         
@@ -599,34 +605,34 @@ class ExoPlayerManager private constructor(private val context: Context) {
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 Logger.e("ExoPlayerManager", "Player error encountered [code=${error.errorCode}, name=${error.errorCodeName}]: ${error.message}", error)
                 
-                // If we get a timeout, trigger rebirth
+                // If we get a timeout, switch directly to FFmpeg fallback
                 if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT) {
-                    rebuildEngineDueToDeadlock("ExoTimeoutException")
+                    switchToFFmpegFallback("Media3 timeout")
                     return
                 }
 
-                // If it's a decoder or media format failure, try one-time FFmpeg fallback for this item
+                // Catch ANY extractor exception, source error, loader exception, parsing error, or decoder error
                 val isDecoderError = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
                     error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED ||
                     error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED ||
                     error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ||
                     error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED ||
                     error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_UNSPECIFIED ||
                     error.cause is androidx.media3.exoplayer.source.UnrecognizedInputFormatException ||
                     error.cause is androidx.media3.exoplayer.mediacodec.MediaCodecRenderer.DecoderInitializationException ||
-                    error.cause is androidx.media3.exoplayer.mediacodec.MediaCodecDecoderException
+                    error.cause is androidx.media3.exoplayer.mediacodec.MediaCodecDecoderException ||
+                    error.cause is androidx.media3.exoplayer.upstream.Loader.UnexpectedLoaderException ||
+                    error.cause is java.lang.IndexOutOfBoundsException ||
+                    error.cause is java.lang.RuntimeException
 
                 if (isDecoderError) {
                     val engineName = _playerState.value.activeEngineName
                     
                     if (engineName.contains("Media3", true)) {
-                        val isAv1 = _playerState.value.videoCodec.contains("av1", ignoreCase = true)
-                        if (isAv1) {
-                            av1FailureCount++
-                            if (av1FailureCount >= 2) isHardwareFaulty = true
-                        }
-                        
-                        Logger.w("ExoPlayerManager", "Hardware decoder failure (AV1=$isAv1, Error=${error.errorCodeName}). Attempting FFmpeg fallback.")
+                        Logger.w("ExoPlayerManager", "Hardware decoder failure (Error=${error.errorCodeName}). Attempting FFmpeg fallback.")
                         switchToFFmpegFallback(error.message ?: error.errorCodeName)
                     }
                 }
@@ -836,20 +842,20 @@ class ExoPlayerManager private constructor(private val context: Context) {
             }
         }
 
-        // 3. Mute, stop, and release all orphaned broken engines
-        synchronized(brokenEngines) {
-            val iterator = brokenEngines.iterator()
-            while (iterator.hasNext()) {
-                val dead = iterator.next()
-                try {
-                    dead.player.volume = 0f
-                    dead.player.playWhenReady = false
-                    dead.pause()
-                    dead.stop()
-                    dead.release()
-                } catch (_: Exception) {}
-            }
+        // 3. Clean up broken engines in background without blocking main thread
+        val toRelease = synchronized(brokenEngines) {
+            val list = brokenEngines.toList()
             brokenEngines.clear()
+            list
+        }
+        if (toRelease.isNotEmpty()) {
+            GlobalScope.launch(Dispatchers.IO) {
+                for (dead in toRelease) {
+                    try {
+                        dead.release()
+                    } catch (_: Exception) {}
+                }
+            }
         }
     }
 
@@ -867,17 +873,22 @@ class ExoPlayerManager private constructor(private val context: Context) {
         playbackJob = scope.launch {
             withContext(Dispatchers.Main) {
                 try {
+                    val uriString = currentTarget.uri.toString().lowercase(java.util.Locale.ROOT)
+                    val fileName = currentTarget.title.lowercase(java.util.Locale.ROOT)
+                    val preProfile = MediaCapabilityInspector.inspect(currentTarget.uri, null, currentTarget.title)
+                    val preNeedsFFmpeg = preProfile.requiresFFmpegFallback
+                    val preEngineName = if (preNeedsFFmpeg && currentDecoderPreference != "HARDWARE") "FFmpeg" else _playerState.value.activeEngineName
+
                     _playerState.value = _playerState.value.copy(
                         queue = items,
                         queueIndex = targetIndex,
                         currentItem = currentTarget,
                         queueTitle = queueTitle ?: _playerState.value.queueTitle,
+                        activeEngineName = preEngineName,
                         abRepeatA = null,
                         abRepeatB = null,
                         isAbRepeatActive = false
                     )
-                    val uriString = currentTarget.uri.toString().lowercase(java.util.Locale.ROOT)
-                    val fileName = currentTarget.title.lowercase(java.util.Locale.ROOT)
                     val isNetworkUrl = uriString.startsWith("http://") || uriString.startsWith("https://")
                     val isStandardFastPath = isNetworkUrl ||
                                              fileName.endsWith(".mp4") || fileName.endsWith(".mkv") || fileName.endsWith(".webm") ||
@@ -890,41 +901,49 @@ class ExoPlayerManager private constructor(private val context: Context) {
                         withContext(Dispatchers.IO) { ffmpegEngine.probe(currentTarget.uri) }
                     }
                     Logger.d("ExoPlayerManager", "Probe result for ${currentTarget.title}: $probeResult")
-                    val profile = MediaCapabilityInspector.inspect(currentTarget.uri, probeResult)
+                    val profile = MediaCapabilityInspector.inspect(currentTarget.uri, probeResult, currentTarget.title)
                     Logger.i("ExoPlayerManager", "Media Profile for ${currentTarget.title}: $profile")
                     val forceHW = currentDecoderPreference == "HARDWARE"
+                    val needsFFmpeg = profile.requiresFFmpegFallback
                     
-                    val isAvi = profile.container.contains("AVI", ignoreCase = true)
-                    val needsFFmpeg = profile.requiresFFmpegFallback || isAvi
-                    
-                    if (needsFFmpeg && !forceHW) {
-                        Logger.w("ExoPlayerManager", "Using FFmpeg software fallback (needsFFmpeg=true, isAvi=$isAvi)")
+                    if (!needsFFmpeg || forceHW) {
+                        if (media3Engine == null) {
+                            initializeMedia3Engine()
+                        }
                     }
 
-                    val newEngine = if (needsFFmpeg && !forceHW) ffmpegEngine else media3Engine
-                    val newEngineName = if (newEngine == ffmpegEngine) "FFmpeg" else "Media3"
-                    
+                    val willUseFFmpeg = needsFFmpeg && !forceHW
                     val oldEngine = activeEngine
-                    val isSameEngine = (oldEngine == newEngine)
 
-                    if (oldEngine != null && !isSameEngine) {
-                        // REAL ENGINE SWITCH: Synchronously silence and stop the old engine
-                        Logger.i("ExoPlayerManager", "ENGINE SWAP: Stopping old engine (${oldEngine.diagnosticState.value.engineName}) -> $newEngineName")
+                    if (oldEngine != null && oldEngine is Media3PlaybackEngine && willUseFFmpeg) {
+                        Logger.i("ExoPlayerManager", "ENGINE SWAP: Media3 -> FFmpeg. Discarding old Media3 engine.")
                         try {
-                            if (oldEngine is Media3PlaybackEngine) {
-                                oldEngine.player.volume = 0f
-                                oldEngine.player.playWhenReady = false
-                            }
+                            oldEngine.player.volume = 0f
+                            oldEngine.player.playWhenReady = false
+                            oldEngine.stop()
+                        } catch (_: Exception) {}
+                        brokenEngines.add(oldEngine)
+                        media3Engine = null
+                    } else if (oldEngine != null && oldEngine is FFmpegPlaybackEngine && !willUseFFmpeg) {
+                        Logger.i("ExoPlayerManager", "ENGINE SWAP: FFmpeg -> Media3. Starting fresh Media3 instance.")
+                        try {
                             oldEngine.setSurface(null)
                             oldEngine.stop()
-                        } catch (e: Exception) {
-                            Logger.w("ExoPlayerManager", "Error stopping old engine synchronously: ${e.message}")
+                        } catch (_: Exception) {}
+                        if (media3Engine == null) {
+                            initializeMedia3Engine()
                         }
-                    } else if (isSameEngine && oldEngine != null) {
-                        // SAME ENGINE, NEXT TRACK: Only pause — do NOT stop or clear surface
-                        Logger.i("ExoPlayerManager", "TRACK CHANGE: Same engine ($newEngineName) continues — pausing only")
+                    } else if (oldEngine != null && ((oldEngine == ffmpegEngine && willUseFFmpeg) || (oldEngine == media3Engine && !willUseFFmpeg))) {
+                        Logger.i("ExoPlayerManager", "TRACK CHANGE: Same engine continues — pausing only")
                         try { oldEngine.pause() } catch (_: Exception) {}
                     }
+
+                    if (!willUseFFmpeg && media3Engine == null) {
+                        initializeMedia3Engine()
+                    }
+
+                    val newEngine = if (willUseFFmpeg) ffmpegEngine else (media3Engine ?: run { initializeMedia3Engine(); media3Engine })
+                    val newEngineName = if (newEngine == ffmpegEngine) "FFmpeg" else "Media3"
 
                     stopAllEnginesExcept(newEngine)
                     activeEngine = newEngine

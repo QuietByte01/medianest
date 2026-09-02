@@ -42,9 +42,18 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
+import android.graphics.ImageDecoder
+import android.graphics.drawable.AnimatedImageDrawable
+import android.graphics.drawable.Drawable
+import android.net.Uri
+import android.os.Build
+import android.widget.ImageView
+import androidx.compose.ui.viewinterop.AndroidView
+import java.io.File
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.size.Precision
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
@@ -67,6 +76,7 @@ import androidx.compose.runtime.snapshotFlow
 fun HybridImageViewer(
     source: ImageSource,
     modifier: Modifier = Modifier,
+    mimeType: String? = null,
     colorFilter: ColorFilter? = null,
     backgroundColor: Color = Color.Black,
     zoomControlsBottomPadding: Dp = 80.dp,
@@ -114,9 +124,20 @@ fun HybridImageViewer(
         }
     }
 
-    val isGif = remember(source, uri) {
-        val s = (uri?.toString() ?: source.key).lowercase()
-        s.endsWith(".gif") || s.contains("image/gif")
+    val isGif = remember(source, uri, mimeType) {
+        if (mimeType?.contains("gif", ignoreCase = true) == true) {
+            true
+        } else {
+            val s = (uri?.toString() ?: source.key).lowercase()
+            if (s.endsWith(".gif") || s.contains("image/gif") || s.contains(".gif")) {
+                true
+            } else {
+                val resolvedMime = uri?.let {
+                    try { context.contentResolver.getType(it) } catch (e: Exception) { null }
+                }
+                resolvedMime?.contains("gif", ignoreCase = true) == true
+            }
+        }
     }
 
     LaunchedEffect(uri) {
@@ -374,21 +395,21 @@ fun HybridImageViewer(
                         .size(1920, 1920)
                         .precision(Precision.INEXACT)
                         .allowHardware(true)
+                } else if (gifFileSize >= 50 * 1024 * 1024L) {
+                    // Heavy GIFs (>50MB, e.g. 200MB): Use GifDecoder with memory cache disabled to avoid JVM heap bloat
+                    builder
+                        .decoderFactory(coil.decode.GifDecoder.Factory(enforceMinimumFrameDelay = true))
+                        .size(coil.size.Size(1080, 1080))
+                        .precision(Precision.INEXACT)
+                        .memoryCachePolicy(coil.request.CachePolicy.DISABLED)
+                        .allowHardware(false)
                 } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                    // Native Android P+ AnimatedImageDrawable (Identical to Samsung Gallery hardware decoding)
-                    builder.decoderFactory(coil.decode.ImageDecoderDecoder.Factory())
-                    if (gifFileSize >= 50 * 1024 * 1024L) {
-                        // High efficiency downsampling for huge GIFs (> 50MB) to match screen resolution smoothly
-                        builder
-                            .size(coil.size.Size(1080, 1080))
-                            .precision(Precision.INEXACT)
-                            .allowHardware(false)
-                    } else {
-                        builder
-                            .size(coil.size.Size(1920, 1920))
-                            .precision(Precision.INEXACT)
-                            .allowHardware(false)
-                    }
+                    // Standard GIFs (<50MB): Native Android P+ AnimatedImageDrawable (Hardware GPU accelerated)
+                    builder
+                        .decoderFactory(coil.decode.ImageDecoderDecoder.Factory())
+                        .size(coil.size.Size(1920, 1920))
+                        .precision(Precision.INEXACT)
+                        .allowHardware(true)
                 } else {
                     // Legacy Android < P
                     builder
@@ -408,15 +429,37 @@ fun HybridImageViewer(
                     .allowHardware(true)
             } else {
                 builder
-                    .size(coil.size.Size(2560, 2560))
+                    .size(coil.size.Size(1920, 1920))
                     .precision(Precision.INEXACT)
                     .allowHardware(true)
+                    .bitmapConfig(Bitmap.Config.HARDWARE)
             }
             builder.build()
         }
 
         // Layer 1: Base preview image (always visible — tiles crossfade over this)
-        if (fallbackStaticBitmap != null) {
+        if (isGif && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val file = (source as? ImageSource.FromFile)?.file
+            NativeHardwareGifPlayer(
+                uri = uri,
+                file = file,
+                colorFilter = colorFilter,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        val s = if (viewportState.scale.isNaN() || viewportState.scale <= 0f) 1f else viewportState.scale
+                        scaleX = s
+                        scaleY = s
+                        translationX = if (viewportState.offset.x.isNaN()) 0f else viewportState.offset.x
+                        translationY = if (viewportState.offset.y.isNaN()) 0f else viewportState.offset.y
+                    },
+                onDimensions = { w, h ->
+                    if (intrinsicImageSize == androidx.compose.ui.geometry.Size.Zero) {
+                        intrinsicImageSize = androidx.compose.ui.geometry.Size(w.toFloat(), h.toFloat())
+                    }
+                }
+            )
+        } else if (fallbackStaticBitmap != null) {
             androidx.compose.foundation.Image(
                 bitmap = fallbackStaticBitmap!!.asImageBitmap(),
                 contentDescription = null,
@@ -444,6 +487,10 @@ fun HybridImageViewer(
                     }
                 },
                 onSuccess = { state ->
+                    val drawable = state.result.drawable
+                    if (drawable is android.graphics.drawable.Animatable) {
+                        drawable.start()
+                    }
                     if (intrinsicImageSize == androidx.compose.ui.geometry.Size.Zero) {
                         val size = state.painter.intrinsicSize
                         if (size.width > 0 && size.height > 0) {
@@ -534,5 +581,80 @@ fun HybridImageViewer(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun NativeHardwareGifPlayer(
+    uri: Uri?,
+    file: File?,
+    colorFilter: ColorFilter?,
+    modifier: Modifier = Modifier,
+    onDimensions: ((Int, Int) -> Unit)? = null
+) {
+    val context = LocalContext.current
+    var drawableState by remember(uri, file) { mutableStateOf<Drawable?>(null) }
+
+    DisposableEffect(uri, file) {
+        var isDisposed = false
+        val job = CoroutineScope(Dispatchers.IO).launch {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    val source = when {
+                        file != null && file.exists() -> ImageDecoder.createSource(file)
+                        uri != null && uri.scheme == "file" -> {
+                            val p = uri.path
+                            if (p != null && File(p).exists()) ImageDecoder.createSource(File(p))
+                            else ImageDecoder.createSource(context.contentResolver, uri)
+                        }
+                        uri != null -> ImageDecoder.createSource(context.contentResolver, uri)
+                        else -> null
+                    }
+                    if (source != null && !isDisposed) {
+                        val drawable = ImageDecoder.decodeDrawable(source) { decoder, info, _ ->
+                            decoder.allocator = ImageDecoder.ALLOCATOR_HARDWARE
+                            val w = info.size.width
+                            val h = info.size.height
+                            if (w > 1920 || h > 1920) {
+                                val scale = 1920f / maxOf(w, h)
+                                decoder.setTargetSize((w * scale).toInt().coerceAtLeast(1), (h * scale).toInt().coerceAtLeast(1))
+                            }
+                        }
+                        withContext(Dispatchers.Main) {
+                            if (!isDisposed) {
+                                drawableState = drawable
+                                if (drawable is AnimatedImageDrawable) {
+                                    drawable.repeatCount = AnimatedImageDrawable.REPEAT_INFINITE
+                                    drawable.start()
+                                }
+                                onDimensions?.invoke(drawable.intrinsicWidth, drawable.intrinsicHeight)
+                            }
+                        }
+                    }
+                }
+            } catch (e: Throwable) {
+                android.util.Log.e("NativeHardwareGifPlayer", "Error decoding GIF", e)
+            }
+        }
+        onDispose {
+            isDisposed = true
+            job.cancel()
+            (drawableState as? AnimatedImageDrawable)?.stop()
+            drawableState = null
+        }
+    }
+
+    if (drawableState != null) {
+        AndroidView(
+            factory = { ctx ->
+                ImageView(ctx).apply {
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                }
+            },
+            update = { imageView ->
+                imageView.setImageDrawable(drawableState)
+            },
+            modifier = modifier
+        )
     }
 }

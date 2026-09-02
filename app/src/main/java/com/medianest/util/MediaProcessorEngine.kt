@@ -844,24 +844,24 @@ object MediaProcessorEngine {
         val durationSeconds = (cappedDurationMs / 1000f) / videoSpeed.coerceIn(0.25f, 4.0f)
         val (gifWidth, gifFps) = when {
             durationSeconds <= 6f -> when (targetQualityPreset) {
-                "MAX_CLARITY" -> Pair(720, 20)
-                "BALANCED" -> Pair(540, 18)
-                else -> Pair(400, 14)
+                "MAX_CLARITY" -> Pair(960, 24)
+                "BALANCED" -> Pair(720, 20)
+                else -> Pair(480, 16)
             }
             durationSeconds <= 15f -> when (targetQualityPreset) {
+                "MAX_CLARITY" -> Pair(720, 20)
+                "BALANCED" -> Pair(540, 16)
+                else -> Pair(400, 14)
+            }
+            durationSeconds <= 30f -> when (targetQualityPreset) {
                 "MAX_CLARITY" -> Pair(600, 16)
                 "BALANCED" -> Pair(480, 14)
                 else -> Pair(360, 12)
             }
-            durationSeconds <= 30f -> when (targetQualityPreset) {
-                "MAX_CLARITY" -> Pair(480, 14)
-                "BALANCED" -> Pair(400, 12)
-                else -> Pair(320, 10)
-            }
             else -> when (targetQualityPreset) { // 30s to 60s
-                "MAX_CLARITY" -> Pair(440, 12)
-                "BALANCED" -> Pair(360, 10)
-                else -> Pair(280, 8)
+                "MAX_CLARITY" -> Pair(540, 14)
+                "BALANCED" -> Pair(420, 12)
+                else -> Pair(320, 10)
             }
         }
 
@@ -923,12 +923,12 @@ object MediaProcessorEngine {
             vFilters.add("reverse")
         }
 
-        // 7. Base filter chain + 2-pass Palette Generation (Lanczos scaling + diff stats 256 colors + Bayer scale 2 rectangle diff_mode)
+        // 7. Base filter chain + 2-pass Palette Generation (Lanczos scaling + full stats 256 colors + sierra2_4a smooth dither without dots)
         val baseVf = if (vFilters.isNotEmpty()) vFilters.joinToString(",") + "," else ""
         val filterComplex = if (direction == GifDirection.PING_PONG) {
-            "${baseVf}fps=$gifFps,scale=$gifWidth:-2:flags=lanczos+accurate_rnd,split[f0][f1];[f1]reverse[f1r];[f0][f1r]concat=n=2:v=1[vjoined];[vjoined]split[s0][s1];[s0]palettegen=max_colors=256:stats_mode=diff:reserve_transparent=0[p];[s1][p]paletteuse=dither=bayer:bayer_scale=2:diff_mode=rectangle"
+            "${baseVf}fps=$gifFps,scale=$gifWidth:-2:flags=lanczos+accurate_rnd,split[f0][f1];[f1]reverse[f1r];[f0][f1r]concat=n=2:v=1[vjoined];[vjoined]split[s0][s1];[s0]palettegen=max_colors=256:stats_mode=full:reserve_transparent=0[p];[s1][p]paletteuse=dither=sierra2_4a:diff_mode=rectangle"
         } else {
-            "${baseVf}fps=$gifFps,scale=$gifWidth:-2:flags=lanczos+accurate_rnd,split[s0][s1];[s0]palettegen=max_colors=256:stats_mode=diff:reserve_transparent=0[p];[s1][p]paletteuse=dither=bayer:bayer_scale=2:diff_mode=rectangle"
+            "${baseVf}fps=$gifFps,scale=$gifWidth:-2:flags=lanczos+accurate_rnd,split[s0][s1];[s0]palettegen=max_colors=256:stats_mode=full:reserve_transparent=0[p];[s1][p]paletteuse=dither=sierra2_4a:diff_mode=rectangle"
         }
 
         val cmd = StringBuilder("-y ")

@@ -95,8 +95,10 @@ fun <T> GalleryViewerScreen(
             }
             
             if (source != null) {
+                val mime = (item as? com.medianest.data.model.MediaItem)?.mimeType
                 com.medianest.ui.image.hybrid.HybridImageViewer(
                     source = source,
+                    mimeType = mime,
                     colorFilter = colorFilter,
                     backgroundColor = Color.Transparent,
                     onDismiss = onDismiss,

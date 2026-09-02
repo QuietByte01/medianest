@@ -7,6 +7,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.medianest.data.db.CategoryMediaCrossRef
@@ -515,6 +516,36 @@ fun LibraryScreen(
                 item = libraryInfoItem,
                 onDismiss = { libraryInfoItem = null }
             )
+        }
+
+        val showLibraryDebug by settingsManager.showLibraryDebugInfo.collectAsState(initial = false)
+        if (showLibraryDebug) {
+            val activeTabName = when {
+                isDashboardTab -> "DASHBOARD"
+                isImagesTab -> "IMAGES"
+                isVideosTab -> "VIDEOS"
+                isAudioTab -> "AUDIO"
+                else -> "LIBRARY"
+            }
+            val filteredCount = when {
+                isImagesTab -> filteredImages.size
+                isVideosTab -> filteredVideos.size
+                isAudioTab -> filteredAudio.size
+                else -> imagesList.size + videosList.size + audioList.size
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 70.dp, end = 12.dp),
+                contentAlignment = androidx.compose.ui.Alignment.TopEnd
+            ) {
+                com.medianest.ui.components.debug.LibraryDebugOverlay(
+                    activeTabName = activeTabName,
+                    filteredItemsCount = filteredCount,
+                    isSearchActive = isSearchActive
+                )
+            }
         }
     }
     }

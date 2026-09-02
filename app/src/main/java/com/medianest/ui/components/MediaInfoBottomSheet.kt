@@ -72,6 +72,15 @@ fun MediaInfoBottomSheet(
     val isDark = com.medianest.ui.theme.LocalDarkTheme.current
     val sheetBg = if (isDark) Color(0xCC08090E) else Color(0xBFFFFFFF)
 
+    if (item.type == MediaType.IMAGE) {
+        com.medianest.ui.components.mediainfo.ImageInfoOverlay(
+            item = item,
+            onClose = onDismiss,
+            onShowFileLocation = onShowFileLocation
+        )
+        return
+    }
+
     AdaptiveBottomSheet(
         onDismissRequest = onDismiss,
         skipPartiallyExpanded = true,

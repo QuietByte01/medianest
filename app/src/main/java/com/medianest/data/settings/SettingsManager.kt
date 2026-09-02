@@ -49,6 +49,7 @@ class SettingsManager(private val context: Context) {
         val KEY_SHOW_PLAYER_DEBUG_INFO = booleanPreferencesKey("show_player_debug_info")
         val KEY_SHOW_IMAGE_DEBUG_INFO = booleanPreferencesKey("show_image_debug_info")
         val KEY_SHOW_AUDIO_DEBUG_INFO = booleanPreferencesKey("show_audio_debug_info")
+        val KEY_SHOW_LIBRARY_DEBUG_INFO = booleanPreferencesKey("show_library_debug_info")
 
         val KEY_AUDIO_BACKGROUND_PLAY = booleanPreferencesKey("audio_background_play")
         val KEY_VIDEO_BACKGROUND_PLAY = booleanPreferencesKey("video_background_play")
@@ -147,6 +148,7 @@ class SettingsManager(private val context: Context) {
     val showPlayerDebugInfo: Flow<Boolean> = context.dataStore.data.map { prefs -> (prefs[KEY_DEVELOPER_MODE_ENABLED] ?: false) && (prefs[KEY_SHOW_PLAYER_DEBUG_INFO] ?: false) }
     val showImageDebugInfo: Flow<Boolean> = context.dataStore.data.map { prefs -> (prefs[KEY_DEVELOPER_MODE_ENABLED] ?: false) && (prefs[KEY_SHOW_IMAGE_DEBUG_INFO] ?: false) }
     val showAudioDebugInfo: Flow<Boolean> = context.dataStore.data.map { prefs -> (prefs[KEY_DEVELOPER_MODE_ENABLED] ?: false) && (prefs[KEY_SHOW_AUDIO_DEBUG_INFO] ?: false) }
+    val showLibraryDebugInfo: Flow<Boolean> = context.dataStore.data.map { prefs -> (prefs[KEY_DEVELOPER_MODE_ENABLED] ?: false) && (prefs[KEY_SHOW_LIBRARY_DEBUG_INFO] ?: true) }
 
     val audioBackgroundPlay: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUDIO_BACKGROUND_PLAY] ?: true }
     val videoBackgroundPlay: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_VIDEO_BACKGROUND_PLAY] ?: false }
@@ -211,6 +213,7 @@ class SettingsManager(private val context: Context) {
             it[KEY_SHOW_PLAYER_DEBUG_INFO] = false
             it[KEY_SHOW_IMAGE_DEBUG_INFO] = false
             it[KEY_SHOW_AUDIO_DEBUG_INFO] = false
+            it[KEY_SHOW_LIBRARY_DEBUG_INFO] = false
             it[KEY_VERBOSE_LOGGING_ENABLED] = false
         }
     }
@@ -218,6 +221,7 @@ class SettingsManager(private val context: Context) {
     suspend fun setShowPlayerDebugInfo(enabled: Boolean) = context.dataStore.edit { it[KEY_SHOW_PLAYER_DEBUG_INFO] = enabled }
     suspend fun setShowImageDebugInfo(enabled: Boolean) = context.dataStore.edit { it[KEY_SHOW_IMAGE_DEBUG_INFO] = enabled }
     suspend fun setShowAudioDebugInfo(enabled: Boolean) = context.dataStore.edit { it[KEY_SHOW_AUDIO_DEBUG_INFO] = enabled }
+    suspend fun setShowLibraryDebugInfo(enabled: Boolean) = context.dataStore.edit { it[KEY_SHOW_LIBRARY_DEBUG_INFO] = enabled }
 
     suspend fun setAudioBackgroundPlay(enabled: Boolean) = context.dataStore.edit { it[KEY_AUDIO_BACKGROUND_PLAY] = enabled }
     suspend fun setVideoBackgroundPlay(enabled: Boolean) = context.dataStore.edit { it[KEY_VIDEO_BACKGROUND_PLAY] = enabled }
