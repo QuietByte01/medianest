@@ -33,6 +33,7 @@ class RegionDecoderEngine(
     private var inputStream: InputStream? = null
     var rotationDegrees: Int = 0
         private set
+    private var rawDimensions: Pair<Int, Int>? = null
 
     suspend fun initialize(uri: Uri) {
         decodeMutex.withLock {
@@ -41,7 +42,7 @@ class RegionDecoderEngine(
             } catch (ignored: Exception) {}
             
             try {
-                // Read EXIF orientation
+                // 1. Read EXIF orientation
                 try {
                     context.contentResolver.openInputStream(uri)?.use { stream ->
                         val exif = ExifInterface(stream)
@@ -60,27 +61,44 @@ class RegionDecoderEngine(
                     rotationDegrees = 0
                 }
 
-                inputStream = context.contentResolver.openInputStream(uri)
-                inputStream?.let {
-                    decoder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        BitmapRegionDecoder.newInstance(it)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        BitmapRegionDecoder.newInstance(it, false)
+                // 2. Decode raw dimensions using inJustDecodeBounds (zero pixel memory allocation)
+                try {
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        BitmapFactory.decodeStream(stream, null, boundsOptions)
+                        if (boundsOptions.outWidth > 0 && boundsOptions.outHeight > 0) {
+                            rawDimensions = Pair(boundsOptions.outWidth, boundsOptions.outHeight)
+                        }
                     }
+                } catch (ignored: Throwable) {}
+
+                // 3. Initialize BitmapRegionDecoder for deep tile zooming
+                try {
+                    inputStream = context.contentResolver.openInputStream(uri)
+                    inputStream?.let {
+                        decoder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            BitmapRegionDecoder.newInstance(it)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            BitmapRegionDecoder.newInstance(it, false)
+                        }
+                    }
+                } catch (e: Throwable) {
+                    e.printStackTrace()
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 e.printStackTrace()
             }
         }
     }
 
     val imageDimensions: Pair<Int, Int>?
-        get() = decoder?.let {
-            if (rotationDegrees == 90 || rotationDegrees == 270) {
-                Pair(it.height, it.width)
+        get() {
+            val (w, h) = decoder?.let { Pair(it.width, it.height) } ?: rawDimensions ?: return null
+            return if (rotationDegrees == 90 || rotationDegrees == 270) {
+                Pair(h, w)
             } else {
-                Pair(it.width, it.height)
+                Pair(w, h)
             }
         }
 
@@ -151,7 +169,7 @@ class RegionDecoderEngine(
                 decodeMutex.withLock {
                     currentDecoder.decodeRegion(rawRect, options)
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 e.printStackTrace()
                 null
             }
@@ -168,7 +186,7 @@ class RegionDecoderEngine(
                         decodedRaw.recycle()
                     }
                     rotated
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     decodedRaw
                 }
             } else {

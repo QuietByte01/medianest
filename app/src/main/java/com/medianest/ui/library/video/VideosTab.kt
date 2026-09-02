@@ -445,7 +445,7 @@ fun VideosTab(
             val comp = when (sortField) {
                 "Name" -> compareBy<MediaItem> { it.title.lowercase() }
                 "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
-                "Size" -> compareBy<MediaItem> { it.size }
+                "Size" -> compareBy<MediaItem> { if (it.size > 0) it.size else Long.MAX_VALUE }
                 else -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
             }
             if (isAscending) displayList.sortedWith(comp) else displayList.sortedWith(comp).reversed()

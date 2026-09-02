@@ -58,6 +58,7 @@
     <application
         android:name=".MediaNestApp"
         android:allowBackup="false"
+        android:largeHeap="true"
         android:requestLegacyExternalStorage="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"

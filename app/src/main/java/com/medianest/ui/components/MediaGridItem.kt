@@ -156,8 +156,16 @@ fun MediaGridItem(
         if (item.type == MediaType.VIDEO) {
             builder.decoderFactory(VideoFrameDecoder.Factory())
             builder.videoFrameMicros(videoSeekMicros)
-        } else if (isGif && !autoPlayGifPreviews) {
-            builder.decoderFactory(coil.decode.BitmapFactoryDecoder.Factory())
+        } else if (isGif) {
+            if (!autoPlayGifPreviews) {
+                builder.decoderFactory(coil.decode.BitmapFactoryDecoder.Factory())
+            } else if (item.size >= 10 * 1024 * 1024L) {
+                builder.decoderFactory(coil.decode.GifDecoder.Factory(enforceMinimumFrameDelay = true))
+            } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                builder.decoderFactory(coil.decode.ImageDecoderDecoder.Factory())
+            } else {
+                builder.decoderFactory(coil.decode.GifDecoder.Factory(enforceMinimumFrameDelay = true))
+            }
         }
         builder.build()
     }

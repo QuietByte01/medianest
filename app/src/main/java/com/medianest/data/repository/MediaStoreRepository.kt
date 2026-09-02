@@ -124,12 +124,26 @@ class MediaStoreRepository(private val context: Context) {
                     val mimeType = if (mimeColumn >= 0) c.getString(mimeColumn) ?: "image/*" else "image/*"
                     val width = if (widthColumn >= 0) c.getInt(widthColumn) else 0
                     val height = if (heightColumn >= 0) c.getInt(heightColumn) else 0
-                    val size = c.getLong(sizeColumn)
+                    val contentUri = ContentUris.withAppendedId(collection, id)
+                    var size = if (sizeColumn >= 0) c.getLong(sizeColumn) else 0L
+                    if (size <= 0L) {
+                        try {
+                            if (relativePath != null) {
+                                val f = java.io.File(android.os.Environment.getExternalStorageDirectory(), "$relativePath/$name")
+                                if (f.exists() && f.length() > 0) size = f.length()
+                            }
+                        } catch (ignored: Exception) {}
+                        if (size <= 0L) {
+                            try {
+                                context.contentResolver.openFileDescriptor(contentUri, "r")?.use { pfd ->
+                                    if (pfd.statSize > 0) size = pfd.statSize
+                                }
+                            } catch (ignored: Exception) {}
+                        }
+                    }
                     val dateAdded = c.getLong(dateColumn)
                     val dateModified = if (dateModifiedColumn >= 0) c.getLong(dateModifiedColumn) else dateAdded
                     val dateTaken = if (dateTakenColumn >= 0) c.getLong(dateTakenColumn) / 1000 else dateModified
-
-                    val contentUri = ContentUris.withAppendedId(collection, id)
 
                     imagesList.add(
                         MediaItem(
@@ -289,12 +303,26 @@ class MediaStoreRepository(private val context: Context) {
                         rawWidth to rawHeight
                     }
                     val duration = if (durationColumn >= 0) c.getLong(durationColumn) else 0L
-                    val size = c.getLong(sizeColumn)
+                    val contentUri = ContentUris.withAppendedId(collection, id)
+                    var size = if (sizeColumn >= 0) c.getLong(sizeColumn) else 0L
+                    if (size <= 0L) {
+                        try {
+                            if (relativePath != null) {
+                                val f = java.io.File(android.os.Environment.getExternalStorageDirectory(), "$relativePath/$name")
+                                if (f.exists() && f.length() > 0) size = f.length()
+                            }
+                        } catch (ignored: Exception) {}
+                        if (size <= 0L) {
+                            try {
+                                context.contentResolver.openFileDescriptor(contentUri, "r")?.use { pfd ->
+                                    if (pfd.statSize > 0) size = pfd.statSize
+                                }
+                            } catch (ignored: Exception) {}
+                        }
+                    }
                     val dateAdded = c.getLong(dateColumn)
                     val dateModified = if (dateModifiedColumn >= 0) c.getLong(dateModifiedColumn) else dateAdded
                     val dateTaken = if (dateTakenColumn >= 0) c.getLong(dateTakenColumn) / 1000 else dateModified
-
-                    val contentUri = ContentUris.withAppendedId(collection, id)
 
                     videosList.add(
                         MediaItem(
@@ -449,23 +477,39 @@ class MediaStoreRepository(private val context: Context) {
 
                     val mimeType = c.getString(mimeColumn) ?: "audio/*"
                     val duration = if (durationColumn >= 0) c.getLong(durationColumn) else 0L
-                    val size = c.getLong(sizeColumn)
+                    val contentUri = ContentUris.withAppendedId(collection, id)
+                    val displayName = name
+                    val rawTitle = title
+
+                    var size = if (sizeColumn >= 0) c.getLong(sizeColumn) else 0L
+                    if (size <= 0L) {
+                        try {
+                            if (relativePath != null) {
+                                val f = java.io.File(android.os.Environment.getExternalStorageDirectory(), "$relativePath/$displayName")
+                                if (f.exists() && f.length() > 0) size = f.length()
+                            }
+                        } catch (ignored: Exception) {}
+                        if (size <= 0L) {
+                            try {
+                                context.contentResolver.openFileDescriptor(contentUri, "r")?.use { pfd ->
+                                    if (pfd.statSize > 0) size = pfd.statSize
+                                }
+                            } catch (ignored: Exception) {}
+                        }
+                    }
+
                     val dateAdded = c.getLong(dateColumn)
                     val dateModified = if (dateModifiedColumn >= 0) c.getLong(dateModifiedColumn) else dateAdded
-
                     val artist = if (artistColumn >= 0) c.getString(artistColumn) else null
                     val album = if (albumColumn >= 0) c.getString(albumColumn) else null
                     val albumId = if (albumIdColumn >= 0) c.getLong(albumIdColumn) else -1L
 
-                    val rawTitle = if (titleColumn >= 0) c.getString(titleColumn) else null
-                    val displayName = if (nameColumn >= 0) c.getString(nameColumn) else null
                     val cleanedTitle = when {
                         !rawTitle.isNullOrBlank() && !rawTitle.all { it.isDigit() } -> rawTitle
                         !displayName.isNullOrBlank() && !displayName.all { it.isDigit() } -> displayName.substringBeforeLast('.')
                         else -> "Track $id"
                     }
 
-                    val contentUri = ContentUris.withAppendedId(collection, id)
                     val artworkUri = if (albumId != -1L) {
                         ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), albumId)
                     } else null

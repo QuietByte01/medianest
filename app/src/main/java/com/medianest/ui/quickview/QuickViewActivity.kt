@@ -188,7 +188,7 @@ class QuickViewActivity : ComponentActivity() {
                             initialIndex = initialIndex,
                             isLoading = isLoading,
                             onClose = { finish() },
-                            onOpenFullPlayer = { item ->
+                            onOpenFullPlayer = { item: com.medianest.data.model.MediaItem ->
                                 val playerIntent = Intent(this@QuickViewActivity, VideoPlayerActivity::class.java).apply {
                                     putExtra("media_uri", item.uri.toString())
                                     putExtra("media_title", item.title)

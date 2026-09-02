@@ -55,7 +55,7 @@ class MediaNestApp : Application() {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                     add(coil.decode.ImageDecoderDecoder.Factory())
                 } else {
-                    add(coil.decode.GifDecoder.Factory())
+                    add(coil.decode.GifDecoder.Factory(enforceMinimumFrameDelay = true))
                 }
             }
             .memoryCache {

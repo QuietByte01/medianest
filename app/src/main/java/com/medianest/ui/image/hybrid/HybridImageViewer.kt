@@ -112,6 +112,11 @@ fun HybridImageViewer(
         }
     }
 
+    val isGif = remember(source, uri) {
+        val s = (uri?.toString() ?: source.key).lowercase()
+        s.endsWith(".gif") || s.contains("image/gif")
+    }
+
     LaunchedEffect(uri) {
         activeTileBitmaps.clear()
     }
@@ -186,12 +191,14 @@ fun HybridImageViewer(
     ) {
         var intrinsicImageSize by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
 
-        LaunchedEffect(uri) {
-            uri?.let {
-                decoderEngine.initialize(it)
-                decoderEngine.imageDimensions?.let { (w, h) ->
-                    if (w > 0 && h > 0) {
-                        intrinsicImageSize = androidx.compose.ui.geometry.Size(w.toFloat(), h.toFloat())
+        LaunchedEffect(uri, isGif) {
+            if (!isGif) {
+                uri?.let {
+                    decoderEngine.initialize(it)
+                    decoderEngine.imageDimensions?.let { (w, h) ->
+                        if (w > 0 && h > 0) {
+                            intrinsicImageSize = androidx.compose.ui.geometry.Size(w.toFloat(), h.toFloat())
+                        }
                     }
                 }
             }
@@ -213,7 +220,8 @@ fun HybridImageViewer(
 
         // Tile Scheduler — uses snapshotFlow+debounce so the 120Hz gesture render loop is NEVER blocked.
         // During active pinch the flow emits but debounce suppresses tile work until the gesture pauses.
-        LaunchedEffect(Unit) {
+        LaunchedEffect(isGif) {
+            if (isGif) return@LaunchedEffect
             snapshotFlow {
                 // Only read the values needed as keys; Compose reads these only once per emission
                 Triple(viewportState.scale, viewportState.offset, intrinsicImageSize)
@@ -283,25 +291,88 @@ fun HybridImageViewer(
 
 
 
-        val request = remember(source, context) {
-            ImageRequest.Builder(context)
-                .data(uri ?: source.key)
-                .size(coil.size.Size.ORIGINAL)
-                .precision(Precision.EXACT)
-                .allowHardware(false)
-                .crossfade(true)
-                .build()
+        var hasGifError by remember { mutableStateOf(false) }
+
+        val gifFileSize = remember(uri, source, isGif) {
+            if (!isGif) 0L
+            else {
+                var len = 0L
+                try {
+                    when (source) {
+                        is ImageSource.FromFile -> len = source.file.length()
+                        is ImageSource.FromUri -> {
+                            uri?.let { u ->
+                                context.contentResolver.openFileDescriptor(u, "r")?.use { pfd ->
+                                    len = pfd.statSize
+                                }
+                            }
+                        }
+                        else -> {}
+                    }
+                } catch (ignored: Exception) {}
+                len
+            }
         }
 
-        // Layer 1: Base full-resolution image (always visible — tiles crossfade over this)
+        val request = remember(source, context, isGif, gifFileSize, hasGifError) {
+            val builder = ImageRequest.Builder(context)
+                .data(uri ?: source.key)
+                .crossfade(true)
+
+            if (isGif) {
+                if (hasGifError) {
+                    // Fallback to static first frame if animated decoder fails on oversized GIFs
+                    builder
+                        .decoderFactory(coil.decode.BitmapFactoryDecoder.Factory())
+                        .size(1920, 1920)
+                        .precision(Precision.INEXACT)
+                        .allowHardware(false)
+                } else if (gifFileSize >= 10 * 1024 * 1024L) {
+                    // Heavy GIF (>= 10MB): Use streaming GifDecoder (constant ~5MB RAM, no OOM)
+                    builder
+                        .decoderFactory(coil.decode.GifDecoder.Factory(enforceMinimumFrameDelay = true))
+                        .size(1920, 1920)
+                        .precision(Precision.INEXACT)
+                        .allowHardware(false)
+                } else {
+                    // Standard GIF (< 10MB): Use ImageDecoderDecoder (AnimatedImageDrawable) for wide color gamut, 120Hz VSYNC, & HW rendering
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                        builder.decoderFactory(coil.decode.ImageDecoderDecoder.Factory())
+                    } else {
+                        builder.decoderFactory(coil.decode.GifDecoder.Factory(enforceMinimumFrameDelay = true))
+                    }
+                    builder
+                        .size(1920, 1920)
+                        .precision(Precision.INEXACT)
+                        .allowHardware(false)
+                }
+            } else {
+                builder
+                    .size(coil.size.Size(2560, 2560))
+                    .precision(Precision.INEXACT)
+                    .allowHardware(true)
+            }
+            builder.build()
+        }
+
+        // Layer 1: Base preview image (always visible — tiles crossfade over this)
         AsyncImage(
             model = request,
             contentDescription = null,
             contentScale = ContentScale.Fit,
             colorFilter = colorFilter,
+            onError = {
+                if (isGif && !hasGifError) {
+                    hasGifError = true
+                }
+            },
             onSuccess = { state ->
-                val size = state.painter.intrinsicSize
-                intrinsicImageSize = androidx.compose.ui.geometry.Size(size.width, size.height)
+                if (intrinsicImageSize == androidx.compose.ui.geometry.Size.Zero) {
+                    val size = state.painter.intrinsicSize
+                    if (size.width > 0 && size.height > 0) {
+                        intrinsicImageSize = androidx.compose.ui.geometry.Size(size.width, size.height)
+                    }
+                }
             },
             modifier = Modifier
                 .fillMaxSize()
@@ -324,10 +395,10 @@ fun HybridImageViewer(
                     scaleY = s
                     translationX = if (viewportState.offset.x.isNaN()) 0f else viewportState.offset.x
                     translationY = if (viewportState.offset.y.isNaN()) 0f else viewportState.offset.y
-                    alpha = if (viewportState.scale > 1.05f && activeTileBitmaps.isNotEmpty()) 1f else 0f
+                    alpha = if (!isGif && viewportState.scale > 1.05f && activeTileBitmaps.isNotEmpty()) 1f else 0f
                 }
         ) {
-            if (activeTileBitmaps.isNotEmpty() && intrinsicImageSize.width > 0 && intrinsicImageSize.height > 0) {
+            if (!isGif && activeTileBitmaps.isNotEmpty() && intrinsicImageSize.width > 0 && intrinsicImageSize.height > 0) {
                 val fitScaleX = viewportState.contentSize.width / intrinsicImageSize.width
                 val fitScaleY = viewportState.contentSize.height / intrinsicImageSize.height
                 val fitScale = minOf(fitScaleX, fitScaleY).takeIf { !it.isNaN() && it > 0f } ?: 1f

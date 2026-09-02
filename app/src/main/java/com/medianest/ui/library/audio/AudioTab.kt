@@ -179,7 +179,7 @@ fun AudioTab(
                 "Name" -> compareBy<MediaItem> { it.title.lowercase() }
                 "Artist" -> compareBy<MediaItem> { (it.artist ?: "").lowercase() }
                 "Date Added", "Date" -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
-                "Size" -> compareBy<MediaItem> { it.size }
+                "Size" -> compareBy<MediaItem> { if (it.size > 0) it.size else Long.MAX_VALUE }
                 "Duration" -> compareBy<MediaItem> { it.durationMs }
                 "Release Year" -> compareBy<MediaItem> { 
                     val cached = cacheMap[it.uri.toString()]
