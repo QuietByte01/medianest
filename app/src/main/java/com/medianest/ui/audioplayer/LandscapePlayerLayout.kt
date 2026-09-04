@@ -633,7 +633,7 @@ private fun ImmersiveLandscapeLayout(
                     onSongClick = { index ->
                         playerManager.playMediaList(playerState.queue, index)
                     },
-                    backgroundArt = artworkUri,
+                    backgroundArt = null,
                     showHidden = showHidden,
                     hiddenFolders = hiddenFolders
                 )

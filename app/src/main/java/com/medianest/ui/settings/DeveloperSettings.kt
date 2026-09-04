@@ -70,7 +70,7 @@ fun DeveloperSettingsSection(
                     AppSwitch(
                         checked = showLibraryDebug,
                         onCheckedChange = { scope.launch { settingsManager.setShowLibraryDebugInfo(it) } },
-                        style = AppSwitchStyle.Glossy
+                        style = AppSwitchStyle.Glass
                     )
                 }
             )
@@ -82,7 +82,7 @@ fun DeveloperSettingsSection(
                     AppSwitch(
                         checked = showPlayerDebug,
                         onCheckedChange = { scope.launch { settingsManager.setShowPlayerDebugInfo(it) } },
-                        style = AppSwitchStyle.Glossy
+                        style = AppSwitchStyle.Glass
                     )
                 }
             )
@@ -94,7 +94,7 @@ fun DeveloperSettingsSection(
                     AppSwitch(
                         checked = showImageDebug,
                         onCheckedChange = { scope.launch { settingsManager.setShowImageDebugInfo(it) } },
-                        style = AppSwitchStyle.Glossy
+                        style = AppSwitchStyle.Glass
                     )
                 }
             )
@@ -106,7 +106,7 @@ fun DeveloperSettingsSection(
                     AppSwitch(
                         checked = showAudioDebug,
                         onCheckedChange = { scope.launch { settingsManager.setShowAudioDebugInfo(it) } },
-                        style = AppSwitchStyle.Glossy
+                        style = AppSwitchStyle.Glass
                     )
                 }
             )
@@ -115,10 +115,10 @@ fun DeveloperSettingsSection(
                 title = "Verbose Logging",
                 subtitle = "Enable detailed logging for FFmpeg & Media3 events",
                 control = {
-                    Switch(
+                    AppSwitch(
                         checked = verboseLogging,
                         onCheckedChange = { scope.launch { settingsManager.setVerboseLoggingEnabled(it) } },
-                        colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF6366F1))
+                        style = AppSwitchStyle.Glass
                     )
                 }
             )

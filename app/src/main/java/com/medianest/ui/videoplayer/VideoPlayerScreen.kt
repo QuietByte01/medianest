@@ -278,7 +278,7 @@ fun VideoPlayerScreen(
 
     LaunchedEffect(anyOverlayOpen) {
         if (anyOverlayOpen) {
-            playerBackdropState.drawSignal++
+//            playerBackdropState.drawSignal++
         }
     }
 
@@ -419,6 +419,18 @@ fun VideoPlayerScreen(
                 .fillMaxSize()
                 .backdropSource(state = playerBackdropState, backgroundColor = Color.Black)
         ) {
+            // Ambient subtle artwork glow behind video surface so blur layer is always primed
+            if (currentItem != null) {
+                coil.compose.AsyncImage(
+                    model = currentItem.uri,
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = 0.15f }
+                )
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -1177,7 +1189,7 @@ fun VideoPlayerScreen(
                 title = "Delete Video",
                 itemTitle = item.title,
                 onDismiss = { showDeleteDialog = false },
-                backdropState = playerBackdropState,
+//                backdropState = playerBackdropState,
                 onConfirm = {
                     showDeleteDialog = false
                     scope.launch(Dispatchers.IO) {

@@ -12,11 +12,9 @@ import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -24,14 +22,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.medianest.R
 import com.medianest.ui.theme.LocalDarkTheme
 
 /**
- * Transparent Glassmorphic Surface component for cards and UI items.
+ * Transparent Glassmorphic Surface component for cards, dialogs, and UI items.
  *
- * Dark mode  → Obsidian tint (0xCC08090E)
- * Light mode → Frosted white tint (0xCCE3E3E3)
+ * Automatically connects to [LocalBackdropState] to render real-time hardware
+ * backdrop blur of the screen content behind the surface when available.
  */
 @Composable
 fun GlassSurface(
@@ -45,6 +42,7 @@ fun GlassSurface(
     blurRadius: Dp = 12.dp,
     backgroundImageAlpha: Float = 1f,
     backgroundBrush: Brush? = null,
+    backdropState: BackdropBlurState? = LocalBackdropState.current,
     content: @Composable BoxScope.() -> Unit
 ) {
     val isDark = LocalDarkTheme.current
@@ -54,7 +52,13 @@ fun GlassSurface(
     val effectiveBg = if (backgroundColor != Color.Unspecified) {
         backgroundColor
     } else {
-        if (isDark) Color(0xCC08090E) else Color(0xBFFFFFFF)
+        if (enableBlur && backdropState != null && backgroundImage == null) {
+            Color(0x330F1015)
+        } else if (isDark) {
+            Color(0x221C1F2B)
+        } else {
+            Color(0xBFFFFFFF)
+        }
     }
 
     val effectiveBorder = if (borderColor != Color.Unspecified) {
@@ -70,51 +74,63 @@ fun GlassSurface(
         )
     )
 
-    Box(
-        modifier = Modifier
-            .clip(shape)
-            .then(modifier)
-            .border(
-                width = borderWidth,
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        effectiveBorder,
-                        effectiveBorder.copy(alpha = (effectiveBorder.alpha * 0.4f).coerceIn(0f, 1f))
-                    )
-                ),
-                shape = shape
-            )
-    ) {
-        // 1. Background Image (Lower layer) - Instant synchronous rendering for drawable resources
-        val imageModifier = Modifier
-            .matchParentSize()
-            .clip(shape)
-            .alpha(backgroundImageAlpha)
-            .let { m ->
-                if (enableBlur && blurRadius > 0.dp) {
-                    m.blur(radius = blurRadius, edgeTreatment = BlurredEdgeTreatment.Rectangle)
-                } else {
-                    m
-                }
-            }
+    val surfaceModifier = Modifier
+        .clip(shape)
+        .then(
+            if (enableBlur && backdropState != null && backgroundImage == null) {
+                Modifier.backdropReceiver(
+                    state = backdropState,
+                    blurRadius = blurRadius,
+                    tint = Color(0x660A0C10),
+                    baseColor = Color.Transparent
+                )
+            } else Modifier
+        )
+        .then(modifier)
+        .border(
+            width = borderWidth,
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    effectiveBorder,
+                    effectiveBorder.copy(alpha = (effectiveBorder.alpha * 0.4f).coerceIn(0f, 1f))
+                )
+            ),
+            shape = shape
+        )
 
-        if (backgroundImage is Int) {
-            Image(
-                painter = painterResource(id = backgroundImage),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = imageModifier
-            )
-        } else if (backgroundImage != null) {
-            AsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(backgroundImage)
-                    .crossfade(false)
-                    .build(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = imageModifier
-            )
+    Box(modifier = surfaceModifier) {
+        // 1. Background Image (Lower layer) - Only if backgroundImage != null
+        if (backgroundImage != null) {
+            val imageModifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .alpha(backgroundImageAlpha)
+                .let { m ->
+                    if (enableBlur && blurRadius > 0.dp) {
+                        m.blur(radius = blurRadius, edgeTreatment = BlurredEdgeTreatment.Rectangle)
+                    } else {
+                        m
+                    }
+                }
+
+            if (backgroundImage is Int) {
+                Image(
+                    painter = painterResource(id = backgroundImage),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = imageModifier
+                )
+            } else {
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(backgroundImage)
+                        .crossfade(false)
+                        .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = imageModifier
+                )
+            }
         }
 
         // 2. Background Color Tint (Overlay layer)

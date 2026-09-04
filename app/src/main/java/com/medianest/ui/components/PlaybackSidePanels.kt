@@ -88,9 +88,8 @@ fun GlossySidePanel(
 
     GlassSurface(
         shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
-        backgroundColor = Color.Black.copy(alpha = 0.7f),
-        borderColor = Color.White.copy(alpha = 0.12f),
-        backgroundImage = backgroundArt,
+        backgroundColor = Color.Black.copy(alpha = 0.72f),
+        borderColor = Color.White.copy(alpha = 0.15f),
         enableBlur = true,
         blurRadius = 30.dp,
         modifier = Modifier.fillMaxSize()

@@ -9,17 +9,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
+import com.medianest.ui.theme.LocalDarkTheme
 
 /**
- * Premium Ambient Glass Dropdown Menu component matching the exact ambient background system of the Info Sheet & Library.
- * Wraps content with [AmbientGlassSurface].
+ * Premium Ambient Glass Dropdown Menu component.
+ * Wraps content with [BackdropGlassSurface].
  */
 @Composable
 fun GlassDropdownMenu(
@@ -37,7 +37,12 @@ fun GlassDropdownMenu(
     hue: Float? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val backdropState = LocalBackdropState.current
+    val isDark = LocalDarkTheme.current
+    val menuBg = if (containerColor != Color.Transparent) {
+        containerColor
+    } else {
+        if (isDark) Color(0xEE08090E) else Color(0xEEFFFFFF)
+    }
 
     DropdownMenu(
         expanded = expanded,
@@ -51,23 +56,10 @@ fun GlassDropdownMenu(
         tonalElevation = 0.dp,
         shadowElevation = shadowElevation
     ) {
-        val baseMod = if (backdropState != null) {
-            Modifier
-                .clip(shape)
-                .backdropReceiver(
-                    state = backdropState,
-                    blurRadius = 28.dp,
-                    tint = Color(0x660A0C10),
-                    baseColor = Color.Transparent
-                )
-        } else {
-            Modifier.clip(shape)
-        }
-        
-        GlassSurface(
-            modifier = baseMod,
+        BackdropGlassSurface(
             shape = shape,
-            backgroundColor = if (containerColor != Color.Transparent) containerColor else Color(0x330F1015),
+            backgroundColor = menuBg,
+            borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x28000000),
             borderWidth = 0.5.dp
         ) {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {

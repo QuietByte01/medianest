@@ -2,7 +2,6 @@ package com.medianest.ui.library.image
 
 import android.content.res.Configuration
 import android.widget.Toast
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -38,10 +37,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import com.medianest.data.model.MediaItem
+import com.medianest.ui.components.BackdropBlurState
+import com.medianest.ui.components.BackdropGlassSurface
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.LocalBackdropState
-import com.medianest.ui.components.backdropReceiver
+import com.medianest.ui.theme.LocalDarkTheme
 import com.medianest.util.ImageExclusionManager
 import com.medianest.util.ImageTagManager
 
@@ -51,12 +56,12 @@ internal data class TargetFilterSpec(
     val icon: ImageVector
 )
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MoveToFilterDialog(
     item: MediaItem,
     currentFilterTab: String,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -88,31 +93,33 @@ fun MoveToFilterDialog(
         ).filter { it.id != currentFilterTab }
     }
 
-    val backdropState = LocalBackdropState.current
+    val isDark = LocalDarkTheme.current
 
-    // Full screen dim backdrop with blur and black tint
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.50f))
-            .then(
-                if (backdropState != null) {
-                    Modifier.backdropReceiver(backdropState, blurRadius = 28.dp)
-                } else Modifier
-            )
-            .clickable { onDismiss() },
+            .zIndex(10f)
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { onDismiss() })
+            },
         contentAlignment = Alignment.Center
     ) {
-        GlassSurface(
+        BackHandler(onBack = onDismiss)
+
+        BackdropGlassSurface(
+            shape = RoundedCornerShape(22.dp),
+            enableBlur = true,
+            blurRadius = 24.dp,
+            tint = Color.Black.copy(alpha = 0.30f),
+            baseColor = Color.Transparent,
+            borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x18000000),
+            borderWidth = 1.dp,
+            backdropState = backdropState,
             modifier = Modifier
                 .widthIn(max = maxDialogWidth)
-                .padding(horizontal = 16.dp, vertical = 20.dp)
-                .clickable(enabled = false) {}, // Intercept click inside card
-            shape = RoundedCornerShape(22.dp),
-            backgroundColor = Color(0xDC0F1015), // Black tint with blur
-            borderColor = Color(0x38FFFFFF),
-            enableBlur = true,
-            blurRadius = 28.dp
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { /* consume */ })
+                }
         ) {
             Column(
                 modifier = Modifier.padding(18.dp),
@@ -164,55 +171,61 @@ fun MoveToFilterDialog(
                     color = Color(0xFF94A3B8)
                 )
 
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 280.dp)
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        availableTargets.forEach { spec ->
-                            GlassSurface(
-                                shape = RoundedCornerShape(14.dp),
-                                backgroundColor = Color(0x22FFFFFF),
-                                borderColor = Color(0x33FFFFFF),
-                                modifier = Modifier
-                                    .clickable {
-                                        val uriStr = item.uri.toString()
-                                        // 1. Exclude from current filter
-                                        if (currentFilterTab !in listOf("ALL", "FOLDERS", "HIDDEN", "EXCLUDED")) {
-                                            ImageExclusionManager.excludeFromFilter(context, uriStr, currentFilterTab)
-                                        }
-                                        // 2. Assign to target filter
-                                        ImageTagManager.toggleTag(context, uriStr, spec.id)
-                                        ImageExclusionManager.restoreToFilter(context, uriStr, spec.id)
+                    availableTargets.chunked(2).forEach { rowSpecs ->
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            rowSpecs.forEach { spec ->
+                                GlassSurface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    backgroundColor = Color(0x22FFFFFF),
+                                    borderColor = Color(0x33FFFFFF),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            val uriStr = item.uri.toString()
+                                            if (currentFilterTab !in listOf("ALL", "FOLDERS", "HIDDEN", "EXCLUDED")) {
+                                                ImageExclusionManager.excludeFromFilter(context, uriStr, currentFilterTab)
+                                            }
+                                            ImageTagManager.toggleTag(context, uriStr, spec.id)
+                                            ImageExclusionManager.restoreToFilter(context, uriStr, spec.id)
 
-                                        Toast.makeText(context, "Moved to '${spec.label}'", Toast.LENGTH_SHORT).show()
-                                        onDismiss()
-                                    }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                             Toast.makeText(context, "Moved to '${spec.label}'", Toast.LENGTH_SHORT).show()
+                                            onDismiss()
+                                        }
                                 ) {
-                                    Icon(
-                                        imageVector = spec.icon,
-                                        contentDescription = spec.label,
-                                        tint = Color(0xFF34D399),
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Text(
-                                        text = spec.label,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = Color.White
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = spec.icon,
+                                            contentDescription = spec.label,
+                                            tint = Color(0xFF34D399),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = spec.label,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color.White,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
+                            }
+                            if (rowSpecs.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }
@@ -222,12 +235,12 @@ fun MoveToFilterDialog(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BatchMoveToFilterDialog(
     selectedUris: Set<String>,
     currentFilterTab: String = "ALL",
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -259,30 +272,33 @@ fun BatchMoveToFilterDialog(
         ).filter { it.id != currentFilterTab }
     }
 
-    val backdropState = LocalBackdropState.current
+    val isDark = LocalDarkTheme.current
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.50f))
-            .then(
-                if (backdropState != null) {
-                    Modifier.backdropReceiver(backdropState, blurRadius = 28.dp)
-                } else Modifier
-            )
-            .clickable { onDismiss() },
+            .zIndex(10f)
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { onDismiss() })
+            },
         contentAlignment = Alignment.Center
     ) {
-        GlassSurface(
+        BackHandler(onBack = onDismiss)
+
+        BackdropGlassSurface(
+            shape = RoundedCornerShape(22.dp),
+            enableBlur = true,
+            blurRadius = 24.dp,
+            tint = Color.Black.copy(alpha = 0.30f),
+            baseColor = Color.Transparent,
+            borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x18000000),
+            borderWidth = 1.dp,
+            backdropState = backdropState,
             modifier = Modifier
                 .widthIn(max = maxDialogWidth)
-                .padding(horizontal = 16.dp, vertical = 20.dp)
-                .clickable(enabled = false) {},
-            shape = RoundedCornerShape(22.dp),
-            backgroundColor = Color(0xDC0F1015),
-            borderColor = Color(0x38FFFFFF),
-            enableBlur = true,
-            blurRadius = 28.dp
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { /* consume */ })
+                }
         ) {
             Column(
                 modifier = Modifier.padding(18.dp),
@@ -334,54 +350,62 @@ fun BatchMoveToFilterDialog(
                     color = Color(0xFF94A3B8)
                 )
 
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 280.dp)
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        availableTargets.forEach { spec ->
-                            GlassSurface(
-                                shape = RoundedCornerShape(14.dp),
-                                backgroundColor = Color(0x22FFFFFF),
-                                borderColor = Color(0x33FFFFFF),
-                                modifier = Modifier
-                                    .clickable {
-                                        selectedUris.forEach { uriStr ->
-                                            if (currentFilterTab !in listOf("ALL", "FOLDERS", "HIDDEN", "EXCLUDED")) {
-                                                ImageExclusionManager.excludeFromFilter(context, uriStr, currentFilterTab)
+                    availableTargets.chunked(2).forEach { rowSpecs ->
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            rowSpecs.forEach { spec ->
+                                GlassSurface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    backgroundColor = Color(0x22FFFFFF),
+                                    borderColor = Color(0x33FFFFFF),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            selectedUris.forEach { uriStr ->
+                                                if (currentFilterTab !in listOf("ALL", "FOLDERS", "HIDDEN", "EXCLUDED")) {
+                                                    ImageExclusionManager.excludeFromFilter(context, uriStr, currentFilterTab)
+                                                }
+                                                ImageTagManager.toggleTag(context, uriStr, spec.id)
+                                                ImageExclusionManager.restoreToFilter(context, uriStr, spec.id)
                                             }
-                                            ImageTagManager.toggleTag(context, uriStr, spec.id)
-                                            ImageExclusionManager.restoreToFilter(context, uriStr, spec.id)
-                                        }
 
-                                        Toast.makeText(context, "Moved ${selectedUris.size} items to '${spec.label}'", Toast.LENGTH_SHORT).show()
-                                        onDismiss()
-                                    }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            Toast.makeText(context, "Moved ${selectedUris.size} items to '${spec.label}'", Toast.LENGTH_SHORT).show()
+                                            onDismiss()
+                                        }
                                 ) {
-                                    Icon(
-                                        imageVector = spec.icon,
-                                        contentDescription = spec.label,
-                                        tint = Color(0xFF34D399),
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Text(
-                                        text = spec.label,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = Color.White
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = spec.icon,
+                                            contentDescription = spec.label,
+                                            tint = Color(0xFF34D399),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = spec.label,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color.White,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
+                            }
+                            if (rowSpecs.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }

@@ -351,14 +351,12 @@ fun MediaGridItem(
                     }
 
                     val isDark = com.medianest.ui.theme.LocalDarkTheme.current
-                    val menuBg = if (com.medianest.ui.theme.LocalDarkTheme.current) Color(0xCC08090E) else Color(0xBFFFFFFF)
 
                     GlassDropdownMenu(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false },
                         modifier = Modifier.width(200.dp),
-                        shape = RoundedCornerShape(20.dp),
-                        backgroundImage = item.albumArtUri ?: item.uri
+                        shape = RoundedCornerShape(20.dp)
                     ) {
                         Text(
                             text = item.title,

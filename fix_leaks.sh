@@ -1,2 +1,0 @@
-sed -i '' -e 's/decoder\.stop()/try { decoder.stop() } catch (e: Exception) {}/g' app/src/main/java/com/medianest/util/MediaAnalyzer.kt app/src/main/java/com/medianest/util/MediaProcessorEngine.kt app/src/main/java/com/medianest/util/VideoColorizerEngine.kt
-sed -i '' -e 's/decoder\.release()/try { decoder.release() } catch (e: Exception) {}/g' app/src/main/java/com/medianest/util/MediaAnalyzer.kt app/src/main/java/com/medianest/util/MediaProcessorEngine.kt app/src/main/java/com/medianest/util/VideoColorizerEngine.kt

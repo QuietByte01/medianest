@@ -163,8 +163,7 @@ private fun DspSheetContent(
                 AppSwitch(
                     checked = playerState.isEqEnabled,
                     onCheckedChange = { playerManager.setEqEnabled(it) },
-                    style = AppSwitchStyle.Glossy,
-                    accentColor = Color(0xFF38BDF8)
+                    style = AppSwitchStyle.Glass
                 )
             }
 

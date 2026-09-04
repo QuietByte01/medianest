@@ -9,12 +9,14 @@ import androidx.compose.ui.graphics.Color
 
 enum class AppSwitchStyle {
     Solid,
-    Glossy
+    Glossy,
+    Glass
 }
 
 /**
  * Reusable switch component.
- * Features a transparent fluid toggle with 30% opacity checked thumb and 10% opacity unchecked thumb.
+ * Supports [AppSwitchStyle.Glass] (frosted glass switch matching CSS glass design),
+ * [AppSwitchStyle.Glossy], and [AppSwitchStyle.Solid].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -23,31 +25,51 @@ fun AppSwitch(
     onCheckedChange: ((Boolean) -> Unit)?,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    style: AppSwitchStyle = AppSwitchStyle.Glossy,
+    style: AppSwitchStyle = AppSwitchStyle.Glass,
     accentColor: Color = Color.Unspecified,
 ) {
-    if ((style == AppSwitchStyle.Solid) && (accentColor != Color.Unspecified)) {
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            modifier = modifier,
-            enabled = enabled,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White.copy(alpha = 0.90f),
-                checkedTrackColor = accentColor.copy(alpha = 0.30f),
-                checkedBorderColor = Color.Transparent,
-                uncheckedThumbColor = Color.White.copy(alpha = 0.10f),
-                uncheckedTrackColor = Color.White.copy(alpha = 0.05f),
-                uncheckedBorderColor = Color.Transparent,
+    when (style) {
+        AppSwitchStyle.Glass -> {
+            GlassToggle(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                modifier = modifier,
+                enabled = enabled
             )
-        )
-    } else {
-        GlossySwitch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            modifier = modifier,
-            enabled = enabled,
-        )
+        }
+        AppSwitchStyle.Solid -> {
+            if (accentColor != Color.Unspecified) {
+                Switch(
+                    checked = checked,
+                    onCheckedChange = onCheckedChange,
+                    modifier = modifier,
+                    enabled = enabled,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White.copy(alpha = 0.90f),
+                        checkedTrackColor = accentColor.copy(alpha = 0.30f),
+                        checkedBorderColor = Color.Transparent,
+                        uncheckedThumbColor = Color.White.copy(alpha = 0.10f),
+                        uncheckedTrackColor = Color.White.copy(alpha = 0.05f),
+                        uncheckedBorderColor = Color.Transparent,
+                    )
+                )
+            } else {
+                GlossySwitch(
+                    checked = checked,
+                    onCheckedChange = onCheckedChange,
+                    modifier = modifier,
+                    enabled = enabled,
+                )
+            }
+        }
+        AppSwitchStyle.Glossy -> {
+            GlossySwitch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                modifier = modifier,
+                enabled = enabled,
+            )
+        }
     }
 }
 

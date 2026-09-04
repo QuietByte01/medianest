@@ -453,8 +453,7 @@ internal fun SubtitleCustomizationSheet(
                 AppSwitch(
                     checked = hasShadow,
                     onCheckedChange = onHasShadowChange,
-                    style = AppSwitchStyle.Glossy,
-                    accentColor = Color(0xFF64748B)
+                    style = AppSwitchStyle.Glass
                 )
             }
 

@@ -1,13 +1,10 @@
 package com.medianest.ui.library
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -21,7 +18,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
+import com.medianest.ui.components.BackdropGlassSurface
+import com.medianest.ui.components.BackdropBlurState
+import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.components.LocalBackdropState
 import com.medianest.ui.theme.LocalDarkTheme
 
 @Composable
@@ -31,7 +35,8 @@ fun FolderPickerDialog(
     availableFolders: List<String>,
     folderItemCounts: Map<String, Int> = emptyMap(),
     onDismiss: () -> Unit,
-    onFolderSelected: (String) -> Unit
+    onFolderSelected: (String) -> Unit,
+    backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     val isDark = LocalDarkTheme.current
     var searchQuery by remember { mutableStateOf("") }
@@ -50,16 +55,32 @@ fun FolderPickerDialog(
 
     val canConfirm = (isCreatingNew && newFolderName.trim().isNotBlank()) || (!isCreatingNew && selectedFolder != null)
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 24.dp)
-                .heightIn(max = 560.dp),
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(10f)
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { onDismiss() })
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        BackHandler(onBack = onDismiss)
+
+        BackdropGlassSurface(
             shape = RoundedCornerShape(24.dp),
-            color = if (isDark) Color(0xF012131A) else Color(0xF0FFFFFF),
-            tonalElevation = 8.dp,
-            border = androidx.compose.foundation.BorderStroke(1.dp, if (isDark) Color(0x33FFFFFF) else Color(0x18000000))
+            enableBlur = true,
+            blurRadius = 24.dp,
+            tint = Color.Black.copy(alpha = 0.30f),
+            baseColor = Color.Transparent,
+            borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x18000000),
+            borderWidth = 1.dp,
+            backdropState = backdropState,
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .heightIn(max = 560.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { /* consume */ })
+                }
         ) {
             Column(
                 modifier = Modifier
@@ -100,191 +121,170 @@ fun FolderPickerDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Search Bar
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search folders...", fontSize = 13.sp) },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = null,
-                            tint = if (isDark) Color(0xFF9EA3B0) else Color(0xFF64748B),
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(20.dp)) {
-                                Icon(Icons.Default.Clear, contentDescription = "Clear", modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6366F1),
-                        unfocusedBorderColor = if (isDark) Color(0x33FFFFFF) else Color(0x22000000)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Create New Folder Toggle / Field
-                Surface(
+                // Option Tabs: Choose Existing vs Create New
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .clickable { isCreatingNew = !isCreatingNew },
-                    color = if (isCreatingNew) (if (isDark) Color(0x336366F1) else Color(0x226366F1)) else (if (isDark) Color(0x18FFFFFF) else Color(0x0A000000)),
-                    shape = RoundedCornerShape(12.dp)
+                        .background(if (isDark) Color(0x1AFFFFFF) else Color(0x0D000000))
+                        .padding(4.dp)
                 ) {
-                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Surface(
+                        onClick = { isCreatingNew = false },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (!isCreatingNew) Color(0xFF6366F1) else Color.Transparent,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = if (isCreatingNew) Icons.Default.FolderOpen else Icons.Default.CreateNewFolder,
-                                contentDescription = null,
-                                tint = Color(0xFF6366F1),
-                                modifier = Modifier.size(20.dp)
-                            )
                             Text(
-                                text = if (isCreatingNew) "New Folder Details" else "+ Create New Folder",
-                                fontSize = 13.sp,
+                                text = "Existing Folder",
+                                fontSize = 12.5.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF6366F1)
+                                color = Color.White
                             )
                         }
+                    }
 
-                        AnimatedVisibility(visible = isCreatingNew) {
-                            Column(modifier = Modifier.padding(top = 8.dp)) {
-                                OutlinedTextField(
-                                    value = newFolderName,
-                                    onValueChange = { newFolderName = it },
-                                    placeholder = { Text("Enter folder name...", fontSize = 13.sp) },
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
+                    Surface(
+                        onClick = { isCreatingNew = true },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isCreatingNew) Color(0xFF6366F1) else Color.Transparent,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "New Folder",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                // Folder List
-                Text(
-                    text = "EXISTING FOLDERS (${filteredFolders.size})",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isDark) Color(0xFF8E95A5) else Color(0xFF64748B),
-                    letterSpacing = 0.6.sp,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
+                if (isCreatingNew) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        OutlinedTextField(
+                            value = newFolderName,
+                            onValueChange = { newFolderName = it },
+                            label = { Text("Folder Name", color = if (isDark) Color(0xFF9EA3B0) else Color(0xFF64748B)) },
+                            placeholder = { Text("e.g. My Favorites", color = if (isDark) Color(0x55FFFFFF) else Color(0x55000000)) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = if (isDark) Color.White else Color(0xFF1E293B),
+                                unfocusedTextColor = if (isDark) Color.White else Color(0xFF1E293B),
+                                focusedBorderColor = Color(0xFF6366F1),
+                                unfocusedBorderColor = if (isDark) Color(0x33FFFFFF) else Color(0x33000000)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                } else {
+                    // Search bar
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Search folders...", color = if (isDark) Color(0x55FFFFFF) else Color(0x55000000)) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = null,
+                                tint = if (isDark) Color(0xFF9EA3B0) else Color(0xFF64748B),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = if (isDark) Color.White else Color(0xFF1E293B),
+                            unfocusedTextColor = if (isDark) Color.White else Color(0xFF1E293B),
+                            focusedBorderColor = Color(0xFF6366F1),
+                            unfocusedBorderColor = if (isDark) Color(0x33FFFFFF) else Color(0x33000000)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 10.dp)
+                    )
 
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    if (filteredFolders.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 24.dp),
-                                contentAlignment = Alignment.Center
+                    // Folder list
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(filteredFolders) { folder ->
+                            val isSelected = selectedFolder == folder
+                            val count = folderItemCounts[folder] ?: 0
+
+                            Surface(
+                                onClick = { selectedFolder = folder },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) Color(0x446366F1) else if (isDark) Color(0x11FFFFFF) else Color(0x0A000000),
+                                border = if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF6366F1)) else null,
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(
-                                    text = if (searchQuery.isNotBlank()) "No matching folders found" else "No folders found",
-                                    fontSize = 13.sp,
-                                    color = if (isDark) Color(0xFF8E95A5) else Color(0xFF64748B)
-                                )
-                            }
-                        }
-                    } else {
-                        items(filteredFolders, key = { it }) { folderName ->
-                            val isSelected = !isCreatingNew && selectedFolder == folderName
-                            val count = folderItemCounts[folderName]
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(
-                                        if (isSelected) (if (isDark) Color(0x336366F1) else Color(0x226366F1))
-                                        else if (isDark) Color(0x10FFFFFF) else Color(0x06000000)
-                                    )
-                                    .border(
-                                        width = if (isSelected) 1.5.dp else 0.dp,
-                                        color = if (isSelected) Color(0xFF6366F1) else Color.Transparent,
-                                        shape = RoundedCornerShape(12.dp)
-                                    )
-                                    .clickable {
-                                        isCreatingNew = false
-                                        selectedFolder = folderName
-                                    }
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Box(
+                                Row(
                                     modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) Color(0xFF6366F1) else (if (isDark) Color(0x22FFFFFF) else Color(0x14000000))),
-                                    contentAlignment = Alignment.Center
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Icon(
-                                        imageVector = if (isSelected) Icons.Default.FolderOpen else Icons.Default.Folder,
-                                        contentDescription = null,
-                                        tint = if (isSelected) Color.White else (if (isDark) Color.White else Color(0xFF1E293B)),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Folder,
+                                            contentDescription = null,
+                                            tint = if (isSelected) Color(0xFF818CF8) else Color(0xFF6366F1),
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                        Column {
+                                            Text(
+                                                text = folder.substringAfterLast('/'),
+                                                fontSize = 14.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (isDark) Color.White else Color(0xFF1E293B),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            if (folder.contains('/')) {
+                                                Text(
+                                                    text = folder,
+                                                    fontSize = 10.5.sp,
+                                                    color = if (isDark) Color(0xFF9EA3B0) else Color(0xFF64748B),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                    }
 
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = folderName.substringAfterLast('/'),
-                                        fontSize = 14.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isDark) Color.White else Color(0xFF1E293B),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    if (folderName.contains('/')) {
+                                    if (count > 0) {
                                         Text(
-                                            text = folderName,
-                                            fontSize = 11.sp,
-                                            color = if (isDark) Color(0xFF8E95A5) else Color(0xFF64748B),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            text = "$count items",
+                                            fontSize = 11.5.sp,
+                                            color = if (isDark) Color(0xFF9EA3B0) else Color(0xFF64748B)
                                         )
                                     }
-                                    if (count != null) {
-                                        Text(
-                                            text = "$count item(s)",
-                                            fontSize = 11.sp,
-                                            color = if (isDark) Color(0xFF8E95A5) else Color(0xFF64748B)
-                                        )
-                                    }
                                 }
-
-                                RadioButton(
-                                    selected = isSelected,
-                                    onClick = {
-                                        isCreatingNew = false
-                                        selectedFolder = folderName
-                                    },
-                                    colors = RadioButtonDefaults.colors(
-                                        selectedColor = Color(0xFF6366F1)
-                                    )
-                                )
                             }
                         }
                     }
@@ -292,7 +292,7 @@ fun FolderPickerDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Actions
+                // Footer Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
@@ -303,17 +303,22 @@ fun FolderPickerDialog(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
-                        enabled = canConfirm,
                         onClick = {
-                            val target = if (isCreatingNew) newFolderName.trim() else selectedFolder?.trim().orEmpty()
+                            val target = if (isCreatingNew) newFolderName.trim() else (selectedFolder ?: "")
                             if (target.isNotBlank()) {
                                 onFolderSelected(target)
                             }
                         },
+                        enabled = canConfirm,
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF6366F1),
+                            contentColor = Color.White,
+                            disabledContainerColor = Color(0x336366F1),
+                            disabledContentColor = Color(0x66FFFFFF)
+                        )
                     ) {
-                        Text(actionButtonText, color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(actionButtonText, fontWeight = FontWeight.Bold)
                     }
                 }
             }

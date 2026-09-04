@@ -1,1 +1,0 @@
-sed -i '' -e 's/val player = ExoPlayer.Builder(context, renderersFactory)/val player = ExoPlayer.Builder(context, renderersFactory).setApplicationLooper(android.os.Looper.getMainLooper())/g' app/src/main/java/com/medianest/player/ExoPlayerManager.kt

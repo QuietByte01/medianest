@@ -7,8 +7,6 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -20,15 +18,27 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
 import com.medianest.data.repository.MediaStoreRepository
+import com.medianest.ui.components.BackdropBlurState
+import com.medianest.ui.components.BackdropGlassSurface
 import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.components.LocalBackdropState
+import com.medianest.ui.theme.LocalDarkTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+
+import android.app.Activity
+import android.graphics.drawable.ColorDrawable
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
 
 @Composable
 fun RenameFolderDialog(
@@ -37,18 +47,45 @@ fun RenameFolderDialog(
     defaultMediaType: MediaType = MediaType.VIDEO,
     scope: CoroutineScope,
     onDismiss: () -> Unit,
-    onRenameComplete: (String) -> Unit
+    onRenameComplete: (String) -> Unit,
+    backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     val context = LocalContext.current
+    val isDark = LocalDarkTheme.current
     val currentShortName = folderName.substringAfterLast('/')
     var newFolderName by remember { mutableStateOf(currentShortName) }
     var isRenaming by remember { mutableStateOf(false) }
 
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
-        GlassSurface(
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        val dialogView = LocalView.current
+        DisposableEffect(dialogView) {
+            val window = (dialogView.parent as? DialogWindowProvider)?.window
+                ?: (dialogView.context as? Activity)?.window
+            window?.let { w ->
+                WindowCompat.setDecorFitsSystemWindows(w, false)
+                w.setDimAmount(0.20f)
+                w.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    w.setBackgroundBlurRadius(60)
+                }
+            }
+            onDispose {}
+        }
+
+        BackdropGlassSurface(
             shape = RoundedCornerShape(24.dp),
-            backgroundColor = Color(0xEF12151E),
-            borderColor = Color(0x38FFFFFF),
+            enableBlur = true,
+            blurRadius = 24.dp,
+            tint = Color.Black.copy(alpha = 0.30f),
+            baseColor = Color.Transparent,
+            borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x18000000),
+            borderWidth = 1.dp,
+            backdropState = null,
             modifier = Modifier.fillMaxWidth(0.92f)
         ) {
             Column(

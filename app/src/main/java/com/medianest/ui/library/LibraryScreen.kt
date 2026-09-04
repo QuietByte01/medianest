@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -162,15 +163,16 @@ fun LibraryScreen(
                         )
                 ) {
                     LibraryAmbientBackground(
-                isDashboardTab = isDashboardTab,
-                isImagesTab = isImagesTab,
-                isVideosTab = isVideosTab,
-                isAudioTab = isAudioTab,
-                currentPlayingTrack = currentPlayingTrack,
-                imagesList = imagesList,
-                videosList = videosList,
-                audioList = audioList
-            )
+                        isDashboardTab = isDashboardTab,
+                        isImagesTab = isImagesTab,
+                        isVideosTab = isVideosTab,
+                        isAudioTab = isAudioTab,
+                        currentPlayingTrack = currentPlayingTrack,
+                        imagesList = imagesList,
+                        videosList = videosList,
+                        audioList = audioList
+                    )
+                }
 
             Scaffold(
                 containerColor = androidx.compose.ui.graphics.Color.Transparent,
@@ -469,8 +471,6 @@ fun LibraryScreen(
                         }
                     }
                 }
-            }
-        }
 
         if (showCreateCategoryModal) {
             CreateCategoryDialog(
@@ -532,6 +532,7 @@ fun LibraryScreen(
                 item = libraryInfoItem,
                 onDismiss = { libraryInfoItem = null }
             )
+        }
         }
 
         val showLibraryDebug by settingsManager.showLibraryDebugInfo.collectAsState(initial = false)

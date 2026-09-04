@@ -1,5 +1,6 @@
 package com.medianest.ui.components.mediainfo
 
+import android.content.ContentValues
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
@@ -48,9 +49,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import androidx.exifinterface.media.ExifInterface
 import com.medianest.data.model.MediaItem
+import com.medianest.ui.components.BackdropGlassSurface
 import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.components.LocalBackdropState
+import com.medianest.ui.components.BackdropBlurState
 import com.medianest.ui.components.backdropReceiver
 import com.medianest.ui.components.rememberBackdropBlurState
 import com.medianest.util.ImageTagManager
@@ -67,6 +75,8 @@ import kotlin.math.roundToInt
 data class ImageExifLocationData(
     val cameraMake: String? = null,
     val cameraModel: String? = null,
+    val lensModel: String? = null,
+    val software: String? = null,
     val dateTaken: String? = null,
     val focalLength: String? = null,
     val aperture: String? = null,
@@ -81,7 +91,8 @@ data class ImageExifLocationData(
     val hasLocation: Boolean get() = (latitude != null && longitude != null) || !placeName.isNullOrBlank()
     val hasCameraInfo: Boolean get() = !cameraMake.isNullOrBlank() || !cameraModel.isNullOrBlank() ||
             !focalLength.isNullOrBlank() || !aperture.isNullOrBlank() ||
-            !shutterSpeed.isNullOrBlank() || !iso.isNullOrBlank() || !dateTaken.isNullOrBlank()
+            !shutterSpeed.isNullOrBlank() || !iso.isNullOrBlank() || !dateTaken.isNullOrBlank() ||
+            !lensModel.isNullOrBlank() || !software.isNullOrBlank()
 }
 
 internal data class ImageTagSpec(
@@ -94,25 +105,47 @@ internal fun extractImageExifAndLocation(context: Context, item: MediaItem?): Im
     if (item == null) return ImageExifLocationData()
     var exif: ExifInterface? = null
 
-    // 1. Try direct file on disk first
+    // 1. Try real physical absolute file path from MediaStore/Uri
     try {
-        val relPath = item.relativePath.orEmpty()
-        if (relPath.isNotBlank()) {
-            val primaryStorage = android.os.Environment.getExternalStorageDirectory()
-            val candidateFile = File(primaryStorage, if (relPath.endsWith("/")) "$relPath${item.title}" else "$relPath/${item.title}")
-            if (candidateFile.exists() && candidateFile.canRead()) {
-                exif = ExifInterface(candidateFile)
-            }
-        }
-        if (exif == null && !item.uri.path.isNullOrBlank()) {
-            val file = File(item.uri.path!!)
+        val resolvedPath = getFilePathFromUri(context, item.uri)
+        if (resolvedPath.isNotBlank()) {
+            val file = File(resolvedPath)
             if (file.exists() && file.canRead()) {
                 exif = ExifInterface(file)
             }
         }
     } catch (_: Exception) {}
 
-    // 2. Try MediaStore setRequireOriginal (prevents Android 10+ from scrubbing location EXIF)
+    // 2. Try Uri path directly if scheme is file
+    if (exif == null) {
+        try {
+            if (!item.uri.path.isNullOrBlank()) {
+                val file = File(item.uri.path!!)
+                if (file.exists() && file.canRead()) {
+                    exif = ExifInterface(file)
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
+    // 3. Try openFileDescriptor with setRequireOriginal (bypasses MediaStore location/EXIF scrubbing on Android 10+)
+    if (exif == null) {
+        try {
+            val targetUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && item.uri.scheme == "content") {
+                try {
+                    MediaStore.setRequireOriginal(item.uri)
+                } catch (_: Exception) {
+                    item.uri
+                }
+            } else item.uri
+
+            context.contentResolver.openFileDescriptor(targetUri, "r")?.use { pfd ->
+                exif = ExifInterface(pfd.fileDescriptor)
+            }
+        } catch (_: Exception) {}
+    }
+
+    // 4. Fallback to standard openInputStream
     if (exif == null) {
         try {
             val targetUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && item.uri.scheme == "content") {
@@ -129,21 +162,15 @@ internal fun extractImageExifAndLocation(context: Context, item: MediaItem?): Im
         } catch (_: Exception) {}
     }
 
-    // 3. Fallback to standard openInputStream
-    if (exif == null) {
-        try {
-            context.contentResolver.openInputStream(item.uri)?.use { stream ->
-                exif = ExifInterface(stream)
-            }
-        } catch (_: Exception) {}
-    }
-
     if (exif == null) return ImageExifLocationData()
 
     val make = exif.getAttribute(ExifInterface.TAG_MAKE)?.trim()?.takeIf { it.isNotBlank() }
     val model = exif.getAttribute(ExifInterface.TAG_MODEL)?.trim()?.takeIf { it.isNotBlank() }
+    val lensModel = exif.getAttribute(ExifInterface.TAG_LENS_MODEL)?.trim()?.takeIf { it.isNotBlank() }
+    val software = exif.getAttribute(ExifInterface.TAG_SOFTWARE)?.trim()?.takeIf { it.isNotBlank() }
 
     val rawDate = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL)
+        ?: exif.getAttribute(ExifInterface.TAG_DATETIME_DIGITIZED)
         ?: exif.getAttribute(ExifInterface.TAG_DATETIME)
     val dateTaken = if (!rawDate.isNullOrBlank()) {
         try {
@@ -212,6 +239,8 @@ internal fun extractImageExifAndLocation(context: Context, item: MediaItem?): Im
     return ImageExifLocationData(
         cameraMake = make,
         cameraModel = model,
+        lensModel = lensModel,
+        software = software,
         dateTaken = dateTaken,
         focalLength = focalLength,
         aperture = aperture,
@@ -237,6 +266,7 @@ fun ImageInfoOverlay(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     onShowFileLocation: ((MediaItem) -> Unit)? = null,
+    backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     if (item == null) return
 
@@ -251,6 +281,11 @@ fun ImageInfoOverlay(
         isTablet -> 520.dp
         else -> 340.dp
     }
+    val maxContentHeight = if (isLandscape) {
+        (configuration.screenHeightDp.dp - 178.dp).coerceAtLeast(200.dp)
+    } else {
+        480.dp
+    }
 
     var showRenameDialog by remember { mutableStateOf(false) }
     var currentItemTitle by remember(item.id, item.title) { mutableStateOf(item.title) }
@@ -259,8 +294,6 @@ fun ImageInfoOverlay(
     var userTags by remember(item.id, item.uri) {
         mutableStateOf(ImageTagManager.getTags(context, item.uri.toString()))
     }
-
-    val blurState = rememberBackdropBlurState()
 
     val isGif = item.mimeType.contains("gif", ignoreCase = true) || item.title.endsWith(".gif", ignoreCase = true) || (item.relativePath?.endsWith(".gif", ignoreCase = true) == true)
     val isHeavyGif = isGif && item.size >= 50 * 1024 * 1024L
@@ -309,25 +342,35 @@ fun ImageInfoOverlay(
 
     val exifLocationData by produceState<ImageExifLocationData?>(initialValue = null, key1 = item.id, key2 = filePath) {
         value = withContext(Dispatchers.IO) {
-            var data = extractImageExifAndLocation(context, item)
-            val lat = data.latitude
-            val lon = data.longitude
-            if (lat != null && lon != null) {
-                val place = LocationUtils.reverseGeocode(context, lat, lon)
-                data = data.copy(placeName = place)
+            try {
+                var data = extractImageExifAndLocation(context, item)
+                val lat = data.latitude
+                val lon = data.longitude
+                if (lat != null && lon != null) {
+                    val place = LocationUtils.reverseGeocode(context, lat, lon)
+                    data = data.copy(placeName = place)
+                }
+                data
+            } catch (t: Throwable) {
+                t.printStackTrace()
+                ImageExifLocationData()
             }
-            data
         }
     }
 
-    val ffmpegReport by produceState(
-        initialValue = if (filePath.isNotBlank()) MediaAnalyzer.getReportIfCached(filePath) else null,
+    val ffmpegReport by produceState<com.medianest.util.MediaDiagnosticsReport?>(
+        initialValue = if (filePath.isNotBlank()) try { MediaAnalyzer.getReportIfCached(filePath) } catch (_: Throwable) { null } else null,
         key1 = item.id,
         key2 = filePath
     ) {
         if (filePath.isNotBlank()) {
             value = withContext(Dispatchers.IO) {
-                MediaAnalyzer.analyze(filePath, "IMAGE", context)
+                try {
+                    MediaAnalyzer.analyze(filePath, "IMAGE", context)
+                } catch (t: Throwable) {
+                    t.printStackTrace()
+                    null
+                }
             }
         }
     }
@@ -360,23 +403,28 @@ fun ImageInfoOverlay(
                 OutlinedTextField(
                     value = renameInputText,
                     onValueChange = { renameInputText = it },
+                    label = { Text("Display Name") },
                     singleLine = true,
-                    label = { Text("Image Title") },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color.White,
-                        unfocusedBorderColor = Color(0x66FFFFFF),
                         focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = Color(0xFF34D399),
+                        unfocusedBorderColor = Color(0x4DFFFFFF)
+                    )
                 )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        if (renameInputText.isNotBlank()) {
-                            currentItemTitle = renameInputText
-                            Toast.makeText(context, "Renamed to '$renameInputText'", Toast.LENGTH_SHORT).show()
+                        val trimmed = renameInputText.trim()
+                        if (trimmed.isNotBlank() && trimmed != currentItemTitle) {
+                            val success = updateDisplayName(context, item.uri, trimmed)
+                            if (success) {
+                                currentItemTitle = trimmed
+                                Toast.makeText(context, "Renamed to $trimmed", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Failed to rename", Toast.LENGTH_SHORT).show()
+                            }
                         }
                         showRenameDialog = false
                     }
@@ -394,25 +442,30 @@ fun ImageInfoOverlay(
         )
     }
 
-    // Centered Dim Backdrop Container with Blurred Background
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.50f))
-            .backdropReceiver(blurState, blurRadius = 24.dp)
-            .clickable { onClose() },
+            .zIndex(10f)
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { onClose() })
+            },
         contentAlignment = Alignment.Center
     ) {
-        GlassSurface(
+        BackHandler(onBack = onClose)
+
+        BackdropGlassSurface(
             modifier = modifier
                 .widthIn(max = maxOverlayWidth)
-                .padding(horizontal = 16.dp, vertical = 20.dp)
-                .clickable(enabled = false) {}, // Intercept click inside card
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { /* consume */ })
+                },
             shape = RoundedCornerShape(20.dp),
-            backgroundColor = Color(0xDC0F1015),
+            blurRadius = 24.dp,
+            tint = Color.Black.copy(alpha = 0.35f),
+            baseColor = Color.Transparent,
             borderColor = Color(0x3334D399),
-            enableBlur = true,
-            blurRadius = 24.dp
+            borderWidth = 0.5.dp,
+            backdropState = backdropState
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -483,7 +536,7 @@ fun ImageInfoOverlay(
 
                     Column(
                         modifier = Modifier
-                            .heightIn(max = if (isLandscape) 280.dp else 480.dp)
+                            .heightIn(max = maxContentHeight)
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -594,6 +647,14 @@ fun ImageInfoOverlay(
                                         DebugStatRow("Camera", camString, valueColor = Color(0xFFA7F3D0))
                                     }
 
+                                    if (!exif.lensModel.isNullOrBlank()) {
+                                        DebugStatRow("Lens Model", exif.lensModel)
+                                    }
+
+                                    if (!exif.software.isNullOrBlank()) {
+                                        DebugStatRow("Software / App", exif.software)
+                                    }
+
                                     if (!exif.dateTaken.isNullOrBlank()) {
                                         DebugStatRow("Date Taken", exif.dateTaken)
                                     }
@@ -644,44 +705,56 @@ fun ImageInfoOverlay(
                                 color = Color(0xFF94A3B8)
                             )
 
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                availableTags.forEach { tagSpec ->
-                                    val isTagged = userTags.contains(tagSpec.id)
-
-                                    GlassSurface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        backgroundColor = if (isTagged) Color(0x5534D399) else Color(0x1F222736),
-                                        borderColor = if (isTagged) Color(0xFF34D399) else Color(0x2BFFFFFF),
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .clickable {
-                                                val isAdded = ImageTagManager.toggleTag(context, item.uri.toString(), tagSpec.id)
-                                                userTags = ImageTagManager.getTags(context, item.uri.toString())
-                                                val msg = if (isAdded) "Tagged as '${tagSpec.label}'" else "Removed from '${tagSpec.label}'"
-                                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                                            }
+                                availableTags.chunked(2).forEach { rowSpecs ->
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = tagSpec.icon,
-                                                contentDescription = tagSpec.label,
-                                                tint = if (isTagged) Color(0xFF34D399) else Color(0xFF94A3B8),
-                                                modifier = Modifier.size(12.dp)
-                                            )
-                                            Text(
-                                                text = tagSpec.label,
-                                                fontSize = 10.sp,
-                                                fontWeight = if (isTagged) FontWeight.Bold else FontWeight.Normal,
-                                                color = if (isTagged) Color.White else Color(0xFFCBD5E1)
-                                            )
+                                        rowSpecs.forEach { tagSpec ->
+                                            val isTagged = userTags.contains(tagSpec.id)
+
+                                            GlassSurface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                backgroundColor = if (isTagged) Color(0x5534D399) else Color(0x1F222736),
+                                                borderColor = if (isTagged) Color(0xFF34D399) else Color(0x2BFFFFFF),
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .clickable {
+                                                        val isAdded = ImageTagManager.toggleTag(context, item.uri.toString(), tagSpec.id)
+                                                        userTags = ImageTagManager.getTags(context, item.uri.toString())
+                                                        val msg = if (isAdded) "Tagged as '${tagSpec.label}'" else "Removed from '${tagSpec.label}'"
+                                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                                    }
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = tagSpec.icon,
+                                                        contentDescription = tagSpec.label,
+                                                        tint = if (isTagged) Color(0xFF34D399) else Color(0xFF94A3B8),
+                                                        modifier = Modifier.size(12.dp)
+                                                    )
+                                                    Text(
+                                                        text = tagSpec.label,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = if (isTagged) FontWeight.Bold else FontWeight.Normal,
+                                                        color = if (isTagged) Color.White else Color.White.copy(alpha = 0.85f),
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        if (rowSpecs.size == 1) {
+                                            Spacer(modifier = Modifier.weight(1f))
                                         }
                                     }
                                 }
@@ -716,3 +789,34 @@ internal fun DebugStatRow(label: String, value: String, valueColor: Color = Colo
         )
     }
 }
+
+private fun updateDisplayName(context: Context, uri: android.net.Uri, newDisplayName: String): Boolean {
+    return try {
+        val resolver = context.contentResolver
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, newDisplayName)
+            put(MediaStore.MediaColumns.TITLE, newDisplayName)
+        }
+        val rows = resolver.update(uri, values, null, null)
+        if (rows > 0) {
+            true
+        } else {
+            val path = uri.path
+            if (!path.isNullOrEmpty()) {
+                val file = File(path)
+                if (file.exists()) {
+                    val ext = file.extension
+                    val parent = file.parentFile
+                    if (parent != null) {
+                        val newFile = File(parent, if (ext.isNotEmpty()) "$newDisplayName.$ext" else newDisplayName)
+                        file.renameTo(newFile)
+                    } else false
+                } else false
+            } else false
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        false
+    }
+}
+

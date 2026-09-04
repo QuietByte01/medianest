@@ -377,8 +377,7 @@ private fun SettingsContent(
                 AppSwitch(
                     checked = isFilmGrainEnabled,
                     onCheckedChange = onFilmGrainEnabledChange,
-                    style = AppSwitchStyle.Glossy,
-                    accentColor = Color(0xFF38BDF8)
+                    style = AppSwitchStyle.Glass
                 )
             }
 

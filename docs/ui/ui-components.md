@@ -26,6 +26,16 @@ GlassSurface(
 }
 ```
 
+### Color Palette Note: `0x330F1015` vs `0x221C1F2B`
+MediaNest uses standardized glass tint hex codes across all glass surfaces:
+
+| Hex Code | Alpha / Opacity | Tone & Color Family | Common Usage |
+| :--- | :--- | :--- | :--- |
+| **`0x330F1015`** | **20% Opacity** (Alpha `0x33` = 51/255) | **Ultra-Dark Obsidian / Midnight Slate Tint** (`#0F1015`) | Active hardware backdrop blur surface tint (`enableBlur = true` on `GlassSurface`, `GlassDropdownMenu`, `ImageInfoOverlay`). |
+| **`0x221C1F2B`** | **13% Opacity** (Alpha `0x22` = 34/255) | **Dark Slate Glass** (`#1C1F2B`) | Default card background for song rows, album cards, photo/video folder items, and empty state cards. |
+| **`0x3D181A24`** | **24% Opacity** (Alpha `0x3D` = 61/255) | **Dark Slate Obsidian** (`#181A24`) | Dashboard stat cards, storage charts, and media studio converter panels. |
+| **`0xCC08090E`** | **80% Opacity** (Alpha `0xCC` = 204/255) | **Deep Obsidian Glass** (`#08090E`) | High-contrast modal cards, app lock, and heavy glass surfaces. |
+
 ---
 
 ## 2. Buttons & Interaction

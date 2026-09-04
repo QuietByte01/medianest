@@ -26,7 +26,8 @@ fun MoveOrCopyFileDialog(
     item: MediaItem,
     allItems: List<MediaItem>,
     isCopy: Boolean,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    backdropState: com.medianest.ui.components.BackdropBlurState? = com.medianest.ui.components.LocalBackdropState.current
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -57,6 +58,7 @@ fun MoveOrCopyFileDialog(
         actionButtonText = "$actionName Here",
         availableFolders = availableFolders,
         folderItemCounts = folderItemCounts,
+        backdropState = backdropState,
         onDismiss = onDismiss,
         onFolderSelected = { targetFolder ->
             val dest = targetFolder.trim()

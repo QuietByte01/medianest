@@ -282,8 +282,12 @@ fun QuickViewScreen(
     var currentDismissProgress by remember { mutableStateOf(0f) }
     val effectiveBgAlpha = (1f - currentDismissProgress).coerceIn(0f, 1f)
 
-    // viewerBgColor: null or Color.Transparent -> dynamic image hue gradient; specific Color -> solid background color
-    val isDynamicGradient = viewerBgColor == null || viewerBgColor == Color.Transparent
+    val MacQuickViewLightGlass = remember { Color(0x3BFFFFFF) }
+    val MacQuickViewDarkGlass = remember { Color(0x3B08090E) }
+    val EmeraldColor = remember { Color(0xFF10B981) }
+
+    val isGlassBlurBg = viewerBgColor == MacQuickViewLightGlass || viewerBgColor == MacQuickViewDarkGlass
+    val isDynamicGradient = (viewerBgColor == null || viewerBgColor == Color.Transparent) && !isGlassBlurBg
     val effectiveBgColor = viewerBgColor ?: Color.Black
 
     BackHandler {
@@ -296,11 +300,19 @@ fun QuickViewScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    if (isDynamicGradient) {
-                        imageBgBrush
+                .then(
+                    if (isGlassBlurBg && quickViewBackdropState != null) {
+                        Modifier.backdropReceiver(
+                            state = quickViewBackdropState,
+                            blurRadius = 32.dp,
+                            tint = viewerBgColor!!,
+                            baseColor = Color.Transparent,
+                            showTopBorder = false
+                        )
+                    } else if (isDynamicGradient) {
+                        Modifier.background(imageBgBrush)
                     } else {
-                        androidx.compose.ui.graphics.SolidColor(effectiveBgColor.copy(alpha = effectiveBgAlpha))
+                        Modifier.background(effectiveBgColor.copy(alpha = effectiveBgAlpha))
                     }
                 )
         ) {
@@ -446,14 +458,16 @@ fun QuickViewScreen(
                             }
                         }
 
-                        val colorOptions = listOf(
-                            Color.Transparent, // Dynamic Frosted
-                            Color.Black,
-                            Color.White,
-                            Color(0xFF27AE60), // Green
-                            Color.Black.copy(alpha = 0.10f), // Black 10% opacity
-                            Color.White.copy(alpha = 0.10f)  // White 10% opacity
-                        )
+                        val colorOptions = remember {
+                            listOf(
+                                Color.Transparent,       // Dynamic Ambient Gradient
+                                Color.Black,             // Solid Black
+                                Color.White,             // Solid White
+                                EmeraldColor,            // Solid Emerald Green
+                                MacQuickViewLightGlass,  // MacBook QuickView Light Glass (White Tint + Blur)
+                                MacQuickViewDarkGlass    // MacBook QuickView Dark Glass (Black Tint + Blur)
+                            )
+                        }
 
                         // Color Indicator & Selection Button
                         Row(
@@ -511,6 +525,8 @@ fun QuickViewScreen(
                                 ) {
                                     colorOptions.forEach { color ->
                                         val isTransparent = color == Color.Transparent
+                                        val isLightGlass = color == MacQuickViewLightGlass
+                                        val isDarkGlass = color == MacQuickViewDarkGlass
                                         val isSelected = if (isTransparent) {
                                             isDynamicGradient
                                         } else {
@@ -522,8 +538,8 @@ fun QuickViewScreen(
                                                 .size(28.dp)
                                                 .clip(CircleShape)
                                                 .then(
-                                                    if (isTransparent) {
-                                                        Modifier.background(
+                                                    when {
+                                                        isTransparent -> Modifier.background(
                                                             Brush.sweepGradient(
                                                                 colors = listOf(
                                                                     Color.Cyan.copy(alpha = 0.6f),
@@ -533,8 +549,9 @@ fun QuickViewScreen(
                                                                 )
                                                             )
                                                         ).border(if (isSelected) 2.dp else 1.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.5f), CircleShape)
-                                                    } else {
-                                                        Modifier.background(color).border(if (isSelected) 2.dp else 0.dp, Color.White, CircleShape)
+                                                        isLightGlass -> Modifier.background(Color(0x66FFFFFF)).border(if (isSelected) 2.dp else 1.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.5f), CircleShape)
+                                                        isDarkGlass -> Modifier.background(Color(0x8808090E)).border(if (isSelected) 2.dp else 1.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.5f), CircleShape)
+                                                        else -> Modifier.background(color).border(if (isSelected) 2.dp else 0.dp, Color.White, CircleShape)
                                                     }
                                                 )
                                                 .clickable {
@@ -548,6 +565,20 @@ fun QuickViewScreen(
                                                 Icon(
                                                     Icons.Default.AutoAwesome,
                                                     contentDescription = null,
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            } else if (isLightGlass) {
+                                                Icon(
+                                                    Icons.Default.BlurOn,
+                                                    contentDescription = "MacBook Light Glass",
+                                                    tint = Color.Black,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            } else if (isDarkGlass) {
+                                                Icon(
+                                                    Icons.Default.BlurOn,
+                                                    contentDescription = "MacBook Dark Glass",
                                                     tint = Color.White,
                                                     modifier = Modifier.size(14.dp)
                                                 )
@@ -1047,7 +1078,7 @@ fun QuickViewScreen(
             title = "Delete Media",
             itemTitle = toDelete.title,
             onDismiss = { showDeleteDialog = false },
-            backdropState = quickViewBackdropState,
+//            backdropState = quickViewBackdropState,
             onConfirm = {
                 showDeleteDialog = false
                 onDelete(toDelete)

@@ -48,8 +48,7 @@ fun HardwareAccelerationSetting(
             AppSwitch(
                 checked = hwAccelEnabled,
                 onCheckedChange = { scope.launch { settingsManager.setHardwareAccelerationEnabled(it); onModeChange() } },
-                style = AppSwitchStyle.Glossy,
-                accentColor = Color(0xFF38BDF8)
+                style = AppSwitchStyle.Glass
             )
         }
 

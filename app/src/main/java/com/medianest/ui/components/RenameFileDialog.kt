@@ -4,6 +4,8 @@ import android.content.ContentValues
 import android.content.Context
 import android.provider.MediaStore
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,30 +15,53 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.zIndex
 import com.medianest.data.model.MediaItem
+import com.medianest.ui.theme.LocalDarkTheme
 import java.io.File
 
 @Composable
 fun RenameFileDialog(
     item: MediaItem,
     onDismiss: () -> Unit,
-    onRenameSuccess: (String) -> Unit
+    onRenameSuccess: (String) -> Unit,
+    backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     val context = LocalContext.current
+    val isDark = LocalDarkTheme.current
     var newTitle by remember(item) { mutableStateOf(item.title) }
     var isRenaming by remember { mutableStateOf(false) }
 
-    Dialog(onDismissRequest = onDismiss) {
-        GlassSurface(
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(10f)
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { onDismiss() })
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        BackHandler(onBack = onDismiss)
+
+        BackdropGlassSurface(
             shape = RoundedCornerShape(24.dp),
-            backgroundColor = Color(0xEF12151E),
-            borderColor = Color(0x38FFFFFF),
-            modifier = Modifier.fillMaxWidth(0.92f)
+            enableBlur = true,
+            blurRadius = 24.dp,
+            tint = Color.Black.copy(alpha = 0.30f),
+            baseColor = Color.Transparent,
+            borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x18000000),
+            borderWidth = 1.dp,
+            backdropState = backdropState,
+            modifier = Modifier
+                .fillMaxWidth(0.90f)
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { /* consume */ })
+                }
         ) {
             Column(
                 modifier = Modifier
