@@ -282,12 +282,13 @@ fun QuickViewScreen(
     var currentDismissProgress by remember { mutableStateOf(0f) }
     val effectiveBgAlpha = (1f - currentDismissProgress).coerceIn(0f, 1f)
 
-    val MacQuickViewLightGlass = remember { Color(0x3BFFFFFF) }
-    val MacQuickViewDarkGlass = remember { Color(0x3B08090E) }
+    val FrostedWhiteGlass = remember { Color(0x00F8FAFC) }
+    val FrostedDarkGlass = remember { Color.Black.copy(alpha = 0.30f) }
     val EmeraldColor = remember { Color(0xFF10B981) }
 
-    val isGlassBlurBg = viewerBgColor == MacQuickViewLightGlass || viewerBgColor == MacQuickViewDarkGlass
-    val isDynamicGradient = (viewerBgColor == null || viewerBgColor == Color.Transparent) && !isGlassBlurBg
+    val isGlassBlurBg = viewerBgColor == FrostedDarkGlass
+    val isGeminiLightBg = viewerBgColor == FrostedWhiteGlass
+    val isDynamicGradient = (viewerBgColor == null || viewerBgColor == Color.Transparent) && !isGlassBlurBg && !isGeminiLightBg
     val effectiveBgColor = viewerBgColor ?: Color.Black
 
     BackHandler {
@@ -304,10 +305,20 @@ fun QuickViewScreen(
                     if (isGlassBlurBg && quickViewBackdropState != null) {
                         Modifier.backdropReceiver(
                             state = quickViewBackdropState,
-                            blurRadius = 32.dp,
-                            tint = viewerBgColor!!,
+                            blurRadius = 24.dp,
+                            tint = Color.Black.copy(alpha = 0.30f),
                             baseColor = Color.Transparent,
                             showTopBorder = false
+                        )
+                    } else if (isGeminiLightBg) {
+                        Modifier.background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFFF8FAFC),
+                                    Color(0xFFE2E8F0),
+                                    Color(0xFFCBD5E1)
+                                )
+                            )
                         )
                     } else if (isDynamicGradient) {
                         Modifier.background(imageBgBrush)
@@ -316,12 +327,29 @@ fun QuickViewScreen(
                     }
                 )
         ) {
+            // Gemini Frosted Center Blue Glow Orb
+            if (viewerBgColor == FrostedWhiteGlass) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0x6638BDF8), // Gemini Frosted Cyan-Blue Center
+                                    Color(0x3360A5FA), // Soft Blue Halo
+                                    Color.Transparent
+                                ),
+                                radius = 900f
+                            )
+                        )
+                )
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .backdropSource(
                         state = quickViewBackdropState,
-                        backgroundColor = Color.Black
+                        backgroundColor = Color.Transparent
                     )
             ) {
         if (mutableMediaList.isNotEmpty()) {
@@ -460,12 +488,12 @@ fun QuickViewScreen(
 
                         val colorOptions = remember {
                             listOf(
-                                Color.Transparent,       // Dynamic Ambient Gradient
-                                Color.Black,             // Solid Black
-                                Color.White,             // Solid White
-                                EmeraldColor,            // Solid Emerald Green
-                                MacQuickViewLightGlass,  // MacBook QuickView Light Glass (White Tint + Blur)
-                                MacQuickViewDarkGlass    // MacBook QuickView Dark Glass (Black Tint + Blur)
+                                Color.Transparent,  // Dynamic Ambient Gradient
+                                Color.Black,        // Solid Black
+                                Color.White,        // Solid White
+                                EmeraldColor,       // Solid Emerald Green
+                                FrostedWhiteGlass,  // Frosted White Glass (White Tint + Blur)
+                                FrostedDarkGlass    // Frosted Dark Glass (Dark Tint + Blur)
                             )
                         }
 
@@ -525,8 +553,8 @@ fun QuickViewScreen(
                                 ) {
                                     colorOptions.forEach { color ->
                                         val isTransparent = color == Color.Transparent
-                                        val isLightGlass = color == MacQuickViewLightGlass
-                                        val isDarkGlass = color == MacQuickViewDarkGlass
+                                        val isLightGlass = color == FrostedWhiteGlass
+                                        val isDarkGlass = color == FrostedDarkGlass
                                         val isSelected = if (isTransparent) {
                                             isDynamicGradient
                                         } else {
@@ -549,8 +577,15 @@ fun QuickViewScreen(
                                                                 )
                                                             )
                                                         ).border(if (isSelected) 2.dp else 1.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.5f), CircleShape)
-                                                        isLightGlass -> Modifier.background(Color(0x66FFFFFF)).border(if (isSelected) 2.dp else 1.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.5f), CircleShape)
-                                                        isDarkGlass -> Modifier.background(Color(0x8808090E)).border(if (isSelected) 2.dp else 1.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.5f), CircleShape)
+                                                        isLightGlass -> Modifier.background(
+                                                            brush = Brush.radialGradient(
+                                                                colors = listOf(
+                                                                    Color(0xFF38BDF8),
+                                                                    Color(0xFFF8FAFC)
+                                                                )
+                                                            )
+                                                        ).border(if (isSelected) 2.dp else 1.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.5f), CircleShape)
+                                                        isDarkGlass -> Modifier.background(Color.Black).border(if (isSelected) 2.dp else 1.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.5f), CircleShape)
                                                         else -> Modifier.background(color).border(if (isSelected) 2.dp else 0.dp, Color.White, CircleShape)
                                                     }
                                                 )
@@ -571,14 +606,14 @@ fun QuickViewScreen(
                                             } else if (isLightGlass) {
                                                 Icon(
                                                     Icons.Default.BlurOn,
-                                                    contentDescription = "MacBook Light Glass",
+                                                    contentDescription = "Frosted White Glass",
                                                     tint = Color.Black,
                                                     modifier = Modifier.size(14.dp)
                                                 )
                                             } else if (isDarkGlass) {
                                                 Icon(
                                                     Icons.Default.BlurOn,
-                                                    contentDescription = "MacBook Dark Glass",
+                                                    contentDescription = "Frosted Dark Glass",
                                                     tint = Color.White,
                                                     modifier = Modifier.size(14.dp)
                                                 )

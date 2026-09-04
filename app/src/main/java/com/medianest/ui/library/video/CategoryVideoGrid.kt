@@ -29,6 +29,9 @@ fun ChronologicalCategoryVideoGrid(
     onDelete: (MediaItem) -> Unit,
     onRemoveFromCategory: (MediaItem) -> Unit,
     onShowInfo: ((MediaItem) -> Unit)? = null,
+    onRename: ((MediaItem) -> Unit)? = null,
+    onMove: ((MediaItem) -> Unit)? = null,
+    onCopy: ((MediaItem) -> Unit)? = null,
     gridState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
 ) {
     // Grouping by date
@@ -108,6 +111,9 @@ fun ChronologicalCategoryVideoGrid(
                             isLocationFallback = locationResult?.isLocationFallback ?: true,
                             onDelete = { onDelete(item) },
                             onRemoveFromCategory = { onRemoveFromCategory(item) },
+                            onRename = onRename?.let { cb -> { cb(item) } },
+                            onMove = onMove?.let { cb -> { cb(item) } },
+                            onCopy = onCopy?.let { cb -> { cb(item) } },
                             onShowInfo = onShowInfo?.let { cb -> { cb(item) } }
                         )
                     }

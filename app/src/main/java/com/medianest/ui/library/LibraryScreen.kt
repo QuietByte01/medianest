@@ -159,7 +159,7 @@ fun LibraryScreen(
                         .fillMaxSize()
                         .backdropSource(
                             state = libraryBackdropState,
-                            backgroundColor = MaterialTheme.colorScheme.background
+                            backgroundColor = Color(0xFF0C0E14)
                         )
                 ) {
                     LibraryAmbientBackground(
@@ -174,7 +174,7 @@ fun LibraryScreen(
                     )
                 }
 
-            Scaffold(
+                Scaffold(
                 containerColor = androidx.compose.ui.graphics.Color.Transparent,
                 contentWindowInsets = WindowInsets(0, 0, 0, 0), // Eliminate automatic padding
                 topBar = {

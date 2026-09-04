@@ -52,37 +52,25 @@ internal fun VideoPlayerSettingsOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.50f))
             .clickable(
                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                 indication = null
             ) { onDismiss() },
         contentAlignment = Alignment.Center
     ) {
-        GlassSurface(
+        BackdropGlassSurface(
             modifier = Modifier
                 .fillMaxWidth(if (isTablet) 0.96f else 0.94f)
                 .fillMaxHeight(if (isLandscape) 0.92f else 0.86f)
                 .padding(if (isTablet) 20.dp else 10.dp)
-                .clip(RoundedCornerShape(22.dp))
-                .then(
-                    if (backdropState != null) {
-                        Modifier.backdropReceiver(
-                            state = backdropState,
-                            blurRadius = 28.dp,
-                            tint = Color(0xE60D111A),
-                            baseColor = Color(0x6608090E),
-                            showTopBorder = true,
-                            borderColor = Color(0x33FFFFFF)
-                        )
-                    } else Modifier
-                )
                 .clickable(enabled = false) {},
             shape = RoundedCornerShape(22.dp),
-            backgroundColor = if (backdropState != null) Color.Transparent else Color(0xE60D111A),
-            borderColor = Color(0x33FFFFFF),
+            blurRadius = 28.dp,
+            tint = Color(0x660A0C10),
+            baseColor = Color.Transparent,
+            borderColor = Color(0x38FFFFFF),
             borderWidth = 0.5.dp,
-            enableBlur = false
+            backdropState = backdropState
         ) {
             Column(
                 modifier = Modifier

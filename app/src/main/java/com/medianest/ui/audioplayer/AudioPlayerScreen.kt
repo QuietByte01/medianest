@@ -384,12 +384,18 @@ fun AudioPlayerScreen(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
                 ) {}
-                .backdropSource(
-                    state = playerBackdropState,
-                    backgroundColor = Color.Transparent
-                )
-                .background(playerBgBrush)
         ) {
+            // 1. Isolated Visual Background Layer ONLY recorded into GraphicsLayer
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .backdropSource(
+                        state = playerBackdropState,
+                        backgroundColor = Color.Transparent
+                    )
+                    .background(playerBgBrush)
+            )
+
             if (isLandscape) {
             LandscapePlayerLayout(
                 playerState = playerState, currentItem = currentItem, playerManager = playerManager,

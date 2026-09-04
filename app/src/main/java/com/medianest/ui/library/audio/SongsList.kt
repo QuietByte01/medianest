@@ -92,126 +92,128 @@ fun SongsList(
         }
     }
 
-    if (isLoading && songs.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            MediaLoadingAnimation(
-                mediaType = MediaType.AUDIO,
-                iconSize = 52.dp
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (isLoading && songs.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                MediaLoadingAnimation(
+                    mediaType = MediaType.AUDIO,
+                    iconSize = 52.dp
+                )
+            }
+        } else if (songs.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No Audio Files Found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            val isAlphabetical = remember(songs) {
+                if (songs.size < 30) false 
+                else {
+                    // Check if list is sorted alphabetically by title (A-Z)
+                    var sorted = true
+                    for (i in 0 until (songs.size - 1)) {
+                        if (songs[i].title.lowercase() > songs[i+1].title.lowercase()) {
+                            sorted = false
+                            break
+                        }
+                    }
+                    sorted
+                }
+            }
+
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(if (isAlphabetical) Modifier else Modifier.translucentScrollBar(listState)),
+                    contentPadding = PaddingValues(
+                        bottom = 80.dp,
+                        end = if (isAlphabetical) 20.dp else 4.dp
+                    )
+                ) {
+                    items(songs, key = { it.id }) { item ->
+                        SongRow(
+                            item = item,
+                            currentlyPlayingUri = currentlyPlayingUri,
+                            isAlphabetical = isAlphabetical,
+                            isSelected = selectedUris.contains(item.uri.toString()),
+                            isHighlighted = item.uri.toString() == highlightedSongUri,
+                            onSongClick = {
+                                val idx = songs.indexOf(it)
+                                if (idx != -1) onSongClick(songs, idx)
+                            },
+                            onAddToPlaylist = onAddToPlaylist,
+                            onRemoveFromPlaylist = onRemoveFromPlaylist,
+                            onInfoClick = onShowInfo,
+                            onEditMetadataClick = { editMetadataItem = it },
+                            onMoveClick = { itemToMove = it },
+                            onCopyClick = { itemToCopy = it },
+                            onDeleteClick = { songToDelete = it },
+                            onNavigateSubTab = onNavigateSubTab,
+                            showDeleteOption = showDeleteOption,
+                            showInGallery = showInGallery,
+                            context = context
+                        )
+                    }
+                }
+                if (isAlphabetical) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+                        AlphabetScroller(
+                            items = remember(songs) { songs.map { it.title } },
+                            onScrollTo = { targetIndex ->
+                                scope.launch { listState.scrollToItem(targetIndex) }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        if (itemToMove != null) {
+            MoveOrCopyFileDialog(
+                item = itemToMove!!,
+                allItems = songs,
+                isCopy = false,
+                onDismiss = { itemToMove = null }
             )
         }
-    } else if (songs.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No Audio Files Found", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    } else {
-        val isAlphabetical = remember(songs) {
-            if (songs.size < 30) false 
-            else {
-                // Check if list is sorted alphabetically by title (A-Z)
-                var sorted = true
-                for (i in 0 until (songs.size - 1)) {
-                    if (songs[i].title.lowercase() > songs[i+1].title.lowercase()) {
-                        sorted = false
-                        break
-                    }
-                }
-                sorted
-            }
+
+        if (itemToCopy != null) {
+            MoveOrCopyFileDialog(
+                item = itemToCopy!!,
+                allItems = songs,
+                isCopy = true,
+                onDismiss = { itemToCopy = null }
+            )
         }
 
-        Box(modifier = Modifier.fillMaxSize()) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .then(if (isAlphabetical) Modifier else Modifier.translucentScrollBar(listState)),
-                contentPadding = PaddingValues(
-                    bottom = 80.dp,
-                    end = if (isAlphabetical) 20.dp else 4.dp
-                )
-            ) {
-                items(songs, key = { it.id }) { item ->
-                    SongRow(
-                        item = item,
-                        currentlyPlayingUri = currentlyPlayingUri,
-                        isAlphabetical = isAlphabetical,
-                        isSelected = selectedUris.contains(item.uri.toString()),
-                        isHighlighted = item.uri.toString() == highlightedSongUri,
-                        onSongClick = {
-                            val idx = songs.indexOf(it)
-                            if (idx != -1) onSongClick(songs, idx)
-                        },
-                        onAddToPlaylist = onAddToPlaylist,
-                        onRemoveFromPlaylist = onRemoveFromPlaylist,
-                        onInfoClick = onShowInfo,
-                        onEditMetadataClick = { editMetadataItem = it },
-                        onMoveClick = { itemToMove = it },
-                        onCopyClick = { itemToCopy = it },
-                        onDeleteClick = { songToDelete = it },
-                        onNavigateSubTab = onNavigateSubTab,
-                        showDeleteOption = showDeleteOption,
-                        showInGallery = showInGallery,
-                        context = context
-                    )
-                }
-            }
-            if (isAlphabetical) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
-                    AlphabetScroller(
-                        items = remember(songs) { songs.map { it.title } },
-                        onScrollTo = { targetIndex ->
-                            scope.launch { listState.scrollToItem(targetIndex) }
+        /* MediaInfoBottomSheet handled at top level in LibraryScreen */
+
+        if (songToDelete != null) {
+            val target = songToDelete!!
+            com.medianest.ui.components.DeleteConfirmationDialog(
+                title = "Delete Audio File",
+                itemTitle = target.title,
+                onDismiss = { songToDelete = null },
+                onConfirm = {
+                    songToDelete = null
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            com.medianest.util.FolderHiddenUtils.deleteMediaUri(context, target.uri)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
                         }
-                    )
-                }
-            }
-        }
-    }
-
-    if (itemToMove != null) {
-        MoveOrCopyFileDialog(
-            item = itemToMove!!,
-            allItems = songs,
-            isCopy = false,
-            onDismiss = { itemToMove = null }
-        )
-    }
-
-    if (itemToCopy != null) {
-        MoveOrCopyFileDialog(
-            item = itemToCopy!!,
-            allItems = songs,
-            isCopy = true,
-            onDismiss = { itemToCopy = null }
-        )
-    }
-
-    /* MediaInfoBottomSheet handled at top level in LibraryScreen */
-
-    if (songToDelete != null) {
-        val target = songToDelete!!
-        com.medianest.ui.components.DeleteConfirmationDialog(
-            title = "Delete Audio File",
-            itemTitle = target.title,
-            onDismiss = { songToDelete = null },
-            onConfirm = {
-                songToDelete = null
-                scope.launch(Dispatchers.IO) {
-                    try {
-                        com.medianest.util.FolderHiddenUtils.deleteMediaUri(context, target.uri)
-                    } catch (e: Exception) {
-                        e.printStackTrace()
                     }
                 }
-            }
-        )
-    }
+            )
+        }
 
-    if (editMetadataItem != null) {
-        AudioMetadataEditDialog(
-            item = editMetadataItem!!,
-            onDismiss = { editMetadataItem = null }
-        )
+        if (editMetadataItem != null) {
+            AudioMetadataEditDialog(
+                item = editMetadataItem!!,
+                onDismiss = { editMetadataItem = null }
+            )
+        }
     }
 }
 

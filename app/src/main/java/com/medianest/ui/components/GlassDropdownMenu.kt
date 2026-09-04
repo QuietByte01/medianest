@@ -18,8 +18,8 @@ import androidx.compose.ui.window.PopupProperties
 import com.medianest.ui.theme.LocalDarkTheme
 
 /**
- * Premium Ambient Glass Dropdown Menu component.
- * Wraps content with [BackdropGlassSurface].
+ * Premium Frosted Backdrop Glass Dropdown Menu component.
+ * Samples the ambient background / backdrop via [BackdropGlassSurface].
  */
 @Composable
 fun GlassDropdownMenu(
@@ -37,13 +37,6 @@ fun GlassDropdownMenu(
     hue: Float? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val isDark = LocalDarkTheme.current
-    val menuBg = if (containerColor != Color.Transparent) {
-        containerColor
-    } else {
-        if (isDark) Color(0xEE08090E) else Color(0xEEFFFFFF)
-    }
-
     DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismissRequest,
@@ -58,9 +51,8 @@ fun GlassDropdownMenu(
     ) {
         BackdropGlassSurface(
             shape = shape,
-            backgroundColor = menuBg,
-            borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x28000000),
-            borderWidth = 0.5.dp
+            borderWidth = 0.5.dp,
+            backgroundColor = containerColor.takeIf { it != Color.Transparent } ?: Color.Unspecified
         ) {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                 content()
@@ -68,3 +60,4 @@ fun GlassDropdownMenu(
         }
     }
 }
+

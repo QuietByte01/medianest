@@ -376,8 +376,7 @@ fun ImagesFolderGrid(
                                         expanded = showFolderMenu,
                                         onDismissRequest = { showFolderMenu = false },
                                         modifier = Modifier.width(200.dp),
-                                        shape = RoundedCornerShape(20.dp),
-                                        backgroundImage = folderItems.firstOrNull()?.uri
+                                        shape = RoundedCornerShape(20.dp)
                                     ) {
                                         Text(
                                             text = folderName,

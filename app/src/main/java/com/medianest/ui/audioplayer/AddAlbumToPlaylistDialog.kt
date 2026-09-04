@@ -34,6 +34,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
+import com.medianest.ui.components.LocalBackdropState
+import com.medianest.ui.components.BackdropGlassSurface
+
 @Composable
 fun AddAlbumToPlaylistDialog(
     albumSongs: List<MediaItem>,
@@ -42,7 +45,8 @@ fun AddAlbumToPlaylistDialog(
     playerManager: ExoPlayerManager,
     context: Context,
     scope: CoroutineScope,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    backdropState: com.medianest.ui.components.BackdropBlurState? = LocalBackdropState.current
 ) {
     var isCreatingPlaylist by remember { mutableStateOf(false) }
     var newPlaylistNameInput by remember { mutableStateOf("") }
@@ -52,10 +56,10 @@ fun AddAlbumToPlaylistDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        AmbientGlassSurface(
+        BackdropGlassSurface(
             shape = RoundedCornerShape(24.dp),
-            backgroundImage = albumArtUri,
             borderWidth = 0.5.dp,
+            backdropState = backdropState,
             modifier = Modifier
                 .widthIn(max = 420.dp)
                 .fillMaxWidth(0.88f)

@@ -44,6 +44,7 @@ fun FoldersGrid(
     targetSongUri: String? = null,
     onAddToPlaylist: (MediaItem) -> Unit = {},
     onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?, targetSongUri: String?) -> Unit = { _, _, _, _, _ -> },
+    onShowInfo: (MediaItem) -> Unit = {},
     isLoading: Boolean = false,
     isScanningHidden: Boolean = false,
     onRescanHiddenMedia: () -> Unit = {},
@@ -627,6 +628,7 @@ fun FoldersGrid(
                     onSongLongClick = onSongLongClick,
                     onNavigateSubTab = onNavigateSubTab,
                     onAddToPlaylist = onAddToPlaylist,
+                    onShowInfo = onShowInfo,
                     showInGallery = true,
                     targetSongUri = targetSongUri
                 )

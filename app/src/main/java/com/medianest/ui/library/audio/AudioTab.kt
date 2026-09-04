@@ -365,6 +365,7 @@ fun AudioTab(
                     if (folder != null) targetFolder = folder
                     if (targetUri != null) targetSongUri = targetUri
                 },
+                onShowInfo = onShowInfo,
                 isLoading = isLoading,
                 isScanningHidden = isScanningHidden,
                 onRescanHiddenMedia = onRescanHiddenMedia,
@@ -387,6 +388,7 @@ fun AudioTab(
                     if (folder != null) targetFolder = folder
                     if (targetUri != null) targetSongUri = targetUri
                 },
+                onShowInfo = onShowInfo,
                 isLoading = isLoading,
                 isScanningHidden = isScanningHidden,
                 onRescanHiddenMedia = onRescanHiddenMedia,
@@ -408,6 +410,7 @@ fun AudioTab(
                     if (folder != null) targetFolder = folder
                     if (targetUri != null) targetSongUri = targetUri
                 },
+                onShowInfo = onShowInfo,
                 sortField = sortField,
                 isAscending = isAscending,
                 cacheMap = cacheMap,
@@ -428,6 +431,7 @@ fun AudioTab(
                     if (folder != null) targetFolder = folder
                     if (targetUri != null) targetSongUri = targetUri
                 },
+                onShowInfo = onShowInfo,
                 sortField = sortField,
                 isAscending = isAscending,
                 gridState = artistsGridState
@@ -448,6 +452,7 @@ fun AudioTab(
                     if (folder != null) targetFolder = folder
                     if (targetUri != null) targetSongUri = targetUri
                 },
+                onShowInfo = onShowInfo,
                 isLoading = isLoading,
                 isScanningHidden = isScanningHidden,
                 onRescanHiddenMedia = onRescanHiddenMedia,
@@ -465,6 +470,7 @@ fun AudioTab(
                 initialSelectedPlaylist = targetPlaylist,
                 onSelectPlaylist = { targetPlaylist = it },
                 onAddToPlaylist = { itemToAddToPlaylist = it },
+                onShowInfo = onShowInfo,
                 onNavigateSubTab = { tab: Int, album: String?, artist: String?, folder: String?, targetUri: String? ->
                     previousSubTabState = subTabState
                     subTabState = tab
@@ -478,35 +484,121 @@ fun AudioTab(
     }
 }
 
-    if (isTablet) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .nestedScroll(nestedScrollConnection)
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            GlassSurface(
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (isTablet) {
+            Row(
                 modifier = Modifier
-                    .width(200.dp)
-                    .fillMaxHeight(),
-                shape = RoundedCornerShape(22.dp),
-                backgroundColor = Color(0x221C1F2B),
-                borderColor = Color(0x2EFFFFFF)
+                    .fillMaxSize()
+                    .nestedScroll(nestedScrollConnection)
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Column(
+                GlassSurface(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                        .width(200.dp)
+                        .fillMaxHeight(),
+                    shape = RoundedCornerShape(22.dp),
+                    backgroundColor = Color(0x221C1F2B),
+                    borderColor = Color(0x2EFFFFFF)
                 ) {
-                    visibleCategories.forEach { item ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        visibleCategories.forEach { item ->
+                            val isSelected = subTabState == item.index
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(44.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable { 
+                                        subTabState = item.index
+                                        previousSubTabState = null
+                                        targetAlbum = null
+                                        targetArtist = null
+                                        targetFolder = null
+                                        targetPlaylist = null
+                                    },
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (isSelected) Color(0x1AFFFFFF) else Color.Transparent
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = item.icon,
+                                        contentDescription = null,
+                                        tint = if (isSelected) Color.White else Color(0xFF8E95A5),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        text = item.label,
+                                        fontSize = 14.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) Color.White else Color(0xFF8E95A5)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Box(modifier = Modifier.weight(1f)) {
+                    Column {
+                        SortRow(
+                            sortField = sortField,
+                            onSortFieldChange = { scope.launch { settingsManager.setAudioSortField(it) } },
+                            isAscending = isAscending,
+                            onIsAscendingChange = { scope.launch { settingsManager.setAudioSortAscending(it) } },
+                            isVisible = isSortVisible.value && (subTabState in listOf(0, 3, 4, 5, 6) || previousSubTabState != null),
+                            options = sortOptions,
+                            onBack = when {
+                                targetPlaylist != null -> ({ targetPlaylist = null })
+                                targetAlbum != null -> ({ targetAlbum = null })
+                                targetArtist != null -> ({ targetArtist = null })
+                                targetFolder != null -> ({ targetFolder = null })
+                                previousSubTabState != null -> ({
+                                    subTabState = previousSubTabState!!
+                                    previousSubTabState = null
+                                })
+                                subTabState != 0 -> ({ subTabState = 0 })
+                                else -> onBackToDashboard
+                            },
+                            backLabel = when {
+                                targetPlaylist != null -> targetPlaylist?.name
+                                targetAlbum != null -> targetAlbum
+                                targetArtist != null -> targetArtist
+                                targetFolder != null -> targetFolder?.substringAfterLast('/')
+                                previousSubTabState == 6 -> "Playlists"
+                                previousSubTabState != null -> visibleCategories.firstOrNull { it.index == previousSubTabState }?.label
+                                subTabState != 0 -> "All Songs"
+                                else -> "Dashboard"
+                            }
+                        )
+                        contentBlock()
+                    }
+                }
+            }
+        } else {
+            Column(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection)) {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    items(visibleCategories, key = { it.index }) { item ->
                         val isSelected = subTabState == item.index
-                        Surface(
+                        GlassSurface(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(44.dp)
-                                .clip(RoundedCornerShape(14.dp))
+                                .height(38.dp)
+                                .clip(RoundedCornerShape(20.dp))
                                 .clickable { 
                                     subTabState = item.index
                                     previousSubTabState = null
@@ -515,158 +607,74 @@ fun AudioTab(
                                     targetFolder = null
                                     targetPlaylist = null
                                 },
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (isSelected) Color(0x1AFFFFFF) else Color.Transparent
+                            shape = RoundedCornerShape(20.dp),
+                            backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
+                            borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Icon(
                                     imageVector = item.icon,
                                     contentDescription = null,
-                                    tint = if (isSelected) Color.White else Color(0xFF8E95A5),
-                                    modifier = Modifier.size(20.dp)
+                                    tint = if (isSelected) Color.White else Color(0xFF9EA3B0),
+                                    modifier = Modifier.size(16.dp)
                                 )
                                 Text(
                                     text = item.label,
-                                    fontSize = 14.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) Color.White else Color(0xFF8E95A5)
+                                    color = if (isSelected) Color.White else Color(0xFF9EA3B0)
                                 )
                             }
                         }
                     }
                 }
-            }
-
-            Box(modifier = Modifier.weight(1f)) {
-                Column {
-                    SortRow(
-                        sortField = sortField,
-                        onSortFieldChange = { scope.launch { settingsManager.setAudioSortField(it) } },
-                        isAscending = isAscending,
-                        onIsAscendingChange = { scope.launch { settingsManager.setAudioSortAscending(it) } },
-                        isVisible = isSortVisible.value && (subTabState in listOf(0, 3, 4, 5, 6) || previousSubTabState != null),
-                        options = sortOptions,
-                        onBack = when {
-                            targetPlaylist != null -> ({ targetPlaylist = null })
-                            targetAlbum != null -> ({ targetAlbum = null })
-                            targetArtist != null -> ({ targetArtist = null })
-                            targetFolder != null -> ({ targetFolder = null })
-                            previousSubTabState != null -> ({
-                                subTabState = previousSubTabState!!
-                                previousSubTabState = null
-                            })
-                            subTabState != 0 -> ({ subTabState = 0 })
-                            else -> onBackToDashboard
-                        },
-                        backLabel = when {
-                            targetPlaylist != null -> targetPlaylist?.name
-                            targetAlbum != null -> targetAlbum
-                            targetArtist != null -> targetArtist
-                            targetFolder != null -> targetFolder?.substringAfterLast('/')
-                            previousSubTabState == 6 -> "Playlists"
-                            previousSubTabState != null -> visibleCategories.firstOrNull { it.index == previousSubTabState }?.label
-                            subTabState != 0 -> "All Songs"
-                            else -> "Dashboard"
-                        }
-                    )
-                    contentBlock()
-                }
-            }
-        }
-    } else {
-        Column(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection)) {
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                items(visibleCategories, key = { it.index }) { item ->
-                    val isSelected = subTabState == item.index
-                    GlassSurface(
-                        modifier = Modifier
-                            .height(38.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .clickable { 
-                                subTabState = item.index
-                                previousSubTabState = null
-                                targetAlbum = null
-                                targetArtist = null
-                                targetFolder = null
-                                targetPlaylist = null
-                            },
-                        shape = RoundedCornerShape(20.dp),
-                        backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
-                        borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = item.icon,
-                                contentDescription = null,
-                                tint = if (isSelected) Color.White else Color(0xFF9EA3B0),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = item.label,
-                                fontSize = 13.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) Color.White else Color(0xFF9EA3B0)
-                            )
-                        }
+                
+                SortRow(
+                    sortField = sortField,
+                    onSortFieldChange = { scope.launch { settingsManager.setAudioSortField(it) } },
+                    isAscending = isAscending,
+                    onIsAscendingChange = { scope.launch { settingsManager.setAudioSortAscending(it) } },
+                    isVisible = isSortVisible.value && (subTabState in listOf(0, 3, 4, 5, 6) || previousSubTabState != null),
+                    options = sortOptions,
+                    onBack = when {
+                        targetPlaylist != null -> ({ targetPlaylist = null })
+                        targetAlbum != null -> ({ targetAlbum = null })
+                        targetArtist != null -> ({ targetArtist = null })
+                        targetFolder != null -> ({ targetFolder = null })
+                        previousSubTabState != null -> ({
+                            subTabState = previousSubTabState!!
+                            previousSubTabState = null
+                        })
+                        subTabState != 0 -> ({ subTabState = 0 })
+                        else -> onBackToDashboard
+                    },
+                    backLabel = when {
+                        targetPlaylist != null -> targetPlaylist?.name
+                        targetAlbum != null -> targetAlbum
+                        targetArtist != null -> targetArtist
+                        targetFolder != null -> targetFolder?.substringAfterLast('/')
+                        previousSubTabState == 6 -> "Playlists"
+                        previousSubTabState != null -> visibleCategories.firstOrNull { it.index == previousSubTabState }?.label
+                        subTabState != 0 -> "All Songs"
+                        else -> "Dashboard"
                     }
-                }
+                )
+
+                contentBlock()
             }
-            
-            SortRow(
-                sortField = sortField,
-                onSortFieldChange = { scope.launch { settingsManager.setAudioSortField(it) } },
-                isAscending = isAscending,
-                onIsAscendingChange = { scope.launch { settingsManager.setAudioSortAscending(it) } },
-                isVisible = isSortVisible.value && (subTabState in listOf(0, 3, 4, 5, 6) || previousSubTabState != null),
-                options = sortOptions,
-                onBack = when {
-                    targetPlaylist != null -> ({ targetPlaylist = null })
-                    targetAlbum != null -> ({ targetAlbum = null })
-                    targetArtist != null -> ({ targetArtist = null })
-                    targetFolder != null -> ({ targetFolder = null })
-                    previousSubTabState != null -> ({
-                        subTabState = previousSubTabState!!
-                        previousSubTabState = null
-                    })
-                    subTabState != 0 -> ({ subTabState = 0 })
-                    else -> onBackToDashboard
-                },
-                backLabel = when {
-                    targetPlaylist != null -> targetPlaylist?.name
-                    targetAlbum != null -> targetAlbum
-                    targetArtist != null -> targetArtist
-                    targetFolder != null -> targetFolder?.substringAfterLast('/')
-                    previousSubTabState == 6 -> "Playlists"
-                    previousSubTabState != null -> visibleCategories.firstOrNull { it.index == previousSubTabState }?.label
-                    subTabState != 0 -> "All Songs"
-                    else -> "Dashboard"
-                }
-            )
-
-            contentBlock()
         }
-    }
 
-    if (itemToAddToPlaylist != null) {
-        AddToPlaylistBottomSheet(
-            song = itemToAddToPlaylist!!,
-            audioPlaylists = playlists,
-            onDismissRequest = { itemToAddToPlaylist = null }
-        )
+        if (itemToAddToPlaylist != null) {
+            AddToPlaylistBottomSheet(
+                song = itemToAddToPlaylist!!,
+                audioPlaylists = playlists,
+                onDismissRequest = { itemToAddToPlaylist = null }
+            )
+        }
     }
 }
 

@@ -137,6 +137,29 @@ fun AdaptiveBottomSheet(
                             content()
                         }
                     }
+                } else if (backdropState != null) {
+                    BackdropGlassSurface(
+                        modifier = modifier
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                enabled = false
+                            ) {}
+                            .fillMaxWidth(0.74f),
+                        shape = RoundedCornerShape(24.dp),
+                        backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color.Unspecified,
+                        borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
+                        enableBlur = enableBlur,
+                        backdropState = backdropState
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp)
+                        ) {
+                            content()
+                        }
+                    }
                 } else if (backgroundImage != null) {
                     SheetAmbientSurface(
                         modifier = modifier
@@ -174,7 +197,8 @@ fun AdaptiveBottomSheet(
                         borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
                         backgroundImage = backgroundImage,
                         backgroundImageAlpha = backgroundImageAlpha,
-                        enableBlur = enableBlur
+                        enableBlur = enableBlur,
+                        backdropState = null
                     ) {
                         Column(
                             modifier = Modifier
@@ -242,6 +266,27 @@ fun AdaptiveBottomSheet(
                         content()
                     }
                 }
+            } else if (backdropState != null) {
+                BackdropGlassSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = shape,
+                    backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color.Unspecified,
+                    borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
+                    enableBlur = enableBlur,
+                    backdropState = backdropState
+                ) {
+                    Column(modifier = Modifier.navigationBarsPadding()) {
+                        if (dragHandle != null) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                dragHandle()
+                            }
+                        }
+                        content()
+                    }
+                }
             } else if (backgroundImage != null) {
                 SheetAmbientSurface(
                     modifier = Modifier.fillMaxWidth(),
@@ -265,24 +310,14 @@ fun AdaptiveBottomSheet(
                 }
             } else {
                 GlassSurface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(
-                            if (backdropState != null) {
-                                Modifier.backdropReceiver(
-                                    state = backdropState,
-                                    blurRadius = 28.dp,
-                                    tint = Color(0x660A0C10),
-                                    baseColor = Color.Transparent
-                                )
-                            } else Modifier
-                        ),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = shape,
                     backgroundColor = resolvedColor,
                     borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
                     backgroundImage = backgroundImage,
                     backgroundImageAlpha = backgroundImageAlpha,
-                    enableBlur = enableBlur
+                    enableBlur = enableBlur,
+                    backdropState = null
                 ) {
                     Column(modifier = Modifier.navigationBarsPadding()) {
                         if (dragHandle != null) {

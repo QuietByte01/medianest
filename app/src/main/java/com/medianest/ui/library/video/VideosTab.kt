@@ -517,6 +517,9 @@ fun VideosTab(
                         db.categoryDao().removeMediaFromCategory(selectedCategory.id, item.uri.toString())
                     }
                 },
+                onRename = { itemToRename = it },
+                onMove = { itemToMove = it },
+                onCopy = { itemToCopy = it },
                 onShowInfo = onShowInfo,
                 gridState = chronologicalGridState
             )
@@ -550,6 +553,10 @@ fun VideosTab(
                 isSelectionMode = isSelectionMode,
                 onDelete = { videoToDelete = it },
                 onRemoveFromCategory = { /* No-op for combined view */ },
+                onRename = { itemToRename = it },
+                onMove = { itemToMove = it },
+                onCopy = { itemToCopy = it },
+                onShowInfo = onShowInfo,
                 gridState = chronologicalGridState
             )
         } else if (isFolderViewActive && selectedFolder == null) {
@@ -598,7 +605,9 @@ fun VideosTab(
                 gridGapDp = gridGapDp,
                 onInfoItem = onShowInfo,
                 onVideoDelete = { videoToDelete = it },
-                onRename = { itemToRename = it }
+                onRename = { itemToRename = it },
+                onMove = { itemToMove = it },
+                onCopy = { itemToCopy = it }
             )
         } else {
             VideosMainGrid(
@@ -637,6 +646,7 @@ fun VideosTab(
                 staggeredGridState = mainGridState
             )
         }
+    }
 
 
         if (itemToRename != null) {
@@ -910,5 +920,4 @@ fun VideosTab(
             }
         }
     }
-}
 }

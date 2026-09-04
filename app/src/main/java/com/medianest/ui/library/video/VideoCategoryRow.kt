@@ -155,8 +155,7 @@ fun VideoCategoryRow(
                     expanded = showCatMenu,
                     onDismissRequest = { showCatMenu = false },
                     modifier = Modifier.width(200.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    backgroundImage = firstVideoUri
+                    shape = RoundedCornerShape(20.dp)
                 ) {
                     Text(
                         text = cat.name,

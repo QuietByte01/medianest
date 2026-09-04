@@ -330,12 +330,7 @@ class MainActivity : ComponentActivity() {
                             Box(modifier = Modifier.fillMaxSize()) {
                                 // Persistent Base Library Screen (never destroyed on navigation to Settings/Player)
                                 Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .backdropSource(
-                                            state = settingsBackdropState,
-                                            backgroundColor = MaterialTheme.colorScheme.background
-                                        )
+                                    modifier = Modifier.fillMaxSize()
                                 ) {
                                 LibraryScreen(
                                 imagesList = imagesList,

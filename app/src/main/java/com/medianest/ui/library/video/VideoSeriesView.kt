@@ -54,7 +54,9 @@ fun VideoSeriesView(
     gridGapDp: Int,
     onInfoItem: (MediaItem) -> Unit,
     onVideoDelete: (MediaItem) -> Unit,
-    onRename: (MediaItem) -> Unit
+    onRename: (MediaItem) -> Unit,
+    onMove: ((MediaItem) -> Unit)? = null,
+    onCopy: ((MediaItem) -> Unit)? = null
 ) {
     val configuration = LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp
@@ -243,7 +245,9 @@ fun VideoSeriesView(
                             onLongClick = { onVideoLongClick(item) },
                             placeName = null,
                             onDelete = { onVideoDelete(item) },
-                            onRename = { onRename(item) }
+                            onRename = { onRename(item) },
+                            onMove = onMove?.let { cb -> { cb(item) } },
+                            onCopy = onCopy?.let { cb -> { cb(item) } }
                         )
                     }
                 }

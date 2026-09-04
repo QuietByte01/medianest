@@ -43,31 +43,17 @@ internal fun SubtitleOptionsDialog(
     modifier: Modifier = Modifier
 ) {
     val isDark = com.medianest.ui.theme.LocalDarkTheme.current
-    val cardBg = if (isDark) Color(0xE60D111A) else Color(0xF2FFFFFF)
-    val baseBg = if (isDark) Color(0x6608090E) else Color(0x66FFFFFF)
     val shape = RoundedCornerShape(20.dp)
 
-    val cardModifier = modifier
-        .clip(shape)
-        .then(
-            if (backdropState != null) {
-                Modifier.backdropReceiver(
-                    state = backdropState,
-                    blurRadius = 24.dp,
-                    tint = cardBg,
-                    baseColor = baseBg,
-                    showTopBorder = true,
-                    borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x22000000)
-                )
-            } else Modifier
-        )
-
-    GlassSurface(
-        modifier = cardModifier,
+    BackdropGlassSurface(
+        modifier = modifier.clickable(enabled = false) {},
         shape = shape,
-        backgroundColor = if (backdropState != null) Color.Transparent else cardBg,
-        borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x33000000),
-        borderWidth = 0.5.dp
+        blurRadius = 24.dp,
+        tint = Color(0x660A0C10),
+        baseColor = Color.Transparent,
+        borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x28000000),
+        borderWidth = 0.5.dp,
+        backdropState = backdropState
     ) {
         Column(
             modifier = Modifier
@@ -309,11 +295,12 @@ internal fun SubtitleCustomizationSheet(
     bgColor: Color,
     onBgColorChange: (Color) -> Unit,
     hasShadow: Boolean,
-    onHasShadowChange: (Boolean) -> Unit
+    onHasShadowChange: (Boolean) -> Unit,
+    backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     AdaptiveBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xDC121522)
+        backdropState = backdropState
     ) {
         Column(
             modifier = Modifier
@@ -475,11 +462,12 @@ internal fun AudioTrackSelectionSheet(
     playerManager: ExoPlayerManager,
     audioSyncOffsetMs: Long,
     onAudioSyncOffsetChange: (Long) -> Unit,
-    context: Context
+    context: Context,
+    backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     AdaptiveBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xDC121522)
+        backdropState = backdropState
     ) {
         Column(
             modifier = Modifier
@@ -500,7 +488,7 @@ internal fun AudioTrackSelectionSheet(
 
             if (availableAudioTracks.isNotEmpty()) {
                 availableAudioTracks.forEach { track ->
-                    GlassSurface(
+                    BackdropGlassSurface(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
@@ -509,10 +497,10 @@ internal fun AudioTrackSelectionSheet(
                                 Toast.makeText(context, "Selected ${track.name}", Toast.LENGTH_SHORT).show()
                             },
                         shape = RoundedCornerShape(12.dp),
-                        backgroundColor = if (track.isSelected) Color(0x4DFFFFFF) else Color(0x1AFFFFFF),
-                        borderColor = if (track.isSelected) Color.White else Color(0x33FFFFFF),
-                        enableBlur = true,
-                        blurRadius = 12.dp
+                        tint = if (track.isSelected) Color(0x660284C7) else Color(0x330A0C10),
+                        baseColor = Color.Transparent,
+                        borderColor = if (track.isSelected) Color(0xFF38BDF8) else Color(0x33FFFFFF),
+                        backdropState = backdropState
                     ) {
                         Row(
                             modifier = Modifier

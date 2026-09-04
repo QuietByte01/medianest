@@ -61,7 +61,8 @@ fun PlaylistsList(
     initialSelectedPlaylist: MediaCategory? = null,
     onSelectPlaylist: (MediaCategory?) -> Unit = {},
     onNavigateSubTab: (tabIndex: Int, album: String?, artist: String?, folder: String?, targetSongUri: String?) -> Unit = { _, _, _, _, _ -> },
-    onAddToPlaylist: (MediaItem) -> Unit = {}
+    onAddToPlaylist: (MediaItem) -> Unit = {},
+    onShowInfo: (MediaItem) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -289,6 +290,7 @@ fun PlaylistsList(
                         onSongLongClick = {},
                         onNavigateSubTab = onNavigateSubTab,
                         onAddToPlaylist = onAddToPlaylist,
+                        onShowInfo = onShowInfo,
                         onRemoveFromPlaylist = { item ->
                             scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                 val db = com.medianest.MediaNestApp.instance.database

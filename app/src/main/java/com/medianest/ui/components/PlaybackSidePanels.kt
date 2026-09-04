@@ -1473,27 +1473,15 @@ fun SidebarQueueDrawer(
         }
     }
 
-    val cardModifier = modifier
-        .clip(shape)
-        .then(
-            if (backdropState != null) {
-                Modifier.backdropReceiver(
-                    state = backdropState,
-                    blurRadius = 24.dp,
-                    tint = cardBg,
-                    baseColor = baseBg,
-                    showTopBorder = true,
-                    borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x22000000)
-                )
-            } else Modifier
-        )
-
-    GlassSurface(
+    BackdropGlassSurface(
         shape = shape,
-        backgroundColor = if (backdropState != null) Color.Transparent else cardBg,
-        borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x33000000),
+        blurRadius = 24.dp,
+        tint = Color(0x660A0C10),
+        baseColor = Color.Transparent,
+        borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x28000000),
         borderWidth = 0.5.dp,
-        modifier = cardModifier
+        backdropState = backdropState,
+        modifier = modifier.clickable(enabled = false) {}
     ) {
         Column(
             modifier = Modifier

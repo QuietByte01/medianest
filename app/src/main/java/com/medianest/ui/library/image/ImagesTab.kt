@@ -33,11 +33,10 @@ import com.medianest.data.db.SelectiveHiddenFolder
 import com.medianest.data.model.MediaItem
 import com.medianest.data.settings.SettingsManager
 import com.medianest.ui.components.GlassDropdownMenu
+import com.medianest.ui.components.LocalBackdropState
 import com.medianest.ui.components.MediaInfoBottomSheet
 import com.medianest.ui.components.RenameFileDialog
 import com.medianest.ui.components.SortRow
-import com.medianest.ui.components.backdropSource
-import com.medianest.ui.components.rememberBackdropBlurState
 import com.medianest.ui.library.MoveFolderDialog
 import com.medianest.ui.library.MoveOrCopyFileDialog
 import com.medianest.ui.library.RenameFolderDialog
@@ -286,7 +285,7 @@ fun ImagesTab(
         3 -> 220.dp
         else -> 135.dp
     }
-    val imagesTabBackdropState = rememberBackdropBlurState()
+    val backdropState = LocalBackdropState.current
 
     Box(
         modifier = Modifier
@@ -295,12 +294,7 @@ fun ImagesTab(
             .background(Color.Transparent)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .backdropSource(
-                    state = imagesTabBackdropState,
-                    backgroundColor = Color.Transparent
-                )
+            modifier = Modifier.fillMaxSize()
         ) {
             ImageFilterRow(
                 activeFilterTab = activeFilterTab,
@@ -511,7 +505,7 @@ fun ImagesTab(
                             imageMinSize = imageMinSize,
                             onImageClick = onImageClick,
                             onImageLongClick = onImageLongClick,
-                            onInfoItemChange = { if (it != null) onShowInfo(it) },
+                            onInfoItemChange = { if (it != null) infoItem = it },
                             onImageToDeleteChange = { imageToDelete = it },
                             onContextSheetItemChange = { contextSheetItem = it },
                             onRename = { itemToRename = it },
@@ -587,7 +581,7 @@ fun ImagesTab(
                 item = itemToMove!!,
                 allItems = imagesList,
                 isCopy = false,
-                backdropState = imagesTabBackdropState,
+                backdropState = backdropState,
                 onDismiss = { itemToMove = null }
             )
         }
@@ -597,7 +591,7 @@ fun ImagesTab(
                 item = itemToCopy!!,
                 allItems = imagesList,
                 isCopy = true,
-                backdropState = imagesTabBackdropState,
+                backdropState = backdropState,
                 onDismiss = { itemToCopy = null }
             )
         }
@@ -607,6 +601,7 @@ fun ImagesTab(
                 srcFolder = folderForInfo!!,
                 folderGroups = folderGroups,
                 context = currentContext,
+                backdropState = backdropState,
                 onDismiss = { folderForInfo = null }
             )
         }
@@ -615,7 +610,7 @@ fun ImagesTab(
             MoveToFilterDialog(
                 item = itemToMoveFilter!!,
                 currentFilterTab = activeFilterTab,
-                backdropState = imagesTabBackdropState,
+                backdropState = backdropState,
                 onDismiss = { itemToMoveFilter = null }
             )
         }
@@ -628,7 +623,9 @@ fun ImagesTab(
                 expanded = true,
                 onDismissRequest = { contextSheetItem = null },
                 modifier = Modifier.width(200.dp),
-                shape = RoundedCornerShape(20.dp)
+                shape = RoundedCornerShape(20.dp),
+                useImageBackground = true,
+                backgroundImage = activeItem.albumArtUri ?: activeItem.uri
             ) {
                 Text(
                     text = activeItem.title,
@@ -776,7 +773,7 @@ fun ImagesTab(
             com.medianest.ui.components.DeleteConfirmationDialog(
                 title = "Delete Image File",
                 itemTitle = target.title,
-                backdropState = imagesTabBackdropState,
+                backdropState = backdropState,
                 onDismiss = { imageToDelete = null },
                 onConfirm = {
                     imageToDelete = null
@@ -795,14 +792,14 @@ fun ImagesTab(
             com.medianest.ui.components.mediainfo.ImageInfoOverlay(
                 item = infoItem!!,
                 onClose = { infoItem = null },
-                backdropState = imagesTabBackdropState
+                backdropState = backdropState
             )
         }
 
         if (itemToRename != null) {
             RenameFileDialog(
                 item = itemToRename!!,
-                backdropState = imagesTabBackdropState,
+                backdropState = backdropState,
                 onDismiss = { itemToRename = null },
                 onRenameSuccess = { itemToRename = null }
             )
