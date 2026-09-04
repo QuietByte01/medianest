@@ -283,10 +283,11 @@ fun PlaybackSpeedChip(
     fontSize: TextUnit = 12.sp,
     fontWeight: FontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
     contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+    backdropState: BackdropBlurState? = LocalBackdropState.current,
     enabled: Boolean = true
 ) {
-    val glossyWhiteBrush = Brush.verticalGradient(
-        colors = listOf(Color(0xFFFFFFFF), Color(0xFFE2E8F0))
+    val frostedWhiteBrush = Brush.verticalGradient(
+        colors = listOf(Color(0xE6FFFFFF), Color(0xCCFFFFFF))
     )
     val contentColor = if (isSelected) Color(0xFF0F172A) else Color.White
 
@@ -295,12 +296,23 @@ fun PlaybackSpeedChip(
         .then(
             if (isSelected) {
                 Modifier
-                    .background(glossyWhiteBrush)
-                    .border(1.dp, Color.White.copy(alpha = 0.5f), shape)
+                    .background(frostedWhiteBrush)
+                    .border(0.75.dp, Color.White, shape)
             } else {
-                Modifier
-                    .background(Color(0x33FFFFFF))
-                    .border(0.5.dp, Color(0x22FFFFFF), shape)
+                if (backdropState != null) {
+                    Modifier
+                        .backdropReceiver(
+                            state = backdropState,
+                            blurRadius = 16.dp,
+                            tint = Color(0x550A0C10),
+                            baseColor = Color.Transparent
+                        )
+                        .border(0.5.dp, Color(0x38FFFFFF), shape)
+                } else {
+                    Modifier
+                        .background(Color(0x33FFFFFF))
+                        .border(0.5.dp, Color(0x22FFFFFF), shape)
+                }
             }
         )
         .then(if (onClick != null && enabled) Modifier.clickable { onClick() } else Modifier)

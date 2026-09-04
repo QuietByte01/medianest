@@ -412,52 +412,35 @@ fun VideoPlayerScreen(
                 .background(Color.Black)
                 .dismissKeyboardOnOutsideTap()
         ) {
-        // 1. BLURRABLE CONTENT STACK
-        // This container holds everything that should be blurred when Settings is open.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .backdropSource(state = playerBackdropState, backgroundColor = Color.Black)
-        ) {
-            // Ambient subtle artwork glow behind video surface so blur layer is always primed
-            if (currentItem != null) {
-                coil.compose.AsyncImage(
-                    model = currentItem.uri,
-                    contentDescription = null,
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { alpha = 0.15f }
-                )
-            }
-
+            // VIDEO SURFACE, GESTURES & ON-SCREEN CONTROLS LAYER
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .backdropSource(state = playerBackdropState, backgroundColor = Color.Black)
                     .videoPlayerGestures(
-                        currentItemId = currentItem?.id,
-                        isControlsLocked = isControlsLocked,
-                        isZoomed = scale > 1.05f,
-                        coroutineScope = scope,
-                        onToggleControls = { showControls = !showControls },
-                        onSeekStart = {
-                            if (!isControlsLocked) {
+                    currentItemId = currentItem?.id,
+                    isControlsLocked = isControlsLocked,
+                    isZoomed = scale > 1.05f,
+                    coroutineScope = scope,
+                    onToggleControls = { showControls = !showControls },
+                    onSeekStart = {
+                        if (!isControlsLocked) {
+                            isHorizontalDragging = true
+                            initialSeekPositionMs = playerState.currentPositionMs
+                            seekDeltaMs = 0L
+                            seekTargetPositionMs = playerState.currentPositionMs
+                            playerManager.scrubStart()
+                            lastScrubSeekTime = System.currentTimeMillis()
+                        }
+                    },
+                    onSeekDelta = { delta ->
+                        if (!isControlsLocked) {
+                            if (!isHorizontalDragging) {
                                 isHorizontalDragging = true
                                 initialSeekPositionMs = playerState.currentPositionMs
                                 seekDeltaMs = 0L
                                 seekTargetPositionMs = playerState.currentPositionMs
                                 playerManager.scrubStart()
-                                lastScrubSeekTime = System.currentTimeMillis()
-                            }
-                        },
-                        onSeekDelta = { delta ->
-                            if (!isControlsLocked) {
-                                if (!isHorizontalDragging) {
-                                    isHorizontalDragging = true
-                                    initialSeekPositionMs = playerState.currentPositionMs
-                                    seekDeltaMs = 0L
-                                    seekTargetPositionMs = playerState.currentPositionMs
-                                    playerManager.scrubStart()
                                     lastScrubSeekTime = System.currentTimeMillis()
                                 }
                                 seekDeltaMs += delta
@@ -609,7 +592,8 @@ fun VideoPlayerScreen(
                                             AndroidView(
                                                 factory = { ctx ->
                                                     Logger.i("VideoPlayerScreen", "Creating NEW PlayerView for Media3 for item: ${currentItem?.id}")
-                                                    androidx.media3.ui.PlayerView(ctx).apply {
+                                                    val inflater = android.view.LayoutInflater.from(ctx)
+                                                    (inflater.inflate(com.medianest.R.layout.player_view_texture, null) as androidx.media3.ui.PlayerView).apply {
                                                         useController = false
                                                         try {
                                                             this.player = playerManager.exoPlayer
@@ -701,7 +685,6 @@ fun VideoPlayerScreen(
                     modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 160.dp, end = 24.dp)
                 )
                 SubtitleTextOverlay(text = activeSubtitleText, isVisible = showControls, fontSizeSp = subtitleFontSizeSp, textColor = subtitleTextColor, bgColor = subtitleBgColor, hasShadow = subtitleHasShadow, modifier = Modifier.align(Alignment.BottomCenter))
-            }
 
             AnimatedVisibility(
                 visible = showControls && !isControlsLocked && !isHorizontalDragging && !showAbRepeatBar,
@@ -1023,14 +1006,27 @@ fun VideoPlayerScreen(
             )
         }
 
-        if (showSubtitleCustomizationSheet) SubtitleCustomizationSheet(onDismiss = { showSubtitleCustomizationSheet = false }, activeSubtitleText = activeSubtitleText, fontSizeSp = subtitleFontSizeSp, onFontSizeChange = { subtitleFontSizeSp = it }, textColor = subtitleTextColor, onTextColorChange = { subtitleTextColor = it }, bgColor = subtitleBgColor, onBgColorChange = { subtitleBgColor = it }, hasShadow = subtitleHasShadow, onHasShadowChange = { subtitleHasShadow = it })
+        if (showSubtitleCustomizationSheet) SubtitleCustomizationSheet(
+            onDismiss = { showSubtitleCustomizationSheet = false },
+            activeSubtitleText = activeSubtitleText,
+            fontSizeSp = subtitleFontSizeSp,
+            onFontSizeChange = { subtitleFontSizeSp = it },
+            textColor = subtitleTextColor,
+            onTextColorChange = { subtitleTextColor = it },
+            bgColor = subtitleBgColor,
+            onBgColorChange = { subtitleBgColor = it },
+            hasShadow = subtitleHasShadow,
+            onHasShadowChange = { subtitleHasShadow = it },
+            backdropState = playerBackdropState
+        )
 
         if (showAudioTrackSheet) AudioTrackSelectionSheet(
             onDismiss = { showAudioTrackSheet = false },
             playerManager = playerManager,
             audioSyncOffsetMs = audioSyncOffsetMs,
             onAudioSyncOffsetChange = { audioSyncOffsetMs = it },
-            context = context
+            context = context,
+            backdropState = playerBackdropState
         )
 
         if (showVideoFxSheet) {
@@ -1166,21 +1162,56 @@ fun VideoPlayerScreen(
         }
 
         if (showEngineDialog) {
-            AlertDialog(
-                onDismissRequest = { showEngineDialog = false },
-                containerColor = Color(0xFF1A1C1E),
-                title = { Text("Engine & Hardware", color = Color.White) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        com.medianest.ui.components.HardwareAccelerationSetting(settingsManager = settingsManager)
-                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-                        com.medianest.ui.components.HdrPlaybackSetting(settingsManager = settingsManager)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) { showEngineDialog = false },
+                contentAlignment = Alignment.Center
+            ) {
+                com.medianest.ui.components.BackdropGlassSurface(
+                    shape = RoundedCornerShape(24.dp),
+                    blurRadius = 24.dp,
+                    tint = Color(0x660A0C10),
+                    baseColor = Color.Transparent,
+                    borderColor = Color(0x38FFFFFF),
+                    borderWidth = 1.dp,
+                    backdropState = playerBackdropState,
+                    modifier = Modifier
+                        .fillMaxWidth(0.88f)
+                        .wrapContentHeight()
+                        .clickable(enabled = false) {}
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(22.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "Engine & Hardware",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            com.medianest.ui.components.HardwareAccelerationSetting(settingsManager = settingsManager)
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                            com.medianest.ui.components.HdrPlaybackSetting(settingsManager = settingsManager)
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { showEngineDialog = false }) {
+                                Text("Done", color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
-                },
-                confirmButton = {
-                    TextButton(onClick = { showEngineDialog = false }) { Text("Done") }
                 }
-            )
+            }
         }
 
         if (showDeleteDialog && currentItem != null) {
@@ -1189,7 +1220,7 @@ fun VideoPlayerScreen(
                 title = "Delete Video",
                 itemTitle = item.title,
                 onDismiss = { showDeleteDialog = false },
-//                backdropState = playerBackdropState,
+                backdropState = playerBackdropState,
                 onConfirm = {
                     showDeleteDialog = false
                     scope.launch(Dispatchers.IO) {

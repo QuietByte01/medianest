@@ -36,6 +36,7 @@ import com.medianest.data.model.MediaItem
 import com.medianest.player.PlayerState
 import com.medianest.ui.components.AmbientGlassSurface
 import com.medianest.ui.components.BackdropBlurState
+import com.medianest.ui.components.BackdropGlassSurface
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.LocalBackdropState
 import com.medianest.ui.components.backdropReceiver
@@ -90,32 +91,20 @@ internal fun VideoPlayerOverflowMenu(
                 indication = null
             ) { onDismiss() }
     ) {
-        val cardModifier = modifier
-            .align(Alignment.TopEnd)
-            .statusBarsPadding()
-            .padding(top = 56.dp, end = 16.dp)
-            .width(220.dp)
-            .clip(shape)
-            .then(
-                if (backdropState != null) {
-                    Modifier.backdropReceiver(
-                        state = backdropState,
-                        blurRadius = 24.dp,
-                        tint = cardBg,
-                        baseColor = baseBg,
-                        showTopBorder = true,
-                        borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x22000000)
-                    )
-                } else Modifier
-            )
-            .clickable(enabled = false) {}
-
-        GlassSurface(
-            modifier = cardModifier,
+        BackdropGlassSurface(
+            modifier = modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(top = 56.dp, end = 16.dp)
+                .width(220.dp)
+                .clickable(enabled = false) {},
             shape = shape,
-            backgroundColor = if (backdropState != null) Color.Transparent else cardBg,
-            borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x33000000),
-            borderWidth = 0.5.dp
+            blurRadius = 24.dp,
+            tint = Color(0x660A0C10),
+            baseColor = Color.Transparent,
+            borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x28000000),
+            borderWidth = 0.5.dp,
+            backdropState = backdropState
         ) {
             Column(
                 modifier = Modifier
@@ -220,8 +209,6 @@ internal fun AspectRatioModal(
     backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     val isDark = LocalDarkTheme.current
-    val cardBg = if (isDark) Color(0xE60D111A) else Color(0xF2FFFFFF)
-    val baseBg = if (isDark) Color(0x6608090E) else Color(0x66FFFFFF)
     val shape = RoundedCornerShape(20.dp)
 
     Box(
@@ -230,30 +217,18 @@ internal fun AspectRatioModal(
             .clickable { onDismiss() },
         contentAlignment = Alignment.BottomCenter
     ) {
-        val cardModifier = Modifier
-            .fillMaxWidth(0.85f)
-            .padding(bottom = 24.dp)
-            .clip(shape)
-            .then(
-                if (backdropState != null) {
-                    Modifier.backdropReceiver(
-                        state = backdropState,
-                        blurRadius = 24.dp,
-                        tint = cardBg,
-                        baseColor = baseBg,
-                        showTopBorder = true,
-                        borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x22000000)
-                    )
-                } else Modifier
-            )
-            .clickable(enabled = false) {}
-
-        GlassSurface(
-            modifier = cardModifier,
+        BackdropGlassSurface(
+            modifier = Modifier
+                .fillMaxWidth(0.85f)
+                .padding(bottom = 24.dp)
+                .clickable(enabled = false) {},
             shape = shape,
-            backgroundColor = if (backdropState != null) Color.Transparent else cardBg,
-            borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x33000000),
-            borderWidth = 0.5.dp
+            blurRadius = 24.dp,
+            tint = Color(0x660A0C10),
+            baseColor = Color.Transparent,
+            borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x28000000),
+            borderWidth = 0.5.dp,
+            backdropState = backdropState
         ) {
             Column(
                 modifier = Modifier
@@ -273,7 +248,8 @@ internal fun AspectRatioModal(
                     ),
                     selected = currentMode,
                     onSelect = onModeChange,
-                    style = AspectRatioSelectorStyle.PLAYER_LIST
+                    style = AspectRatioSelectorStyle.PLAYER_LIST,
+                    backdropState = backdropState
                 )
             }
         }
@@ -288,8 +264,6 @@ internal fun PlaybackSpeedModal(
     backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     val isDark = LocalDarkTheme.current
-    val cardBg = if (isDark) Color(0xE60D111A) else Color(0xF2FFFFFF)
-    val baseBg = if (isDark) Color(0x6608090E) else Color(0x66FFFFFF)
     val shape = RoundedCornerShape(20.dp)
 
     Box(
@@ -298,30 +272,18 @@ internal fun PlaybackSpeedModal(
             .clickable { onDismiss() },
         contentAlignment = Alignment.BottomCenter
     ) {
-        val cardModifier = Modifier
-            .fillMaxWidth(0.85f)
-            .padding(bottom = 24.dp)
-            .clip(shape)
-            .then(
-                if (backdropState != null) {
-                    Modifier.backdropReceiver(
-                        state = backdropState,
-                        blurRadius = 24.dp,
-                        tint = cardBg,
-                        baseColor = baseBg,
-                        showTopBorder = true,
-                        borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x22000000)
-                    )
-                } else Modifier
-            )
-            .clickable(enabled = false) {}
-
-        GlassSurface(
-            modifier = cardModifier,
+        BackdropGlassSurface(
+            modifier = Modifier
+                .fillMaxWidth(0.85f)
+                .padding(bottom = 24.dp)
+                .clickable(enabled = false) {},
             shape = shape,
-            backgroundColor = if (backdropState != null) Color.Transparent else cardBg,
-            borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x33000000),
-            borderWidth = 0.5.dp
+            blurRadius = 24.dp,
+            tint = Color(0x660A0C10),
+            baseColor = Color.Transparent,
+            borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x28000000),
+            borderWidth = 0.5.dp,
+            backdropState = backdropState
         ) {
             Column(
                 modifier = Modifier
@@ -347,7 +309,8 @@ internal fun PlaybackSpeedModal(
                             onClick = { onSpeedChange(speed); onDismiss() },
                             fontSize = 14.sp,
                             shape = RoundedCornerShape(12.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            backdropState = backdropState
                         )
                     }
                 }
@@ -364,8 +327,6 @@ internal fun VideoPostProcessingPanel(
     backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     val isDark = LocalDarkTheme.current
-    val cardBg = if (isDark) Color(0xE60D111A) else Color(0xF2FFFFFF)
-    val baseBg = if (isDark) Color(0x6608090E) else Color(0x66FFFFFF)
     val shape = RoundedCornerShape(20.dp)
 
     Box(
@@ -374,30 +335,18 @@ internal fun VideoPostProcessingPanel(
             .clickable { onDismiss() },
         contentAlignment = Alignment.BottomCenter
     ) {
-        val cardModifier = Modifier
-            .fillMaxWidth(0.92f)
-            .padding(bottom = 24.dp)
-            .clip(shape)
-            .then(
-                if (backdropState != null) {
-                    Modifier.backdropReceiver(
-                        state = backdropState,
-                        blurRadius = 24.dp,
-                        tint = cardBg,
-                        baseColor = baseBg,
-                        showTopBorder = true,
-                        borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x22000000)
-                    )
-                } else Modifier
-            )
-            .clickable(enabled = false) {}
-
-        GlassSurface(
-            modifier = cardModifier,
+        BackdropGlassSurface(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .padding(bottom = 24.dp)
+                .clickable(enabled = false) {},
             shape = shape,
-            backgroundColor = if (backdropState != null) Color.Transparent else cardBg,
-            borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x33000000),
-            borderWidth = 0.5.dp
+            blurRadius = 24.dp,
+            tint = Color(0x660A0C10),
+            baseColor = Color.Transparent,
+            borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x28000000),
+            borderWidth = 0.5.dp,
+            backdropState = backdropState
         ) {
             Column(
                 modifier = Modifier

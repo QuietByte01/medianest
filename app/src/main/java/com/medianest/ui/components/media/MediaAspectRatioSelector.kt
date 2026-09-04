@@ -32,6 +32,7 @@ fun MediaAspectRatioSelector(
     selected: MediaAspectRatio,
     onSelect: (MediaAspectRatio) -> Unit,
     style: AspectRatioSelectorStyle = AspectRatioSelectorStyle.STUDIO_CHIP,
+    backdropState: com.medianest.ui.components.BackdropBlurState? = com.medianest.ui.components.LocalBackdropState.current,
     modifier: Modifier = Modifier
 ) {
     when (style) {
@@ -66,7 +67,8 @@ fun MediaAspectRatioSelector(
                         onClick = { onSelect(ratio) },
                         fontSize = 14.sp,
                         shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        backdropState = backdropState
                     )
                 }
             }

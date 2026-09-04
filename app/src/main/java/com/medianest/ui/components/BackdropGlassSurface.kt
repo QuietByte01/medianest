@@ -63,7 +63,7 @@ fun BackdropGlassSurface(
         )
     )
 
-    val surfaceModifier = Modifier
+    val surfaceModifier = modifier
         .clip(shape)
         .then(
             if (enableBlur && backdropState != null) {
@@ -84,7 +84,6 @@ fun BackdropGlassSurface(
                     }
             }
         )
-        .then(modifier)
         .border(
             width = borderWidth,
             brush = Brush.verticalGradient(
@@ -95,7 +94,6 @@ fun BackdropGlassSurface(
             ),
             shape = shape
         )
-//        .background(brush = bgBrush, shape = shape)
 
     Box(
         modifier = surfaceModifier,

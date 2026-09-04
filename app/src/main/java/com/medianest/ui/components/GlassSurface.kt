@@ -74,7 +74,7 @@ fun GlassSurface(
         )
     )
 
-    val surfaceModifier = Modifier
+    val surfaceModifier = modifier
         .clip(shape)
         .then(
             if (enableBlur && backdropState != null && backgroundImage == null) {
@@ -86,7 +86,6 @@ fun GlassSurface(
                 )
             } else Modifier
         )
-        .then(modifier)
         .border(
             width = borderWidth,
             brush = Brush.verticalGradient(
