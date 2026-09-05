@@ -315,7 +315,7 @@ fun MediaGridItem(
                                 shape = CircleShape
                             )
                             .background(
-                                if (isSelected) Color(0xFF6366F1)
+                                if (isSelected) Color.White.copy(alpha = 0.85f)
                                 else Color.Black.copy(alpha = 0.25f)
                             ),
                         contentAlignment = Alignment.Center
@@ -324,7 +324,7 @@ fun MediaGridItem(
                             Icon(
                                 imageVector = Icons.Default.Check,
                                 contentDescription = "Selected",
-                                tint = Color.White,
+                                tint = Color.Black,
                                 modifier = Modifier.size(13.dp)
                             )
                         }

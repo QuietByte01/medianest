@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.data.model.MediaItem
+import com.medianest.ui.components.BackdropGlassSurface
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.backdropReceiver
 import com.medianest.ui.components.rememberBackdropBlurState
@@ -35,6 +36,7 @@ fun FolderBatchActionBar(
     context: Context,
     onSelectAllToggle: () -> Unit,
     onShowBatchInfo: () -> Unit,
+    onStartSlideshow: (() -> Unit)? = null,
     onClearSelection: () -> Unit
 ) {
     AnimatedVisibility(
@@ -44,7 +46,7 @@ fun FolderBatchActionBar(
         modifier = Modifier.fillMaxWidth()
     ) {
         Box(contentAlignment = Alignment.BottomCenter) {
-            GlassSurface(
+            BackdropGlassSurface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
@@ -70,6 +72,12 @@ fun FolderBatchActionBar(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onSelectAllToggle) {
                             Icon(Icons.Default.SelectAll, contentDescription = "Select All", tint = Color.White)
+                        }
+
+                        if (onStartSlideshow != null) {
+                            IconButton(onClick = onStartSlideshow) {
+                                Icon(Icons.Default.Slideshow, contentDescription = "Slideshow Folders", tint = Color(0xFF10B981))
+                            }
                         }
 
                         IconButton(onClick = onShowBatchInfo) {

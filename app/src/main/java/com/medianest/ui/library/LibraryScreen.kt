@@ -22,6 +22,7 @@ import com.medianest.ui.dashboard.AnalyticsScreen
 import com.medianest.ui.components.backdropSource
 import com.medianest.ui.components.rememberBackdropBlurState
 import com.medianest.ui.components.dismissKeyboardOnOutsideTap
+import com.medianest.ui.components.media.SlideshowViewer
 import com.medianest.ui.library.audio.AudioTab
 import com.medianest.ui.library.image.ImagesTab
 import com.medianest.ui.library.video.VideosTab
@@ -57,7 +58,7 @@ fun LibraryScreen(
     initialVideoFolder: String? = null,
     initialImageFolder: String? = null,
     targetMediaUri: String? = null,
-    onOpenQuickView: (MediaItem, List<MediaItem>) -> Unit,
+    onOpenQuickView: (MediaItem, List<MediaItem>, Boolean) -> Unit,
     onOpenVideoPlayer: (MediaItem, List<MediaItem>?, String?) -> Unit,
     onOpenAudioPlayer: (Int) -> Unit,
     onOpenSettings: () -> Unit,
@@ -144,6 +145,7 @@ fun LibraryScreen(
 
         val currentPlayingTrack = remember(playerState.currentItem) { playerState.currentItem }
         var libraryInfoItem by remember { mutableStateOf<MediaItem?>(null) }
+        var activeImageItem by remember { mutableStateOf<MediaItem?>(null) }
         val libraryBackdropState = rememberBackdropBlurState()
 
         CompositionLocalProvider(
@@ -170,7 +172,8 @@ fun LibraryScreen(
                         currentPlayingTrack = currentPlayingTrack,
                         imagesList = imagesList,
                         videosList = videosList,
-                        audioList = audioList
+                        audioList = audioList,
+                        activeImageItem = activeImageItem
                     )
                 }
 
@@ -212,6 +215,13 @@ fun LibraryScreen(
                             onCopySelected = { showCopyModal = true },
                             onAddToCategory = { showAddVideosToCategoryModal = true },
                             onMoveToFilter = { showBatchMoveToFilterModal = true },
+                            onStartSlideshow = {
+                                val itemsToPlay = currentTabItems.filter { selectedUris.contains(it.uri.toString()) }.ifEmpty { imagesList.filter { selectedUris.contains(it.uri.toString()) } }
+                                if (itemsToPlay.isNotEmpty()) {
+                                    selectedUris = emptySet()
+                                    onOpenQuickView(itemsToPlay.first(), itemsToPlay, true)
+                                }
+                            },
                             onClearSelection = { selectedUris = emptySet() },
                             context = context
                         )
@@ -265,7 +275,7 @@ fun LibraryScreen(
                                         imagesList = imagesList,
                                         videosList = videosList,
                                         audioList = audioList,
-                                        onOpenQuickView = onOpenQuickView,
+                                        onOpenQuickView = { item, list -> onOpenQuickView(item, list, false) },
                                         onOpenVideoPlayer = onOpenVideoPlayer,
                                         onOpenAudioPlayer = { item ->
                                             val idx = audioList.indexOf(item)
@@ -288,12 +298,13 @@ fun LibraryScreen(
                                         isScanningHidden = isScanningHidden,
                                         initialFolder = initialImageFolder,
                                         initialTargetImageUri = targetMediaUri,
-                                        onImageClick = { item, currentList ->
+                                        onImageClick = { item, currentList, startSlideshow ->
+                                            activeImageItem = item
                                             if (isSelectionMode) {
                                                 val uriStr = item.uri.toString()
                                                 selectedUris = if (selectedUris.contains(uriStr)) selectedUris - uriStr else selectedUris + uriStr
                                             } else {
-                                                onOpenQuickView(item, currentList)
+                                                onOpenQuickView(item, currentList, startSlideshow)
                                             }
                                         },
                                         onImageLongClick = { item ->
@@ -301,6 +312,7 @@ fun LibraryScreen(
                                         },
                                         onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
                                         onShowInfo = { libraryInfoItem = it },
+                                        onActiveImageChange = { activeImageItem = it },
                                         viewModel = viewModel
                                     )
                                 }
@@ -320,12 +332,13 @@ fun LibraryScreen(
                                         isScanningHidden = isScanningHidden,
                                         initialFolder = initialImageFolder,
                                         initialTargetImageUri = targetMediaUri,
-                                        onImageClick = { item, currentList ->
+                                        onImageClick = { item, currentList, startSlideshow ->
+                                            activeImageItem = item
                                             if (isSelectionMode) {
                                                 val uriStr = item.uri.toString()
                                                 selectedUris = if (selectedUris.contains(uriStr)) selectedUris - uriStr else selectedUris + uriStr
                                             } else {
-                                                onOpenQuickView(item, currentList)
+                                                onOpenQuickView(item, currentList, startSlideshow)
                                             }
                                         },
                                         onImageLongClick = { item ->
@@ -334,6 +347,7 @@ fun LibraryScreen(
                                         onBackToDashboard = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
                                         onRescanHiddenMedia = onRescanHiddenMedia,
                                         onShowInfo = { libraryInfoItem = it },
+                                        onActiveImageChange = { activeImageItem = it },
                                         viewModel = viewModel
                                     )
                                 } else {
@@ -565,6 +579,6 @@ fun LibraryScreen(
             }
         }
     }
-    }
+}
 }
 }

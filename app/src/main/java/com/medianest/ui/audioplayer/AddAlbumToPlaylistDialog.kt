@@ -2,8 +2,10 @@ package com.medianest.ui.audioplayer
 
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,11 +20,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.zIndex
 import com.medianest.data.db.AppDatabase
 import com.medianest.data.db.CategoryMediaCrossRef
 import com.medianest.data.db.MediaCategory
@@ -52,18 +54,33 @@ fun AddAlbumToPlaylistDialog(
     var newPlaylistNameInput by remember { mutableStateOf("") }
     val albumArtUri = remember(albumSongs) { albumSongs.firstOrNull()?.let { it.albumArtUri ?: it.uri } }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(10f)
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { onDismiss() })
+            },
+        contentAlignment = Alignment.Center
     ) {
+        BackHandler(onBack = onDismiss)
+
         BackdropGlassSurface(
             shape = RoundedCornerShape(24.dp),
-            borderWidth = 0.5.dp,
+            enableBlur = true,
+            blurRadius = 24.dp,
+            tint = Color.Black.copy(alpha = 0.30f),
+            baseColor = Color.Transparent,
+            borderColor = Color(0x38FFFFFF),
+            borderWidth = 1.dp,
             backdropState = backdropState,
             modifier = Modifier
                 .widthIn(max = 420.dp)
                 .fillMaxWidth(0.88f)
                 .padding(16.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { /* consume */ })
+                }
         ) {
             Column(
                 modifier = Modifier

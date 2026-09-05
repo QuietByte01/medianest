@@ -2,6 +2,8 @@ package com.medianest.ui.library
 
 import android.content.Context
 import android.graphics.drawable.ColorDrawable
+import android.os.Build
+import android.view.WindowManager
 import java.util.Locale
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
@@ -73,6 +75,12 @@ fun CreateCategoryDialog(
             window?.let { w ->
                 w.setDimAmount(0.32f)
                 w.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    w.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                    w.attributes = w.attributes.apply {
+                        blurBehindRadius = 80
+                    }
+                }
             }
             onDispose {}
         }

@@ -33,6 +33,7 @@ import com.medianest.data.db.SelectiveHiddenFolder
 import com.medianest.data.model.MediaItem
 import com.medianest.data.settings.SettingsManager
 import com.medianest.ui.components.GlassDropdownMenu
+import com.medianest.ui.components.media.SlideshowViewer
 import com.medianest.ui.components.LocalBackdropState
 import com.medianest.ui.components.MediaInfoBottomSheet
 import com.medianest.ui.components.RenameFileDialog
@@ -59,13 +60,14 @@ fun ImagesTab(
     roundedCornersEnabled: Boolean = true,
     isLoading: Boolean = false,
     isScanningHidden: Boolean = false,
-    onImageClick: (MediaItem, List<MediaItem>) -> Unit,
+    onImageClick: (MediaItem, List<MediaItem>, Boolean) -> Unit,
     onImageLongClick: (MediaItem) -> Unit,
     initialFolder: String? = null,
     initialTargetImageUri: String? = null,
     onBackToDashboard: () -> Unit = {},
     onRescanHiddenMedia: () -> Unit = {},
     onShowInfo: (MediaItem) -> Unit = {},
+    onActiveImageChange: (MediaItem?) -> Unit = {},
     viewModel: com.medianest.ui.MediaViewModel = viewModel()
 ) {
     val currentContext = LocalContext.current
@@ -100,10 +102,6 @@ fun ImagesTab(
         viewModel.updateImageSort(sortField, isAscending)
     }
 
-    LaunchedEffect(activeFilterTab) {
-        viewModel.updateImageFilter(activeFilterTab)
-    }
-
     val db = remember { MediaNestApp.instance.database }
     val observedCrossRefs by db.categoryDao().getAllCrossRefs().collectAsState(initial = emptyList())
 
@@ -118,14 +116,8 @@ fun ImagesTab(
     var filterCounts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
 
     LaunchedEffect(imagesList, favoriteUris) {
-        kotlinx.coroutines.delay(600)
         withContext(Dispatchers.Default) {
-            val counts = mutableMapOf<String, Int>()
-            val ids = listOf("CAMERA", "FAVORITES", "COOKING", "TRAVEL", "NOTES", "AI_GENERATED", "GARDENING", "ANIME", "PETS", "FAMILY", "DOCUMENTS", "MEMES", "SCREENSHOTS", "GIFS", "SOCIAL", "PNG_SVG", "EDITED", "WALLPAPERS", "EXCLUDED", "HIDDEN")
-            ids.forEach { id ->
-                counts[id] = filterImageList(imagesList, id, favoriteUris).size
-            }
-            filterCounts = counts
+            filterCounts = computeAllFilterCounts(imagesList, favoriteUris)
         }
     }
 
@@ -190,26 +182,6 @@ fun ImagesTab(
 
     val showHiddenSetting by settingsManager.showHiddenFiles.collectAsState(initial = false)
 
-    val folderGroups = remember(imagesList, showHiddenSetting, viewMode, activeFilterTab, selectedFolder) {
-        if (viewMode != 1 && activeFilterTab != "FOLDERS" && activeFilterTab != "HIDDEN" && activeFilterTab != "EXCLUDED" && selectedFolder == null) {
-            emptyMap()
-        } else {
-            val filteredList = if (showHiddenSetting || activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED") {
-                imagesList
-            } else {
-                imagesList.filter { item ->
-                    val relPath = item.relativePath?.trim('/') ?: ""
-                    !relPath.split('/').any { it.startsWith(".") && it.length > 1 }
-                }
-            }
-
-            filteredList.groupBy { item ->
-                val relPath = item.relativePath?.trim('/')
-                if (!relPath.isNullOrBlank()) relPath else item.bucketName ?: "Pictures"
-            }
-        }
-    }
-
     val appHiddenFolders by settingsManager.hiddenFolders.collectAsState(initial = emptySet())
     val selectiveHiddenFolders by db.selectiveHiddenFolderDao().getAllHiddenFolders().collectAsState(initial = emptyList())
 
@@ -224,23 +196,96 @@ fun ImagesTab(
         (appHiddenFolders + selectiveImageHidden).map { it.lowercase() }.toSet()
     }
 
-    val folderStatusMap = remember(folderGroups, allHiddenImageFolders) {
-        folderGroups.keys.associateWith { folderKey ->
-            val items = folderGroups[folderKey]
-            val lowerKey = folderKey.lowercase().trim('/')
-            val folderName = lowerKey.substringAfterLast('/')
-            val isExcluded = com.medianest.util.FolderHiddenUtils.isFolderExcludedByDefault(folderKey, folderName) ||
-                    lowerKey in allHiddenImageFolders ||
-                    folderName in allHiddenImageFolders ||
-                    allHiddenImageFolders.any { hf -> lowerKey == hf || lowerKey.startsWith("$hf/") || lowerKey.contains("/$hf/") } ||
-                    (items?.firstOrNull()?.let { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) } == true)
+    val searchQuery by viewModel.searchQuery.collectAsState()
 
-            val isSystemHidden = if (isExcluded) false else {
-                (items?.firstOrNull()?.let { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) } == true) ||
-                lowerKey.split('/').any { it.startsWith(".") && it.length > 1 } ||
-                folderName.startsWith(".")
+    var folderGroups by remember { mutableStateOf<Map<String, List<MediaItem>>>(emptyMap()) }
+    var folderStatusMap by remember { mutableStateOf<Map<String, Pair<Boolean, Boolean>>>(emptyMap()) }
+    var sortedFolderNames by remember { mutableStateOf<List<String>>(emptyList()) }
+    var visibleFolders by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    LaunchedEffect(imagesList, showHiddenSetting, viewMode, activeFilterTab, selectedFolder, allHiddenImageFolders, sortField, isAscending, searchQuery) {
+        withContext(Dispatchers.Default) {
+            val groups = if (viewMode != 1 && activeFilterTab != "FOLDERS" && activeFilterTab != "HIDDEN" && activeFilterTab != "EXCLUDED" && selectedFolder == null) {
+                emptyMap()
+            } else {
+                val filteredList = if (showHiddenSetting || activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED") {
+                    imagesList
+                } else {
+                    imagesList.filter { item ->
+                        val relPath = item.relativePath?.trim('/') ?: ""
+                        !relPath.split('/').any { it.startsWith(".") && it.length > 1 }
+                    }
+                }
+
+                filteredList.groupBy { item ->
+                    val relPath = item.relativePath?.trim('/')
+                    if (!relPath.isNullOrBlank()) relPath else item.bucketName ?: "Pictures"
+                }
             }
-            Pair(isExcluded, isSystemHidden)
+
+            val statusMap = groups.keys.associateWith { folderKey ->
+                val items = groups[folderKey]
+                val lowerKey = folderKey.lowercase().trim('/')
+                val folderName = lowerKey.substringAfterLast('/')
+                val isExcluded = FolderHiddenUtils.isFolderExcludedByDefault(folderKey, folderName) ||
+                        lowerKey in allHiddenImageFolders ||
+                        folderName in allHiddenImageFolders ||
+                        allHiddenImageFolders.any { hf -> lowerKey == hf || lowerKey.startsWith("$hf/") || lowerKey.contains("/$hf/") } ||
+                        (items?.firstOrNull()?.let { FolderHiddenUtils.isItemExcluded(it) } == true)
+
+                val isSystemHidden = if (isExcluded) false else {
+                    (items?.firstOrNull()?.let { FolderHiddenUtils.isItemHidden(it) && !FolderHiddenUtils.isItemExcluded(it) } == true) ||
+                    lowerKey.split('/').any { it.startsWith(".") && it.length > 1 } ||
+                    folderName.startsWith(".")
+                }
+                Pair(isExcluded, isSystemHidden)
+            }
+
+            val sortedNames = if (groups.isEmpty()) emptyList()
+            else {
+                val keys = groups.keys.toList()
+                val comp = when (sortField) {
+                    "Name" -> compareBy<String> { it.lowercase() }
+                    "Date" -> compareBy<String> { folderName ->
+                        groups[folderName]?.maxOfOrNull { maxOf(it.dateAdded, it.dateCreated, it.dateModified) } ?: 0L
+                    }
+                    "Size" -> compareBy<String> { folderName ->
+                        groups[folderName]?.sumOf { it.size } ?: 0L
+                    }
+                    else -> compareBy<String> { it.lowercase() }
+                }
+
+                val baseSorted = if (isAscending) keys.sortedWith(comp) else keys.sortedWith(comp).reversed()
+                baseSorted.sortedBy { fn ->
+                    val status = statusMap[fn]
+                    val isH = (status?.first == true) || (status?.second == true)
+                    isH && activeFilterTab != "HIDDEN" && activeFilterTab != "EXCLUDED"
+                }
+            }
+
+            val vFolders = when (activeFilterTab) {
+                "HIDDEN" -> sortedNames.filter { fn -> statusMap[fn]?.second == true }
+                "EXCLUDED" -> sortedNames.filter { fn -> statusMap[fn]?.first == true }
+                else -> sortedNames.filter { fn ->
+                    val isEx = statusMap[fn]?.first == true
+                    val isSysH = statusMap[fn]?.second == true
+                    !isEx && (showHiddenSetting || !isSysH)
+                }
+            }
+
+            val finalFolders = if (searchQuery.isNotBlank()) {
+                vFolders.filter { fn ->
+                    fn.contains(searchQuery, ignoreCase = true) ||
+                    groups[fn]?.any { it.title.contains(searchQuery, ignoreCase = true) } == true
+                }
+            } else {
+                vFolders
+            }
+
+            folderGroups = groups
+            folderStatusMap = statusMap
+            sortedFolderNames = sortedNames
+            visibleFolders = finalFolders
         }
     }
 
@@ -255,28 +300,6 @@ fun ImagesTab(
     fun isFolderHidden(folderKey: String, items: List<MediaItem>? = null): Boolean {
         val status = folderStatusMap[folderKey]
         return (status?.first == true) || (status?.second == true)
-    }
-
-    val searchQuery by viewModel.searchQuery.collectAsState()
-
-    val sortedFolderNames = remember(folderGroups, folderStatusMap, sortField, isAscending, activeFilterTab) {
-        if (folderGroups.isEmpty()) emptyList()
-        else {
-            val keys = folderGroups.keys.toList()
-            val comp = when (sortField) {
-                "Name" -> compareBy<String> { it.lowercase() }
-                "Date" -> compareBy<String> { folderName ->
-                    folderGroups[folderName]?.maxOfOrNull { maxOf(it.dateAdded, it.dateCreated, it.dateModified) } ?: 0L
-                }
-                "Size" -> compareBy<String> { folderName ->
-                    folderGroups[folderName]?.sumOf { it.size } ?: 0L
-                }
-                else -> compareBy<String> { it.lowercase() }
-            }
-
-            val baseSorted = if (isAscending) keys.sortedWith(comp) else keys.sortedWith(comp).reversed()
-            baseSorted.sortedBy { fn -> isFolderHidden(fn) && activeFilterTab != "HIDDEN" && activeFilterTab != "EXCLUDED" }
-        }
     }
 
     val imageMinSize = when (gridSizeLevel) {
@@ -341,92 +364,114 @@ fun ImagesTab(
             }
 
             Box(modifier = Modifier.weight(1f)) {
-                val visibleFolders = remember(sortedFolderNames, folderStatusMap, activeFilterTab, showHiddenSetting, searchQuery) {
-                    val base = when (activeFilterTab) {
-                        "HIDDEN" -> sortedFolderNames.filter { fn -> isFolderSystemHidden(fn) }
-                        "EXCLUDED" -> sortedFolderNames.filter { fn -> isFolderExcluded(fn) }
-                        else -> sortedFolderNames.filter { fn ->
-                            !isFolderExcluded(fn) && (showHiddenSetting || !isFolderSystemHidden(fn))
-                        }
-                    }
-                    if (searchQuery.isNotBlank()) {
-                        base.filter { fn ->
-                            fn.contains(searchQuery, ignoreCase = true) ||
-                            folderGroups[fn]?.any { it.title.contains(searchQuery, ignoreCase = true) } == true
-                        }
-                    } else {
-                        base
-                    }
-                }
+                var isFilterProcessing by remember { mutableStateOf(false) }
+                var displayList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
 
-                val displayList = remember(imagesList, activeFilterTab, favoriteUris, showHiddenSetting, searchQuery) {
-                    val baseList = when (activeFilterTab) {
-                        "EXCLUDED" -> imagesList.filter { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
-                        "HIDDEN" -> imagesList.filter { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
-                        else -> imagesList.filter { item ->
-                            !com.medianest.util.FolderHiddenUtils.isItemExcluded(item) &&
-                            (showHiddenSetting || !com.medianest.util.FolderHiddenUtils.isItemHidden(item))
-                        }
-                    }
-
-                    val tabFiltered = if (activeFilterTab == "ALL" || activeFilterTab == "EXCLUDED" || activeFilterTab == "HIDDEN") {
-                        baseList
-                    } else {
-                        filterImageList(baseList, activeFilterTab, favoriteUris)
-                    }
-
-                    if (searchQuery.isNotBlank()) {
-                        tabFiltered.filter { it.title.contains(searchQuery, ignoreCase = true) }
-                    } else {
-                        tabFiltered
-                    }
-                }
-
-                val currentDisplayList = if ((viewMode == 1 || activeFilterTab == "FOLDERS" || activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED") && selectedFolder != null) {
-                    val directItems = folderGroups[selectedFolder]
-                    val folderItems = if (directItems != null) {
-                        directItems
-                    } else {
-                        val subfolderItems = folderGroups.entries.filter { (k, _) ->
-                            val normKey = k.trim('/').lowercase()
-                            val normTarget = selectedFolder!!.trim('/').lowercase()
-                            normKey == normTarget ||
-                            normKey.startsWith("$normTarget/") ||
-                            normKey.contains("/$normTarget/") ||
-                            normKey.substringAfterLast('/') == normTarget
-                        }.flatMap { it.value }
-
-                        if (subfolderItems.isNotEmpty()) {
-                            subfolderItems.distinctBy { it.uri }
-                        } else {
-                            imagesList.filter { item ->
-                                val rel = item.relativePath?.trim('/')?.lowercase() ?: ""
-                                val bucket = item.bucketName?.trim('/')?.lowercase() ?: ""
-                                val normTarget = selectedFolder!!.trim('/').lowercase()
-                                bucket == normTarget || rel == normTarget || rel.startsWith("$normTarget/") || rel.contains("/$normTarget/")
+                LaunchedEffect(imagesList, activeFilterTab, favoriteUris, showHiddenSetting, searchQuery) {
+                    isFilterProcessing = true
+                    val result = withContext(Dispatchers.Default) {
+                        val baseList = when (activeFilterTab) {
+                            "EXCLUDED" -> imagesList.filter { FolderHiddenUtils.isItemExcluded(it) }
+                            "HIDDEN" -> imagesList.filter { FolderHiddenUtils.isItemHidden(it) && !FolderHiddenUtils.isItemExcluded(it) }
+                            else -> imagesList.filter { item ->
+                                !FolderHiddenUtils.isItemExcluded(item) &&
+                                (showHiddenSetting || !FolderHiddenUtils.isItemHidden(item))
                             }
                         }
+
+                        val tabFiltered = if (activeFilterTab == "ALL" || activeFilterTab == "EXCLUDED" || activeFilterTab == "HIDDEN") {
+                            baseList
+                        } else {
+                            filterImageList(baseList, activeFilterTab, favoriteUris)
+                        }
+
+                        if (searchQuery.isNotBlank()) {
+                            tabFiltered.filter { it.title.contains(searchQuery, ignoreCase = true) }
+                        } else {
+                            tabFiltered
+                        }
                     }
-                    if (searchQuery.isNotBlank()) {
-                        folderItems.filter { it.title.contains(searchQuery, ignoreCase = true) }
-                    } else {
-                        folderItems
-                    }
-                } else {
-                    displayList
+                    displayList = result
+                    isFilterProcessing = false
                 }
 
-                val sortedDisplayList = remember(currentDisplayList, sortField, isAscending) {
-                    val comp = when (sortField) {
-                        "Name" -> compareBy<MediaItem> { it.title.lowercase() }
-                        "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
-                        "Size" -> compareBy<MediaItem> { if (it.size > 0) it.size else Long.MAX_VALUE }
-                        else -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
+                var currentDisplayList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
+
+                LaunchedEffect(displayList, viewMode, activeFilterTab, selectedFolder, folderGroups, searchQuery, imagesList) {
+                    val result = withContext(Dispatchers.Default) {
+                        if ((viewMode == 1 || activeFilterTab == "FOLDERS" || activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED") && selectedFolder != null) {
+                            val directItems = folderGroups[selectedFolder]
+                            val folderItems = if (directItems != null) {
+                                directItems
+                            } else {
+                                val subfolderItems = folderGroups.entries.filter { (k, _) ->
+                                    val normKey = k.trim('/').lowercase()
+                                    val normTarget = selectedFolder!!.trim('/').lowercase()
+                                    normKey == normTarget ||
+                                    normKey.startsWith("$normTarget/") ||
+                                    normKey.contains("/$normTarget/") ||
+                                    normKey.substringAfterLast('/') == normTarget
+                                }.flatMap { it.value }
+
+                                if (subfolderItems.isNotEmpty()) {
+                                    subfolderItems.distinctBy { it.uri }
+                                } else {
+                                    imagesList.filter { item ->
+                                        val rel = item.relativePath?.trim('/')?.lowercase() ?: ""
+                                        val bucket = item.bucketName?.trim('/')?.lowercase() ?: ""
+                                        val normTarget = selectedFolder!!.trim('/').lowercase()
+                                        bucket == normTarget || rel == normTarget || rel.startsWith("$normTarget/") || rel.contains("/$normTarget/")
+                                    }
+                                }
+                            }
+                            if (searchQuery.isNotBlank()) {
+                                folderItems.filter { it.title.contains(searchQuery, ignoreCase = true) }
+                            } else {
+                                folderItems
+                            }
+                        } else {
+                            displayList
+                        }
                     }
-                    if (isAscending) currentDisplayList.sortedWith(comp) else currentDisplayList.sortedWith(comp).reversed()
+                    currentDisplayList = result
+                }
+
+                var sortedDisplayList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
+
+                LaunchedEffect(currentDisplayList, sortField, isAscending) {
+                    val result = withContext(Dispatchers.Default) {
+                        val comp = when (sortField) {
+                            "Name" -> compareBy<MediaItem> { it.title.lowercase() }
+                            "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
+                            "Size" -> compareBy<MediaItem> { if (it.size > 0) it.size else Long.MAX_VALUE }
+                            else -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
+                        }
+                        if (isAscending) currentDisplayList.sortedWith(comp) else currentDisplayList.sortedWith(comp).reversed()
+                    }
+                    sortedDisplayList = result
+                }
+
+                val currentVisibleImage by remember(sortedDisplayList, sortedFolderNames, viewMode, selectedFolder) {
+                    derivedStateOf {
+                        val activeState = if (viewMode == 1 && selectedFolder == null) folderGridState else mainGridState
+                        val index = activeState.firstVisibleItemIndex
+                        if (viewMode == 1 && selectedFolder == null) {
+                            val folderName = sortedFolderNames.getOrNull(index)
+                            folderGroups[folderName]?.firstOrNull()
+                        } else {
+                            sortedDisplayList.getOrNull(index)
+                        }
+                    }
+                }
+
+                LaunchedEffect(currentVisibleImage) {
+                    if (currentVisibleImage != null) {
+                        onActiveImageChange(currentVisibleImage)
+                    }
                 }
 
                 when {
+                    (isFilterProcessing && sortedDisplayList.isEmpty()) ||
                     (isLoading && (imagesList.isEmpty() || (sortedDisplayList.isEmpty() && viewMode == 0 && activeFilterTab != "FOLDERS"))) ||
                     (isScanningHidden && (activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED") && sortedDisplayList.isEmpty()) -> {
                         Box(
@@ -535,6 +580,14 @@ fun ImagesTab(
                 selectedFolderNames = if (selectedFolderNames.size == folderGroups.size) emptySet() else folderGroups.keys.toSet()
             },
             onShowBatchInfo = { showFolderBatchInfoModal = true },
+            onStartSlideshow = {
+                val folderItems = selectedFolderNames.flatMap { folderGroups[it] ?: emptyList() }.distinctBy { it.uri }
+                if (folderItems.isNotEmpty()) {
+                    isFolderSelectionActive = false
+                    selectedFolderNames = emptySet()
+                    onImageClick(folderItems.first(), folderItems, true)
+                }
+            },
             onClearSelection = {
                 isFolderSelectionActive = false
                 selectedFolderNames = emptySet()

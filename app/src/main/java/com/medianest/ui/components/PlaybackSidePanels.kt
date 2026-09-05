@@ -668,6 +668,7 @@ fun ArtistInfoPanel(
         GlassSurface(
             modifier = modifier,
             shape = RoundedCornerShape(16.dp),
+            enableBlur = true,
             backgroundColor = Color(0x1F24293A),
             borderColor = Color(0x2EFFFFFF)
         ) {
@@ -1451,7 +1452,7 @@ fun SidebarQueueDrawer(
     context: Context,
     showHidden: Boolean = false,
     hiddenFolders: Set<String> = emptySet(),
-    backdropState: BackdropBlurState? = null,
+    backdropState: BackdropBlurState? = LocalBackdropState.current,
     modifier: Modifier = Modifier
 ) {
     val isDark = com.medianest.ui.theme.LocalDarkTheme.current
@@ -1591,6 +1592,7 @@ fun SidebarQueueDrawer(
                                 onVideoClick(video)
                             },
                         shape = RoundedCornerShape(14.dp),
+                        enableBlur = true,
                         backgroundColor = if (isCurrent) Color(0x33FFFFFF) else Color(0x1AFFFFFF),
                         borderColor = if (isCurrent) Color.White else Color(0x22FFFFFF)
                     ) {

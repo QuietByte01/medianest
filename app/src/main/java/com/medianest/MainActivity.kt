@@ -39,6 +39,8 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.ActivityOptionsCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.medianest.data.db.CategoryMediaCrossRef
 import com.medianest.data.db.MediaCategory
@@ -82,6 +84,18 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        controller.hide(WindowInsetsCompat.Type.statusBars())
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            val controller = WindowInsetsControllerCompat(window, window.decorView)
+            controller.hide(WindowInsetsCompat.Type.statusBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -97,6 +111,8 @@ class MainActivity : ComponentActivity() {
         val controller = androidx.core.view.WindowInsetsControllerCompat(window, window.decorView)
         controller.isAppearanceLightStatusBars = false
         controller.isAppearanceLightNavigationBars = false
+        controller.hide(WindowInsetsCompat.Type.statusBars())
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
         requestMediaPermissions()
 
@@ -327,11 +343,14 @@ class MainActivity : ComponentActivity() {
                         androidx.compose.runtime.CompositionLocalProvider(
                             com.medianest.ui.components.LocalBackdropState provides settingsBackdropState
                         ) {
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                // Persistent Base Library Screen (never destroyed on navigation to Settings/Player)
-                                Box(
-                                    modifier = Modifier.fillMaxSize()
-                                ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .backdropSource(
+                                        state = settingsBackdropState,
+                                        backgroundColor = MaterialTheme.colorScheme.background
+                                    )
+                            ) {
                                 LibraryScreen(
                                 imagesList = imagesList,
                                 videosList = videosList,
@@ -384,13 +403,14 @@ class MainActivity : ComponentActivity() {
                                 initialVideoFolder = videoFld,
                                 initialImageFolder = imageFld,
                                 targetMediaUri = mediaTargetUri,
-                                onOpenQuickView = { item, currentList ->
+                                onOpenQuickView = { item, currentList, startSlideshow ->
                                     val index = currentList.indexOfFirst { it.uri == item.uri }
                                     com.medianest.ui.quickview.QuickViewActivity.activeList = currentList
                                     val intent = Intent(this@MainActivity, QuickViewActivity::class.java).apply {
                                         action = Intent.ACTION_VIEW
                                         setDataAndType(item.uri, item.mimeType)
                                         putExtra("start_index", if (index >= 0) index else 0)
+                                        putExtra("start_slideshow", startSlideshow)
                                     }
                                     val options = ActivityOptionsCompat.makeCustomAnimation(
                                         this@MainActivity,
@@ -544,8 +564,7 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    }
-    }
+}
 
     private fun requestMediaPermissions() {
         val permissions = mutableListOf<String>()

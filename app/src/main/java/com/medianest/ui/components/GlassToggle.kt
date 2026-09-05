@@ -55,7 +55,7 @@ fun GlassToggle(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     width: Dp = 52.dp,
-    height: Dp = 27.dp,
+    height: Dp = 32.dp,
     backdropState: BackdropBlurState? = LocalBackdropState.current,
     enableBackdropBlur: Boolean = true,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
@@ -181,9 +181,9 @@ fun GlassToggle(
                 shape = shape
             )
     ) {
-        // Track interior padding & knob sizing based on the 170x88 / 72px knob spec
-        val paddingY = height * (7f / 88f)
-        val paddingX = width * (7f / 170f)
+        // Uniform 3.dp thumb gap on all sides
+        val paddingY = 3.dp
+        val paddingX = 3.dp
         val knobSize = height - (paddingY * 2)
 
         val totalTravel = width - (paddingX * 2) - knobSize

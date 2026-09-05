@@ -25,9 +25,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -130,12 +136,7 @@ fun AudioPlayerScreen(
             controller.hide(WindowInsetsCompat.Type.statusBars())
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
-        onDispose {
-            activity?.window?.let { window ->
-                val controller = WindowInsetsControllerCompat(window, window.decorView)
-                controller.show(WindowInsetsCompat.Type.statusBars())
-            }
-        }
+        onDispose {}
     }
 
     val db = MediaNestApp.instance.database
@@ -341,9 +342,11 @@ fun AudioPlayerScreen(
         }
     }
 
-    LaunchedEffect(activeLyricIndex) {
-        if (activeLyricIndex >= 0 && activeLyricIndex < lyricsLines.size && showLyricsView) {
-            listState.animateScrollToItem(activeLyricIndex)
+    LaunchedEffect(activeLyricIndex, showLyricsView) {
+        if (showLyricsView && activeLyricIndex >= 0 && activeLyricIndex < lyricsLines.size) {
+            runCatching {
+                listState.animateScrollToItem(activeLyricIndex)
+            }
         }
     }
 
@@ -385,7 +388,7 @@ fun AudioPlayerScreen(
                     indication = null
                 ) {}
         ) {
-            // 1. Isolated Visual Background Layer ONLY recorded into GraphicsLayer
+            // Player Visual Content Box recorded into GraphicsLayer for frosted glass blur receivers
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -393,8 +396,31 @@ fun AudioPlayerScreen(
                         state = playerBackdropState,
                         backgroundColor = Color.Transparent
                     )
-                    .background(playerBgBrush)
-            )
+            ) {
+                // Background Gradient
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(playerBgBrush)
+                )
+
+                // Ambient Album Art Layer for Frosted Glass Backdrop Texture
+                val artUri = currentItem?.albumArtUri ?: currentItem?.uri
+                if (artUri != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(artUri)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .blur(64.dp)
+                            .graphicsLayer { alpha = 0.32f }
+                    )
+                }
+            }
 
             if (isLandscape) {
             LandscapePlayerLayout(
@@ -457,6 +483,7 @@ fun AudioPlayerScreen(
                         com.medianest.ui.components.GlassDropdownMenu(
                             expanded = showOverflowMenu,
                             onDismissRequest = { showOverflowMenu = false },
+                            backdropState = playerBackdropState,
                             modifier = Modifier.width(200.dp),
                             shape = RoundedCornerShape(20.dp)
                         ) {
@@ -503,12 +530,11 @@ fun AudioPlayerScreen(
                                     leadingIcon = { Icon(Icons.Default.Album, null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                                     onClick = { showOverflowMenu = false; onClose(); onOpenAlbum(currentItem.album ?: "Unknown Album") }
                                 )
-                                val currentArtist = artistInfo
-                                if (currentArtist != null && !currentArtist.isPlaceholder) {
+                                if (currentItem?.artist != null) {
                                     DropdownMenuItem(
-                                        text = { Text("Show Artist", color = if (isDark) Color.White else Color.Black) },
+                                        text = { Text("Artist Info & Bio", color = if (isDark) Color.White else Color.Black) },
                                         leadingIcon = { Icon(Icons.Default.Person, null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
-                                        onClick = { showOverflowMenu = false; onClose(); onOpenArtist(currentItem.artist ?: "Unknown Artist") }
+                                        onClick = { showOverflowMenu = false; showArtistInfoPanel = true }
                                     )
                                 }
                                 DropdownMenuItem(
@@ -625,6 +651,6 @@ fun AudioPlayerScreen(
                     .padding(top = 80.dp, start = 20.dp)
             )
         }
-        }
     }
+}
 }

@@ -238,6 +238,7 @@ fun ArtistsGrid(
             ) {
                 GlassSurface(
                     shape = RoundedCornerShape(20.dp),
+                    enableBlur = false,
                     backgroundColor = if (artistSubTab == 0) Color(0x44C0C0C0) else Color(0x221C1F2B),
                     borderColor = if (artistSubTab == 0) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                     modifier = Modifier
@@ -258,6 +259,7 @@ fun ArtistsGrid(
 
                 GlassSurface(
                     shape = RoundedCornerShape(20.dp),
+                    enableBlur = false,
                     backgroundColor = if (artistSubTab == 1) Color(0x44C0C0C0) else Color(0x221C1F2B),
                     borderColor = if (artistSubTab == 1) Color(0x88C0C0C0) else Color(0x28FFFFFF),
                     modifier = Modifier
@@ -337,6 +339,7 @@ fun ArtistsGrid(
                                         onNavigateSubTab(3, albumName, null, null, null)
                                     },
                                 shape = RoundedCornerShape(22.dp),
+                                enableBlur = false,
                                 backgroundColor = Color(0x221C1F2B),
                                 borderColor = Color(0x2EFFFFFF)
                             ) {
@@ -363,6 +366,7 @@ fun ArtistsGrid(
                                                 GlassSurface(
                                                     modifier = Modifier.fillMaxSize(),
                                                     shape = RoundedCornerShape(16.dp),
+                                                    enableBlur = false,
                                                     backgroundColor = Color.Transparent,
                                                     borderColor = Color(0x22FFFFFF)
                                                 ) {
@@ -430,6 +434,7 @@ fun ArtistsGrid(
                                 .fillMaxWidth()
                                 .clickable { selectedArtist = artistName },
                             shape = RoundedCornerShape(22.dp),
+                            enableBlur = false,
                             backgroundColor = Color(0x221C1F2B),
                             borderColor = Color(0x2EFFFFFF)
                         ) {
@@ -561,6 +566,7 @@ fun ArtistsGrid(
                                 .fillMaxWidth()
                                 .clickable { selectedArtist = artistName },
                             shape = RoundedCornerShape(22.dp),
+                            enableBlur = false,
                             backgroundColor = Color(0x221C1F2B),
                             borderColor = Color(0x2EFFFFFF)
                         ) {
@@ -597,6 +603,7 @@ fun ArtistsGrid(
                                                     GlassSurface(
                                                         modifier = Modifier.fillMaxSize(),
                                                         shape = CircleShape,
+                                                        enableBlur = false,
                                                         backgroundColor = Color.Transparent,
                                                         borderColor = Color(0x22FFFFFF)
                                                     ) {

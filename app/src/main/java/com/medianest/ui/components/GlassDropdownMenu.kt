@@ -35,8 +35,11 @@ fun GlassDropdownMenu(
     useImageBackground: Boolean = false,
     backgroundImage: Any? = null,
     hue: Float? = null,
+    backdropState: BackdropBlurState? = LocalBackdropState.current,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val activeBackdropState = backdropState ?: LocalBackdropState.current
+
     DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismissRequest,
@@ -52,6 +55,7 @@ fun GlassDropdownMenu(
         BackdropGlassSurface(
             shape = shape,
             borderWidth = 0.5.dp,
+            backdropState = activeBackdropState,
             backgroundColor = containerColor.takeIf { it != Color.Transparent } ?: Color.Unspecified
         ) {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {

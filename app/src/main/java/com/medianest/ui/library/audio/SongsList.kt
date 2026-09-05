@@ -265,6 +265,7 @@ private fun SongRow(
             .clip(RoundedCornerShape(20.dp))
             .clickable { onSongClick(item) },
         shape = RoundedCornerShape(20.dp),
+        enableBlur = false,
         backgroundColor = when {
             isHighlighted -> Color.White.copy(alpha = 0.22f)
             isCurrentlyPlaying -> Color(0x33FFFFFF)
@@ -293,13 +294,13 @@ private fun SongRow(
                             color = Color.White,
                             shape = CircleShape
                         )
-                        .background(Color(0xFF6366F1)),
+                        .background(Color.White.copy(alpha = 0.85f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = "Selected",
-                        tint = Color.White,
+                        tint = Color.Black,
                         modifier = Modifier.size(13.dp)
                     )
                 }
@@ -323,6 +324,7 @@ private fun SongRow(
                         GlassSurface(
                             modifier = Modifier.fillMaxSize(),
                             shape = RoundedCornerShape(14.dp),
+                            enableBlur = false,
                             backgroundColor = Color.Transparent,
                             borderColor = Color(0x22FFFFFF)
                         ) {

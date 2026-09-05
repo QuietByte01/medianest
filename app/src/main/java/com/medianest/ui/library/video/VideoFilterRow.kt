@@ -45,7 +45,7 @@ fun VideoFilterRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        item {
+        item(key = "ALL") {
             FilterTabItem(
                 label = "All Videos",
                 icon = Icons.Default.GridView,
@@ -54,7 +54,7 @@ fun VideoFilterRow(
             )
         }
 
-        item {
+        item(key = "FOLDERS") {
             FilterTabItem(
                 label = "Folders",
                 icon = Icons.Default.Folder,
@@ -64,7 +64,7 @@ fun VideoFilterRow(
         }
 
         if (musicCount > 0 || activeFilterTab == "MUSIC") {
-            item {
+            item(key = "MUSIC") {
                 FilterTabItem(
                     label = "Songs",
                     icon = Icons.Default.MusicNote,
@@ -75,7 +75,7 @@ fun VideoFilterRow(
         }
 
         if (moviesCount > 0 || activeFilterTab == "MOVIES") {
-            item {
+            item(key = "MOVIES") {
                 FilterTabItem(
                     label = "Movies",
                     icon = Icons.Default.Movie,
@@ -86,7 +86,7 @@ fun VideoFilterRow(
         }
 
         if (seriesCount > 0 || activeFilterTab == "SERIES") {
-            item {
+            item(key = "SERIES") {
                 FilterTabItem(
                     label = "Web Series",
                     icon = Icons.Default.Tv,
@@ -97,7 +97,7 @@ fun VideoFilterRow(
         }
 
         if (clipsCount > 0 || activeFilterTab == "CLIPS") {
-            item {
+            item(key = "CLIPS") {
                 FilterTabItem(
                     label = "Clips & Recordings",
                     icon = Icons.Default.Videocam,
@@ -108,7 +108,7 @@ fun VideoFilterRow(
         }
 
         if (shortsCount > 0 || activeFilterTab == "SHORTS") {
-            item {
+            item(key = "SHORTS") {
                 FilterTabItem(
                     label = "Shorts",
                     icon = Icons.Default.FlashOn,
@@ -119,7 +119,7 @@ fun VideoFilterRow(
         }
 
         if (socialCount > 0 || activeFilterTab == "SOCIAL") {
-            item {
+            item(key = "SOCIAL") {
                 FilterTabItem(
                     label = "Social Media",
                     icon = Icons.Default.Share,
@@ -130,7 +130,7 @@ fun VideoFilterRow(
         }
 
         if (editedCount > 0 || activeFilterTab == "EDITED") {
-            item {
+            item(key = "EDITED") {
                 FilterTabItem(
                     label = "Edited",
                     icon = Icons.Default.ContentCut,
@@ -141,7 +141,7 @@ fun VideoFilterRow(
         }
 
         if (downloadedCount > 0 || activeFilterTab == "DOWNLOADED") {
-            item {
+            item(key = "DOWNLOADED") {
                 FilterTabItem(
                     label = "Downloaded",
                     icon = Icons.Default.Download,
@@ -151,20 +151,8 @@ fun VideoFilterRow(
             }
         }
 
-        // Trash filter tab commented out
-        // if (trashedCount > 0) {
-        //     item {
-        //         FilterTabItem(
-        //             label = "Trash ($trashedCount)",
-        //             icon = Icons.Default.Delete,
-        //             isSelected = activeFilterTab == "TRASH",
-        //             onClick = { onFilterSelect("TRASH") }
-        //         )
-        //     }
-        // }
-
         if (showHiddenFiles) {
-            item {
+            item(key = "EXCLUDED") {
                 FilterTabItem(
                     label = if (excludedCount > 0) "Excluded ($excludedCount)" else "Excluded",
                     icon = Icons.Default.VisibilityOff,
@@ -173,7 +161,7 @@ fun VideoFilterRow(
                 )
             }
 
-            item {
+            item(key = "HIDDEN") {
                 FilterTabItem(
                     label = if (hiddenCount > 0) "Hidden Folders ($hiddenCount)" else "Hidden Folders",
                     icon = Icons.Default.FolderZip,
@@ -183,7 +171,7 @@ fun VideoFilterRow(
             }
         }
 
-        item {
+        item(key = "CATEGORIES") {
             FilterTabItem(
                 label = "Category",
                 icon = Icons.Default.Category,

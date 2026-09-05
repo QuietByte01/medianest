@@ -73,7 +73,7 @@ fun LibraryBottomBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 12.dp, top = 4.dp),
+                .padding(top = 4.dp),
             contentAlignment = Alignment.Center
         ) {
             Box(
@@ -122,7 +122,7 @@ fun LibraryBottomBar(
             ) {
                 Row(
                     modifier = Modifier
-                        .height(48.dp)
+                        .height(56.dp)
                         .padding(horizontal = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -190,7 +190,7 @@ private fun FloatingDockTabItem(
 
     Box(
         modifier = Modifier
-            .height(36.dp)
+            .height(42.dp)
             .clip(CircleShape)
             .background(itemBgColor)
             .border(

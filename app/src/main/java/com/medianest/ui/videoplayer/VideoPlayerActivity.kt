@@ -10,6 +10,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.medianest.data.repository.NetworkRepository
 import com.medianest.player.ExoPlayerManager
 import com.medianest.player.FloatingPlayerService
@@ -71,6 +73,8 @@ class VideoPlayerActivity : ComponentActivity() {
         val controller = androidx.core.view.WindowInsetsControllerCompat(window, window.decorView)
         controller.isAppearanceLightStatusBars = false
         controller.isAppearanceLightNavigationBars = false
+        controller.hide(WindowInsetsCompat.Type.statusBars())
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
         if (activeList != null) {
             playerManager.playMediaList(activeList!!, startIndex.coerceIn(0, activeList!!.size - 1), queueTitle = contextTitle)
@@ -134,8 +138,20 @@ class VideoPlayerActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        controller.hide(WindowInsetsCompat.Type.statusBars())
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         // Stop background notification when full player activity is visible
         stopService(Intent(this, FloatingPlayerService::class.java))
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            val controller = WindowInsetsControllerCompat(window, window.decorView)
+            controller.hide(WindowInsetsCompat.Type.statusBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
     }
 
     override fun onPause() {

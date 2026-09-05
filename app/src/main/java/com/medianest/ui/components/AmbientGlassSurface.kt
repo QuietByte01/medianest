@@ -106,7 +106,7 @@ fun AmbientGlassSurface(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .matchParentSize()
-                    .blur(64.dp)
+                    .blur(72.dp)
                     .graphicsLayer { alpha = 0.32f }
             )
         }

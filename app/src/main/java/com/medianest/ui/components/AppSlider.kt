@@ -47,7 +47,7 @@ fun AppSlider(
     modifier: Modifier = Modifier,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
     steps: Int = 0,
-    drawTicks: Boolean = false,
+    drawTicks: Boolean = steps > 0,
     enabled: Boolean = true,
     style: AppSliderStyle = AppSliderStyle.Solid,
     headStyle: AppSliderHeadStyle = AppSliderHeadStyle.Circular,
@@ -156,27 +156,31 @@ fun AppSlider(
             // 1.5 Draw Ticks (Steps) - Only if drawTicks is true
             if (drawTicks) {
                 val tickColor = if (style == AppSliderStyle.Glossy) Color.White.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.65f)
-                
+                val tickPadding = 6.dp.toPx()
+                val tickStart = trackStart + tickPadding
+                val tickEnd = (trackEnd - tickPadding).coerceAtLeast(tickStart)
+                val tickWidth = (tickEnd - tickStart).coerceAtLeast(1f)
+
                 // Start dot
                 drawCircle(
                     color = tickColor,
-                    radius = 1.5.dp.toPx(),
-                    center = Offset(trackStart, centerY)
+                    radius = 2.0.dp.toPx(),
+                    center = Offset(tickStart, centerY)
                 )
                 // End dot
                 drawCircle(
                     color = tickColor,
-                    radius = 1.5.dp.toPx(),
-                    center = Offset(trackEnd, centerY)
+                    radius = 2.0.dp.toPx(),
+                    center = Offset(tickEnd, centerY)
                 )
 
                 if (steps > 0) {
                     for (i in 1..steps) {
                         val tickFrac = i.toFloat() / (steps + 1)
-                        val tickX = trackStart + (tickFrac * usableWidth)
+                        val tickX = tickStart + (tickFrac * tickWidth)
                         drawCircle(
                             color = tickColor,
-                            radius = 1.5.dp.toPx(),
+                            radius = 2.0.dp.toPx(),
                             center = Offset(tickX, centerY)
                         )
                     }

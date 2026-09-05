@@ -1,8 +1,5 @@
 package com.medianest.ui.components
 
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -14,11 +11,10 @@ enum class AppSwitchStyle {
 }
 
 /**
- * Reusable switch component.
- * Supports [AppSwitchStyle.Glass] (frosted glass switch matching CSS glass design),
- * [AppSwitchStyle.Glossy], and [AppSwitchStyle.Solid].
+ * Universal Glass Switch Component used everywhere across MediaNest.
+ * Uses [GlassToggle] for exact pill-shaped capsule clipping, custom translucent track colors,
+ * inner highlights, and real-time hardware backdrop blur without square blur box artifacts.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppSwitch(
     checked: Boolean,
@@ -28,53 +24,16 @@ fun AppSwitch(
     style: AppSwitchStyle = AppSwitchStyle.Glass,
     accentColor: Color = Color.Unspecified,
 ) {
-    when (style) {
-        AppSwitchStyle.Glass -> {
-            GlassToggle(
-                checked = checked,
-                onCheckedChange = onCheckedChange,
-                modifier = modifier,
-                enabled = enabled
-            )
-        }
-        AppSwitchStyle.Solid -> {
-            if (accentColor != Color.Unspecified) {
-                Switch(
-                    checked = checked,
-                    onCheckedChange = onCheckedChange,
-                    modifier = modifier,
-                    enabled = enabled,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White.copy(alpha = 0.90f),
-                        checkedTrackColor = accentColor.copy(alpha = 0.30f),
-                        checkedBorderColor = Color.Transparent,
-                        uncheckedThumbColor = Color.White.copy(alpha = 0.10f),
-                        uncheckedTrackColor = Color.White.copy(alpha = 0.05f),
-                        uncheckedBorderColor = Color.Transparent,
-                    )
-                )
-            } else {
-                GlossySwitch(
-                    checked = checked,
-                    onCheckedChange = onCheckedChange,
-                    modifier = modifier,
-                    enabled = enabled,
-                )
-            }
-        }
-        AppSwitchStyle.Glossy -> {
-            GlossySwitch(
-                checked = checked,
-                onCheckedChange = onCheckedChange,
-                modifier = modifier,
-                enabled = enabled,
-            )
-        }
-    }
+    GlassToggle(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = modifier,
+        enabled = enabled
+    )
 }
 
 /**
- * Transparent fluid toggle switch with 30% opacity checked white thumb and 10% opacity unchecked white thumb.
+ * Universal Switch delegating to [GlassToggle].
  */
 @Composable
 fun GlossySwitch(
@@ -82,23 +41,13 @@ fun GlossySwitch(
     onCheckedChange: ((Boolean) -> Unit)?,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
-    Switch(
+    GlassToggle(
         checked = checked,
         onCheckedChange = onCheckedChange,
         modifier = modifier,
         enabled = enabled,
-        colors = SwitchDefaults.colors(
-            checkedThumbColor = Color.White.copy(alpha = 0.30f),
-            checkedTrackColor = Color.White.copy(alpha = 0.20f),
-            checkedBorderColor = Color.Transparent,
-            uncheckedThumbColor = Color.White.copy(alpha = 0.10f),
-            uncheckedTrackColor = Color.White.copy(alpha = 0.05f),
-            uncheckedBorderColor = Color.Transparent,
-            disabledCheckedThumbColor = Color.White.copy(alpha = 0.10f),
-            disabledCheckedTrackColor = Color.White.copy(alpha = 0.08f),
-            disabledUncheckedThumbColor = Color.White.copy(alpha = 0.05f),
-            disabledUncheckedTrackColor = Color.White.copy(alpha = 0.02f),
-        )
+        backdropState = backdropState
     )
 }

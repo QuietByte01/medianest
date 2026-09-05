@@ -46,6 +46,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.dashboard.AnalyticsColors
@@ -54,10 +55,12 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import com.medianest.util.MediaProcessorEngine
 import com.medianest.util.MediaProcessorEngine.ProcessingState
+import com.medianest.util.SemaphoreVideoFrameDecoder
 import com.medianest.util.VideoColorizerEngine
 import com.medianest.util.VideoColorizerEngine.ColorizeMode
 import com.medianest.util.VideoColorizerEngine.ColorizeCodec
 import com.medianest.util.VideoColorizerEngine.ColorizePixFmt
+import com.medianest.util.formatBytesReport
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Locale
@@ -89,10 +92,7 @@ fun MediaConverterStudioDialog(
 
     var selectedTab by remember { mutableStateOf(initialTab) }
     var selectedMediaItem by remember {
-        mutableStateOf<MediaItem?>(
-            initialMediaItem ?: videosList.firstOrNull() ?: audioList.firstOrNull()
-            ?: imagesList.firstOrNull()
-        )
+        mutableStateOf<MediaItem?>(initialMediaItem)
     }
     var selectedBatchItems by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
     var isBatchMode by remember { mutableStateOf(false) }
@@ -1067,8 +1067,8 @@ private fun SourceMediaSelectorCard(
 ) {
     GlassSurface(
         shape = RoundedCornerShape(18.dp),
-        backgroundColor = Color(0x221E293B),
-        borderColor = Color(0x33FFFFFF),
+        backgroundColor = Color(0x221C1F2B),
+        borderColor = Color(0x28FFFFFF),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -1086,9 +1086,14 @@ private fun SourceMediaSelectorCard(
                     .border(1.dp, Color(0x26FFFFFF), RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                if (selectedItem?.albumArtUri != null) {
+                val coverModel = selectedItem?.albumArtUri ?: selectedItem?.uri
+                if (coverModel != null) {
                     AsyncImage(
-                        model = selectedItem.albumArtUri,
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(coverModel)
+                            .decoderFactory(SemaphoreVideoFrameDecoder.Factory())
+                            .crossfade(true)
+                            .build(),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
@@ -1112,7 +1117,7 @@ private fun SourceMediaSelectorCard(
                 verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Text(
-                    text = selectedItem?.title ?: "No File Selected",
+                    text = selectedItem?.title ?: "No Video Selected",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
@@ -1120,7 +1125,7 @@ private fun SourceMediaSelectorCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "${com.medianest.util.formatBytesReport(selectedItem?.size ?: 0L)} · ${selectedItem?.mimeType ?: "media"}",
+                    text = if (selectedItem != null) "${formatBytesReport(selectedItem.size)} · ${selectedItem.mimeType}" else "Select a video from library or storage",
                     fontSize = 11.5.sp,
                     color = Color(0xFF94A3B8)
                 )
@@ -1192,8 +1197,8 @@ private fun BatchSourceMediaCard(
 ) {
     GlassSurface(
         shape = RoundedCornerShape(18.dp),
-        backgroundColor = Color(0x2E1E293B),
-        borderColor = Color(0x4DFFFFFF),
+        backgroundColor = Color(0x221C1F2B),
+        borderColor = Color(0x28FFFFFF),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -1763,8 +1768,8 @@ private fun CompressControlsCard(
             "AUTO" -> {
                 GlassSurface(
                     shape = RoundedCornerShape(14.dp),
-                    backgroundColor = Color(0x1F0284C7),
-                    borderColor = Color(0x4038BDF8),
+                    backgroundColor = Color(0x221C1F2B),
+                    borderColor = Color(0x28FFFFFF),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(

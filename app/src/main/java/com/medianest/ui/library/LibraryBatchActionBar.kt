@@ -19,8 +19,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.medianest.data.model.MediaItem
+import com.medianest.ui.components.BackdropGlassSurface
 import com.medianest.ui.components.GlassDropdownMenu
-import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.theme.LocalDarkTheme
 
 @Composable
@@ -37,6 +37,7 @@ fun LibraryBatchActionBar(
     onCopySelected: () -> Unit,
     onAddToCategory: () -> Unit = {},
     onMoveToFilter: (() -> Unit)? = null,
+    onStartSlideshow: (() -> Unit)? = null,
     onClearSelection: () -> Unit,
     context: Context
 ) {
@@ -49,7 +50,7 @@ fun LibraryBatchActionBar(
         modifier = Modifier.fillMaxWidth()
     ) {
         Box(contentAlignment = Alignment.BottomCenter) {
-            GlassSurface(
+            BackdropGlassSurface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
@@ -75,6 +76,12 @@ fun LibraryBatchActionBar(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onSelectAll) {
                             Icon(Icons.Default.SelectAll, contentDescription = "Select All", tint = Color.White)
+                        }
+
+                        if (isImagesTab && onStartSlideshow != null) {
+                            IconButton(onClick = onStartSlideshow) {
+                                Icon(Icons.Default.Slideshow, contentDescription = "Start Slideshow", tint = Color(0xFF10B981))
+                            }
                         }
 
                         IconButton(onClick = onShowBatchInfo) {

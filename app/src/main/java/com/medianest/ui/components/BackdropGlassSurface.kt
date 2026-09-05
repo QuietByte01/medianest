@@ -71,7 +71,7 @@ fun BackdropGlassSurface(
                     state = backdropState,
                     blurRadius = blurRadius,
                     tint = effectiveTint,
-                    baseColor = baseColor
+                    baseColor = Color.Transparent
                 )
             } else {
                 // When backdropState is null (such as in platform Dialog windows where the OS

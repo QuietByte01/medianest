@@ -212,6 +212,7 @@ fun FoldersGrid(
                 GlassSurface(
                     modifier = Modifier.padding(16.dp),
                     shape = RoundedCornerShape(16.dp),
+                    enableBlur = false,
                     backgroundColor = Color(0x221C1F2B),
                     borderColor = Color(0x28FFFFFF)
                 ) {
@@ -261,6 +262,7 @@ fun FoldersGrid(
                 GlassSurface(
                     modifier = Modifier.clickable { showAllFoldersMode = false },
                     shape = RoundedCornerShape(16.dp),
+                    enableBlur = false,
                     backgroundColor = Color(0x33FFFFFF),
                     borderColor = Color(0x44FFFFFF)
                 ) {
@@ -298,6 +300,7 @@ fun FoldersGrid(
                                 showAllFoldersMode = false
                             },
                         shape = RoundedCornerShape(16.dp),
+                        enableBlur = false,
                         backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
                         borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x2EFFFFFF)
                     ) {
@@ -442,6 +445,7 @@ fun FoldersGrid(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 6.dp),
                 shape = RoundedCornerShape(20.dp),
+                enableBlur = false,
                 backgroundColor = Color(0x221C1F2B)
             ) {
                 Row(
@@ -547,6 +551,7 @@ fun FoldersGrid(
                         GlassSurface(
                             modifier = Modifier.clickable { selectedFolder = folderName },
                             shape = RoundedCornerShape(16.dp),
+                            enableBlur = false,
                             backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
                             borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x2EFFFFFF)
                         ) {

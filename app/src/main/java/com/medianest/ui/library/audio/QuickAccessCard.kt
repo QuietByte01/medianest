@@ -49,6 +49,7 @@ fun QuickAccessCard(
             .clip(RoundedCornerShape(20.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
+        enableBlur = false,
         backgroundColor = Color(0x221C1F2B),
         borderColor = Color(0x2EFFFFFF)
     ) {

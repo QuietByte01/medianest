@@ -8,6 +8,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,6 +18,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -29,9 +32,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -54,7 +59,9 @@ import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.BubblingHeartButton
 import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.components.BackdropGlassSurface
 import com.medianest.ui.components.MediaInfoBottomSheet
+import com.medianest.ui.components.media.SlideshowViewer
 import com.medianest.ui.components.debug.ImageDebugOverlay
 import com.medianest.ui.components.extractBaseHueFromArt
 import com.medianest.ui.image.hybrid.HybridImageViewer
@@ -88,7 +95,8 @@ fun QuickViewScreen(
     var showInfoBottomSheet by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
     var showBgColorPicker by remember { mutableStateOf(false) }
-    var showPictureModeDialog by remember { mutableStateOf(false) }
+    var showPictureModeBar by remember { mutableStateOf(false) }
+    var showSlideshow by remember { mutableStateOf(false) }
 
     val quickViewBackdropState = rememberBackdropBlurState()
 
@@ -104,14 +112,12 @@ fun QuickViewScreen(
             controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 
-        onDispose {
-            insetsController?.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-        }
+        onDispose {}
     }
 
     // Auto-hide controls timer
-    LaunchedEffect(showControls, controlsTimerKey, showInfoBottomSheet, showOverflowMenu, showBgColorPicker, showPictureModeDialog, showDeleteDialog, showWallpaperDialog) {
-        if (showControls && !showInfoBottomSheet && !showOverflowMenu && !showBgColorPicker && !showPictureModeDialog && !showDeleteDialog && !showWallpaperDialog) {
+    LaunchedEffect(showControls, controlsTimerKey, showInfoBottomSheet, showOverflowMenu, showBgColorPicker, showPictureModeBar, showDeleteDialog, showWallpaperDialog) {
+        if (showControls && !showInfoBottomSheet && !showOverflowMenu && !showBgColorPicker && !showPictureModeBar && !showDeleteDialog && !showWallpaperDialog) {
             delay(5000)
             showControls = false
         }
@@ -171,6 +177,22 @@ fun QuickViewScreen(
     val currentItem = if (mutableMediaList.isNotEmpty() && pagerState.currentPage in mutableMediaList.indices) {
         mutableMediaList[pagerState.currentPage]
     } else null
+
+    if (showSlideshow) {
+        val imageItems = remember(mutableMediaList) {
+            mutableMediaList.filter { it.type == MediaType.IMAGE }
+        }
+        val currentImageIdx = remember(currentItem, imageItems) {
+            val idx = imageItems.indexOfFirst { it.uri == currentItem?.uri }
+            if (idx >= 0) idx else 0
+        }
+        SlideshowViewer(
+            items = if (imageItems.isNotEmpty()) imageItems else mutableMediaList,
+            initialIndex = currentImageIdx,
+            onDismiss = { showSlideshow = false }
+        )
+        return
+    }
 
     // Centered smooth scroll on page changes
     LaunchedEffect(pagerState.currentPage, filmstripListState.layoutInfo.viewportSize.width) {
@@ -352,7 +374,23 @@ fun QuickViewScreen(
                         backgroundColor = Color.Transparent
                     )
             ) {
-        if (mutableMediaList.isNotEmpty()) {
+                // Ambient Blurred Backdrop for Full-Screen Viewer
+                if (currentItem != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(currentItem.uri)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .blur(64.dp)
+                            .graphicsLayer { alpha = 0.28f }
+                    )
+                }
+
+                if (mutableMediaList.isNotEmpty()) {
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),
@@ -410,8 +448,9 @@ fun QuickViewScreen(
                 }
             }
         }
+    }
 
-        // Image Debug Overlay (Developer Settings)
+    // Image Debug Overlay (Developer Settings)
         if (showImageDebugOverlay && currentItem?.type == MediaType.IMAGE) {
             ImageDebugOverlay(
                 item = currentItem,
@@ -470,18 +509,18 @@ fun QuickViewScreen(
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape)
-                                    .background(if (pictureModeEnabled) Color.White.copy(alpha = 0.85f) else Color.Black.copy(alpha = 0.55f))
                                     .clickable {
                                         resetControlsTimer()
-                                        showPictureModeDialog = true
+                                        showBgColorPicker = false
+                                        showPictureModeBar = !showPictureModeBar
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Tune,
                                     contentDescription = "Picture Mode",
-                                    tint = if (pictureModeEnabled) Color.Black else Color.White,
-                                    modifier = Modifier.size(18.dp)
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
@@ -647,6 +686,7 @@ fun QuickViewScreen(
                             GlassDropdownMenu(
                                 expanded = showOverflowMenu,
                                 onDismissRequest = { showOverflowMenu = false },
+                                backdropState = quickViewBackdropState,
                                 backgroundImage = currentItem?.albumArtUri ?: currentItem?.uri,
                                 hue = imageHue
                             ) {
@@ -691,6 +731,14 @@ fun QuickViewScreen(
                                     )
                                     if (currentItem?.type == MediaType.IMAGE) {
                                         DropdownMenuItem(
+                                            text = { Text("Start Slideshow", color = Color.White) },
+                                            leadingIcon = { Icon(Icons.Default.Slideshow, contentDescription = null, tint = Color.White) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                showSlideshow = true
+                                            }
+                                        )
+                                        DropdownMenuItem(
                                             text = { Text("Set as wallpaper", color = Color.White) },
                                             leadingIcon = { Icon(Icons.Default.Wallpaper, contentDescription = null, tint = Color.White) },
                                             onClick = {
@@ -716,6 +764,98 @@ fun QuickViewScreen(
                                         }
                                     )
                                 }
+                            }
+                        }
+                    }
+                }
+
+                // Horizontally Scrollable Picture Mode Chips Bar (Frosted Glass Panel with Backdrop Blur)
+                AnimatedVisibility(
+                    visible = showPictureModeBar && currentItem?.type == MediaType.IMAGE,
+                    enter = fadeIn() + slideInVertically(initialOffsetY = { -20 }),
+                    exit = fadeOut() + slideOutVertically(targetOffsetY = { -20 }),
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(top = 64.dp)
+                ) {
+                    val modes = remember { listOf("OFF", "VIBRANT", "NATURAL", "AMOLED", "CINEMATIC", "WARM", "COOL") }
+                    BackdropGlassSurface(
+                        shape = RoundedCornerShape(22.dp),
+                        backdropState = quickViewBackdropState,
+                        tint = Color(0x660F1015),
+                        blurRadius = 24.dp,
+                        modifier = Modifier
+                            .fillMaxWidth(0.92f)
+                            .wrapContentHeight()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            LazyRow(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                items(modes) { mode ->
+                                    val isSelected = pictureMode == mode
+                                    BackdropGlassSurface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        backdropState = if (isSelected) null else quickViewBackdropState,
+                                        backgroundColor = if (isSelected) Color.White else Color.Transparent,
+                                        tint = if (isSelected) Color.White else Color(0x33000000),
+                                        borderColor = if (isSelected) Color.White else Color.White.copy(alpha = 0.25f),
+                                        borderWidth = if (isSelected) 1.5.dp else 0.5.dp,
+                                        blurRadius = 16.dp,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .clickable {
+                                                resetControlsTimer()
+                                                pictureMode = mode
+                                                pictureModeEnabled = mode != "OFF"
+                                                coroutineScope.launch {
+                                                    app.settingsManager.setPictureMode(mode)
+                                                }
+                                            }
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = mode,
+                                                fontSize = 13.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (isSelected) Color.Black else Color.White
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(6.dp))
+
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.15f))
+                                    .clickable {
+                                        resetControlsTimer()
+                                        showPictureModeBar = false
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Close Picture Mode Bar",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
                             }
                         }
                     }
@@ -865,7 +1005,6 @@ fun QuickViewScreen(
                 }
             }
         }
-    }
     if (showWallpaperDialog && currentItem != null) {
         AlertDialog(
             onDismissRequest = { showWallpaperDialog = false },
@@ -975,136 +1114,6 @@ fun QuickViewScreen(
             item = currentItem,
             onDismiss = { showInfoBottomSheet = false }
         )
-    }
-
-    if (showPictureModeDialog) {
-        val modes = listOf("OFF", "VIBRANT", "NATURAL", "AMOLED", "CINEMATIC", "WARM", "COOL")
-        val isDark = com.medianest.ui.theme.LocalDarkTheme.current
-        androidx.compose.ui.window.Dialog(
-            onDismissRequest = { showPictureModeDialog = false },
-            properties = androidx.compose.ui.window.DialogProperties(
-                usePlatformDefaultWidth = false,
-                decorFitsSystemWindows = false
-            )
-        ) {
-            val dialogView = LocalView.current
-            DisposableEffect(dialogView) {
-                val window = (dialogView.parent as? DialogWindowProvider)?.window
-                window?.let { w ->
-                    w.setDimAmount(0.18f)
-                    w.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
-                }
-                onDispose {}
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { showPictureModeDialog = false },
-                contentAlignment = Alignment.Center
-            ) {
-                val cardModifier = Modifier
-                    .fillMaxWidth(0.88f)
-                    .wrapContentHeight()
-                    .padding(16.dp)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        enabled = false
-                    ) {}
-                    .clip(RoundedCornerShape(24.dp))
-                    .then(
-                        if (quickViewBackdropState != null) {
-                            Modifier.backdropReceiver(
-                                state = quickViewBackdropState,
-                                blurRadius = 24.dp,
-                                tint = if (isDark) Color(0x3B181A26) else Color(0x80FFFFFF),
-                                baseColor = Color.Transparent,
-                                showTopBorder = false
-                            )
-                        } else Modifier
-                    )
-
-                GlassSurface(
-                    shape = RoundedCornerShape(24.dp),
-                    backgroundColor = if (quickViewBackdropState != null) Color.Transparent else if (isDark) Color(0x4D181A26) else Color(0xBFFFFFFF),
-                    borderColor = if (isDark) Color(0x28FFFFFF) else Color(0x28000000),
-                    modifier = cardModifier
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp)
-                    ) {
-                        Text(
-                            text = "Picture Mode",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Column {
-                            modes.forEach { mode ->
-                                val isSelected = pictureMode == mode
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(if (isSelected) Color.White.copy(alpha = 0.15f) else Color.Transparent)
-                                        .clickable {
-                                            pictureMode = mode
-                                            pictureModeEnabled = mode != "OFF"
-                                            coroutineScope.launch {
-                                                app.settingsManager.setPictureMode(mode)
-                                            }
-                                            showPictureModeDialog = false
-                                        }
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    RadioButton(
-                                        selected = isSelected,
-                                        onClick = {
-                                            pictureMode = mode
-                                            pictureModeEnabled = mode != "OFF"
-                                            coroutineScope.launch {
-                                                app.settingsManager.setPictureMode(mode)
-                                            }
-                                            showPictureModeDialog = false
-                                        },
-                                        colors = RadioButtonDefaults.colors(
-                                            selectedColor = Color.White,
-                                            unselectedColor = Color.White.copy(alpha = 0.5f)
-                                        )
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(
-                                        text = mode,
-                                        color = Color.White,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        fontSize = 15.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            TextButton(onClick = { showPictureModeDialog = false }) {
-                                Text("Close", color = Color.White, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 
     if (showDeleteDialog && currentItem != null) {

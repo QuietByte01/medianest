@@ -396,59 +396,72 @@ fun VideosTab(
             )
         }
 
-        val displayList = remember(videosList, videoFolderGroups, activeFilterTab, isFolderViewActive, selectedFolder, selectedCategory, categoryUris, showHiddenSetting, searchQuery) {
-            val raw = if (isFolderViewActive || selectedFolder != null) {
-                if (selectedFolder != null) {
-                    val directItems = videoFolderGroups[selectedFolder]
-                    if (directItems != null) {
-                        directItems
-                    } else {
-                        val subfolderItems = videoFolderGroups.entries.filter { (k, _) ->
-                            val normKey = k.trim('/').lowercase()
-                            val normTarget = selectedFolder!!.trim('/').lowercase()
-                            normKey == normTarget ||
-                            normKey.startsWith("$normTarget/") ||
-                            normKey.contains("/$normTarget/") ||
-                            normKey.substringAfterLast('/') == normTarget
-                        }.flatMap { it.value }
+        var isFilterProcessing by remember { mutableStateOf(false) }
+        var displayList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
 
-                        if (subfolderItems.isNotEmpty()) {
-                            subfolderItems.distinctBy { it.uri }
+        LaunchedEffect(videosList, videoFolderGroups, activeFilterTab, isFolderViewActive, selectedFolder, selectedCategory, categoryUris, showHiddenSetting, searchQuery) {
+            isFilterProcessing = true
+            val result = withContext(Dispatchers.Default) {
+                val raw = if (isFolderViewActive || selectedFolder != null) {
+                    if (selectedFolder != null) {
+                        val directItems = videoFolderGroups[selectedFolder]
+                        if (directItems != null) {
+                            directItems
                         } else {
-                            videosList.filter { item ->
-                                val rel = item.relativePath?.trim('/')?.lowercase() ?: ""
-                                val bucket = item.bucketName?.trim('/')?.lowercase() ?: ""
+                            val subfolderItems = videoFolderGroups.entries.filter { (k, _) ->
+                                val normKey = k.trim('/').lowercase()
                                 val normTarget = selectedFolder!!.trim('/').lowercase()
-                                bucket == normTarget || rel == normTarget || rel.startsWith("$normTarget/") || rel.contains("/$normTarget/")
+                                normKey == normTarget ||
+                                normKey.startsWith("$normTarget/") ||
+                                normKey.contains("/$normTarget/") ||
+                                normKey.substringAfterLast('/') == normTarget
+                            }.flatMap { it.value }
+
+                            if (subfolderItems.isNotEmpty()) {
+                                subfolderItems.distinctBy { it.uri }
+                            } else {
+                                videosList.filter { item ->
+                                    val rel = item.relativePath?.trim('/')?.lowercase() ?: ""
+                                    val bucket = item.bucketName?.trim('/')?.lowercase() ?: ""
+                                    val normTarget = selectedFolder!!.trim('/').lowercase()
+                                    bucket == normTarget || rel == normTarget || rel.startsWith("$normTarget/") || rel.contains("/$normTarget/")
+                                }
                             }
                         }
+                    } else {
+                        videosList
                     }
+                } else if (selectedCategory != null) {
+                    videosList.filter { categoryUris.contains(it.uri.toString()) }
+                } else if (activeFilterTab == "CATEGORIES") {
+                    emptyList()
                 } else {
-                    videosList
+                    filterVideoList(videosList, activeFilterTab, showHiddenSetting)
                 }
-            } else if (selectedCategory != null) {
-                videosList.filter { categoryUris.contains(it.uri.toString()) }
-            } else if (activeFilterTab == "CATEGORIES") {
-                emptyList()
-            } else {
-                filterVideoList(videosList, activeFilterTab, showHiddenSetting)
-            }
 
-            if (searchQuery.isNotBlank()) {
-                raw.filter { it.title.contains(searchQuery, ignoreCase = true) }
-            } else {
-                raw
+                if (searchQuery.isNotBlank()) {
+                    raw.filter { it.title.contains(searchQuery, ignoreCase = true) }
+                } else {
+                    raw
+                }
             }
+            displayList = result
+            isFilterProcessing = false
         }
 
-        val sortedDisplayList = remember(displayList, sortField, isAscending) {
-            val comp = when (sortField) {
-                "Name" -> compareBy<MediaItem> { it.title.lowercase() }
-                "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
-                "Size" -> compareBy<MediaItem> { if (it.size > 0) it.size else Long.MAX_VALUE }
-                else -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
+        var sortedDisplayList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
+
+        LaunchedEffect(displayList, sortField, isAscending) {
+            val result = withContext(Dispatchers.Default) {
+                val comp = when (sortField) {
+                    "Name" -> compareBy<MediaItem> { it.title.lowercase() }
+                    "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
+                    "Size" -> compareBy<MediaItem> { if (it.size > 0) it.size else Long.MAX_VALUE }
+                    else -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
+                }
+                if (isAscending) displayList.sortedWith(comp) else displayList.sortedWith(comp).reversed()
             }
-            if (isAscending) displayList.sortedWith(comp) else displayList.sortedWith(comp).reversed()
+            sortedDisplayList = result
         }
 
         val currentContextTitle = remember(selectedCategory, isFolderViewActive, selectedFolder, activeFilterTab, selectedSeriesName, selectedSeasonName) {
@@ -471,7 +484,8 @@ fun VideosTab(
             }
         }
 
-        if ((isLoading && (videosList.isEmpty() || (displayList.isEmpty() && activeFilterTab != "CATEGORIES" && activeFilterTab != "SERIES"))) ||
+        if ((isFilterProcessing && sortedDisplayList.isEmpty()) ||
+            (isLoading && (videosList.isEmpty() || (displayList.isEmpty() && activeFilterTab != "CATEGORIES" && activeFilterTab != "SERIES"))) ||
             (isScanningHidden && (activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED") && displayList.isEmpty())) {
             Box(
                 modifier = Modifier.fillMaxSize(),

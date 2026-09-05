@@ -123,6 +123,7 @@ fun AlbumsGrid(
                                     GlassSurface(
                                         modifier = Modifier.fillMaxSize(),
                                         shape = RoundedCornerShape(16.dp),
+                                        enableBlur = false,
                                         backgroundColor = Color.Transparent,
                                         borderColor = Color(0x22FFFFFF)
                                     ) {
@@ -172,6 +173,7 @@ fun AlbumsGrid(
                             .clip(RoundedCornerShape(20.dp))
                             .clickable { if (albumSongs.isNotEmpty()) onSongClick(albumSongs, 0) },
                         shape = RoundedCornerShape(20.dp),
+                        enableBlur = false,
                         backgroundColor = Color(0x3338BDF8),
                         borderColor = Color(0x6638BDF8)
                     ) {
@@ -205,6 +207,7 @@ fun AlbumsGrid(
                                 }
                             },
                         shape = RoundedCornerShape(20.dp),
+                        enableBlur = false,
                         backgroundColor = Color(0x221C1F2B),
                         borderColor = Color(0x28FFFFFF)
                     ) {
@@ -271,6 +274,7 @@ fun AlbumsGrid(
                             .fillMaxWidth()
                             .clickable { selectedAlbum = albumName },
                         shape = RoundedCornerShape(22.dp),
+                        enableBlur = false,
                         backgroundColor = if (isCurrentlyPlaying) Color(0x33FFFFFF) else Color(0x221C1F2B),
                         borderColor = if (isCurrentlyPlaying) Color(0x66FFFFFF) else Color(0x2EFFFFFF)
                     ) {
@@ -297,6 +301,7 @@ fun AlbumsGrid(
                                         GlassSurface(
                                             modifier = Modifier.fillMaxSize(),
                                             shape = RoundedCornerShape(16.dp),
+                                            enableBlur = false,
                                             backgroundColor = Color.Transparent,
                                             borderColor = Color(0x22FFFFFF)
                                         ) {

@@ -310,7 +310,7 @@ private fun ImmersiveLandscapeLayout(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
-                        .blur(28.dp)
+                        .blur(64.dp)
                 )
             }
 

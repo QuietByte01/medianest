@@ -45,6 +45,7 @@ fun LyricsView(
     GlassSurface(
         modifier = glassSurfaceModifier,
         shape = androidx.compose.foundation.shape.RoundedCornerShape(cardShapeRadius),
+        enableBlur = true,
         backgroundColor = Color(0x1F24293A),
         borderColor = Color(0x2EFFFFFF)
     ) {

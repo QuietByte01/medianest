@@ -49,15 +49,17 @@ internal fun SubtitleOptionsDialog(
         modifier = modifier.clickable(enabled = false) {},
         shape = shape,
         blurRadius = 24.dp,
-        tint = Color(0x660A0C10),
+        tint = Color(0x770A0C10),
         baseColor = Color.Transparent,
         borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x28000000),
         borderWidth = 0.5.dp,
         backdropState = backdropState
     ) {
+        val scrollState = rememberScrollState()
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(scrollState)
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -104,44 +106,45 @@ internal fun SubtitleOptionsDialog(
                 }
             }
 
-            Text(
-                text = "Embedded Subtitle Tracks:",
-                fontSize = 13.sp,
-                color = Color(0xFF94A3B8)
-            )
+            val isSubtitlesOn = selectedTrackIndex >= 0
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                val isOffSelected = selectedTrackIndex == -1
-                GlassSurface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                AppActionButton(
+                    text = if (isSubtitlesOn) "Subtitles ON" else "Subtitles OFF",
+                    icon = if (isSubtitlesOn) Icons.Default.Subtitles else Icons.Default.SubtitlesOff,
+                    onClick = {
+                        if (isSubtitlesOn) {
                             onTrackSelect(-1)
-                        },
-                    shape = RoundedCornerShape(12.dp),
-                    backgroundColor = if (isOffSelected) Color(0x33FFFFFF) else Color(0x1EFFFFFF),
-                    borderColor = if (isOffSelected) Color.White else Color(0x1AFFFFFF)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Subtitles Off",
-                            fontSize = 14.sp,
-                            fontWeight = if (isOffSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = Color.White
-                        )
-                        if (isOffSelected) {
-                            Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color.White, modifier = Modifier.size(18.dp))
+                        } else {
+                            onTrackSelect(0)
                         }
-                    }
-                }
+                    },
+                    style = AppButtonStyle.Glossy,
+                    accentColor = if (isSubtitlesOn) Color(0xFF10B981) else Color(0xFFE2E8F0),
+                    modifier = Modifier.weight(1f)
+                )
 
-                if (embeddedTracks.isNotEmpty()) {
+                AppActionButton(
+                    text = "Customize",
+                    icon = Icons.Default.Style,
+                    onClick = onCustomizeClick,
+                    style = AppButtonStyle.Glossy,
+                    accentColor = Color(0xFFC4B5FD),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            if (embeddedTracks.isNotEmpty()) {
+                Text(
+                    text = "Embedded Subtitle Tracks:",
+                    fontSize = 13.sp,
+                    color = Color(0xFF94A3B8)
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     embeddedTracks.forEachIndexed { idx, track ->
                         val isSelected = selectedTrackIndex == idx
                         GlassSurface(
@@ -178,36 +181,6 @@ internal fun SubtitleOptionsDialog(
                             }
                         }
                     }
-                } else {
-                    Text(
-                        text = "No embedded subtitles found in this media file.",
-                        fontSize = 12.sp,
-                        color = Color.Gray,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
-                }
-            }
-
-            GlassSurface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onCustomizeClick() },
-                shape = RoundedCornerShape(12.dp),
-                backgroundColor = Color(0x338B5CF6),
-                borderColor = Color(0x448B5CF6)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 10.dp, horizontal = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Default.Style, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(18.dp))
-                        Text("Customize Subtitle Style...", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    }
-                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                 }
             }
 
@@ -223,6 +196,7 @@ internal fun SubtitleOptionsDialog(
                     onClick = { onSearchOnline(SubtitleProvider.OPEN_SUBTITLES) },
                     enabled = !isSearching,
                     style = AppButtonStyle.Glossy,
+                    accentColor = Color(0xFFE2E8F0),
                     modifier = Modifier.weight(1f)
                 )
 
@@ -232,6 +206,7 @@ internal fun SubtitleOptionsDialog(
                     onClick = { onSearchOnline(SubtitleProvider.YTS) },
                     enabled = !isSearching,
                     style = AppButtonStyle.Glossy,
+                    accentColor = Color(0xFFE2E8F0),
                     modifier = Modifier.weight(1f)
                 )
             }

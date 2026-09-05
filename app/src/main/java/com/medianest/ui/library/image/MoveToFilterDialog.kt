@@ -72,6 +72,7 @@ fun MoveToFilterDialog(
         isTablet -> 520.dp
         else -> 340.dp
     }
+    val maxListHeight = (configuration.screenHeightDp.dp - 140.dp).coerceIn(240.dp, 420.dp)
 
     val availableTargets = remember(currentFilterTab) {
         listOf(
@@ -174,7 +175,7 @@ fun MoveToFilterDialog(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 280.dp)
+                        .heightIn(max = maxListHeight)
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -251,6 +252,7 @@ fun BatchMoveToFilterDialog(
         isTablet -> 520.dp
         else -> 340.dp
     }
+    val maxListHeight = (configuration.screenHeightDp.dp - 140.dp).coerceIn(240.dp, 420.dp)
 
     val availableTargets = remember(currentFilterTab) {
         listOf(
@@ -353,7 +355,7 @@ fun BatchMoveToFilterDialog(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 280.dp)
+                        .heightIn(max = maxListHeight)
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {

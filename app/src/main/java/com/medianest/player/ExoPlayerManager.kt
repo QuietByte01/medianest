@@ -853,7 +853,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
             list
         }
         if (toRelease.isNotEmpty()) {
-            GlobalScope.launch(Dispatchers.IO) {
+            GlobalScope.launch(Dispatchers.Main) {
                 for (dead in toRelease) {
                     try {
                         dead.release()

@@ -133,11 +133,15 @@ fun GlassSurface(
         }
 
         // 2. Background Color Tint (Overlay layer)
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(brush = finalBgBrush, shape = shape)
-        )
+        // When real-time backdrop blur is active, backdropReceiver already renders the base
+        // and translucent tint; we only render finalBgBrush when real-time blur is not active.
+        if (!enableBlur || backdropState == null || backgroundImage != null) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(brush = finalBgBrush, shape = shape)
+            )
+        }
 
         content()
     }

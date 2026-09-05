@@ -6,7 +6,9 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -137,106 +139,65 @@ fun PortraitPlayerLayout(
                     cardShapeRadius = 16.dp
                 )
             } else if (showQueueInPortraitBox) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                GlassSurface(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(20.dp),
+                    enableBlur = true,
+                    backgroundColor = Color(0x1F24293A),
+                    borderColor = Color(0x2EFFFFFF)
                 ) {
-                    GlassSurface(
+                    LazyColumn(
                         modifier = Modifier
-                            .width(albumArtSize)
-                            .height(albumArtSize),
-                        shape = RoundedCornerShape(16.dp),
-                        backgroundColor = Color(0x1F24293A),
-                        borderColor = Color(0x2EFFFFFF)
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(14.dp)
-                                .verticalScroll(rememberScrollState())
-                        ) {
+                        item {
                             Text(
                                 text = "UP NEXT",
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF64B5F6),
                                 letterSpacing = 1.2.sp
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            if (playerState.queue.isNotEmpty()) {
-                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    for (track in playerState.queue) {
-                                        val isSelected = track.uri == currentItem?.uri
-                                        GlassSurface(
-                                            shape = RoundedCornerShape(12.dp),
-                                            backgroundColor = if (isSelected) Color(0x3564B5F6) else Color(0x1AFFFFFF),
-                                            borderColor = if (isSelected) Color(0x5564B5F6) else Color(0x22FFFFFF),
-                                            modifier = Modifier.clickable {
-                                                val queueIndex = playerState.queue.indexOf(track)
-                                                if (queueIndex != -1) {
-                                                    playerManager.playMediaList(playerState.queue, queueIndex)
-                                                }
-                                            }
-                                        ) {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Column(modifier = Modifier.weight(1f)) {
-                                                    Text(track.title, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = Color.White, maxLines = 1)
-                                                    Text(track.artist ?: "Unknown Artist", fontSize = 10.sp, color = Color.White.copy(alpha = 0.65f), maxLines = 1)
-                                                }
-                                                if (isSelected) {
-                                                    Icon(Icons.Default.VolumeUp, contentDescription = "Playing", tint = Color(0xFF64B5F6), modifier = Modifier.size(16.dp))
-                                                }
-                                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                        }
+                        if (playerState.queue.isNotEmpty()) {
+                            itemsIndexed(playerState.queue) { idx, track ->
+                                val isSelected = track.uri == currentItem?.uri
+                                GlassSurface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    enableBlur = false,
+                                    backgroundColor = if (isSelected) Color(0x3564B5F6) else Color(0x1AFFFFFF),
+                                    borderColor = if (isSelected) Color(0x5564B5F6) else Color(0x22FFFFFF),
+                                    modifier = Modifier.clickable {
+                                        val queueIndex = playerState.queue.indexOf(track)
+                                        if (queueIndex != -1) {
+                                            playerManager.playMediaList(playerState.queue, queueIndex)
+                                        }
+                                    }
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(track.title, fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = Color.White, maxLines = 1)
+                                            Text(track.artist ?: "Unknown Artist", fontSize = 11.sp, color = Color.White.copy(alpha = 0.65f), maxLines = 1)
+                                        }
+                                        if (isSelected) {
+                                            Icon(Icons.Default.VolumeUp, contentDescription = "Playing", tint = Color(0xFF64B5F6), modifier = Modifier.size(18.dp))
                                         }
                                     }
                                 }
-                            } else {
+                            }
+                        } else {
+                            item {
                                 Text("Queue is empty", fontSize = 12.sp, color = Color.White.copy(alpha = 0.5f))
                             }
                         }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Track Title & Artist Info
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .width(albumArtSize)
-                            .padding(horizontal = 2.dp)
-                    ) {
-                        Text(
-                            text = currentItem?.title ?: "No Track Selected",
-                            fontSize = if (isTablet) 26.sp else 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            color = Color.White,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.basicMarquee()
-                        )
-                        Text(
-                            text = buildString {
-                                append(currentItem?.artist ?: "Unknown Artist")
-                                if (!currentItem?.album.isNullOrBlank()) {
-                                    append(" — ")
-                                    append(currentItem?.album)
-                                }
-                            },
-                            fontSize = if (isTablet) 15.sp else 14.sp,
-                            color = Color.White.copy(alpha = 0.7f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .padding(top = 4.dp)
-                                .basicMarquee()
-                        )
                     }
                 }
             } else if (showAudioVisualizer) {
@@ -344,6 +305,7 @@ fun PortraitPlayerLayout(
                                 GlassSurface(
                                     modifier = Modifier.fillMaxSize(),
                                     shape = RoundedCornerShape(16.dp),
+                                    enableBlur = true,
                                     backgroundColor = Color.White.copy(alpha = 0.10f), // 90% Transparent
                                     borderColor = Color.White.copy(alpha = 0.25f),
                                     backgroundImage = currentItem?.uri, // Use blurred media context as backdrop

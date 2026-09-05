@@ -38,7 +38,7 @@ fun ImagesMainGrid(
     roundedCornersEnabled: Boolean,
     gridGapDp: Int,
     imageMinSize: Dp,
-    onImageClick: (MediaItem, List<MediaItem>) -> Unit,
+    onImageClick: (MediaItem, List<MediaItem>, Boolean) -> Unit,
     onImageLongClick: (MediaItem) -> Unit,
     onInfoItemChange: (MediaItem?) -> Unit,
     onImageToDeleteChange: (MediaItem?) -> Unit,
@@ -141,7 +141,7 @@ fun ImagesMainGrid(
                 horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
                 verticalItemSpacing = Dp(gridGapDp.toFloat())
             ) {
-                items(images, key = { it.id }) { item ->
+                items(images, key = { "${it.id}_${it.uri}" }) { item ->
                     MediaGridItem(
                         item = item,
                         isSelected = selectedUris.contains(item.uri.toString()),
@@ -149,7 +149,7 @@ fun ImagesMainGrid(
                         cornerRadiusDp = cornerRadiusDp,
                         roundedCornersEnabled = roundedCornersEnabled,
                         isHighlighted = (item.uri.toString() == highlightedImageUri),
-                        onClick = { onImageClick(item, images) },
+                        onClick = { onImageClick(item, images, false) },
                         onLongClick = { onImageLongClick(item) },
                         onInfo = { onInfoItemChange(item) },
                         onDelete = { onImageToDeleteChange(item) },

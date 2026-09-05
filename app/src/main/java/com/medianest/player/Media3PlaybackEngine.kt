@@ -2,6 +2,8 @@ package com.medianest.player
 
 import android.content.Context
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.view.Surface
 import com.medianest.util.Logger
 import androidx.annotation.OptIn
@@ -326,9 +328,20 @@ class Media3PlaybackEngine(
     override fun release() {
         try {
             Logger.i("Media3PlaybackEngine", "release() requested")
-            player.removeAnalyticsListener(analyticsListener)
-            player.setVideoSurface(null)
-            player.release()
+            val releaseAction = Runnable {
+                try {
+                    player.removeAnalyticsListener(analyticsListener)
+                    player.setVideoSurface(null)
+                    player.release()
+                } catch (e: Exception) {
+                    Logger.e("Media3PlaybackEngine", "Error during player release: ${e.message}")
+                }
+            }
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                releaseAction.run()
+            } else {
+                Handler(Looper.getMainLooper()).post(releaseAction)
+            }
         } catch (e: Exception) {
             Logger.e("Media3PlaybackEngine", "Critical error during release: ${e.message}")
         }

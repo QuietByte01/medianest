@@ -43,7 +43,7 @@ internal fun AlbumSongsSheet(
 ) {
     AdaptiveBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xEB101114),
+//        containerColor = Color(0xEB101114),
         contentColor = Color.White
     ) {
         Column(

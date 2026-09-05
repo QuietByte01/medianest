@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Slideshow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -38,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.ui.components.debug.ImageDebugOverlay
+import com.medianest.ui.components.media.SlideshowViewer
 
 /**
  * Modern, high-performance image gallery viewer featuring:
@@ -69,6 +71,19 @@ fun <T> GalleryViewerScreen(
     val showDebugOverlay by com.medianest.MediaNestApp.instance.settingsManager.showImageDebugInfo.collectAsState(initial = false)
     var isImmersive by remember { mutableStateOf(false) }
     var isCurrentPageZoomed by remember { mutableStateOf(false) }
+    var isSlideshowActive by remember { mutableStateOf(false) }
+
+    if (isSlideshowActive) {
+        SlideshowViewer(
+            items = items,
+            initialIndex = pagerState.currentPage,
+            onDismiss = { isSlideshowActive = false },
+            getItemModel = getItemModel,
+            backgroundColor = backgroundColor,
+            modifier = modifier
+        )
+        return
+    }
 
     DragToDismissContainer(
         onDismiss = onDismiss,
@@ -164,8 +179,14 @@ fun <T> GalleryViewerScreen(
                             )
                         }
 
-                        // Balance spacing
-                        Box(modifier = Modifier.padding(24.dp))
+                        // Slideshow Button
+                        IconButton(onClick = { isSlideshowActive = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Slideshow,
+                                contentDescription = "Start Slideshow",
+                                tint = Color.White
+                            )
+                        }
                     }
                 }
             }

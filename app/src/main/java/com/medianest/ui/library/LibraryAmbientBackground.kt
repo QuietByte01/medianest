@@ -30,16 +30,18 @@ fun LibraryAmbientBackground(
     currentPlayingTrack: MediaItem?,
     imagesList: List<MediaItem>,
     videosList: List<MediaItem>,
-    audioList: List<MediaItem>
+    audioList: List<MediaItem>,
+    activeImageItem: MediaItem? = null,
+    activeVideoItem: MediaItem? = null
 ) {
     val context = LocalContext.current
     var activeHue by remember { mutableStateOf<Float?>(null) }
 
-    val activeMediaTarget = remember(isDashboardTab, isImagesTab, isVideosTab, isAudioTab, currentPlayingTrack, imagesList, videosList, audioList) {
+    val activeMediaTarget = remember(isDashboardTab, isImagesTab, isVideosTab, isAudioTab, currentPlayingTrack, activeImageItem, activeVideoItem, imagesList, videosList, audioList) {
         when {
             isDashboardTab -> null
-            isImagesTab -> imagesList.firstOrNull()
-            isVideosTab -> currentPlayingTrack?.takeIf { it.type == MediaType.VIDEO } ?: videosList.firstOrNull()
+            isImagesTab -> activeImageItem ?: imagesList.firstOrNull()
+            isVideosTab -> currentPlayingTrack?.takeIf { it.type == MediaType.VIDEO } ?: activeVideoItem ?: videosList.firstOrNull()
             isAudioTab -> currentPlayingTrack ?: audioList.firstOrNull()
             else -> currentPlayingTrack ?: audioList.firstOrNull()
         }

@@ -491,6 +491,7 @@ private fun FavoriteArtistCard(
 
     GlassSurface(
         shape = cardShape,
+        enableBlur = false,
         backgroundColor = Color(0x1F24293A),
         borderColor = Color(0x2BFFFFFF),
         modifier = Modifier

@@ -1,5 +1,6 @@
 package com.medianest.ui.library.audio
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.clickable
@@ -29,7 +30,10 @@ import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.SortRow
 import com.medianest.ui.components.rememberSortRevealConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.medianest.util.FolderHiddenUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun AudioTab(
@@ -133,64 +137,69 @@ fun AudioTab(
     val cachedMetadataList by db.metadataCacheDao().getAllCacheFlow().collectAsState(initial = emptyList<com.medianest.data.db.AudioMetadataCache>())
     val cacheMap = remember(cachedMetadataList) { cachedMetadataList.associateBy { it.audioUri } }
     
-    val effectiveAudioList = remember(audioList, cacheMap, sortField, isAscending, subTabState, showHiddenSetting, searchQuery) {
-        val baseList = when (subTabState) {
-            7 -> audioList.filter { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
-            8 -> audioList.filter { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
-            5 -> audioList.filter { !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
-            else -> audioList.filter { item ->
-                !com.medianest.util.FolderHiddenUtils.isItemExcluded(item) &&
-                (showHiddenSetting || !com.medianest.util.FolderHiddenUtils.isItemHidden(item))
-            }
-        }
+    var effectiveAudioList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
 
-        val list = baseList.map { item ->
-            val cached = cacheMap[item.uri.toString()]
-            if (cached != null) {
-                item.copy(
-                    title = cached.title ?: item.title,
-                    artist = cached.artist.takeIf { !it.isNullOrBlank() } ?: item.artist,
-                    album = cached.album.takeIf { !it.isNullOrBlank() } ?: item.album,
-                    albumArtUri = cached.albumArtUri?.let { android.net.Uri.parse(it) } ?: item.albumArtUri,
-                    genre = cached.genre ?: item.genre,
-                    year = cached.year ?: item.year,
-                    composer = cached.composer ?: item.composer,
-                    albumArtist = cached.albumArtist ?: item.albumArtist,
-                    trackNumber = cached.trackNumber ?: item.trackNumber
-                )
-            } else {
-                item
-            }
-        }
-
-        val filteredBySearch = if (searchQuery.isNotBlank()) {
-            list.filter { item ->
-                item.title.contains(searchQuery, ignoreCase = true) ||
-                (item.artist?.contains(searchQuery, ignoreCase = true) == true) ||
-                (item.album?.contains(searchQuery, ignoreCase = true) == true)
-            }
-        } else {
-            list
-        }
-        
-        // Sorting logic based on tab and field (Tracks & Albums & Artists & Folders & Excluded & Hidden)
-        if (subTabState == 0 || subTabState == 3 || subTabState == 4 || subTabState == 5 || subTabState == 7 || subTabState == 8) {
-            val comp = when (sortField) {
-                "Name" -> compareBy<MediaItem> { it.title.lowercase() }
-                "Artist" -> compareBy<MediaItem> { (it.artist ?: "").lowercase() }
-                "Date Added", "Date" -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
-                "Size" -> compareBy<MediaItem> { if (it.size > 0) it.size else Long.MAX_VALUE }
-                "Duration" -> compareBy<MediaItem> { it.durationMs }
-                "Release Year" -> compareBy<MediaItem> { 
-                    val cached = cacheMap[it.uri.toString()]
-                    cached?.year?.toIntOrNull() ?: 0
+    LaunchedEffect(audioList, cacheMap, sortField, isAscending, subTabState, showHiddenSetting, searchQuery) {
+        val result = withContext(Dispatchers.Default) {
+            val baseList = when (subTabState) {
+                7 -> audioList.filter { FolderHiddenUtils.isItemExcluded(it) }
+                8 -> audioList.filter { FolderHiddenUtils.isItemHidden(it) && !FolderHiddenUtils.isItemExcluded(it) }
+                5 -> audioList.filter { !FolderHiddenUtils.isItemExcluded(it) }
+                else -> audioList.filter { item ->
+                    !FolderHiddenUtils.isItemExcluded(item) &&
+                    (showHiddenSetting || !FolderHiddenUtils.isItemHidden(item))
                 }
-                else -> compareBy<MediaItem> { it.title.lowercase() }
             }
-            if (isAscending) filteredBySearch.sortedWith(comp) else filteredBySearch.sortedWith(comp).reversed()
-        } else {
-            filteredBySearch
+
+            val list = baseList.map { item ->
+                val cached = cacheMap[item.uri.toString()]
+                if (cached != null) {
+                    item.copy(
+                        title = cached.title ?: item.title,
+                        artist = cached.artist.takeIf { !it.isNullOrBlank() } ?: item.artist,
+                        album = cached.album.takeIf { !it.isNullOrBlank() } ?: item.album,
+                        albumArtUri = cached.albumArtUri?.let { Uri.parse(it) } ?: item.albumArtUri,
+                        genre = cached.genre ?: item.genre,
+                        year = cached.year ?: item.year,
+                        composer = cached.composer ?: item.composer,
+                        albumArtist = cached.albumArtist ?: item.albumArtist,
+                        trackNumber = cached.trackNumber ?: item.trackNumber
+                    )
+                } else {
+                    item
+                }
+            }
+
+            val filteredBySearch = if (searchQuery.isNotBlank()) {
+                list.filter { item ->
+                    item.title.contains(searchQuery, ignoreCase = true) ||
+                    (item.artist?.contains(searchQuery, ignoreCase = true) == true) ||
+                    (item.album?.contains(searchQuery, ignoreCase = true) == true)
+                }
+            } else {
+                list
+            }
+            
+            // Sorting logic based on tab and field (Tracks & Albums & Artists & Folders & Excluded & Hidden)
+            if (subTabState == 0 || subTabState == 3 || subTabState == 4 || subTabState == 5 || subTabState == 7 || subTabState == 8) {
+                val comp = when (sortField) {
+                    "Name" -> compareBy<MediaItem> { it.title.lowercase() }
+                    "Artist" -> compareBy<MediaItem> { (it.artist ?: "").lowercase() }
+                    "Date Added", "Date" -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
+                    "Size" -> compareBy<MediaItem> { if (it.size > 0) it.size else Long.MAX_VALUE }
+                    "Duration" -> compareBy<MediaItem> { it.durationMs }
+                    "Release Year" -> compareBy<MediaItem> { 
+                        val cached = cacheMap[it.uri.toString()]
+                        cached?.year?.toIntOrNull() ?: 0
+                    }
+                    else -> compareBy<MediaItem> { it.title.lowercase() }
+                }
+                if (isAscending) filteredBySearch.sortedWith(comp) else filteredBySearch.sortedWith(comp).reversed()
+            } else {
+                filteredBySearch
+            }
         }
+        effectiveAudioList = result
     }
 
     val recentlyPlayedStates by db.playbackStateDao().getRecentlyPlayed("AUDIO").collectAsState(initial = emptyList())
@@ -498,6 +507,7 @@ fun AudioTab(
                         .width(200.dp)
                         .fillMaxHeight(),
                     shape = RoundedCornerShape(22.dp),
+                    enableBlur = false,
                     backgroundColor = Color(0x221C1F2B),
                     borderColor = Color(0x2EFFFFFF)
                 ) {
@@ -608,6 +618,7 @@ fun AudioTab(
                                     targetPlaylist = null
                                 },
                             shape = RoundedCornerShape(20.dp),
+                            enableBlur = false,
                             backgroundColor = if (isSelected) Color(0x44C0C0C0) else Color(0x221C1F2B),
                             borderColor = if (isSelected) Color(0x88C0C0C0) else Color(0x28FFFFFF)
                         ) {

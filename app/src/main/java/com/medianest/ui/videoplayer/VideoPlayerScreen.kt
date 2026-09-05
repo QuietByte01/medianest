@@ -1002,7 +1002,10 @@ fun VideoPlayerScreen(
                 statusMessage = subtitleStatusMessage,
                 onClose = { showSubtitleSheet = false },
                 backdropState = playerBackdropState,
-                modifier = Modifier.width(420.dp).padding(20.dp)
+                modifier = Modifier
+                    .widthIn(max = minOf(420.dp, (LocalConfiguration.current.screenWidthDp * 0.92f).dp))
+                    .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.88f).dp)
+                    .padding(12.dp)
             )
         }
 

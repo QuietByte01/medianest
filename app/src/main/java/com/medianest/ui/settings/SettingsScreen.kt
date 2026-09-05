@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -36,10 +37,17 @@ import com.medianest.data.db.HiddenFolderDao
 import com.medianest.data.repository.MediaStoreRepository
 import com.medianest.data.settings.SettingsManager
 import com.medianest.ui.components.AppSlider
+import com.medianest.ui.components.AppSliderHeadStyle
+import com.medianest.ui.components.AppSwitch
 import com.medianest.ui.components.BackdropBlurState
+import com.medianest.ui.components.BackdropGlassSurface
 import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.components.LocalBackdropState
 import com.medianest.ui.components.backdropReceiver
+import com.medianest.ui.components.backdropSource
+import com.medianest.ui.components.rememberBackdropBlurState
 import com.medianest.ui.components.dismissKeyboardOnOutsideTap
+import com.medianest.ui.components.rememberBackdropBlurState
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -195,54 +203,88 @@ fun SettingsScreen(
         uncheckedBorderColor = Color.Transparent
     )
 
+    val view = LocalView.current
+    DisposableEffect(view) {
+        val window = (view.context as? android.app.Activity)?.window
+        window?.let { w ->
+            w.setDimAmount(0.25f)
+            w.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                w.setBackgroundBlurRadius(80)
+            }
+        }
+        onDispose {
+            window?.let { w ->
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    w.setBackgroundBlurRadius(0)
+                }
+            }
+        }
+    }
+
+    val settingsGridBackdropState = rememberBackdropBlurState()
     val rootModifier = if (backdropState != null) {
         Modifier.backdropReceiver(
             state = backdropState,
-            blurRadius = 32.dp,
-            tint = Color(0x99040507),
-            baseColor = Color(0xFF040507),
+            blurRadius = 28.dp,
+            tint = Color(0x7708090C),
+            baseColor = Color.Transparent,
             showTopBorder = false
         )
     } else {
         Modifier.background(darkBackgroundGradient)
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .then(rootModifier)
-            .drawBehind {
-                val gridSpacing = 16.dp.toPx()
-                val lineWeight = 1.dp.toPx()
-                val gridColor = Color.White.copy(alpha = 0.04f)
-
-                // Vertical lines
-                var x = 0f
-                while (x < size.width) {
-                    drawLine(gridColor, Offset(x, 0f), Offset(x, size.height), lineWeight)
-                    x += gridSpacing
-                }
-
-                // Horizontal lines
-                var y = 0f
-                while (y < size.height) {
-                    drawLine(gridColor, Offset(0f, y), Offset(size.width, y), lineWeight)
-                    y += gridSpacing
-                }
-            }
-            .dismissKeyboardOnOutsideTap()
+    CompositionLocalProvider(
+        LocalBackdropState provides settingsGridBackdropState
     ) {
-            val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
-            Column(
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(rootModifier)
+                .dismissKeyboardOnOutsideTap()
+        ) {
+            // 1. Settings Background Grid Layer (Recorded as backdropSource for settings cards)
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(scrollState)
-                    .padding(
-                        horizontal = if (isPhoneScreen) 12.dp else 24.dp,
-                        vertical = if (isPhoneScreen) 12.dp else 20.dp
-                    ),
-                verticalArrangement = Arrangement.spacedBy(if (isPhoneScreen) 14.dp else 20.dp)
-            ) {
+                    .drawBehind {
+                        val gridSpacing = 16.dp.toPx()
+                        val lineWeight = 1.dp.toPx()
+                        val gridColor = Color.White.copy(alpha = 0.04f)
+
+                        // Vertical lines
+                        var x = 0f
+                        while (x < size.width) {
+                            drawLine(gridColor, Offset(x, 0f), Offset(x, size.height), lineWeight)
+                            x += gridSpacing
+                        }
+
+                        // Horizontal lines
+                        var y = 0f
+                        while (y < size.height) {
+                            drawLine(gridColor, Offset(0f, y), Offset(size.width, y), lineWeight)
+                            y += gridSpacing
+                        }
+                    }
+                    .backdropSource(
+                        state = settingsGridBackdropState,
+                        backgroundColor = Color.Transparent
+                    )
+            )
+
+        // 2. Settings Content & Cards (Draws on top as backdropReceiver)
+        val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(
+                    horizontal = if (isPhoneScreen) 12.dp else 24.dp,
+                    vertical = if (isPhoneScreen) 12.dp else 20.dp
+                ),
+            verticalArrangement = Arrangement.spacedBy(if (isPhoneScreen) 14.dp else 20.dp)
+        ) {
             // Header
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -258,7 +300,7 @@ fun SettingsScreen(
             }
 
             // SECTION 1: DISPLAY & INTERFACE
-            SettingsGlassCard(title = "DISPLAY & INTERFACE", backdropState = backdropState) {
+            SettingsGlassCard(title = "DISPLAY & INTERFACE", backdropState = settingsGridBackdropState) {
                 // Grid Spacing (Gap) Discrete Slider
                 val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
                 SettingsRowItem(
@@ -270,7 +312,7 @@ fun SettingsScreen(
                             horizontalAlignment = if (isPhoneScreen) Alignment.Start else Alignment.End,
                             modifier = if (isPhoneScreen) Modifier.fillMaxWidth() else Modifier.widthIn(max = 240.dp)
                         ) {
-                            val gapValues = listOf(8, 12, 16, 24)
+                            val gapValues = listOf(0, 8, 12, 16)
                             val currentIndex = gapValues.indexOf(gridGapDp).coerceAtLeast(0)
 
                             AppSlider(
@@ -281,7 +323,8 @@ fun SettingsScreen(
                                 },
                                 valueRange = 0f..3f,
                                 steps = 2,
-                                headStyle = com.medianest.ui.components.AppSliderHeadStyle.Bar,
+                                drawTicks = true,
+                                headStyle = AppSliderHeadStyle.Circular,
                                 thickness = com.medianest.ui.components.AppSliderThickness.Thick,
                                 modifier = Modifier.height(24.dp)
                             )
@@ -323,7 +366,8 @@ fun SettingsScreen(
                                 },
                                 valueRange = 0f..3f,
                                 steps = 2,
-                                headStyle = com.medianest.ui.components.AppSliderHeadStyle.Bar,
+                                drawTicks = true,
+                                headStyle = AppSliderHeadStyle.Circular,
                                 thickness = com.medianest.ui.components.AppSliderThickness.Thick,
                                 modifier = Modifier.height(24.dp)
                             )
@@ -350,31 +394,29 @@ fun SettingsScreen(
                     title = "Rounded Grid Tiles",
                     subtitle = "Apply corner curvature to album & artist tiles",
                     control = {
-                        Switch(
+                        AppSwitch(
                             checked = roundedCornersEnabled,
-                            onCheckedChange = { scope.launch { settingsManager.setRoundedCornersEnabled(it) } },
-                            colors = customSwitchColors
+                            onCheckedChange = { scope.launch { settingsManager.setRoundedCornersEnabled(it) } }
                         )
                     }
                 )
             }
 
             // SECTION 2: LIBRARY & FOLDER FILTERS
-            SettingsGlassCard(title = "LIBRARY & FOLDER FILTERS", backdropState = backdropState) {
+            SettingsGlassCard(title = "LIBRARY & FOLDER FILTERS", backdropState = settingsGridBackdropState) {
                 // Show Hidden Files & Folders
                 SettingsRowItem(
                     title = "Show Hidden Files & Folders",
                     subtitle = "Display files starting with a dot (.) in directory views",
                     control = {
-                        Switch(
+                        AppSwitch(
                             checked = showHiddenFiles,
                             onCheckedChange = { checked ->
                                 scope.launch { settingsManager.setShowHiddenFiles(checked) }
                                 if (checked && !com.medianest.util.PermissionUtils.hasAllFilesAccess()) {
                                     com.medianest.util.PermissionUtils.openStorageAccessSettings(context)
                                 }
-                            },
-                            colors = customSwitchColors
+                            }
                         )
                     }
                 )
@@ -556,17 +598,16 @@ fun SettingsScreen(
             }
 
             // SECTION 3: PLAYBACK & ENGINE
-            SettingsGlassCard(title = "PLAYBACK & ENGINE", backdropState = backdropState) {
+            SettingsGlassCard(title = "PLAYBACK & ENGINE", backdropState = settingsGridBackdropState) {
                 
                 // Keep Screen On During Playback
                 SettingsRowItem(
                     title = "Keep Screen On During Playback",
                     subtitle = "Prevent device sleep timer while player is active",
                     control = {
-                        Switch(
+                        AppSwitch(
                             checked = keepScreenOn,
-                            onCheckedChange = { scope.launch { settingsManager.setKeepScreenOn(it) } },
-                            colors = customSwitchColors
+                            onCheckedChange = { scope.launch { settingsManager.setKeepScreenOn(it) } }
                         )
                     }
                 )
@@ -576,10 +617,9 @@ fun SettingsScreen(
                     title = "Auto-Fetch Synced Lyrics",
                     subtitle = "Automatically download time-synced lyrics over network",
                     control = {
-                        Switch(
+                        AppSwitch(
                             checked = autoFetchLyrics,
-                            onCheckedChange = { scope.launch { settingsManager.setAutoFetchLyrics(it) } },
-                            colors = customSwitchColors
+                            onCheckedChange = { scope.launch { settingsManager.setAutoFetchLyrics(it) } }
                         )
                     }
                 )
@@ -589,10 +629,9 @@ fun SettingsScreen(
                     title = "Uninterrupted Mode",
                     subtitle = "Don't pause or duck for notifications. Phone calls will still pause playback.",
                     control = {
-                        Switch(
+                        AppSwitch(
                             checked = uninterruptedMode,
-                            onCheckedChange = { scope.launch { settingsManager.setUninterruptedMode(it) } },
-                            colors = customSwitchColors
+                            onCheckedChange = { scope.launch { settingsManager.setUninterruptedMode(it) } }
                         )
                     }
                 )
@@ -602,10 +641,9 @@ fun SettingsScreen(
                     title = "Auto-resume on Bluetooth",
                     subtitle = "Automatically start playback when Bluetooth headphones connect.",
                     control = {
-                        Switch(
+                        AppSwitch(
                             checked = autoResumeOnBluetooth,
-                            onCheckedChange = { scope.launch { settingsManager.setAutoResumeOnBluetooth(it) } },
-                            colors = customSwitchColors
+                            onCheckedChange = { scope.launch { settingsManager.setAutoResumeOnBluetooth(it) } }
                         )
                     }
                 )
@@ -615,10 +653,9 @@ fun SettingsScreen(
                     title = "Audio Background Playback",
                     subtitle = "Continue playing audio when app is minimized or screen is off",
                     control = {
-                        Switch(
+                        AppSwitch(
                             checked = audioBackgroundPlay,
-                            onCheckedChange = { scope.launch { settingsManager.setAudioBackgroundPlay(it) } },
-                            colors = customSwitchColors
+                            onCheckedChange = { scope.launch { settingsManager.setAudioBackgroundPlay(it) } }
                         )
                     }
                 )
@@ -628,10 +665,9 @@ fun SettingsScreen(
                     title = "Video Background Playback",
                     subtitle = "Continue playing video audio when app is minimized",
                     control = {
-                        Switch(
+                        AppSwitch(
                             checked = videoBackgroundPlay,
-                            onCheckedChange = { scope.launch { settingsManager.setVideoBackgroundPlay(it) } },
-                            colors = customSwitchColors
+                            onCheckedChange = { scope.launch { settingsManager.setVideoBackgroundPlay(it) } }
                         )
                     }
                 )
@@ -641,10 +677,9 @@ fun SettingsScreen(
                     title = "Auto-Play Video Previews",
                     subtitle = "Play in-place muted video previews for visible items as you scroll",
                     control = {
-                        Switch(
+                        AppSwitch(
                             checked = autoPlayVideoPreviews,
-                            onCheckedChange = { scope.launch { settingsManager.setAutoPlayVideoPreviews(it) } },
-                            colors = customSwitchColors
+                            onCheckedChange = { scope.launch { settingsManager.setAutoPlayVideoPreviews(it) } }
                         )
                     }
                 )
@@ -654,10 +689,9 @@ fun SettingsScreen(
                     title = "Auto-Play Animated GIFs",
                     subtitle = "Play animated GIFs in-place for visible items in library",
                     control = {
-                        Switch(
+                        AppSwitch(
                             checked = autoPlayGifPreviews,
-                            onCheckedChange = { scope.launch { settingsManager.setAutoPlayGifPreviews(it) } },
-                            colors = customSwitchColors
+                            onCheckedChange = { scope.launch { settingsManager.setAutoPlayGifPreviews(it) } }
                         )
                     }
                 )
@@ -681,10 +715,9 @@ fun SettingsScreen(
                     title = "Offline Mode",
                     subtitle = "Block all online network calls and lyrics fetching",
                     control = {
-                        Switch(
+                        AppSwitch(
                             checked = offlineMode,
-                            onCheckedChange = { scope.launch { settingsManager.setOfflineMode(it) } },
-                            colors = customSwitchColors
+                            onCheckedChange = { scope.launch { settingsManager.setOfflineMode(it) } }
                         )
                     }
                 )
@@ -714,16 +747,15 @@ fun SettingsScreen(
             }
 
             // SECTION 4: NOTIFICATIONS & DATA
-            SettingsGlassCard(title = "NOTIFICATIONS & DATA", backdropState = backdropState) {
+            SettingsGlassCard(title = "NOTIFICATIONS & DATA", backdropState = settingsGridBackdropState) {
                 // Audio Playback Notifications
                 SettingsRowItem(
                     title = "Audio Playback Notifications",
                     subtitle = "Show control widget for music on lock screen",
                     control = {
-                        Switch(
+                        AppSwitch(
                             checked = showPlaybackNotification,
-                            onCheckedChange = { scope.launch { settingsManager.setShowPlaybackNotification(it) } },
-                            colors = customSwitchColors
+                            onCheckedChange = { scope.launch { settingsManager.setShowPlaybackNotification(it) } }
                         )
                     }
                 )
@@ -733,10 +765,9 @@ fun SettingsScreen(
                     title = "Video Playback Notifications",
                     subtitle = "Show notification for video background playback",
                     control = {
-                        Switch(
+                        AppSwitch(
                             checked = showVideoNotification,
-                            onCheckedChange = { scope.launch { settingsManager.setShowVideoNotification(it) } },
-                            colors = customSwitchColors
+                            onCheckedChange = { scope.launch { settingsManager.setShowVideoNotification(it) } }
                         )
                     }
                 )
@@ -801,7 +832,7 @@ fun SettingsScreen(
             DeveloperSettingsSection(
                 settingsManager = settingsManager,
                 onDisableDevMode = { versionTapCount = 0 },
-                backdropState = backdropState
+                backdropState = settingsGridBackdropState
             )
 
             // Version info at the bottom
@@ -849,31 +880,30 @@ fun SettingsScreen(
         }
     }
 }
+}
 
 @Composable
 fun SettingsGlassCard(
     title: String,
-    backdropState: BackdropBlurState? = null,
+    backdropState: BackdropBlurState? = LocalBackdropState.current,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val isDark = com.medianest.ui.theme.LocalDarkTheme.current
     val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
     val shape = RoundedCornerShape(20.dp)
     
-    // Translucent Tint for cards since background is blurred
-    val cardBg = if (isDark) Color(0x660F1015) else Color(0x4DFFFFFF)
-    val cardBorder = if (isDark) Color(0x26FFFFFF) else Color(0x33000000)
+    // Frosted White Glass Card Background (0x33FFFFFF)
+    val cardBg = Color(0x33FFFFFF)
 
-    val cardModifier = Modifier
-        .fillMaxWidth()
-        .clip(shape)
-
-    GlassSurface(
+    BackdropGlassSurface(
         shape = shape,
         backgroundColor = cardBg,
-        borderColor = cardBorder,
-        enableBlur = false,
-        modifier = cardModifier
+        borderColor = Color.Transparent, // Border commented out/removed
+        borderWidth = 0.dp,
+        enableBlur = true,
+        blurRadius = 20.dp,
+        backdropState = backdropState,
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier

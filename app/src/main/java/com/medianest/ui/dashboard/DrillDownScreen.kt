@@ -37,6 +37,7 @@ import coil.request.ImageRequest
 import coil.request.videoFrameMicros
 import com.medianest.data.model.MediaItem
 
+import com.medianest.ui.components.BackdropGlassSurface
 import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.theme.LocalDarkTheme
@@ -533,13 +534,15 @@ fun DrillDownScreen(
                 exit = slideOutVertically(targetOffsetY = { it }),
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
-                Surface(
+                BackdropGlassSurface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
                     shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    tonalElevation = 8.dp
+                    backgroundColor = Color(0x330F1015),
+                    borderColor = Color(0x38FFFFFF),
+                    enableBlur = true,
+                    blurRadius = 24.dp
                 ) {
                     Row(
                         modifier = Modifier
@@ -551,7 +554,7 @@ fun DrillDownScreen(
                         Text(
                             text = "${selectedUris.size} selected",
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = Color.White
                         )
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -563,7 +566,7 @@ fun DrillDownScreen(
                                     allUris
                                 }
                             }) {
-                                Icon(Icons.Default.SelectAll, contentDescription = "Select All")
+                                Icon(Icons.Default.SelectAll, contentDescription = "Select All", tint = Color.White)
                             }
 
                             IconButton(onClick = {
@@ -574,17 +577,17 @@ fun DrillDownScreen(
                                 }
                                 context.startActivity(Intent.createChooser(shareIntent, "Share Media"))
                             }) {
-                                Icon(Icons.Default.Share, contentDescription = "Share")
+                                Icon(Icons.Default.Share, contentDescription = "Share", tint = Color.White)
                             }
 
                             IconButton(onClick = {
                                 showDeleteConfirmDialog = true
                             }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFFF5252))
                             }
 
                             IconButton(onClick = { selectedUris = emptySet() }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear Selection")
+                                Icon(Icons.Default.Close, contentDescription = "Clear Selection", tint = Color.White)
                             }
                         }
                     }
