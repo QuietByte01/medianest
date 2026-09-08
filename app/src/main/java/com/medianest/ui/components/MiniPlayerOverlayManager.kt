@@ -144,10 +144,6 @@ object MiniPlayerOverlayManager {
             return
         }
         if (overlayView != null) return
-        
-        // Ensure there is something to play before showing overlay
-        val mgr = ExoPlayerManager.getInstance(context)
-        if (mgr.playerState.value.currentItem == null) return
 
         try {
             windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -185,7 +181,7 @@ object MiniPlayerOverlayManager {
                         OverlayHost(
                             onExpandFull = {
                                 hide()
-                                val currentItem = mgr.playerState.value.currentItem?.takeIf { it.type == com.medianest.data.db.MediaType.AUDIO }
+                                val currentItem = ExoPlayerManager.getInstance(context).playerState.value.currentItem?.takeIf { it.type == com.medianest.data.db.MediaType.AUDIO }
                                 if (currentItem == null) { hide(); return@OverlayHost }
                                 val targetClass = AudioPlayerActivity::class.java
                                 val intent = Intent(context, targetClass).apply {
@@ -251,10 +247,17 @@ fun OverlayHost(
     val playerState by activeManager.playerState.collectAsState()
     val currentItem = playerState.currentItem?.takeIf { it.type == com.medianest.data.db.MediaType.AUDIO }
 
-    if (currentItem == null) {
-        LaunchedEffect(Unit) {
-            MiniPlayerOverlayManager.hide()
+    // If currentItem is null for more than 1500ms (to prevent race condition during initial loading or track change), hide overlay
+    LaunchedEffect(currentItem) {
+        if (currentItem == null) {
+            kotlinx.coroutines.delay(1500)
+            if (activeManager.playerState.value.currentItem == null) {
+                MiniPlayerOverlayManager.hide()
+            }
         }
+    }
+
+    if (currentItem == null) {
         return
     }
 
