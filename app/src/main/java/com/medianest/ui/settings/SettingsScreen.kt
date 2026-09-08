@@ -38,6 +38,7 @@ import com.medianest.data.repository.MediaStoreRepository
 import com.medianest.data.settings.SettingsManager
 import com.medianest.ui.components.AppSlider
 import com.medianest.ui.components.AppSliderHeadStyle
+import com.medianest.ui.components.AppSliderThickness
 import com.medianest.ui.components.AppSwitch
 import com.medianest.ui.components.BackdropBlurState
 import com.medianest.ui.components.BackdropGlassSurface
@@ -77,11 +78,8 @@ fun SettingsScreen(
 
     val currentPictureMode by settingsManager.pictureMode.collectAsState(initial = "Vivid Color Accent")
 
-    val autoFetchLyrics by settingsManager.autoFetchLyrics.collectAsState(initial = true)
     val uninterruptedMode by settingsManager.uninterruptedMode.collectAsState(initial = false)
     val autoResumeOnBluetooth by settingsManager.autoResumeOnBluetooth.collectAsState(initial = false)
-    val audioBackgroundPlay by settingsManager.audioBackgroundPlay.collectAsState(initial = true)
-    val videoBackgroundPlay by settingsManager.videoBackgroundPlay.collectAsState(initial = false)
     val autoPlayVideoPreviews by settingsManager.autoPlayVideoPreviews.collectAsState(initial = true)
     val autoPlayGifPreviews by settingsManager.autoPlayGifPreviews.collectAsState(initial = true)
     val dailySubtitleCount by settingsManager.dailySubtitleSearchCount.collectAsState(initial = 0)
@@ -280,8 +278,8 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .verticalScroll(scrollState)
                 .padding(
-                    horizontal = if (isPhoneScreen) 12.dp else 24.dp,
-                    vertical = if (isPhoneScreen) 12.dp else 20.dp
+                    horizontal = if (isPhoneScreen) 10.dp else 20.dp,
+                    vertical = if (isPhoneScreen) 10.dp else 18.dp
                 ),
             verticalArrangement = Arrangement.spacedBy(if (isPhoneScreen) 14.dp else 20.dp)
         ) {
@@ -301,10 +299,10 @@ fun SettingsScreen(
 
             // SECTION 1: DISPLAY & INTERFACE
             SettingsGlassCard(title = "DISPLAY & INTERFACE", backdropState = settingsGridBackdropState) {
-                // Grid Spacing (Gap) Discrete Slider
+                // Grid Spacing Discrete Slider
                 val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
                 SettingsRowItem(
-                    title = "Grid Spacing (Gap)",
+                    title = "Grid Spacing",
                     subtitle = "Adjust padding gap between media grid tiles",
                     stackedOnPhone = true,
                     control = {
@@ -324,8 +322,11 @@ fun SettingsScreen(
                                 valueRange = 0f..3f,
                                 steps = 2,
                                 drawTicks = true,
-                                headStyle = AppSliderHeadStyle.Circular,
-                                thickness = com.medianest.ui.components.AppSliderThickness.Thick,
+                                headStyle = AppSliderHeadStyle.Bar,
+                                thickness = AppSliderThickness.Thick,
+                                thumbColor = Color.White.copy(alpha = 0.85f),
+                                activeTrackColor = Color.White,
+                                inactiveTrackColor = Color.White.copy(alpha = 0.2f),
                                 modifier = Modifier.height(24.dp)
                             )
 
@@ -367,8 +368,11 @@ fun SettingsScreen(
                                 valueRange = 0f..3f,
                                 steps = 2,
                                 drawTicks = true,
-                                headStyle = AppSliderHeadStyle.Circular,
-                                thickness = com.medianest.ui.components.AppSliderThickness.Thick,
+                                headStyle = AppSliderHeadStyle.Bar,
+                                thickness = AppSliderThickness.Thick,
+                                thumbColor = Color.White.copy(alpha = 0.85f),
+                                activeTrackColor = Color.White,
+                                inactiveTrackColor = Color.White.copy(alpha = 0.2f),
                                 modifier = Modifier.height(24.dp)
                             )
 
@@ -612,18 +616,6 @@ fun SettingsScreen(
                     }
                 )
 
-                // Auto-Fetch Synced Lyrics
-                SettingsRowItem(
-                    title = "Auto-Fetch Synced Lyrics",
-                    subtitle = "Automatically download time-synced lyrics over network",
-                    control = {
-                        AppSwitch(
-                            checked = autoFetchLyrics,
-                            onCheckedChange = { scope.launch { settingsManager.setAutoFetchLyrics(it) } }
-                        )
-                    }
-                )
-
                 // Uninterrupted Mode
                 SettingsRowItem(
                     title = "Uninterrupted Mode",
@@ -644,30 +636,6 @@ fun SettingsScreen(
                         AppSwitch(
                             checked = autoResumeOnBluetooth,
                             onCheckedChange = { scope.launch { settingsManager.setAutoResumeOnBluetooth(it) } }
-                        )
-                    }
-                )
-
-                // Audio Background Playback
-                SettingsRowItem(
-                    title = "Audio Background Playback",
-                    subtitle = "Continue playing audio when app is minimized or screen is off",
-                    control = {
-                        AppSwitch(
-                            checked = audioBackgroundPlay,
-                            onCheckedChange = { scope.launch { settingsManager.setAudioBackgroundPlay(it) } }
-                        )
-                    }
-                )
-
-                // Video Background Playback
-                SettingsRowItem(
-                    title = "Video Background Playback",
-                    subtitle = "Continue playing video audio when app is minimized",
-                    control = {
-                        AppSwitch(
-                            checked = videoBackgroundPlay,
-                            onCheckedChange = { scope.launch { settingsManager.setVideoBackgroundPlay(it) } }
                         )
                     }
                 )
@@ -895,30 +863,35 @@ fun SettingsGlassCard(
     // Frosted White Glass Card Background (0x33FFFFFF)
     val cardBg = Color(0x33FFFFFF)
 
-    BackdropGlassSurface(
-        shape = shape,
-        backgroundColor = cardBg,
-        borderColor = Color.Transparent, // Border commented out/removed
-        borderWidth = 0.dp,
-        enableBlur = true,
-        blurRadius = 20.dp,
-        backdropState = backdropState,
-        modifier = Modifier.fillMaxWidth()
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(if (isPhoneScreen) 14.dp else 20.dp),
-            verticalArrangement = Arrangement.spacedBy(if (isPhoneScreen) 14.dp else 18.dp)
+        BackdropGlassSurface(
+            shape = shape,
+            backgroundColor = cardBg,
+            borderColor = Color.Transparent, // Border commented out/removed
+            borderWidth = 0.dp,
+            enableBlur = true,
+            blurRadius = 20.dp,
+            backdropState = backdropState,
+            modifier = Modifier.fillMaxWidth(if (isPhoneScreen) 1f else 0.80f)
         ) {
-            Text(
-                text = title,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF8B92A5),
-                letterSpacing = 0.8.sp
-            )
-            content()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(if (isPhoneScreen) 14.dp else 20.dp),
+                verticalArrangement = Arrangement.spacedBy(if (isPhoneScreen) 14.dp else 18.dp)
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF8B92A5),
+                    letterSpacing = 0.8.sp
+                )
+                content()
+            }
         }
     }
 }

@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun HardwareAccelerationSetting(
     settingsManager: SettingsManager,
+    showDecoderStrategy: Boolean = true,
     onModeChange: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
@@ -53,7 +54,7 @@ fun HardwareAccelerationSetting(
         }
 
         // Mode Selector
-        if (hwAccelEnabled) {
+        if (hwAccelEnabled && showDecoderStrategy) {
             var expanded by remember { mutableStateOf(false) }
             val currentLabel = when (decoderMode) {
                 "HARDWARE" -> "Hardware Only"
@@ -119,7 +120,7 @@ fun HdrPlaybackSetting(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    
+
     // Check hardware support
     val displayManager = remember { context.getSystemService(android.content.Context.DISPLAY_SERVICE) as? android.hardware.display.DisplayManager }
     val defaultDisplay = remember { displayManager?.getDisplay(android.view.Display.DEFAULT_DISPLAY) }
@@ -131,7 +132,7 @@ fun HdrPlaybackSetting(
             } catch (_: Exception) { true }
         } else true
     }
-    
+
     val hdrEnabled by settingsManager.hdrPlaybackEnabled.collectAsState(initial = isHdrSupported)
 
     Row(

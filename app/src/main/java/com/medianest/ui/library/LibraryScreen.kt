@@ -1,12 +1,23 @@
 @file:kotlin.OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.medianest.ui.library
 
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -177,7 +188,35 @@ fun LibraryScreen(
                     )
                 }
 
+                val configuration = LocalConfiguration.current
+                val isPhoneScreen = minOf(configuration.screenWidthDp, configuration.screenHeightDp) < 600
+                val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                val isPhoneLandscape = isPhoneScreen && isLandscape
+
+                var isBottomBarVisible by remember { mutableStateOf(true) }
+
+                val nestedScrollConnection = remember(isPhoneLandscape) {
+                    object : NestedScrollConnection {
+                        override fun onPreScroll(
+                            available: Offset,
+                            source: NestedScrollSource
+                        ): Offset {
+                            if (isPhoneLandscape) {
+                                if (available.y < -12f) {
+                                    isBottomBarVisible = false
+                                } else if (available.y > 12f) {
+                                    isBottomBarVisible = true
+                                }
+                            } else {
+                                isBottomBarVisible = true
+                            }
+                            return Offset.Zero
+                        }
+                    }
+                }
+
                 Scaffold(
+                modifier = Modifier.nestedScroll(nestedScrollConnection),
                 containerColor = androidx.compose.ui.graphics.Color.Transparent,
                 contentWindowInsets = WindowInsets(0, 0, 0, 0), // Eliminate automatic padding
                 topBar = {
@@ -194,51 +233,57 @@ fun LibraryScreen(
                     )
                 },
                 bottomBar = {
-                    if (isSelectionMode) {
-                        LibraryBatchActionBar(
-                            isSelectionMode = isSelectionMode,
-                            selectedUris = selectedUris,
-                            currentTabItems = currentTabItems,
-                            isVideosTab = isVideosTab,
-                            isImagesTab = isImagesTab,
-                            onSelectAll = {
-                                val allUris = currentTabItems.map { it.uri.toString() }.toSet()
-                                selectedUris = if (selectedUris.size == allUris.size && allUris.isNotEmpty()) {
-                                    emptySet()
-                                } else {
-                                    allUris
-                                }
-                            },
-                            onShowBatchInfo = { showBatchInfoModal = true },
-                            onDeleteSelected = { showDeleteSelectedModal = true },
-                            onMoveSelected = { showMoveModal = true },
-                            onCopySelected = { showCopyModal = true },
-                            onAddToCategory = { showAddVideosToCategoryModal = true },
-                            onMoveToFilter = { showBatchMoveToFilterModal = true },
-                            onStartSlideshow = {
-                                val itemsToPlay = currentTabItems.filter { selectedUris.contains(it.uri.toString()) }.ifEmpty { imagesList.filter { selectedUris.contains(it.uri.toString()) } }
-                                if (itemsToPlay.isNotEmpty()) {
-                                    selectedUris = emptySet()
-                                    onOpenQuickView(itemsToPlay.first(), itemsToPlay, true)
-                                }
-                            },
-                            onClearSelection = { selectedUris = emptySet() },
-                            context = context
-                        )
-                    } else {
-                        LibraryBottomBar(
-                            currentTab = currentTab,
-                            onTabSelected = { targetTab ->
-                                coroutineScope.launch {
-                                    pagerState.animateScrollToPage(targetTab)
-                                }
-                            },
-                            enableAnalyticsTab = enableAnalyticsTab,
-                            isAudioTab = isAudioTab,
-                            playerState = playerState,
-                            exoPlayerManager = exoPlayerManager,
-                            onOpenAudioPlayer = onOpenAudioPlayer
-                        )
+                    AnimatedVisibility(
+                        visible = !isPhoneLandscape || isBottomBarVisible || isSelectionMode,
+                        enter = slideInVertically { it } + fadeIn(),
+                        exit = slideOutVertically { it } + fadeOut()
+                    ) {
+                        if (isSelectionMode) {
+                            LibraryBatchActionBar(
+                                isSelectionMode = isSelectionMode,
+                                selectedUris = selectedUris,
+                                currentTabItems = currentTabItems,
+                                isVideosTab = isVideosTab,
+                                isImagesTab = isImagesTab,
+                                onSelectAll = {
+                                    val allUris = currentTabItems.map { it.uri.toString() }.toSet()
+                                    selectedUris = if (selectedUris.size == allUris.size && allUris.isNotEmpty()) {
+                                        emptySet()
+                                    } else {
+                                        allUris
+                                    }
+                                },
+                                onShowBatchInfo = { showBatchInfoModal = true },
+                                onDeleteSelected = { showDeleteSelectedModal = true },
+                                onMoveSelected = { showMoveModal = true },
+                                onCopySelected = { showCopyModal = true },
+                                onAddToCategory = { showAddVideosToCategoryModal = true },
+                                onMoveToFilter = { showBatchMoveToFilterModal = true },
+                                onStartSlideshow = {
+                                    val itemsToPlay = currentTabItems.filter { selectedUris.contains(it.uri.toString()) }.ifEmpty { imagesList.filter { selectedUris.contains(it.uri.toString()) } }
+                                    if (itemsToPlay.isNotEmpty()) {
+                                        selectedUris = emptySet()
+                                        onOpenQuickView(itemsToPlay.first(), itemsToPlay, true)
+                                    }
+                                },
+                                onClearSelection = { selectedUris = emptySet() },
+                                context = context
+                            )
+                        } else {
+                            LibraryBottomBar(
+                                currentTab = currentTab,
+                                onTabSelected = { targetTab ->
+                                    coroutineScope.launch {
+                                        pagerState.animateScrollToPage(targetTab)
+                                    }
+                                },
+                                enableAnalyticsTab = enableAnalyticsTab,
+                                isAudioTab = isAudioTab,
+                                playerState = playerState,
+                                exoPlayerManager = exoPlayerManager,
+                                onOpenAudioPlayer = onOpenAudioPlayer
+                            )
+                        }
                     }
                 }
             ) { innerPadding ->

@@ -14,7 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.player.PlayerState
+import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.ThinSeekBar
 import com.medianest.ui.components.formatDuration
 
@@ -34,7 +35,9 @@ fun VideoPlayerTopBar(
     playerState: PlayerState,
     onClose: () -> Unit,
     decoderMode: String,
-    onDecoderModeClick: () -> Unit,
+    onDecoderModeChange: (String) -> Unit,
+    decoderDropdownExpanded: Boolean,
+    onDecoderDropdownExpandedChange: (Boolean) -> Unit,
     onDrawerClick: () -> Unit,
     onSubtitleClick: () -> Unit,
     onInfoClick: () -> Unit,
@@ -59,39 +62,75 @@ fun VideoPlayerTopBar(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = playerState.currentItem?.title ?: "Video Player",
-                    color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                    color = Color(0xFFA5B4FC),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
 
                 val config = LocalConfiguration.current
                 if (!(config.screenWidthDp < 600 && config.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT)) {
                     Spacer(modifier = Modifier.width(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color.Transparent)
-                            .border(0.5.dp, Color(0xB3FFFFFF), RoundedCornerShape(4.dp))
-                            .clickable { onDecoderModeClick() }
-                            .padding(horizontal = 5.dp)
-                    ) {
-                        Text(text = decoderMode, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    }
-
-                    if (playerState.isHdrContent) {
-                        Spacer(modifier = Modifier.width(6.dp))
+                    Box {
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFFFFD700).copy(alpha = 0.9f)) // Golden for HDR/DV
+                                .background(Color.Transparent)
+                                .border(0.5.dp, Color(0xB3FFFFFF), RoundedCornerShape(4.dp))
+                                .clickable { onDecoderDropdownExpandedChange(!decoderDropdownExpanded) }
                                 .padding(horizontal = 5.dp)
                         ) {
-                            Text(
-                                text = playerState.hdrType.uppercase(), 
-                                fontSize = 8.5.sp, 
-                                fontWeight = FontWeight.ExtraBold, 
-                                color = Color.Black
-                            )
+                            Text(text = decoderMode, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
+
+                        GlassDropdownMenu(
+                            expanded = decoderDropdownExpanded,
+                            onDismissRequest = { onDecoderDropdownExpandedChange(false) },
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            val options = listOf(
+                                "AUTO" to "Auto Decoder Selection",
+                                "HARDWARE" to "Hardware (HW Accelerated)",
+                                "SOFTWARE" to "Software (SW Transcode)"
+                            )
+                            options.forEach { (modeKey, label) ->
+                                val isSelected = decoderMode.equals(modeKey, ignoreCase = true) || (modeKey == "AUTO" && decoderMode.contains("AUTO", ignoreCase = true))
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = label,
+                                            fontSize = 12.5.sp,
+                                            color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    },
+                                    onClick = {
+                                        onDecoderDropdownExpandedChange(false)
+                                        onDecoderModeChange(modeKey)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (playerState.isHdrContent) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFFFFD700).copy(alpha = 0.9f)) // Golden for HDR/DV
+                            .padding(horizontal = 5.dp)
+                    ) {
+                        Text(
+                            text = playerState.hdrType.uppercase(), 
+                            fontSize = 8.5.sp, 
+                            fontWeight = FontWeight.ExtraBold, 
+                            color = Color.Black
+                        )
                     }
                 }
             }
@@ -149,32 +188,24 @@ fun VideoPlayerBottomBar(
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(
-                bottom = if (isLandscape) 8.dp else 12.dp,
-                start = if (isLandscape) 24.dp else 16.dp,
-                end = if (isLandscape) 24.dp else 16.dp
+                bottom = if (isLandscape) 2.dp else 12.dp,
+                start = if (isLandscape) 20.dp else 16.dp,
+                end = if (isLandscape) 20.dp else 16.dp
             ),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (!isControlsLocked && !isHorizontalDragging) {
-            // Seekbar code for swipe-to-seek commented out per request
-            /*
-            val effectiveSeekPos = if (isHorizontalDragging) seekTargetPositionMs else playerState.currentPositionMs
-            ThinSeekBar(
-                value = if (playerState.durationMs > 0) effectiveSeekPos.toFloat() else 0f,
-                onValueChange = { onSeek(it.toLong()) }, ...
-            )
-            */
             val effectiveSeekPos = playerState.currentPositionMs
             ThinSeekBar(
                 value = if (playerState.durationMs > 0) effectiveSeekPos.toFloat() else 0f,
                 onValueChange = { onSeek(it.toLong()) },
                 valueRange = 0f..(playerState.durationMs.toFloat().coerceAtLeast(1f)),
-                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = if (isLandscape) 1.dp else 2.dp),
                 activeTrackColor = Color.White,
                 inactiveTrackColor = Color.White.copy(alpha = 0.3f),
                 thumbColor = Color.White,
-                trackHeight = 2.5.dp,
-                thumbRadius = 4.5.dp,
+                trackHeight = if (isLandscape) 2.dp else 2.5.dp,
+                thumbRadius = if (isLandscape) 3.5.dp else 4.5.dp,
                 abPointA = playerState.abRepeatA?.toFloat(),
                 abPointB = playerState.abRepeatB?.toFloat(),
                 isAbRepeatActive = playerState.isAbRepeatActive

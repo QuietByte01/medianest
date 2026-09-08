@@ -178,7 +178,7 @@ private fun SettingsContent(
 
         // Hardware & Performance Section
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            com.medianest.ui.components.HardwareAccelerationSetting(settingsManager = settingsManager)
+            HardwareAccelerationSetting(settingsManager = settingsManager, showDecoderStrategy = false)
             
             Spacer(modifier = Modifier.height(4.dp))
             
@@ -209,6 +209,7 @@ private fun SettingsContent(
         HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
         val rememberPosition by settingsManager.rememberVideoPosition.collectAsState(initial = true)
+        val videoBackgroundPlay by settingsManager.videoBackgroundPlay.collectAsState(initial = false)
         val settingsScope = rememberCoroutineScope()
 
         Row(
@@ -224,6 +225,30 @@ private fun SettingsContent(
                 checked = rememberPosition,
                 onCheckedChange = { checked ->
                     settingsScope.launch { settingsManager.setRememberVideoPosition(checked) }
+                },
+                style = AppSwitchStyle.Glossy,
+                accentColor = Color(0xFF38BDF8)
+            )
+        }
+
+        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                Text(text = "Video Background Playback", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(text = "Continue playing video audio when app is minimized", fontSize = 11.sp, color = Color.White.copy(alpha = 0.65f))
+            }
+            AppSwitch(
+                checked = videoBackgroundPlay,
+                onCheckedChange = { checked ->
+                    settingsScope.launch {
+                        settingsManager.setVideoBackgroundPlay(checked)
+                        playerManager.setVideoBackgroundPlayEnabled(checked)
+                    }
                 },
                 style = AppSwitchStyle.Glossy,
                 accentColor = Color(0xFF38BDF8)

@@ -169,7 +169,7 @@ fun Modifier.videoPlayerGestures(
                                     onEdgeSwipeProgressRef(initialEdge, progress)
                                 }
                                 1 -> if (!isControlsLockedRef) {
-                                    val delta = -dragAmount.y / size.height.toFloat()
+                                    val delta = (-dragAmount.y / size.height.toFloat()) * 2.0f
                                     if (change.position.x < screenWidth / 2f) onBrightnessChangeRef(delta) else onVolumeChangeRef(delta)
                                     change.consume()
                                 }

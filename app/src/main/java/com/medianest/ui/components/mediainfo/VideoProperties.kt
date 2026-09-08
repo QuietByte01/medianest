@@ -1,6 +1,9 @@
 package com.medianest.ui.components.mediainfo
 
+import android.app.Activity
 import android.content.Context
+import android.content.res.Configuration
+import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,18 +23,27 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.request.videoFrameMicros
 import com.medianest.data.model.MediaItem
+import com.medianest.player.ExoPlayerManager
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.SolidGlossySurface
 import com.medianest.ui.components.PaletteTagChip
 import com.medianest.ui.components.PlaybackSpeedChip
+import com.medianest.ui.components.RoundedPlayIcon
 import com.medianest.ui.components.formatDuration
 import kotlinx.coroutines.launch
 
@@ -119,14 +131,23 @@ internal fun VideoFilePropertiesContent(
         )
     }
 
-    Column(
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .padding(bottom = 16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(bottom = 12.dp),
+        contentAlignment = Alignment.Center
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(if (isLandscape) 0.88f else 1f)
+                .padding(vertical = 8.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
         // Header Bar
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -494,34 +515,59 @@ internal fun VideoFilePropertiesContent(
             }
         }
 
+        // REAL-TIME PLAYBACK & DECODER ENGINE PROPERTIES
+        val exoPlayerManager = remember { ExoPlayerManager.getInstance(context) }
+        val playerState by exoPlayerManager.playerState.collectAsState()
+        val isCurrentPlaying = playerState.currentItem?.uri == item.uri
+        val activeEngine = if (isCurrentPlaying) playerState.activeEngineName else "Media3 ExoPlayer / FFmpeg Engine"
+        val activeDecoder = if (isCurrentPlaying) playerState.activeDecoderName else "Android MediaCodec (Hardware HW)"
+        val isHwAccelerated = if (isCurrentPlaying) playerState.isHardwareAccelerated else true
+        val fallbackStatus = if (isCurrentPlaying && playerState.decoderFallbackReason != null) {
+            "Active Fallback (${playerState.decoderFallbackReason})"
+        } else {
+            "Optimal (No Fallback Required)"
+        }
+
+        InfoSectionCard(
+            leadingContent = {
+                RoundedPlayIcon(
+                    modifier = Modifier.size(18.dp),
+                    tint = Color.White.copy(alpha = 0.9f)
+                )
+            },
+            title = "REAL-TIME PLAYBACK & DECODER STATUS"
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LabelValueBlock("Active Engine", activeEngine)
+                    LabelValueBlock("Active Decoder", activeDecoder)
+                    if (isCurrentPlaying) {
+                        LabelValueBlock("Frame Drop Telemetry", "${playerState.droppedFrames} dropped frames")
+                    }
+                }
+                Column(modifier = Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LabelValueBlock("Decoder Type", if (isHwAccelerated) "Hardware Accelerated (HW)" else "Software Emulated (SW)")
+                    LabelValueBlock("Fallback Pipeline", fallbackStatus)
+                }
+            }
+        }
+
         // VIDEO STREAM TECHNICAL SPECS Section
         InfoSectionCard(
             icon = Icons.Default.Movie,
             title = "VIDEO STREAM TECHNICAL SPECS"
         ) {
-            if (isCompact) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LabelValueBlock("Video Format / Container", realStream.containerFormat)
                     LabelValueBlock("Video Codec", realStream.videoCodec)
                     LabelValueBlock("Frame Rate", realStream.frameRate)
                     LabelValueBlock("Color Space / Range", realStream.colorSpace)
+                }
+                Column(modifier = Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LabelValueBlock("Display Aspect Ratio", realStream.aspectRatio)
                     LabelValueBlock("Video Bitrate", realStream.videoBitrate.ifBlank { extracted.bitrate.ifBlank { "Auto" } })
                     LabelValueBlock("HDR Metadata", realStream.hdrInfo)
-                }
-            } else {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        LabelValueBlock("Video Format / Container", realStream.containerFormat)
-                        LabelValueBlock("Video Codec", realStream.videoCodec)
-                        LabelValueBlock("Frame Rate", realStream.frameRate)
-                        LabelValueBlock("Color Space / Range", realStream.colorSpace)
-                    }
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        LabelValueBlock("Display Aspect Ratio", realStream.aspectRatio)
-                        LabelValueBlock("Video Bitrate", realStream.videoBitrate.ifBlank { extracted.bitrate.ifBlank { "Auto" } })
-                        LabelValueBlock("HDR Metadata", realStream.hdrInfo)
-                    }
                 }
             }
         }
@@ -553,72 +599,14 @@ internal fun VideoFilePropertiesContent(
                     }
                 }
 
-                if (isCompact) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         LabelValueBlock("Audio Format", realStream.audioFormat)
                         LabelValueBlock("Audio Bitrate", realStream.audioBitrate)
+                    }
+                    Column(modifier = Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         LabelValueBlock("Audio Channels", realStream.audioChannels)
                         LabelValueBlock("Sample Rate", realStream.audioSampleRate.ifBlank { extracted.sampleRate.ifBlank { "48.0 kHz" } })
-                    }
-                } else {
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            LabelValueBlock("Audio Format", realStream.audioFormat)
-                            LabelValueBlock("Audio Bitrate", realStream.audioBitrate)
-                        }
-                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            LabelValueBlock("Audio Channels", realStream.audioChannels)
-                            LabelValueBlock("Sample Rate", realStream.audioSampleRate.ifBlank { extracted.sampleRate.ifBlank { "48.0 kHz" } })
-                        }
-                    }
-                }
-            }
-        }
-
-        // REAL-TIME PLAYBACK & DECODER ENGINE PROPERTIES
-        val exoPlayerManager = remember { com.medianest.player.ExoPlayerManager.getInstance(context) }
-        val playerState by exoPlayerManager.playerState.collectAsState()
-        val isCurrentPlaying = playerState.currentItem?.uri == item.uri
-        val activeEngine = if (isCurrentPlaying) playerState.activeEngineName else "Media3 ExoPlayer / FFmpeg Engine"
-        val activeDecoder = if (isCurrentPlaying) playerState.activeDecoderName else "Android MediaCodec (Hardware HW)"
-        val isHwAccelerated = if (isCurrentPlaying) playerState.isHardwareAccelerated else true
-        val fallbackStatus = if (isCurrentPlaying && playerState.decoderFallbackReason != null) {
-            "Active Fallback (${playerState.decoderFallbackReason})"
-        } else {
-            "Optimal (No Fallback Required)"
-        }
-
-        InfoSectionCard(
-            leadingContent = {
-                com.medianest.ui.components.RoundedPlayIcon(
-                    modifier = Modifier.size(18.dp),
-                    tint = Color.White.copy(alpha = 0.9f)
-                )
-            },
-            title = "REAL-TIME PLAYBACK & DECODER STATUS"
-        ) {
-            if (isCompact) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    LabelValueBlock("Active Engine", activeEngine)
-                    LabelValueBlock("Active Decoder", activeDecoder)
-                    LabelValueBlock("Decoder Type", if (isHwAccelerated) "Hardware Accelerated (HW)" else "Software Emulated (SW)")
-                    LabelValueBlock("Fallback Pipeline", fallbackStatus)
-                    if (isCurrentPlaying) {
-                        LabelValueBlock("Frame Drop Telemetry", "${playerState.droppedFrames} dropped frames")
-                    }
-                }
-            } else {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        LabelValueBlock("Active Engine", activeEngine)
-                        LabelValueBlock("Active Decoder", activeDecoder)
-                        if (isCurrentPlaying) {
-                            LabelValueBlock("Frame Drop Telemetry", "${playerState.droppedFrames} dropped frames")
-                        }
-                    }
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        LabelValueBlock("Decoder Type", if (isHwAccelerated) "Hardware Accelerated (HW)" else "Software Emulated (SW)")
-                        LabelValueBlock("Fallback Pipeline", fallbackStatus)
                     }
                 }
             }
@@ -629,23 +617,14 @@ internal fun VideoFilePropertiesContent(
             icon = Icons.Default.Folder,
             title = "STORAGE & SYSTEM PROPERTIES"
         ) {
-            if (isCompact) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LabelValueBlock("File Directory", filePath.ifBlank { "/storage/emulated/0/Download/Movies/" })
                     LabelValueBlock("Date Modified", "Aug 01, 2026 • 14:25:31")
+                }
+                Column(modifier = Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LabelValueBlock("Date Created", "Aug 01, 2026 • 14:22:08")
                     LabelValueBlock("Storage Permissions", "Read / Write (rw-rw----)")
-                }
-            } else {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        LabelValueBlock("File Directory", filePath.ifBlank { "/storage/emulated/0/Download/Movies/" })
-                        LabelValueBlock("Date Modified", "Aug 01, 2026 • 14:25:31")
-                    }
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        LabelValueBlock("Date Created", "Aug 01, 2026 • 14:22:08")
-                        LabelValueBlock("Storage Permissions", "Read / Write (rw-rw----)")
-                    }
                 }
             }
         }
@@ -705,4 +684,5 @@ internal fun VideoFilePropertiesContent(
             )
         }
     }
+}
 }

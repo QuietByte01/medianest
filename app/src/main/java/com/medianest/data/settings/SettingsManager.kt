@@ -133,7 +133,11 @@ class SettingsManager(private val context: Context) {
     val keepScreenOn: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_KEEP_SCREEN_ON] ?: true }
     val forceLandscape: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_FORCE_LANDSCAPE] ?: false }
 
-    val autoFetchLyrics: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUTO_FETCH_LYRICS] ?: true }
+    val autoFetchLyrics: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        val isOffline = prefs[KEY_OFFLINE_MODE] ?: false
+        val userPref = prefs[KEY_AUTO_FETCH_LYRICS] ?: true
+        userPref && !isOffline
+    }
     val showAudioVisualizer: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_SHOW_AUDIO_VISUALIZER] ?: false }
     val subtitleLang: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_SUBTITLE_LANG] ?: "en" }
 

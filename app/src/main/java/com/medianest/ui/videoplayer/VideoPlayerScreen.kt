@@ -80,6 +80,7 @@ import com.medianest.player.ExoPlayerManager
 import com.medianest.player.PlayerState
 import com.medianest.ui.components.debug.PlayerDebugOverlay
 import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.components.HardwareAccelerationSetting
 import com.medianest.ui.components.MediaInfoBottomSheet
 import com.medianest.ui.videoplayer.studio.VideoEditorStudioSheet
 import com.medianest.ui.videoplayer.panels.*
@@ -235,6 +236,7 @@ fun VideoPlayerScreen(
     var showAbRepeatBar by remember { mutableStateOf(false) }
     var activeSubtitleText by remember { mutableStateOf<String?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var decoderDropdownExpanded by remember { mutableStateOf(false) }
 
     var swipeEdgeState by remember { mutableStateOf(SwipeEdge.NONE) }
     var swipeProgressState by remember { mutableFloatStateOf(0f) }
@@ -378,8 +380,8 @@ fun VideoPlayerScreen(
         onDispose {}
     }
 
-    LaunchedEffect(showControls, anyOverlayOpen, isControlsLocked) {
-        if (showControls && !isControlsLocked && !anyOverlayOpen) {
+    LaunchedEffect(showControls, anyOverlayOpen, isControlsLocked, decoderDropdownExpanded) {
+        if (showControls && !isControlsLocked && !anyOverlayOpen && !decoderDropdownExpanded) {
             delay(3000) // Hide controls after 3s
             showControls = false
         }
@@ -723,7 +725,12 @@ fun VideoPlayerScreen(
             ) {
                 VideoPlayerTopBar(
                     playerState = playerState, onClose = onClose, decoderMode = decoderMode,
-                    onDecoderModeClick = { showEngineDialog = true },
+                    onDecoderModeChange = { mode ->
+                        decoderMode = mode
+                        scope.launch { settingsManager.setDecoderMode(mode) }
+                    },
+                    decoderDropdownExpanded = decoderDropdownExpanded,
+                    onDecoderDropdownExpandedChange = { decoderDropdownExpanded = it },
                     onDrawerClick = { showDrawer = true }, onSubtitleClick = { showSubtitleSheet = true },
                     onInfoClick = { showDetailsSheet = true }, onMenuClick = { showOverflowMenu = true },
                     onCaptureClick = { captureVideoFrame(context, currentItem, playerState.currentPositionMs) },
@@ -1129,11 +1136,6 @@ fun VideoPlayerScreen(
                     playerManager.pause()
                     showVideoEditorSheet = true
                 },
-                isBackgroundPlayEnabled = playerState.isVideoBackgroundPlayEnabled,
-                onToggleBackgroundPlay = { enabled ->
-                    playerManager.setVideoBackgroundPlayEnabled(enabled)
-                    android.widget.Toast.makeText(context, "Background Play ${if (enabled) "Enabled" else "Disabled"}", android.widget.Toast.LENGTH_SHORT).show()
-                },
                 isAutoRepeatEnabled = playerState.repeatMode == androidx.media3.common.Player.REPEAT_MODE_ONE,
                 onToggleAutoRepeat = { enabled ->
                     val nextMode = if (enabled) androidx.media3.common.Player.REPEAT_MODE_ONE else androidx.media3.common.Player.REPEAT_MODE_OFF
@@ -1155,12 +1157,30 @@ fun VideoPlayerScreen(
                     showControls = false
                 },
                 onAudioTracks = { showAudioTrackSheet = true },
-                onCast = {
-                    val castIntent = android.content.Intent(android.provider.Settings.ACTION_CAST_SETTINGS)
-                    runCatching { context.startActivity(android.content.Intent.createChooser(castIntent, "Cast to TV")) }
-                },
                 onSettings = { showSettingsSheet = true },
                 onShowInfo = { showDetailsSheet = true }
+            )
+        }
+
+        if (showDebugOverlay) {
+            val currentPlayingAspectRatio = when (cropMode) {
+                MediaAspectRatio.FIT, MediaAspectRatio.ORIGINAL -> videoAspectRatio
+                MediaAspectRatio.CROP, MediaAspectRatio.STRETCH -> {
+                    if (containerSizePx.width > 0 && containerSizePx.height > 0) {
+                        containerSizePx.width.toFloat() / containerSizePx.height.toFloat().coerceAtLeast(1f)
+                    } else {
+                        videoAspectRatio
+                    }
+                }
+                else -> cropMode.ratio ?: videoAspectRatio
+            }
+
+            PlayerDebugOverlay(
+                playerState = playerState,
+                videoAspectRatio = videoAspectRatio,
+                playingAspectRatio = currentPlayingAspectRatio,
+                modifier = Modifier
+                    .padding(top = 64.dp, start = 16.dp)
             )
         }
 
@@ -1200,7 +1220,7 @@ fun VideoPlayerScreen(
                             color = Color.White
                         )
                         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            com.medianest.ui.components.HardwareAccelerationSetting(settingsManager = settingsManager)
+                            HardwareAccelerationSetting(settingsManager = settingsManager, showDecoderStrategy = false)
                             HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
                             com.medianest.ui.components.HdrPlaybackSetting(settingsManager = settingsManager)
                         }
@@ -1244,29 +1264,6 @@ fun VideoPlayerScreen(
             activeEdge = swipeEdgeState,
             swipeProgress = swipeProgressState
         )
-
-        if (showDebugOverlay) {
-            val currentPlayingAspectRatio = when (cropMode) {
-                MediaAspectRatio.FIT, MediaAspectRatio.ORIGINAL -> videoAspectRatio
-                MediaAspectRatio.CROP, MediaAspectRatio.STRETCH -> {
-                    if (containerSizePx.width > 0 && containerSizePx.height > 0) {
-                        containerSizePx.width.toFloat() / containerSizePx.height.toFloat().coerceAtLeast(1f)
-                    } else {
-                        videoAspectRatio
-                    }
-                }
-                else -> cropMode.ratio ?: videoAspectRatio
-            }
-
-            PlayerDebugOverlay(
-                playerState = playerState,
-                videoAspectRatio = videoAspectRatio,
-                playingAspectRatio = currentPlayingAspectRatio,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(top = 64.dp, start = 16.dp)
-            )
-        }
     }
 }
 }

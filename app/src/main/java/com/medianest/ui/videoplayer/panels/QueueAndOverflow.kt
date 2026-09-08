@@ -64,15 +64,12 @@ internal fun VideoPlayerOverflowMenu(
     onDelete: () -> Unit,
     onShare: () -> Unit,
     onEdit: () -> Unit,
-    isBackgroundPlayEnabled: Boolean,
-    onToggleBackgroundPlay: (Boolean) -> Unit,
     isAutoRepeatEnabled: Boolean,
     onToggleAutoRepeat: (Boolean) -> Unit,
     isAbRepeatActive: Boolean = false,
     onAbRepeat: () -> Unit = {},
     onVideoFx: () -> Unit,
     onAudioTracks: () -> Unit,
-    onCast: () -> Unit,
     onSettings: () -> Unit,
     onShowInfo: () -> Unit = {},
     backdropState: BackdropBlurState? = LocalBackdropState.current,
@@ -145,11 +142,6 @@ internal fun VideoPlayerOverflowMenu(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = Color.White.copy(alpha = 0.1f))
                 
                 DropdownMenuItem(
-                    text = { Text("Background Play: ${if (isBackgroundPlayEnabled) "On" else "Off"}", color = Color.White, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.MusicNote, null, tint = Color.White, modifier = Modifier.size(15.dp)) },
-                    onClick = { onToggleBackgroundPlay(!isBackgroundPlayEnabled) }
-                )
-                DropdownMenuItem(
                     text = { Text("Auto Repeat: ${if (isAutoRepeatEnabled) "On" else "Off"}", color = Color.White, fontSize = 14.sp) },
                     leadingIcon = { Icon(Icons.Default.Repeat, null, tint = Color.White, modifier = Modifier.size(15.dp)) },
                     onClick = { onToggleAutoRepeat(!isAutoRepeatEnabled) }
@@ -178,11 +170,13 @@ internal fun VideoPlayerOverflowMenu(
                     leadingIcon = { Icon(Icons.Default.Audiotrack, null, tint = Color.White, modifier = Modifier.size(15.dp)) },
                     onClick = { onAudioTracks(); onDismiss() }
                 )
+                /*
                 DropdownMenuItem(
                     text = { Text("Cast to TV", color = Color.White, fontSize = 14.sp) },
                     leadingIcon = { Icon(Icons.Default.Tv, null, tint = Color.White, modifier = Modifier.size(15.dp)) },
                     onClick = { onCast(); onDismiss() }
                 )
+                */
                 DropdownMenuItem(
                     text = { Text("Video FX & Filters", color = Color.White, fontSize = 14.sp) },
                     leadingIcon = { Icon(Icons.Default.Tune, null, tint = Color.White, modifier = Modifier.size(15.dp)) },

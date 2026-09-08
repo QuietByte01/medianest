@@ -1,5 +1,7 @@
 package com.medianest.ui.library.video
 
+import android.content.res.Configuration
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -210,6 +212,11 @@ fun VideosTab(
         }
     }
 
+    val configuration = LocalConfiguration.current
+    val isPhoneScreen = minOf(configuration.screenWidthDp, configuration.screenHeightDp) < 600
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val isPhoneLandscape = isPhoneScreen && isLandscape
+
     val db = remember { MediaNestApp.instance.database }
     val allCrossRefs by db.categoryDao().getAllCrossRefs().collectAsState(initial = emptyList())
 
@@ -339,7 +346,7 @@ fun VideosTab(
             }
         )
 
-        if (!isFolderViewActive && (activeFilterTab == "ALL" || activeFilterTab == "CATEGORIES")) {
+        if (!isPhoneLandscape && !isFolderViewActive && (activeFilterTab == "ALL" || activeFilterTab == "CATEGORIES")) {
             VideoCategoryRow(
                 allVideoCategories = allVideoCategories,
                 selectedCategory = selectedCategory,

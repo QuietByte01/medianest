@@ -214,11 +214,12 @@ fun SeekHUD(
     modifier: Modifier = Modifier
 ) {
     GlassSurface(
-        modifier = modifier.backdropBlur(visible = true, radius = 16.dp),
+        modifier = modifier,
         shape = RoundedCornerShape(20.dp),
-        backgroundColor = Color.Black.copy(alpha = 0.15f),
-        borderColor = Color.Transparent,
-        borderWidth = 0.dp
+        backgroundColor = Color(0x3B181A26),
+        borderColor = Color(0x44FFFFFF),
+        borderWidth = 0.5.dp,
+        enableBlur = false
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 14.dp),
