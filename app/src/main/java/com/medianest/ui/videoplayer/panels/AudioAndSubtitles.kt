@@ -39,6 +39,8 @@ internal fun SubtitleOptionsDialog(
     isSearching: Boolean,
     onlineSubtitles: List<SubtitleItem>,
     onOnlineSubClick: (SubtitleItem) -> Unit,
+    localDirSubtitles: List<SubtitleItem> = emptyList(),
+    onLocalDirSubClick: (SubtitleItem) -> Unit = {},
     onPickLocalSubtitle: () -> Unit = {},
     statusMessage: String?,
     onClose: () -> Unit,
@@ -148,6 +150,69 @@ internal fun SubtitleOptionsDialog(
                 accentColor = Color(0xFF38BDF8),
                 modifier = Modifier.fillMaxWidth()
             )
+
+            if (localDirSubtitles.isNotEmpty()) {
+                Text(
+                    text = "Local Subtitles (Current Folder):",
+                    fontSize = 13.sp,
+                    color = Color(0xFF38BDF8),
+                    fontWeight = FontWeight.Bold
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    localDirSubtitles.forEach { dirSub ->
+                        GlassSurface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onLocalDirSubClick(dirSub)
+                                },
+                            shape = RoundedCornerShape(12.dp),
+                            backgroundColor = Color(0x1EFFFFFF),
+                            borderColor = Color(0x2A38BDF8)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Subtitles,
+                                        contentDescription = null,
+                                        tint = Color(0xFF38BDF8),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = dirSub.name,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Text(
+                                    text = dirSub.language,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF38BDF8),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0x2238BDF8))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
             if (embeddedTracks.isNotEmpty()) {
                 Text(

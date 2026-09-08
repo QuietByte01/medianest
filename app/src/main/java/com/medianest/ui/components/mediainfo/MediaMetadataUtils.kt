@@ -7,7 +7,10 @@ import android.os.Build
 import android.provider.MediaStore
 import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
+import com.medianest.data.model.SubtitleItem
+import com.medianest.util.Logger
 import com.medianest.util.setDataSourceSafe
+import java.io.File
 import java.util.Locale
 
 internal fun extractComprehensiveMetadata(context: Context, item: MediaItem): ComprehensiveMetadata {
@@ -117,6 +120,48 @@ fun getFilePathFromUri(context: Context, uri: Uri): String {
         }
     }
     return uri.path ?: uri.toString()
+}
+
+fun findLocalSubtitlesInDirectory(context: Context, item: MediaItem): List<SubtitleItem> {
+    val list = mutableListOf<SubtitleItem>()
+    try {
+        val filePath = getFilePathFromUri(context, item.uri)
+        if (filePath.isBlank()) return emptyList()
+        val videoFile = File(filePath)
+        val dir = videoFile.parentFile ?: return emptyList()
+
+        if (!dir.exists() || !dir.isDirectory) return emptyList()
+
+        val videoBaseName = videoFile.nameWithoutExtension.lowercase()
+        val validExts = setOf("srt", "vtt", "ass", "ssa", "sub", "ttml", "dfxp")
+
+        val files = dir.listFiles { file ->
+            file.isFile && file.extension.lowercase() in validExts
+        } ?: emptyArray()
+
+        val sortedFiles = files.sortedWith(
+            compareByDescending<File> { it.nameWithoutExtension.lowercase().startsWith(videoBaseName) }
+                .thenBy { it.name.lowercase() }
+        )
+
+        sortedFiles.forEach { subFile ->
+            val nameParts = subFile.nameWithoutExtension.split(".", "_", "-")
+            val possibleLang = nameParts.lastOrNull()?.takeIf { it.length in 2..4 }?.uppercase() ?: "LOCAL"
+
+            list.add(
+                SubtitleItem(
+                    id = "local_dir_${subFile.absolutePath.hashCode()}",
+                    name = subFile.name,
+                    language = possibleLang,
+                    downloadUrl = Uri.fromFile(subFile).toString(),
+                    isLocal = true
+                )
+            )
+        }
+    } catch (e: Exception) {
+        Logger.e("MediaMetadataUtils", "Error searching local directory subtitles", e)
+    }
+    return list
 }
 
 internal fun extractRealStreamDetails(context: Context, item: MediaItem): RealVideoAudioDetails {

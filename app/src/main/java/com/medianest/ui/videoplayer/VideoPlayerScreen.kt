@@ -99,6 +99,7 @@ import com.medianest.ui.components.SidebarQueueDrawer
 import com.medianest.ui.components.media.*
 import com.medianest.ui.components.dismissKeyboardOnOutsideTap
 import com.medianest.ui.components.formatDuration
+import com.medianest.ui.components.mediainfo.findLocalSubtitlesInDirectory
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -261,6 +262,29 @@ fun VideoPlayerScreen(
 
     var embeddedTracksState by remember(currentItem?.id, playerState.media3InstanceId) {
         mutableStateOf<List<SubtitleItem>>(emptyList())
+    }
+
+    val localDirSubtitles = remember(currentItem?.uri, currentItem?.id) {
+        if (currentItem != null) {
+            findLocalSubtitlesInDirectory(context, currentItem)
+        } else emptyList()
+    }
+
+    LaunchedEffect(currentItem?.id, localDirSubtitles) {
+        if (localDirSubtitles.isNotEmpty() && currentItem != null) {
+            val bestMatch = localDirSubtitles.firstOrNull()
+            if (bestMatch?.downloadUrl != null) {
+                try {
+                    val subUri = Uri.parse(bestMatch.downloadUrl)
+                    playerManager.addExternalSubtitle(subUri, bestMatch.name)
+                    val newTracks = playerManager.getAvailableTextTracks()
+                    selectedSubtitleTrackIndex = (newTracks.size - 1).coerceAtLeast(0)
+                    playerManager.selectTextTrack(selectedSubtitleTrackIndex)
+                } catch (e: Exception) {
+                    Logger.e("VideoPlayerScreen", "Error auto-applying local directory subtitle", e)
+                }
+            }
+        }
     }
 
     val subtitlePickerLauncher = rememberLauncherForActivityResult(
@@ -1047,6 +1071,22 @@ fun VideoPlayerScreen(
                             showSubtitleSheet = false
                         } else {
                             subtitleStatusMessage = "Failed to download subtitle file."
+                        }
+                    }
+                },
+                localDirSubtitles = localDirSubtitles,
+                onLocalDirSubClick = { dirSub ->
+                    if (dirSub.downloadUrl != null) {
+                        try {
+                            val subUri = Uri.parse(dirSub.downloadUrl)
+                            playerManager.addExternalSubtitle(subUri, dirSub.name)
+                            subtitleStatusMessage = "Applied local subtitle: ${dirSub.name}"
+                            val newTracks = playerManager.getAvailableTextTracks()
+                            selectedSubtitleTrackIndex = (newTracks.size - 1).coerceAtLeast(0)
+                            playerManager.selectTextTrack(selectedSubtitleTrackIndex)
+                            showSubtitleSheet = false
+                        } catch (e: Exception) {
+                            Logger.e("VideoPlayerScreen", "Error applying directory subtitle", e)
                         }
                     }
                 },
