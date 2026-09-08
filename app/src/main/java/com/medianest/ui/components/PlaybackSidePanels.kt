@@ -70,7 +70,8 @@ fun GlossySidePanel(
     onSongClick: (Int) -> Unit,
     backgroundArt: Any? = null,
     showHidden: Boolean = false,
-    hiddenFolders: Set<String> = emptySet()
+    hiddenFolders: Set<String> = emptySet(),
+    backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     val filteredQueue = remember(playerState.queue, showHidden, hiddenFolders) {
         if (showHidden) playerState.queue
@@ -92,6 +93,8 @@ fun GlossySidePanel(
         borderColor = Color.White.copy(alpha = 0.15f),
         enableBlur = true,
         blurRadius = 30.dp,
+        backdropState = backdropState,
+        backgroundImage = backgroundArt,
         modifier = Modifier.fillMaxSize()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {

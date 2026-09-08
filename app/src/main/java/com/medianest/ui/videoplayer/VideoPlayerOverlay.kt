@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -75,6 +76,7 @@ fun SubtitleTextOverlay(
     text: String?,
     isVisible: Boolean,
     fontSizeSp: Float,
+    fontFamily: FontFamily = FontFamily.Default,
     textColor: Color,
     bgColor: Color,
     hasShadow: Boolean,
@@ -92,6 +94,7 @@ fun SubtitleTextOverlay(
                 text = text,
                 color = textColor,
                 fontSize = fontSizeSp.sp,
+                fontFamily = fontFamily,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 style = if (hasShadow) {

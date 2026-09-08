@@ -242,6 +242,7 @@ fun RoundedSkipNextIcon(
 
 /**
  * Redesigned Skip Previous Icon: Vertical pill + double left-pointing triangles (|<<)
+ * The 2nd triangle overlaps 10% inside the 1st triangle.
  */
 @Composable
 fun RoundedDoubleSkipPreviousIcon(
@@ -252,30 +253,30 @@ fun RoundedDoubleSkipPreviousIcon(
         val w = size.width
         val h = size.height
         
-        // 1. Double Triangles (Height matches Play Icon: 0.16 to 0.84)
-        val triRadius = w * 0.10f
+        // 1. Double Triangles (Height: 0.18 to 0.82)
+        val triRadius = w * 0.08f
         
-        // Outer triangle
+        // Outer / 1st triangle (left triangle, tip at 0.231w, base at 0.591w)
         val tri1Vertices = listOf(
-            Offset(w * 0.73f, h * 0.16f),
-            Offset(w * 0.28f, h * 0.50f),
-            Offset(w * 0.73f, h * 0.84f)
+            Offset(w * 0.591f, h * 0.18f),
+            Offset(w * 0.231f, h * 0.50f),
+            Offset(w * 0.591f, h * 0.82f)
         )
         drawRoundedPolygon(tri1Vertices, triRadius, tint)
         
-        // Inner triangle
+        // Inner / 2nd triangle (right triangle, tip at 0.555w [10% inside 1st base], base at 0.915w)
         val tri2Vertices = listOf(
-            Offset(w * 0.93f, h * 0.16f),
-            Offset(w * 0.48f, h * 0.50f),
-            Offset(w * 0.93f, h * 0.84f)
+            Offset(w * 0.915f, h * 0.18f),
+            Offset(w * 0.555f, h * 0.50f),
+            Offset(w * 0.915f, h * 0.82f)
         )
         drawRoundedPolygon(tri2Vertices, triRadius, tint)
 
         // 2. Left vertical rounded pill bar
         val pillHeight = h * 0.50f
-        val pillWidth = w * 0.10f
+        val pillWidth = w * 0.08f
         val capRadius = pillWidth / 2f
-        val startX = w * 0.10f
+        val startX = w * 0.106f
         val startY = (h - pillHeight) / 2f
         
         drawRoundRect(
@@ -289,6 +290,7 @@ fun RoundedDoubleSkipPreviousIcon(
 
 /**
  * Redesigned Skip Next Icon: Double right-pointing triangles + vertical pill (>>|)
+ * The 2nd triangle overlaps 10% inside the 1st triangle.
  */
 @Composable
 fun RoundedDoubleSkipNextIcon(
@@ -299,30 +301,30 @@ fun RoundedDoubleSkipNextIcon(
         val w = size.width
         val h = size.height
 
-        // 1. Two Right-pointing rounded triangles (Height matches Play Icon: 0.16 to 0.84)
-        val triRadius = w * 0.10f
+        // 1. Two Right-pointing rounded triangles (Height: 0.18 to 0.82)
+        val triRadius = w * 0.08f
         
-        // Inner triangle
+        // Inner / 1st triangle (left triangle, base at 0.085w, tip at 0.445w)
         val tri1Vertices = listOf(
-            Offset(w * 0.07f, h * 0.16f),
-            Offset(w * 0.52f, h * 0.50f),
-            Offset(w * 0.07f, h * 0.84f)
+            Offset(w * 0.085f, h * 0.18f),
+            Offset(w * 0.445f, h * 0.50f),
+            Offset(w * 0.085f, h * 0.82f)
         )
         drawRoundedPolygon(tri1Vertices, triRadius, tint)
         
-        // Outer triangle
+        // Outer / 2nd triangle (right triangle, base at 0.409w [10% inside 1st tip], tip at 0.769w)
         val tri2Vertices = listOf(
-            Offset(w * 0.27f, h * 0.16f),
-            Offset(w * 0.72f, h * 0.50f),
-            Offset(w * 0.27f, h * 0.84f)
+            Offset(w * 0.409f, h * 0.18f),
+            Offset(w * 0.769f, h * 0.50f),
+            Offset(w * 0.409f, h * 0.82f)
         )
         drawRoundedPolygon(tri2Vertices, triRadius, tint)
 
         // 2. Right vertical rounded pill bar
         val pillHeight = h * 0.50f
-        val pillWidth = w * 0.10f
+        val pillWidth = w * 0.08f
         val capRadius = pillWidth / 2f
-        val pillX = w * 0.80f
+        val pillX = w * 0.814f
         val pillY = (h - pillHeight) / 2f
 
         drawRoundRect(

@@ -38,6 +38,9 @@ import coil.request.ImageRequest
 import com.medianest.data.model.*
 import com.medianest.player.ExoPlayerManager
 import com.medianest.player.PlayerState
+import com.medianest.ui.components.BackdropBlurState
+import com.medianest.ui.components.LocalBackdropState
+import com.medianest.ui.components.backdropSource
 import com.medianest.ui.components.BubblingHeartButton
 import com.medianest.ui.components.BubblingHeartBurstEffect
 import com.medianest.ui.components.GlossySidePanel
@@ -148,8 +151,10 @@ private fun ImmersiveLandscapeLayout(
     onBackToArtist: () -> Unit = {},
     isScanningLibrary: Boolean = false,
     passedArtistInfo: ArtistInfo? = null,
+    backdropState: BackdropBlurState? = LocalBackdropState.current,
     modifier: Modifier = Modifier
 ) {
+    val activeBackdropState = backdropState ?: LocalBackdropState.current
     val artworkUri = currentItem?.albumArtUri ?: currentItem?.uri
 
     var showPlayPauseIndicator by remember { mutableStateOf(false) }
@@ -298,8 +303,19 @@ private fun ImmersiveLandscapeLayout(
                 )
             }
     ) {
-        // 1. Background Content (Immersive)
-        Box(modifier = Modifier.fillMaxSize()) {
+        // 1. Background Content (Immersive) - Recorded as backdropSource for side panels
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (activeBackdropState != null) {
+                        Modifier.backdropSource(
+                            state = activeBackdropState,
+                            backgroundColor = Color.Black
+                        )
+                    } else Modifier
+                )
+        ) {
             if (artworkUri != null) {
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
@@ -635,7 +651,8 @@ private fun ImmersiveLandscapeLayout(
                     },
                     backgroundArt = null,
                     showHidden = showHidden,
-                    hiddenFolders = hiddenFolders
+                    hiddenFolders = hiddenFolders,
+                    backdropState = activeBackdropState
                 )
             }
         }

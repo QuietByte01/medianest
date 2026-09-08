@@ -17,8 +17,11 @@ import com.medianest.util.Logger
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.MediaItem as Media3Item
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -596,6 +599,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
         val extractorsFactory = DefaultExtractorsFactory()
             .setConstantBitrateSeekingEnabled(true)
             .setMp4ExtractorFlags(androidx.media3.extractor.mp4.Mp4Extractor.FLAG_WORKAROUND_IGNORE_EDIT_LISTS)
+            .setTextTrackTranscodingEnabled(true)
         val mediaSourceFactory = DefaultMediaSourceFactory(context, extractorsFactory)
         val renderersFactory = DefaultRenderersFactory(context)
             .setEnableDecoderFallback(true)
@@ -1331,11 +1335,109 @@ class ExoPlayerManager private constructor(private val context: Context) {
     fun setAudioBoost(percent: Int) {
         setVolumeBoost(percent)
     }
-    // BUG: Subtitle implementation is currently missing. Embedded subtitles from video files
-    // are not being extracted or applied to the player interface.
-    fun getAvailableTextTracks(): List<TextTrackInfo> = emptyList()
-    fun selectTextTrack(index: Int) {}
-    fun addExternalSubtitle(uri: Uri, name: String = "Subtitle") {}
+    fun getAvailableTextTracks(): List<TextTrackInfo> = media3Engine?.player?.currentTracks?.let { t ->
+        val list = mutableListOf<TextTrackInfo>()
+        var idx = 0
+        t.groups.filter { it.type == C.TRACK_TYPE_TEXT }.forEach { g ->
+            for (i in 0 until g.length) {
+                val f = g.getTrackFormat(i)
+                val lang = f.language?.uppercase()
+                val label = f.label
+                val displayName = when {
+                    !label.isNullOrBlank() && !lang.isNullOrBlank() -> "$label ($lang)"
+                    !label.isNullOrBlank() -> label
+                    !lang.isNullOrBlank() -> "Subtitle Track ${idx + 1} ($lang)"
+                    else -> "Subtitle Track ${idx + 1}"
+                }
+                list.add(TextTrackInfo(idx++, displayName, g.isTrackSelected(i)))
+            }
+        }
+        list
+    } ?: emptyList()
+
+    fun selectTextTrack(index: Int) {
+        try {
+            val player = media3Engine?.player ?: return
+            if (index == -1) {
+                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                    .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                    .build()
+                Logger.i("ExoPlayerManager", "Text track disabled (OFF)")
+                return
+            }
+
+            val tracks = player.currentTracks
+            var targetGroup: Tracks.Group? = null
+            var trackIndexInGroup = -1
+            var currentIndex = 0
+            for (group in tracks.groups) {
+                if (group.type == C.TRACK_TYPE_TEXT) {
+                    for (i in 0 until group.length) {
+                        if (currentIndex == index) {
+                            targetGroup = group
+                            trackIndexInGroup = i
+                            break
+                        }
+                        currentIndex++
+                    }
+                }
+                if (targetGroup != null) break
+            }
+            if (targetGroup != null) {
+                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                    .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                    .addOverride(TrackSelectionOverride(targetGroup.mediaTrackGroup, trackIndexInGroup))
+                    .build()
+                Logger.i("ExoPlayerManager", "Selected text track $index")
+            }
+        } catch (e: Exception) {
+            Logger.e("ExoPlayerManager", "Error selecting text track $index", e)
+        }
+    }
+
+    fun addExternalSubtitle(uri: Uri, name: String = "Subtitle") {
+        try {
+            val player = media3Engine?.player ?: return
+            val currentMediaItem = player.currentMediaItem ?: return
+            val currentPos = player.currentPosition
+            val isPlaying = player.isPlaying
+
+            val uriStr = uri.toString()
+            val mimeType = when {
+                uriStr.endsWith(".vtt", ignoreCase = true) -> MimeTypes.TEXT_VTT
+                uriStr.endsWith(".srt", ignoreCase = true) -> MimeTypes.APPLICATION_SUBRIP
+                uriStr.endsWith(".ass", ignoreCase = true) || uriStr.endsWith(".ssa", ignoreCase = true) -> MimeTypes.TEXT_SSA
+                uriStr.endsWith(".ttml", ignoreCase = true) || uriStr.endsWith(".dfxp", ignoreCase = true) -> MimeTypes.APPLICATION_TTML
+                else -> MimeTypes.APPLICATION_SUBRIP
+            }
+
+            val subtitleConfig = Media3Item.SubtitleConfiguration.Builder(uri)
+                .setMimeType(mimeType)
+                .setLanguage("en")
+                .setLabel(name)
+                .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                .build()
+
+            val existingSubtitles = currentMediaItem.localConfiguration?.subtitleConfigurations ?: emptyList()
+            val newSubtitles = existingSubtitles + subtitleConfig
+
+            val newMediaItem = currentMediaItem.buildUpon()
+                .setSubtitleConfigurations(newSubtitles)
+                .build()
+
+            player.setMediaItem(newMediaItem, currentPos)
+            player.prepare()
+            if (isPlaying) player.play()
+
+            val newTrackIndex = (getAvailableTextTracks().size - 1).coerceAtLeast(0)
+            selectTextTrack(newTrackIndex)
+            Logger.i("ExoPlayerManager", "Added external subtitle $name from $uri")
+        } catch (e: Exception) {
+            Logger.e("ExoPlayerManager", "Error adding external subtitle", e)
+        }
+    }
     
     fun setBassBoost(percent: Int) {
         _playerState.value = _playerState.value.copy(bassBoostPercent = percent)

@@ -17,10 +17,13 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.zip.GZIPInputStream
+import java.util.zip.ZipInputStream
 
 enum class SubtitleProvider {
     OPEN_SUBTITLES,
@@ -322,15 +325,49 @@ class NetworkRepository(
                 if (!response.isSuccessful) return@withContext null
                 val body = response.body ?: return@withContext null
                 
-                // Save with unique name to avoid conflicts
-                val fileName = "sub_${item.id}_${System.currentTimeMillis()}.srt"
-                val file = java.io.File(context.cacheDir, fileName)
-                
-                body.byteStream().use { input ->
-                    file.outputStream().use { output ->
-                        input.copyTo(output)
+                val bytes = body.bytes()
+                if (bytes.isEmpty()) return@withContext null
+
+                val isGzip = bytes.size >= 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()
+                val isZip = bytes.size >= 2 && bytes[0] == 'P'.code.toByte() && bytes[1] == 'K'.code.toByte()
+
+                val finalBytes = when {
+                    isGzip -> {
+                        try {
+                            GZIPInputStream(bytes.inputStream()).use { it.readBytes() }
+                        } catch (_: Exception) { bytes }
                     }
+                    isZip -> {
+                        try {
+                            var extracted: ByteArray? = null
+                            ZipInputStream(bytes.inputStream()).use { zip ->
+                                var entry = zip.nextEntry
+                                while (entry != null) {
+                                    if (!entry.isDirectory && (entry.name.endsWith(".srt", ignoreCase = true) || entry.name.endsWith(".vtt", ignoreCase = true) || entry.name.endsWith(".ass", ignoreCase = true) || entry.name.endsWith(".ssa", ignoreCase = true))) {
+                                        extracted = zip.readBytes()
+                                        break
+                                    }
+                                    entry = zip.nextEntry
+                                }
+                            }
+                            extracted ?: bytes
+                        } catch (_: Exception) { bytes }
+                    }
+                    else -> bytes
                 }
+
+                val textSample = if (finalBytes.size > 200) finalBytes.copyOfRange(0, 200).decodeToString() else finalBytes.decodeToString()
+                val ext = when {
+                    textSample.contains("WEBVTT", ignoreCase = true) -> ".vtt"
+                    textSample.contains("[Script Info]", ignoreCase = true) -> ".ass"
+                    else -> ".srt"
+                }
+
+                // Save with unique name to avoid conflicts
+                val fileName = "sub_${item.id}_${System.currentTimeMillis()}$ext"
+                val file = File(context.cacheDir, fileName)
+                file.writeBytes(finalBytes)
+                
                 return@withContext Uri.fromFile(file)
             }
         } catch (e: Exception) {

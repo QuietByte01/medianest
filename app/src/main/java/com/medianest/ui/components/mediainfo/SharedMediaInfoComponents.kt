@@ -38,10 +38,10 @@ internal fun InfoSectionCard(
         backgroundColor = Color(0x1A1E2438),
         borderColor = Color(0x333F4A6A)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 if (leadingContent != null) {
                     leadingContent()

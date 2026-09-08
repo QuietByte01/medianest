@@ -4,14 +4,19 @@ package com.medianest.ui.videoplayer
 
 import androidx.activity.compose.BackHandler
 import android.app.Activity
+import android.content.Intent
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.net.Uri
 import android.os.Build
+import android.provider.OpenableColumns
 import android.util.Log
+import android.view.View
 import com.medianest.util.Logger
 import android.view.ViewGroup
 import android.view.WindowManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -69,11 +74,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.medianest.MediaNestApp
 import com.medianest.data.db.PlaybackState
+import com.medianest.data.model.SubtitleItem
 import com.medianest.data.repository.NetworkRepository
 import com.medianest.data.repository.SubtitleProvider
 import com.medianest.player.ExoPlayerManager
@@ -247,28 +254,42 @@ fun VideoPlayerScreen(
     var subtitleStatusMessage by remember { mutableStateOf<String?>(null) }
 
     var subtitleFontSizeSp by remember { mutableFloatStateOf(20f) }
+    var subtitleFontFamily by remember { mutableStateOf(SubtitleFontFamily.DEFAULT) }
     var subtitleTextColor by remember { mutableStateOf(Color.White) }
     var subtitleBgColor by remember { mutableStateOf(Color(0x99000000)) }
     var subtitleHasShadow by remember { mutableStateOf(true) }
 
-    val embeddedTracks = remember(currentItem, playerState.media3InstanceId) {
-        val list = mutableListOf<com.medianest.data.model.SubtitleItem>()
-        try {
-            val tracks = playerManager.exoPlayer?.currentTracks
-            if (tracks != null) {
-                for (group in tracks.groups) {
-                    if (group.type == androidx.media3.common.C.TRACK_TYPE_TEXT) {
-                        for (i in 0 until group.length) {
-                            val format = group.getTrackFormat(i)
-                            val lang = format.language ?: "und"
-                            val label = format.label ?: "Track ${i + 1}"
-                            list.add(com.medianest.data.model.SubtitleItem(id = "embedded_$i", name = label, language = lang, isLocal = true))
-                        }
+    var embeddedTracksState by remember(currentItem?.id, playerState.media3InstanceId) {
+        mutableStateOf<List<SubtitleItem>>(emptyList())
+    }
+
+    val subtitlePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) {}
+
+            var fileName = "Local Subtitle"
+            try {
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex >= 0) fileName = cursor.getString(nameIndex)
                     }
                 }
-            }
-        } catch (_: Exception) {}
-        list
+            } catch (_: Exception) {}
+
+            playerManager.addExternalSubtitle(uri, fileName)
+            subtitleStatusMessage = "Applied local subtitle: $fileName"
+            val newTracks = playerManager.getAvailableTextTracks()
+            selectedSubtitleTrackIndex = (newTracks.size - 1).coerceAtLeast(0)
+            playerManager.selectTextTrack(selectedSubtitleTrackIndex)
+        }
     }
 
     var isControlsLocked by remember { mutableStateOf(false) }
@@ -351,10 +372,30 @@ fun VideoPlayerScreen(
                 if (vs.width > 0 && vs.height > 0) {
                     activeVideoSize = vs
                 }
+                val textTracks = playerManager.getAvailableTextTracks()
+                embeddedTracksState = textTracks.mapIndexed { idx, info ->
+                    val langPart = if (info.name.contains("(")) info.name.substringAfter("(").substringBefore(")") else "und"
+                    SubtitleItem(
+                        id = "embedded_$idx",
+                        name = info.name,
+                        language = langPart,
+                        isLocal = true
+                    )
+                }
+                if (selectedSubtitleTrackIndex >= 0 && textTracks.isNotEmpty()) {
+                    val targetIndex = selectedSubtitleTrackIndex.coerceIn(0, textTracks.size - 1)
+                    if (selectedSubtitleTrackIndex != targetIndex) {
+                        selectedSubtitleTrackIndex = targetIndex
+                    }
+                    playerManager.selectTextTrack(targetIndex)
+                }
             }
-            override fun onCues(cueGroup: androidx.media3.common.text.CueGroup) {
+            override fun onCues(cueGroup: CueGroup) {
                 if (selectedSubtitleTrackIndex != -1 && cueGroup.cues.isNotEmpty()) {
-                    activeSubtitleText = cueGroup.cues.joinToString("\n") { it.text ?: "" }.trim().ifEmpty { null }
+                    val cueText = cueGroup.cues.mapNotNull { cue ->
+                        cue.text?.toString()?.takeIf { str -> str.isNotBlank() }
+                    }.joinToString("\n").trim()
+                    activeSubtitleText = cueText.ifEmpty { null }
                 } else {
                     activeSubtitleText = null
                 }
@@ -597,6 +638,7 @@ fun VideoPlayerScreen(
                                                     val inflater = android.view.LayoutInflater.from(ctx)
                                                     (inflater.inflate(com.medianest.R.layout.player_view_texture, null) as androidx.media3.ui.PlayerView).apply {
                                                         useController = false
+                                                        subtitleView?.visibility = View.GONE
                                                         try {
                                                             this.player = playerManager.exoPlayer
                                                         } catch (_: Exception) {}
@@ -686,7 +728,7 @@ fun VideoPlayerScreen(
                     },
                     modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 160.dp, end = 24.dp)
                 )
-                SubtitleTextOverlay(text = activeSubtitleText, isVisible = showControls, fontSizeSp = subtitleFontSizeSp, textColor = subtitleTextColor, bgColor = subtitleBgColor, hasShadow = subtitleHasShadow, modifier = Modifier.align(Alignment.BottomCenter))
+                SubtitleTextOverlay(text = activeSubtitleText, isVisible = showControls, fontSizeSp = subtitleFontSizeSp, fontFamily = subtitleFontFamily.fontFamily, textColor = subtitleTextColor, bgColor = subtitleBgColor, hasShadow = subtitleHasShadow, modifier = Modifier.align(Alignment.BottomCenter))
 
             AnimatedVisibility(
                 visible = showControls && !isControlsLocked && !isHorizontalDragging && !showAbRepeatBar,
@@ -968,7 +1010,7 @@ fun VideoPlayerScreen(
         if (showSubtitleSheet) Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).clickable { showSubtitleSheet = false }, contentAlignment = Alignment.Center) {
             SubtitleOptionsDialog(
                 playerState = playerState,
-                embeddedTracks = embeddedTracks,
+                embeddedTracks = embeddedTracksState,
                 selectedTrackIndex = selectedSubtitleTrackIndex,
                 onTrackSelect = { selectedSubtitleTrackIndex = it; playerManager.selectTextTrack(it) },
                 onCustomizeClick = { showSubtitleSheet = false; showSubtitleCustomizationSheet = true },
@@ -998,13 +1040,18 @@ fun VideoPlayerScreen(
                         if (subUri != null) {
                             playerManager.addExternalSubtitle(subUri, subItem.name)
                             subtitleStatusMessage = "Subtitle applied successfully!"
-                            selectedSubtitleTrackIndex = 0
-                            delay(1500)
+                            val newTracks = playerManager.getAvailableTextTracks()
+                            selectedSubtitleTrackIndex = (newTracks.size - 1).coerceAtLeast(0)
+                            playerManager.selectTextTrack(selectedSubtitleTrackIndex)
+                            delay(1200)
                             showSubtitleSheet = false
                         } else {
                             subtitleStatusMessage = "Failed to download subtitle file."
                         }
                     }
+                },
+                onPickLocalSubtitle = {
+                    subtitlePickerLauncher.launch(arrayOf("*/*", "text/*", "application/x-subrip", "application/octet-stream"))
                 },
                 statusMessage = subtitleStatusMessage,
                 onClose = { showSubtitleSheet = false },
@@ -1021,6 +1068,8 @@ fun VideoPlayerScreen(
             activeSubtitleText = activeSubtitleText,
             fontSizeSp = subtitleFontSizeSp,
             onFontSizeChange = { subtitleFontSizeSp = it },
+            selectedFontFamily = subtitleFontFamily,
+            onFontFamilyChange = { subtitleFontFamily = it },
             textColor = subtitleTextColor,
             onTextColorChange = { subtitleTextColor = it },
             bgColor = subtitleBgColor,

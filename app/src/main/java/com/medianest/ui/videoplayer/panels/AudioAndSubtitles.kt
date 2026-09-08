@@ -1,6 +1,7 @@
 package com.medianest.ui.videoplayer.panels
 
 import android.content.Context
+import android.graphics.Typeface
 import android.widget.Toast
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -16,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -37,6 +39,7 @@ internal fun SubtitleOptionsDialog(
     isSearching: Boolean,
     onlineSubtitles: List<SubtitleItem>,
     onOnlineSubClick: (SubtitleItem) -> Unit,
+    onPickLocalSubtitle: () -> Unit = {},
     statusMessage: String?,
     onClose: () -> Unit,
     backdropState: BackdropBlurState? = null,
@@ -136,6 +139,15 @@ internal fun SubtitleOptionsDialog(
                     modifier = Modifier.weight(1f)
                 )
             }
+
+            AppActionButton(
+                text = "Import Local Subtitle File (.srt, .vtt...)",
+                icon = Icons.Default.FolderOpen,
+                onClick = onPickLocalSubtitle,
+                style = AppButtonStyle.Glossy,
+                accentColor = Color(0xFF38BDF8),
+                modifier = Modifier.fillMaxWidth()
+            )
 
             if (embeddedTracks.isNotEmpty()) {
                 Text(
@@ -258,6 +270,19 @@ internal fun SubtitleOptionsDialog(
     }
 }
 
+enum class SubtitleFontFamily(val displayName: String, val fontFamily: FontFamily) {
+    DEFAULT("System Default", FontFamily.Default),
+    SANS_SERIF("Sans-Serif", FontFamily.SansSerif),
+    SERIF("Serif", FontFamily.Serif),
+    MONOSPACE("Monospace", FontFamily.Monospace),
+    CURSIVE("Cursive", FontFamily.Cursive),
+    CONDENSED("Condensed", FontFamily(Typeface.create("sans-serif-condensed", Typeface.NORMAL))),
+    MEDIUM("Medium", FontFamily(Typeface.create("sans-serif-medium", Typeface.NORMAL))),
+    LIGHT("Light", FontFamily(Typeface.create("sans-serif-light", Typeface.NORMAL))),
+    BLACK("Black", FontFamily(Typeface.create("sans-serif-black", Typeface.NORMAL))),
+    SERIF_MONO("Serif Mono", FontFamily(Typeface.create("serif-monospace", Typeface.NORMAL)))
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SubtitleCustomizationSheet(
@@ -265,6 +290,8 @@ internal fun SubtitleCustomizationSheet(
     activeSubtitleText: String?,
     fontSizeSp: Float,
     onFontSizeChange: (Float) -> Unit,
+    selectedFontFamily: SubtitleFontFamily = SubtitleFontFamily.DEFAULT,
+    onFontFamilyChange: (SubtitleFontFamily) -> Unit = {},
     textColor: Color,
     onTextColorChange: (Color) -> Unit,
     bgColor: Color,
@@ -308,6 +335,7 @@ internal fun SubtitleCustomizationSheet(
                         text = activeSubtitleText ?: "Sample Subtitle Text 123",
                         color = textColor,
                         fontSize = fontSizeSp.sp,
+                        fontFamily = selectedFontFamily.fontFamily,
                         fontWeight = FontWeight.Bold,
                         style = if (hasShadow) {
                             androidx.compose.ui.text.TextStyle(
@@ -319,6 +347,37 @@ internal fun SubtitleCustomizationSheet(
                             )
                         } else androidx.compose.ui.text.TextStyle.Default
                     )
+                }
+            }
+
+            Column {
+                Text(text = "System Font Family", fontSize = 13.sp, color = Color.White)
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SubtitleFontFamily.entries.forEach { option ->
+                        val isSelected = selectedFontFamily == option
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) Color(0xFFEEEEEE) else Color(0x22FFFFFF))
+                                .clickable { onFontFamilyChange(option) }
+                                .padding(horizontal = 12.dp, vertical = 7.dp)
+                        ) {
+                            Text(
+                                text = option.displayName,
+                                fontSize = 12.sp,
+                                fontFamily = option.fontFamily,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) Color(0xFF0F172A) else Color.White
+                            )
+                        }
+                    }
                 }
             }
 

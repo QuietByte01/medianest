@@ -134,7 +134,7 @@ internal fun VideoFilePropertiesContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -266,7 +266,7 @@ internal fun VideoFilePropertiesContent(
 
                         // Action Pill Buttons (Playback Speed Chip Design)
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             PlaybackSpeedChip(
@@ -379,7 +379,7 @@ internal fun VideoFilePropertiesContent(
 
                         // Action Pill Buttons (Playback Speed Chip Design)
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             PlaybackSpeedChip(
@@ -426,10 +426,10 @@ internal fun VideoFilePropertiesContent(
 
         // 4 Stat Boxes Row / 2x2 Grid on phone
         if (isCompact) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     StatBox(
                         icon = Icons.Default.Folder,
@@ -446,7 +446,7 @@ internal fun VideoFilePropertiesContent(
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     StatBox(
                         icon = Icons.Default.Info,
@@ -528,14 +528,14 @@ internal fun VideoFilePropertiesContent(
             title = "REAL-TIME PLAYBACK & DECODER STATUS"
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(modifier = Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.weight(1f).padding(end = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LabelValueBlock("Active Engine", activeEngine)
                     LabelValueBlock("Active Decoder", activeDecoder)
                     if (isCurrentPlaying) {
                         LabelValueBlock("Frame Drop Telemetry", "${playerState.droppedFrames} dropped frames")
                     }
                 }
-                Column(modifier = Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.weight(1f).padding(start = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LabelValueBlock("Decoder Type", if (isHwAccelerated) "Hardware Accelerated (HW)" else "Software Emulated (SW)")
                     LabelValueBlock("Fallback Pipeline", fallbackStatus)
                 }
@@ -548,13 +548,13 @@ internal fun VideoFilePropertiesContent(
             title = "VIDEO STREAM TECHNICAL SPECS"
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(modifier = Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.weight(1f).padding(end = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LabelValueBlock("Video Format / Container", realStream.containerFormat)
                     LabelValueBlock("Video Codec", realStream.videoCodec)
                     LabelValueBlock("Frame Rate", realStream.frameRate)
                     LabelValueBlock("Color Space / Range", realStream.colorSpace)
                 }
-                Column(modifier = Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.weight(1f).padding(start = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LabelValueBlock("Display Aspect Ratio", realStream.aspectRatio)
                     LabelValueBlock("Video Bitrate", realStream.videoBitrate.ifBlank { extracted.bitrate.ifBlank { "Auto" } })
                     LabelValueBlock("HDR Metadata", realStream.hdrInfo)
@@ -572,7 +572,7 @@ internal fun VideoFilePropertiesContent(
                     Text("Embedded Tracks", fontSize = 12.sp, color = Color(0xFF94A3B8))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         realStream.audioTracks.forEachIndexed { idx, trackName ->
@@ -590,11 +590,11 @@ internal fun VideoFilePropertiesContent(
                 }
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         LabelValueBlock("Audio Format", realStream.audioFormat)
                         LabelValueBlock("Audio Bitrate", realStream.audioBitrate)
                     }
-                    Column(modifier = Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(modifier = Modifier.weight(1f).padding(start = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         LabelValueBlock("Audio Channels", realStream.audioChannels)
                         LabelValueBlock("Sample Rate", realStream.audioSampleRate.ifBlank { extracted.sampleRate.ifBlank { "48.0 kHz" } })
                     }
@@ -608,11 +608,11 @@ internal fun VideoFilePropertiesContent(
             title = "STORAGE & SYSTEM PROPERTIES"
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(modifier = Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.weight(1f).padding(end = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LabelValueBlock("File Directory", filePath.ifBlank { "/storage/emulated/0/Download/Movies/" })
                     LabelValueBlock("Date Modified", "Aug 01, 2026 • 14:25:31")
                 }
-                Column(modifier = Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.weight(1f).padding(start = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LabelValueBlock("Date Created", "Aug 01, 2026 • 14:22:08")
                     LabelValueBlock("Storage Permissions", "Read / Write (rw-rw----)")
                 }
