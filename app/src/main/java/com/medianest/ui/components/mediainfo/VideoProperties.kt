@@ -131,23 +131,13 @@ internal fun VideoFilePropertiesContent(
         )
     }
 
-    val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 12.dp),
-        contentAlignment = Alignment.Center
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth(if (isLandscape) 0.88f else 1f)
-                .padding(vertical = 8.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
         // Header Bar
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -684,5 +674,4 @@ internal fun VideoFilePropertiesContent(
             )
         }
     }
-}
 }
