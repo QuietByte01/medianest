@@ -241,6 +241,37 @@ fun RoundedSkipNextIcon(
 }
 
 /**
+ * Custom smooth Rounded Close Icon (Cross) with rounded ends.
+ */
+@Composable
+fun RoundedCloseIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = Color.White
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val strokeWidth = w * 0.13f
+        val inset = w * 0.22f
+        
+        drawLine(
+            color = tint,
+            start = Offset(inset, inset),
+            end = Offset(w - inset, h - inset),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = tint,
+            start = Offset(w - inset, inset),
+            end = Offset(inset, h - inset),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+/**
  * Redesigned Skip Previous Icon: Vertical pill + double left-pointing triangles (|<<)
  * The 2nd triangle overlaps 10% inside the 1st triangle.
  */

@@ -107,6 +107,7 @@ class QuickViewActivity : ComponentActivity() {
                     mimeTypeHint = bestMime
                 )
 
+                // Start playback immediately for zero latency
                 exoPlayerManager.playMediaList(listOf(mediaItem), 0, 0L)
 
                 com.medianest.player.FloatingPlayerService.startOrUpdateService(
@@ -120,6 +121,32 @@ class QuickViewActivity : ComponentActivity() {
 
                 // Show floating mini player bar overlay
                 MiniPlayerOverlayManager.show(applicationContext)
+
+                // Asynchronously resolve siblings in the same folder / bucket and update playlist so auto-play next works
+                val appContext = applicationContext
+                val repository = mediaStoreRepository
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    try {
+                        val resolved = repository.resolveSiblingsForUri(intentData, bestMime)
+                        if (resolved.isNotEmpty()) {
+                            val targetIndex = resolved.indexOfFirst {
+                                it.uri.toString() == intentData.toString() || it.uri == intentData
+                            }.coerceAtLeast(0)
+                            
+                            val currentPos = exoPlayerManager.playerState.value.currentPositionMs
+                            val isPlaying = exoPlayerManager.playerState.value.isPlaying
+                            
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                exoPlayerManager.playMediaList(resolved, targetIndex, currentPos)
+                                if (!isPlaying) {
+                                    exoPlayerManager.pause()
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
 
                 // Finish activity so the launching app (e.g. file manager) stays visible and usable underneath
                 finish()

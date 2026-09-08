@@ -55,14 +55,14 @@ fun LibraryTopBar(
                 ) {
                     Text(
                         text = when {
-                            isDashboardTab -> "Dashboard"
+                            isDashboardTab -> "MediaNest"
                             isImagesTab -> "Image Gallery"
                             isVideosTab -> "Video Library"
                             isAudioTab -> "Music Library"
-                            else -> "Dashboard"
+                            else -> "MediaNest"
                         },
                         fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
+                        fontSize = if (isDashboardTab) 24.sp else 20.sp,
                         color = Color.White
                     )
 
@@ -227,13 +227,14 @@ fun LibraryTopBar(
                     } else {
                         Text(
                             text = when {
-                                isDashboardTab -> "Dashboard"
+                                isDashboardTab -> "MediaNest"
                                 isImagesTab -> "MediaNest Gallery"
                                 isVideosTab -> "Video Library"
                                 isAudioTab -> "Audio Player"
-                                else -> "Dashboard"
+                                else -> "MediaNest"
                             },
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            fontSize = if (isDashboardTab) 24.sp else 20.sp
                         )
                     }
                 }

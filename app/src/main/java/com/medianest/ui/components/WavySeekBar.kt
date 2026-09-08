@@ -48,7 +48,8 @@ fun WavySeekBar(
     inactiveTrackHeightDp: Dp = 4.dp,
     heightDp: Dp = 48.dp,
     showThumb: Boolean = true,
-    fullTrackBackground: Boolean = false
+    fullTrackBackground: Boolean = false,
+    customThumbRadiusDp: Dp = Dp.Unspecified
 ) {
     val configuration = LocalConfiguration.current
     val isTablet = configuration.smallestScreenWidthDp >= 600 || configuration.screenWidthDp >= 600
@@ -93,8 +94,11 @@ fun WavySeekBar(
 
     val currentFrac = ((internalValue - valueRange.start) / rangeSpan).coerceIn(0f, 1f)
 
+    val defaultThumbRadius = if (isDragging) (if (isTablet) 11.dp else 10.dp) else (if (isTablet) 8.dp else 7.dp)
+    val targetThumbRadius = if (customThumbRadiusDp.isSpecified) (if (isDragging) customThumbRadiusDp * 1.3f else customThumbRadiusDp) else defaultThumbRadius
+
     val thumbRadius by animateDpAsState(
-        targetValue = if (isDragging) (if (isTablet) 11.dp else 10.dp) else (if (isTablet) 8.dp else 7.dp),
+        targetValue = targetThumbRadius,
         label = "ThumbRadius"
     )
 

@@ -639,11 +639,6 @@ class MediaStoreRepository(private val context: Context) {
         // 1. Try to find the bucket ID of the target URI first
         var targetBucketId: String? = null
         try {
-            val collection = when {
-                isVideo -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL) else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-                isAudio -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL) else MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-                else -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL) else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-            }
             val proj = arrayOf(MediaStore.MediaColumns.BUCKET_ID)
             context.contentResolver.query(targetUri, proj, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
@@ -654,6 +649,36 @@ class MediaStoreRepository(private val context: Context) {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+
+        // Fallback: For audio files, try matching by DISPLAY_NAME / title in MediaStore if BUCKET_ID is missing
+        if (targetBucketId == null && isAudio) {
+            try {
+                val displayName = targetUri.lastPathSegment ?: ""
+                if (displayName.isNotBlank()) {
+                    val audioCollection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+                    } else {
+                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                    }
+                    val proj = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        arrayOf(MediaStore.Audio.Media.BUCKET_ID)
+                    } else {
+                        arrayOf(MediaStore.Audio.Media._ID)
+                    }
+                    val nameWithoutExt = displayName.substringBeforeLast('.')
+                    val sel = "${MediaStore.Audio.Media.DISPLAY_NAME} = ? OR ${MediaStore.Audio.Media.TITLE} = ?"
+                    val args = arrayOf(displayName, nameWithoutExt)
+                    context.contentResolver.query(audioCollection, proj, sel, args, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val bIdx = cursor.getColumnIndex(MediaStore.Audio.Media.BUCKET_ID)
+                            if (bIdx != -1) targetBucketId = cursor.getString(bIdx)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
         
         val fullList = when {
             isVideo -> getVideos(bucketId = targetBucketId)
@@ -661,14 +686,51 @@ class MediaStoreRepository(private val context: Context) {
             else -> getImages(bucketId = targetBucketId)
         }
 
+        // Fallback for direct storage / file:// URIs: scan parent directory for siblings
+        if (isAudio && (fullList.isEmpty() || (fullList.size == 1 && targetBucketId == null))) {
+            val filePath = targetUri.path
+            if (targetUri.scheme == "file" || (filePath != null && filePath.startsWith("/"))) {
+                try {
+                    val file = java.io.File(filePath ?: "")
+                    val parent = file.parentFile
+                    if (parent != null && parent.exists() && parent.isDirectory) {
+                        val audioExts = setOf("mp3", "wav", "flac", "m4a", "ogg", "opus", "aac", "wma")
+                        val siblingFiles = parent.listFiles { f -> f.isFile && audioExts.contains(f.extension.lowercase()) }
+                        if (!siblingFiles.isNullOrEmpty()) {
+                            val items = siblingFiles.sortedBy { it.name.lowercase() }.map { f ->
+                                val fUri = Uri.fromFile(f)
+                                com.medianest.util.AudioMetadataUtils.extractMetadata(
+                                    context = context,
+                                    uri = fUri,
+                                    rawTitleHint = f.nameWithoutExtension
+                                )
+                            }
+                            if (items.isNotEmpty()) return@withContext items
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+
         if (fullList.isEmpty()) {
-            val single = MediaItem(
-                id = 1L,
-                uri = targetUri,
-                title = targetUri.lastPathSegment ?: "Media",
-                mimeType = resolvedMime.ifEmpty { "media/*" },
-                type = if (isVideo) MediaType.VIDEO else if (isAudio) MediaType.AUDIO else MediaType.IMAGE
-            )
+            val single = if (isAudio) {
+                com.medianest.util.AudioMetadataUtils.extractMetadata(
+                    context = context,
+                    uri = targetUri,
+                    rawTitleHint = targetUri.lastPathSegment,
+                    mimeTypeHint = resolvedMime
+                )
+            } else {
+                MediaItem(
+                    id = 1L,
+                    uri = targetUri,
+                    title = targetUri.lastPathSegment ?: "Media",
+                    mimeType = resolvedMime.ifEmpty { "media/*" },
+                    type = if (isVideo) MediaType.VIDEO else MediaType.IMAGE
+                )
+            }
             return@withContext listOf(single)
         }
 
@@ -679,13 +741,22 @@ class MediaStoreRepository(private val context: Context) {
         }
 
         // If not directly found in MediaStore query (e.g. custom provider URI), append targetUri
-        val targetItem = MediaItem(
-            id = System.currentTimeMillis(),
-            uri = targetUri,
-            title = targetUri.lastPathSegment ?: "Media",
-            mimeType = resolvedMime.ifEmpty { "media/*" },
-            type = if (isVideo) MediaType.VIDEO else if (isAudio) MediaType.AUDIO else MediaType.IMAGE
-        )
+        val targetItem = if (isAudio) {
+            com.medianest.util.AudioMetadataUtils.extractMetadata(
+                context = context,
+                uri = targetUri,
+                rawTitleHint = targetUri.lastPathSegment,
+                mimeTypeHint = resolvedMime
+            )
+        } else {
+            MediaItem(
+                id = System.currentTimeMillis(),
+                uri = targetUri,
+                title = targetUri.lastPathSegment ?: "Media",
+                mimeType = resolvedMime.ifEmpty { "media/*" },
+                type = if (isVideo) MediaType.VIDEO else MediaType.IMAGE
+            )
+        }
         return@withContext listOf(targetItem) + fullList
     }
 
