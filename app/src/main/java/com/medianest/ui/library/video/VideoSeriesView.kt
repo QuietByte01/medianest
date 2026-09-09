@@ -127,6 +127,42 @@ fun cleanSeriesQueryForSearch(rawName: String): String {
 }
 
 /**
+ * Extracts the numeric episode number from the title / path for natural sorting
+ * Matches patterns like E01, EP01, Episode 1, 1x05, 01, etc.
+ */
+fun extractEpisodeNumber(item: MediaItem): Int {
+    val name = item.title
+    // 1. SxxExx or Exx / EPxx / Episode xx
+    val epRegex = Regex("(?i)(?:s\\d{1,2})?[._\\-\\s]*(?:e|ep|episode)[._\\-\\s]*(\\d{1,4})\\b")
+    val match1 = epRegex.find(name)
+    if (match1 != null) {
+        val numStr = match1.groupValues.getOrNull(1)
+        val num = numStr?.toIntOrNull()
+        if (num != null) return num
+    }
+
+    // 2. 1x05 format
+    val xRegex = Regex("(?i)\\b\\d{1,2}x(\\d{1,3})\\b")
+    val match2 = xRegex.find(name)
+    if (match2 != null) {
+        val numStr = match2.groupValues.getOrNull(1)
+        val num = numStr?.toIntOrNull()
+        if (num != null) return num
+    }
+
+    // 3. Isolated digits (e.g., Show - 01.mp4 or Show 01)
+    val isolatedNumRegex = Regex("(?i)(?:[_\\-\\s]+|^)0?(\\d{1,3})(?:[_\\-\\s.]+|$)")
+    val match3 = isolatedNumRegex.find(name)
+    if (match3 != null) {
+        val numStr = match3.groupValues.getOrNull(1)
+        val num = numStr?.toIntOrNull()
+        if (num != null && num !in 1900..2099) return num // avoid matching year numbers
+    }
+
+    return Int.MAX_VALUE
+}
+
+/**
  * File-backed persistence for series metadata
  */
 private fun getCacheFile(context: Context, seriesKey: String): File {
@@ -662,7 +698,11 @@ fun VideoSeriesView(
 
         val currentSeasonItems = remember(seasonFolderGroups, effectiveSeasonName) {
             if (effectiveSeasonName != null) {
-                seasonFolderGroups[effectiveSeasonName] ?: emptyList()
+                val list = seasonFolderGroups[effectiveSeasonName] ?: emptyList()
+                list.sortedWith(
+                    compareBy<MediaItem> { extractEpisodeNumber(it) }
+                        .thenBy { it.title.lowercase() }
+                )
             } else {
                 emptyList()
             }
@@ -900,27 +940,37 @@ private fun SeriesDetailHeaderSection(
 
                     // Rating Badge top right
                     if (meta?.rating != null && meta.rating > 0.0) {
+                        val isImdb = !meta.imdbId.isNullOrBlank()
                         Row(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .padding(6.dp)
+                                .padding(8.dp)
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xF0F5C518))
-                                .padding(horizontal = 5.dp, vertical = 2.dp),
+                                .background(Color(0x4D000000))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                Icons.Default.Star,
-                                contentDescription = null,
-                                tint = Color.Black,
-                                modifier = Modifier.size(11.dp)
-                            )
-                            Spacer(modifier = Modifier.width(2.dp))
+                            if (isImdb) {
+                                Text(
+                                    text = "IMDb ",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFFF5C518)
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.Star,
+                                    contentDescription = null,
+                                    tint = Color(0xFFF5C518),
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                            }
                             Text(
                                 text = "%.1f".format(meta.rating),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.Black
+                                color = Color.White
                             )
                         }
                     }
@@ -999,22 +1049,35 @@ private fun SeriesDetailHeaderSection(
                     )
                 }
 
-                // Summary
+                // Summary with Show More if > 5 lines
                 if (!meta?.summary.isNullOrBlank()) {
+                    var isExpanded by remember(meta.summary) { mutableStateOf(false) }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = meta.summary,
-                        fontSize = 10.sp,
-                        color = Color(0xFF9EA3B0),
-                        maxLines = 3,
+                        fontSize = 10.5.sp,
+                        color = Color(0xFFBAC0CD),
+                        maxLines = if (isExpanded) Int.MAX_VALUE else 5,
                         overflow = TextOverflow.Ellipsis,
-                        lineHeight = 13.sp
+                        lineHeight = 14.sp
                     )
+                    if (meta.summary.length > 220) {
+                        Text(
+                            text = if (isExpanded) "Show Less" else "Show More",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF00E5FF),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { isExpanded = !isExpanded }
+                                .padding(vertical = 2.dp)
+                        )
+                    }
                 }
             }
         }
 
-        // Cast section: Horizontally scrollable
+        // Cast section: Full Card Image with Text on Image and minimal gap
         if (!meta?.cast.isNullOrEmpty()) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
@@ -1031,59 +1094,77 @@ private fun SeriesDetailHeaderSection(
                     items(meta.cast, key = { "cast_${it.name}" }) { c ->
                         GlassSurface(
                             modifier = Modifier
-                                .width(108.dp)
-                                .clip(RoundedCornerShape(14.dp)),
-                            shape = RoundedCornerShape(14.dp),
+                                .width(94.dp)
+                                .clip(RoundedCornerShape(12.dp)),
+                            shape = RoundedCornerShape(12.dp),
                             backgroundColor = Color(0x28181C2B),
                             borderColor = Color(0x28FFFFFF)
                         ) {
-                            Column(
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 10.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
+                                    .aspectRatio(0.72f)
+                                    .background(Color(0x20FFFFFF)),
+                                contentAlignment = Alignment.Center
                             ) {
+                                if (!c.imageUrl.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = c.imageUrl,
+                                        contentDescription = c.name,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Default.Person,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                }
+
+                                // Bottom gradient overlay for text on image
                                 Box(
                                     modifier = Modifier
-                                        .size(52.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0x33FFFFFF)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (!c.imageUrl.isNullOrBlank()) {
-                                        AsyncImage(
-                                            model = c.imageUrl,
-                                            contentDescription = c.name,
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop
+                                        .fillMaxWidth()
+                                        .height(58.dp)
+                                        .align(Alignment.BottomCenter)
+                                        .background(
+                                            Brush.verticalGradient(
+                                                colors = listOf(Color.Transparent, Color(0xCC000000), Color(0xF50A0D14))
+                                            )
                                         )
-                                    } else {
-                                        Icon(Icons.Default.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = c.name,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.fillMaxWidth()
                                 )
-                                if (c.characterName.isNotBlank()) {
-                                    Spacer(modifier = Modifier.height(2.dp))
+
+                                // Text overlaid directly on image with tightly grouped gap
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .align(Alignment.BottomCenter)
+                                        .padding(horizontal = 6.dp, vertical = 5.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
                                     Text(
-                                        text = c.characterName,
-                                        fontSize = 9.5.sp,
-                                        color = Color(0xFF9EA3B0),
+                                        text = c.name,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                         textAlign = TextAlign.Center,
                                         modifier = Modifier.fillMaxWidth()
                                     )
+                                    if (c.characterName.isNotBlank()) {
+                                        Text(
+                                            text = c.characterName,
+                                            fontSize = 8.5.sp,
+                                            color = Color(0xFFBAC0CD),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1092,7 +1173,7 @@ private fun SeriesDetailHeaderSection(
             }
         }
 
-        // Section Header: SEASONS + Aligned Right Subtitles Action
+        // Section Header: SEASONS + Aligned Right Subtitles Action (Text color matching SEASONS)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1111,7 +1192,7 @@ private fun SeriesDetailHeaderSection(
                 )
             }
 
-            // Text Button with Download Icon White aligned right to seasons header
+            // Text Button with Download Icon matching SEASONS header color
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
@@ -1125,27 +1206,27 @@ private fun SeriesDetailHeaderSection(
                 if (isDownloadingSubtitles) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(13.dp),
-                        color = Color.White,
+                        color = Color(0xFF9EA3B0),
                         strokeWidth = 1.5.dp
                     )
                     Text(
                         text = subtitleDownloadProgress.ifBlank { "Downloading..." },
                         fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White
+                        color = Color(0xFF9EA3B0)
                     )
                 } else {
                     Icon(
                         imageVector = Icons.Default.Download,
                         contentDescription = "Download Subtitles",
-                        tint = Color.White,
+                        tint = Color(0xFF9EA3B0),
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
                         text = "Download Subtitles",
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White
+                        color = Color(0xFF9EA3B0)
                     )
                 }
             }
@@ -1238,8 +1319,8 @@ private fun SeriesPosterCard(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0x66000000))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .background(Color(0x4D000000))
+                            .padding(horizontal = 6.dp, vertical = 1.dp)
                     ) {
                         Text(
                             text = metadata.year,
@@ -1253,25 +1334,35 @@ private fun SeriesPosterCard(
                 }
 
                 if (metadata?.rating != null && metadata.rating > 0.0) {
+                    val isImdb = !metadata.imdbId.isNullOrBlank()
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xF0F5C518))
-                            .padding(horizontal = 5.dp, vertical = 2.dp),
+                            .background(Color(0x4D000000))
+                            .padding(horizontal = 6.dp, vertical = 1.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            Icons.Default.Star,
-                            contentDescription = null,
-                            tint = Color.Black,
-                            modifier = Modifier.size(10.dp)
-                        )
-                        Spacer(modifier = Modifier.width(2.dp))
+                        if (isImdb) {
+                            Text(
+                                text = "IMDb ",
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFFF5C518)
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.Star,
+                                contentDescription = null,
+                                tint = Color(0xFFF5C518),
+                                modifier = Modifier.size(10.dp)
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                        }
                         Text(
                             text = "%.1f".format(metadata.rating),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.Black
+                            color = Color.White
                         )
                     }
                 }
@@ -1307,7 +1398,7 @@ private fun SeriesPosterCard(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "$seasonsCount ${if (seasonsCount == 1) "Season" else "Seasons"} • $episodesCount Ep",
+                    text = "$seasonsCount ${if (seasonsCount == 1) "Season" else "Seasons"} • $episodesCount ${if (episodesCount == 1) "Episode" else "Episodes"}",
                     fontSize = 10.5.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color(0xFF00E5FF),
@@ -1367,7 +1458,7 @@ private fun SeasonCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    "$episodesCount Ep",
+                    "$episodesCount ${if (episodesCount == 1) "Episode" else "Episodes"}",
                     fontSize = 10.sp,
                     color = Color(0xFF9EA3B0)
                 )
