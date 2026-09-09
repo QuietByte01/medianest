@@ -32,13 +32,15 @@ fun LibraryAmbientBackground(
     videosList: List<MediaItem>,
     audioList: List<MediaItem>,
     activeImageItem: MediaItem? = null,
-    activeVideoItem: MediaItem? = null
+    activeVideoItem: MediaItem? = null,
+    isDynamicAmbientEnabled: Boolean = false
 ) {
     val context = LocalContext.current
     var activeHue by remember { mutableStateOf<Float?>(null) }
 
-    val activeMediaTarget = remember(isDashboardTab, isImagesTab, isVideosTab, isAudioTab, currentPlayingTrack, activeImageItem, activeVideoItem, imagesList, videosList, audioList) {
-        when {
+    val activeMediaTarget = remember(isDynamicAmbientEnabled, isDashboardTab, isImagesTab, isVideosTab, isAudioTab, currentPlayingTrack, activeImageItem, activeVideoItem, imagesList, videosList, audioList) {
+        if (!isDynamicAmbientEnabled) null
+        else when {
             isDashboardTab -> null
             isImagesTab -> activeImageItem ?: imagesList.firstOrNull()
             isVideosTab -> currentPlayingTrack?.takeIf { it.type == MediaType.VIDEO } ?: activeVideoItem ?: videosList.firstOrNull()
@@ -47,8 +49,8 @@ fun LibraryAmbientBackground(
         }
     }
 
-    LaunchedEffect(activeMediaTarget?.id, activeMediaTarget?.uri) {
-        if (activeMediaTarget != null) {
+    LaunchedEffect(isDynamicAmbientEnabled, activeMediaTarget?.id, activeMediaTarget?.uri) {
+        if (isDynamicAmbientEnabled && activeMediaTarget != null) {
             val uri = activeMediaTarget.albumArtUri ?: activeMediaTarget.uri
             activeHue = com.medianest.ui.components.extractBaseHueFromArt(context, uri)
         } else {
@@ -56,14 +58,14 @@ fun LibraryAmbientBackground(
         }
     }
 
-    val targetTopColor = remember(activeHue, isDashboardTab) {
-        if (isDashboardTab) Color(0xFF1E222A)
+    val targetTopColor = remember(isDynamicAmbientEnabled, activeHue, isDashboardTab) {
+        if (!isDynamicAmbientEnabled || isDashboardTab) Color(0xFF1E222A)
         else if (activeHue != null) Color.hsv(activeHue!!, 0.65f, 0.40f, 0.35f)
         else Color(0x354A3B2C)
     }
 
-    val targetBottomColor = remember(activeHue, isDashboardTab) {
-        if (isDashboardTab) Color(0xFF121419)
+    val targetBottomColor = remember(isDynamicAmbientEnabled, activeHue, isDashboardTab) {
+        if (!isDynamicAmbientEnabled || isDashboardTab) Color(0xFF121419)
         else if (activeHue != null) Color.hsv((activeHue!! + 25f) % 360f, 0.55f, 0.28f, 0.30f)
         else Color(0x301E2838)
     }
@@ -80,8 +82,8 @@ fun LibraryAmbientBackground(
         label = "ambientBottom"
     )
 
-    val ambientImageUri = remember(isDashboardTab, activeMediaTarget) {
-        if (isDashboardTab) null
+    val ambientImageUri = remember(isDynamicAmbientEnabled, isDashboardTab, activeMediaTarget) {
+        if (!isDynamicAmbientEnabled || isDashboardTab) null
         else activeMediaTarget?.albumArtUri ?: activeMediaTarget?.uri
     }
 

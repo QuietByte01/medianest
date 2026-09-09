@@ -156,34 +156,15 @@ fun AppSlider(
             // 1.5 Draw Ticks (Steps) - Only if drawTicks is true
             if (drawTicks) {
                 val tickColor = if (style == AppSliderStyle.Glossy) Color.White.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.65f)
-                val tickPadding = 6.dp.toPx()
-                val tickStart = trackStart + tickPadding
-                val tickEnd = (trackEnd - tickPadding).coerceAtLeast(tickStart)
-                val tickWidth = (tickEnd - tickStart).coerceAtLeast(1f)
-
-                // Start dot
-                drawCircle(
-                    color = tickColor,
-                    radius = 2.0.dp.toPx(),
-                    center = Offset(tickStart, centerY)
-                )
-                // End dot
-                drawCircle(
-                    color = tickColor,
-                    radius = 2.0.dp.toPx(),
-                    center = Offset(tickEnd, centerY)
-                )
-
-                if (steps > 0) {
-                    for (i in 1..steps) {
-                        val tickFrac = i.toFloat() / (steps + 1)
-                        val tickX = tickStart + (tickFrac * tickWidth)
-                        drawCircle(
-                            color = tickColor,
-                            radius = 2.0.dp.toPx(),
-                            center = Offset(tickX, centerY)
-                        )
-                    }
+                val totalPositions = steps + 2 // 0, intermediate steps, and max
+                for (i in 0 until totalPositions) {
+                    val tickFrac = i.toFloat() / (totalPositions - 1)
+                    val tickX = trackStart + (tickFrac * usableWidth)
+                    drawCircle(
+                        color = tickColor,
+                        radius = 2.0.dp.toPx(),
+                        center = Offset(tickX, centerY)
+                    )
                 }
             }
 

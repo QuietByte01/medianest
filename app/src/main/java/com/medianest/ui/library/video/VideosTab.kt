@@ -456,19 +456,14 @@ fun VideosTab(
             isFilterProcessing = false
         }
 
-        var sortedDisplayList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
-
-        LaunchedEffect(displayList, sortField, isAscending) {
-            val result = withContext(Dispatchers.Default) {
-                val comp = when (sortField) {
-                    "Name" -> compareBy<MediaItem> { it.title.lowercase() }
-                    "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
-                    "Size" -> compareBy<MediaItem> { if (it.size > 0) it.size else Long.MAX_VALUE }
-                    else -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
-                }
-                if (isAscending) displayList.sortedWith(comp) else displayList.sortedWith(comp).reversed()
+        val sortedDisplayList = remember(displayList, sortField, isAscending) {
+            val comp = when (sortField) {
+                "Name" -> compareBy<MediaItem> { it.title.lowercase() }
+                "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
+                "Size" -> compareBy<MediaItem> { if (it.size > 0) it.size else Long.MAX_VALUE }
+                else -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
             }
-            sortedDisplayList = result
+            if (isAscending) displayList.sortedWith(comp) else displayList.sortedWith(comp).reversed()
         }
 
         val currentContextTitle = remember(selectedCategory, isFolderViewActive, selectedFolder, activeFilterTab, selectedSeriesName, selectedSeasonName) {

@@ -42,6 +42,8 @@ import coil.compose.AsyncImagePainter
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
+import coil.request.videoFrameMicros
+import androidx.compose.ui.graphics.asImageBitmap
 import android.widget.Toast
 import com.medianest.data.db.CategoryMediaCrossRef
 import com.medianest.data.db.MediaCategory
@@ -1586,95 +1588,149 @@ fun SidebarQueueDrawer(
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(filteredQueue) { video ->
+                items(filteredQueue, key = { it.uri.toString() }) { video ->
                     val isCurrent = video.uri == playerState.currentItem?.uri
-                    val isSurfaceMode = LocalIsSurfaceViewMode.current
-                    val cardBg = if (isSurfaceMode) {
-                        if (isCurrent) Color(0xCC1A1E29) else Color(0x9910141E)
-                    } else {
-                        if (isCurrent) Color(0x33FFFFFF) else Color(0x1AFFFFFF)
-                    }
-                    val cardBorder = if (isCurrent) {
-                        if (isSurfaceMode) Color(0x8038BDF8) else Color.White
-                    } else {
-                        if (isSurfaceMode) Color(0x33FFFFFF) else Color(0x22FFFFFF)
-                    }
+                    SidebarQueueVideoCard(
+                        video = video,
+                        isCurrent = isCurrent,
+                        context = context,
+                        onClick = { onVideoClick(video) }
+                    )
+                }
+            }
+        }
+    }
+}
 
-                    GlassSurface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onVideoClick(video)
-                            },
-                        shape = RoundedCornerShape(14.dp),
-                        enableBlur = !isSurfaceMode,
-                        backgroundColor = cardBg,
-                        borderColor = cardBorder
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(125.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(
-                                        Brush.radialGradient(
-                                            colors = listOf(Color(0xFF581C87), Color(0xFF0F172A))
-                                        )
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                AsyncImage(
-                                    model = video.albumArtUri ?: video.uri,
-                                    contentDescription = video.title,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
+@Composable
+private fun SidebarQueueVideoCard(
+    video: MediaItem,
+    isCurrent: Boolean,
+    context: Context,
+    onClick: () -> Unit
+) {
+    val coroutineScope = rememberCoroutineScope()
+    val isSurfaceMode = LocalIsSurfaceViewMode.current
+    val cardBg = if (isSurfaceMode) {
+        if (isCurrent) Color(0xCC1A1E29) else Color(0x9910141E)
+    } else {
+        if (isCurrent) Color(0x33FFFFFF) else Color(0x1AFFFFFF)
+    }
+    val cardBorder = if (isCurrent) {
+        if (isSurfaceMode) Color(0x8038BDF8) else Color.White
+    } else {
+        if (isSurfaceMode) Color(0x33FFFFFF) else Color(0x22FFFFFF)
+    }
 
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = Color.Black.copy(alpha = 0.40f),
-                                    modifier = Modifier
-                                        .align(Alignment.BottomEnd)
-                                        .padding(4.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                    ) {
-                                        RoundedPlayIcon(
-                                            modifier = Modifier.size(10.5.dp),
-                                            tint = Color.White
-                                        )
-                                        Text(
-                                            text = safeFormatDuration(context, video),
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
-                                    }
+    var fallbackBitmap by remember(video.uri) { mutableStateOf<android.graphics.Bitmap?>(null) }
+
+    val videoSeekMicros = remember(video.durationMs) {
+        if (video.durationMs > 1_000) {
+            (video.durationMs * 1000L * 0.15f).toLong()
+        } else {
+            0L
+        }
+    }
+
+    val imageRequest = remember<ImageRequest>(video.uri, video.durationMs, context) {
+        ImageRequest.Builder(context)
+            .data(video.uri)
+            .diskCacheKey("queue_${video.uri}_${video.size}_${video.dateAdded}")
+            .memoryCacheKey("queue_${video.uri}_${video.size}_${video.dateAdded}")
+            .crossfade(true)
+            .precision(coil.size.Precision.INEXACT)
+            .size(360, 200)
+            .decoderFactory(com.medianest.util.SemaphoreVideoFrameDecoder.Factory())
+            .videoFrameMicros(videoSeekMicros)
+            .build()
+    }
+
+    GlassSurface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(14.dp),
+        enableBlur = !isSurfaceMode,
+        backgroundColor = cardBg,
+        borderColor = cardBorder
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(125.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(Color(0xFF581C87), Color(0xFF0F172A))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (fallbackBitmap != null) {
+                    Image(
+                        bitmap = fallbackBitmap!!.asImageBitmap(),
+                        contentDescription = video.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    AsyncImage(
+                        model = imageRequest,
+                        contentDescription = video.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        onError = {
+                            coroutineScope.launch {
+                                val bmp = com.medianest.util.ThumbnailManager.getThumbnail(context, video.uri)
+                                if (bmp != null) {
+                                    fallbackBitmap = bmp
                                 }
                             }
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            Text(
-                                text = video.title,
-                                fontSize = 12.sp,
-                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                                color = Color.White,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
                         }
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.Black.copy(alpha = 0.40f),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        RoundedPlayIcon(
+                            modifier = Modifier.size(10.5.dp),
+                            tint = Color.White
+                        )
+                        Text(
+                            text = safeFormatDuration(context, video),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = video.title,
+                fontSize = 12.sp,
+                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

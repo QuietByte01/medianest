@@ -261,6 +261,31 @@ private fun SettingsContent(
 
         HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
+        val dailySubtitleCount by settingsManager.dailySubtitleSearchCount.collectAsState(initial = 0)
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                Text(text = "Subtitle Search Limit", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(
+                    text = "OpenSubtitles daily limit: $dailySubtitleCount / 5 searches used today.",
+                    fontSize = 11.sp,
+                    color = Color.White.copy(alpha = 0.65f)
+                )
+            }
+            Text(
+                text = if (dailySubtitleCount >= 5) "LIMIT REACHED" else "OK",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (dailySubtitleCount >= 5) Color(0xFFEF4444) else Color(0xFF34D399)
+            )
+        }
+
+        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(text = "Repeat Mode", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
             Row(

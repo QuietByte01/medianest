@@ -80,6 +80,7 @@ class SettingsManager(private val context: Context) {
         val KEY_UNINTERRUPTED_MODE = booleanPreferencesKey("uninterrupted_mode")
         val KEY_AUTO_RESUME_ON_BLUETOOTH = booleanPreferencesKey("auto_resume_on_bluetooth")
         
+        val KEY_DYNAMIC_AMBIENT_BACKGROUND = booleanPreferencesKey("dynamic_ambient_background")
         val KEY_AUTO_PLAY_VIDEO_PREVIEWS = booleanPreferencesKey("auto_play_video_previews")
         val KEY_AUTO_PLAY_GIF_PREVIEWS = booleanPreferencesKey("auto_play_gif_previews")
         val KEY_REMEMBER_VIDEO_POSITION = booleanPreferencesKey("remember_video_position")
@@ -96,6 +97,7 @@ class SettingsManager(private val context: Context) {
     val roundedCornersEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_ROUNDED_CORNERS_ENABLED] ?: true }
     val gridCornerRadiusDp: Flow<Int> = context.dataStore.data.map { prefs -> prefs[KEY_GRID_CORNER_RADIUS_DP] ?: 8 }
     val glassmorphismEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_GLASSMORPHISM_ENABLED] ?: true }
+    val dynamicAmbientBackground: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_DYNAMIC_AMBIENT_BACKGROUND] ?: false }
     val largeImageGrid: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_LARGE_IMAGE_GRID] ?: false }
 
     val decoderMode: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_DECODER_MODE] ?: "AUTO" }
@@ -165,8 +167,8 @@ class SettingsManager(private val context: Context) {
     val audioShuffleMode: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUDIO_SHUFFLE_MODE] ?: false }
     val videoShuffleMode: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_VIDEO_SHUFFLE_MODE] ?: false }
 
-    val autoPlayVideoPreviews: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUTO_PLAY_VIDEO_PREVIEWS] ?: true }
-    val autoPlayGifPreviews: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUTO_PLAY_GIF_PREVIEWS] ?: true }
+    val autoPlayVideoPreviews: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUTO_PLAY_VIDEO_PREVIEWS] ?: false }
+    val autoPlayGifPreviews: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_AUTO_PLAY_GIF_PREVIEWS] ?: false }
 
     val isFirstLaunchCompleted: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_FIRST_LAUNCH_COMPLETED] ?: false }
 
@@ -174,6 +176,7 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setAutoPlayVideoPreviews(enabled: Boolean) = context.dataStore.edit { it[KEY_AUTO_PLAY_VIDEO_PREVIEWS] = enabled }
     suspend fun setAutoPlayGifPreviews(enabled: Boolean) = context.dataStore.edit { it[KEY_AUTO_PLAY_GIF_PREVIEWS] = enabled }
+    suspend fun setDynamicAmbientBackground(enabled: Boolean) = context.dataStore.edit { it[KEY_DYNAMIC_AMBIENT_BACKGROUND] = enabled }
 
     suspend fun setTheme(theme: String) = context.dataStore.edit { it[KEY_THEME] = theme }
     suspend fun setAccentColor(color: Int) = context.dataStore.edit { it[KEY_ACCENT_COLOR] = color }

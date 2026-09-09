@@ -436,19 +436,14 @@ fun ImagesTab(
                     currentDisplayList = result
                 }
 
-                var sortedDisplayList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
-
-                LaunchedEffect(currentDisplayList, sortField, isAscending) {
-                    val result = withContext(Dispatchers.Default) {
-                        val comp = when (sortField) {
-                            "Name" -> compareBy<MediaItem> { it.title.lowercase() }
-                            "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
-                            "Size" -> compareBy<MediaItem> { if (it.size > 0) it.size else Long.MAX_VALUE }
-                            else -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
-                        }
-                        if (isAscending) currentDisplayList.sortedWith(comp) else currentDisplayList.sortedWith(comp).reversed()
+                val sortedDisplayList = remember(currentDisplayList, sortField, isAscending) {
+                    val comp = when (sortField) {
+                        "Name" -> compareBy<MediaItem> { it.title.lowercase() }
+                        "Type" -> compareBy<MediaItem> { it.mimeType.lowercase() }
+                        "Size" -> compareBy<MediaItem> { if (it.size > 0) it.size else Long.MAX_VALUE }
+                        else -> compareBy<MediaItem> { maxOf(it.dateAdded, it.dateCreated, it.dateModified) }
                     }
-                    sortedDisplayList = result
+                    if (isAscending) currentDisplayList.sortedWith(comp) else currentDisplayList.sortedWith(comp).reversed()
                 }
 
                 val currentVisibleImage by remember(sortedDisplayList, sortedFolderNames, viewMode, selectedFolder) {

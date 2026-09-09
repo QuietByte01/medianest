@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.layout.layout
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -31,6 +32,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.data.db.HiddenFolderDao
@@ -70,6 +72,7 @@ fun SettingsScreen(
     val gridSizeLevel by settingsManager.gridSizeLevel.collectAsState(initial = 1)
     val roundedCornersEnabled by settingsManager.roundedCornersEnabled.collectAsState(initial = true)
     val glassmorphism by settingsManager.glassmorphismEnabled.collectAsState(initial = true)
+    val dynamicAmbientBackground by settingsManager.dynamicAmbientBackground.collectAsState(initial = false)
 
     val showPlaybackNotification by settingsManager.showPlaybackNotification.collectAsState(initial = true)
     val showVideoNotification by settingsManager.showVideoNotification.collectAsState(initial = true)
@@ -80,14 +83,16 @@ fun SettingsScreen(
 
     val uninterruptedMode by settingsManager.uninterruptedMode.collectAsState(initial = false)
     val autoResumeOnBluetooth by settingsManager.autoResumeOnBluetooth.collectAsState(initial = false)
-    val autoPlayVideoPreviews by settingsManager.autoPlayVideoPreviews.collectAsState(initial = true)
-    val autoPlayGifPreviews by settingsManager.autoPlayGifPreviews.collectAsState(initial = true)
-    val dailySubtitleCount by settingsManager.dailySubtitleSearchCount.collectAsState(initial = 0)
+    val autoPlayVideoPreviews by settingsManager.autoPlayVideoPreviews.collectAsState(initial = false)
+    val autoPlayGifPreviews by settingsManager.autoPlayGifPreviews.collectAsState(initial = false)
     val offlineMode by settingsManager.offlineMode.collectAsState(initial = false)
     val showHiddenFiles by settingsManager.showHiddenFiles.collectAsState(initial = false)
     val decoderMode by settingsManager.decoderMode.collectAsState(initial = "AUTO")
     val useSurfaceView by settingsManager.useSurfaceView.collectAsState(initial = true)
     val developerModeEnabled by settingsManager.developerModeEnabled.collectAsState(initial = false)
+
+    var showAutoPlayVideoWarning by remember { mutableStateOf(false) }
+    var showAutoPlayGifWarning by remember { mutableStateOf(false) }
 
     var versionTapCount by remember { mutableIntStateOf(0) }
     val packageInfo = remember { context.packageManager.getPackageInfo(context.packageName, 0) }
@@ -221,7 +226,6 @@ fun SettingsScreen(
         }
     }
 
-    val settingsGridBackdropState = rememberBackdropBlurState()
     val rootModifier = if (backdropState != null) {
         Modifier.backdropReceiver(
             state = backdropState,
@@ -234,45 +238,38 @@ fun SettingsScreen(
         Modifier.background(darkBackgroundGradient)
     }
 
-    CompositionLocalProvider(
-        LocalBackdropState provides settingsGridBackdropState
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .then(rootModifier)
+            .dismissKeyboardOnOutsideTap()
     ) {
+        // 1. Settings Background Grid Layer (Rendered purely in drawBehind without backdrop recording overhead)
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .then(rootModifier)
-                .dismissKeyboardOnOutsideTap()
-        ) {
-            // 1. Settings Background Grid Layer (Recorded as backdropSource for settings cards)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .drawBehind {
-                        val gridSpacing = 16.dp.toPx()
-                        val lineWeight = 1.dp.toPx()
-                        val gridColor = Color.White.copy(alpha = 0.04f)
+                .drawBehind {
+                    val gridSpacing = 16.dp.toPx()
+                    val lineWeight = 1.dp.toPx()
+                    val gridColor = Color.White.copy(alpha = 0.04f)
 
-                        // Vertical lines
-                        var x = 0f
-                        while (x < size.width) {
-                            drawLine(gridColor, Offset(x, 0f), Offset(x, size.height), lineWeight)
-                            x += gridSpacing
-                        }
-
-                        // Horizontal lines
-                        var y = 0f
-                        while (y < size.height) {
-                            drawLine(gridColor, Offset(0f, y), Offset(size.width, y), lineWeight)
-                            y += gridSpacing
-                        }
+                    // Vertical lines
+                    var x = 0f
+                    while (x < size.width) {
+                        drawLine(gridColor, Offset(x, 0f), Offset(x, size.height), lineWeight)
+                        x += gridSpacing
                     }
-                    .backdropSource(
-                        state = settingsGridBackdropState,
-                        backgroundColor = Color.Transparent
-                    )
-            )
 
-        // 2. Settings Content & Cards (Draws on top as backdropReceiver)
+                    // Horizontal lines
+                    var y = 0f
+                    while (y < size.height) {
+                        drawLine(gridColor, Offset(0f, y), Offset(size.width, y), lineWeight)
+                        y += gridSpacing
+                    }
+                }
+        )
+
+        // 2. Settings Content & Cards
         val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
         Column(
             modifier = Modifier
@@ -299,7 +296,7 @@ fun SettingsScreen(
             }
 
             // SECTION 1: DISPLAY & INTERFACE
-            SettingsGlassCard(title = "DISPLAY & INTERFACE", backdropState = settingsGridBackdropState) {
+            SettingsGlassCard(title = "DISPLAY & INTERFACE") {
                 // Grid Spacing Discrete Slider
                 val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
                 SettingsRowItem(
@@ -377,17 +374,40 @@ fun SettingsScreen(
                                 modifier = Modifier.height(24.dp)
                             )
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                            BoxWithConstraints(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp)
                             ) {
+                                val totalWidth = maxWidth
+                                val thumbRadius = 4.dp // Bar headStyle thumbSizeDp.width is 8.dp / 2 = 4.dp
+                                val usableWidth = totalWidth - (thumbRadius * 2)
+
                                 sizeLabels.forEachIndexed { index, label ->
-                                    Text(
-                                        text = label,
-                                        fontSize = 10.sp,
-                                        fontWeight = if (index == gridSizeLevel) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (index == gridSizeLevel) Color(0xFF818CF8) else Color(0xFF64748B)
-                                    )
+                                    val frac = index.toFloat() / (sizeLabels.size - 1)
+                                    val centerOffset = thumbRadius + (usableWidth * frac)
+
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth(),
+                                        contentAlignment = Alignment.TopStart
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 10.sp,
+                                            fontWeight = if (index == gridSizeLevel) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (index == gridSizeLevel) Color(0xFF818CF8) else Color(0xFF64748B),
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier
+                                                .offset(x = centerOffset)
+                                                .layout { measurable, constraints ->
+                                                    val placeable = measurable.measure(constraints)
+                                                    layout(placeable.width, placeable.height) {
+                                                        placeable.placeRelative(-placeable.width / 2, 0)
+                                                    }
+                                                }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -398,6 +418,7 @@ fun SettingsScreen(
                 SettingsRowItem(
                     title = "Rounded Grid Tiles",
                     subtitle = "Apply corner curvature to album & artist tiles",
+                    onClick = { scope.launch { settingsManager.setRoundedCornersEnabled(!roundedCornersEnabled) } },
                     control = {
                         AppSwitch(
                             checked = roundedCornersEnabled,
@@ -405,14 +426,34 @@ fun SettingsScreen(
                         )
                     }
                 )
+
+                // Dynamic Ambient Background
+                SettingsRowItem(
+                    title = "Dynamic Ambient Background",
+                    subtitle = "Reactively extracts vibrant colors and blurred album art from currently playing or visible media. Disable for static gradient spheres with maximum smoothness and battery efficiency.",
+                    onClick = { scope.launch { settingsManager.setDynamicAmbientBackground(!dynamicAmbientBackground) } },
+                    control = {
+                        AppSwitch(
+                            checked = dynamicAmbientBackground,
+                            onCheckedChange = { scope.launch { settingsManager.setDynamicAmbientBackground(it) } }
+                        )
+                    }
+                )
             }
 
             // SECTION 2: LIBRARY & FOLDER FILTERS
-            SettingsGlassCard(title = "LIBRARY & FOLDER FILTERS", backdropState = settingsGridBackdropState) {
+            SettingsGlassCard(title = "LIBRARY & FOLDER FILTERS") {
                 // Show Hidden Files & Folders
                 SettingsRowItem(
                     title = "Show Hidden Files & Folders",
                     subtitle = "Display files starting with a dot (.) in directory views",
+                    onClick = {
+                        val next = !showHiddenFiles
+                        scope.launch { settingsManager.setShowHiddenFiles(next) }
+                        if (next && !com.medianest.util.PermissionUtils.hasAllFilesAccess()) {
+                            com.medianest.util.PermissionUtils.openStorageAccessSettings(context)
+                        }
+                    },
                     control = {
                         AppSwitch(
                             checked = showHiddenFiles,
@@ -603,27 +644,12 @@ fun SettingsScreen(
             }
 
             // SECTION 3: PLAYBACK & ENGINE
-            SettingsGlassCard(title = "PLAYBACK & ENGINE", backdropState = settingsGridBackdropState) {
-                
-                // TextureView vs SurfaceView Mode
-                val isTextureViewEnabled = !useSurfaceView
-                SettingsRowItem(
-                    title = "Enable TextureView Mode",
-                    subtitle = "Enables Live Video Backdrop Blur & Video FX (Color Filters). Renders video through the app's graphics pipeline (causes extra GPU/CPU buffer copying, higher battery consumption & device warmth). When disabled, uses zero-copy SurfaceView for cooler, high-efficiency playback.",
-                    control = {
-                        AppSwitch(
-                            checked = isTextureViewEnabled,
-                            onCheckedChange = { enableTextureView ->
-                                scope.launch { settingsManager.setUseSurfaceView(!enableTextureView) }
-                            }
-                        )
-                    }
-                )
-
+            SettingsGlassCard(title = "PLAYBACK & ENGINE") {
                 // Keep Screen On During Playback
                 SettingsRowItem(
                     title = "Keep Screen On During Playback",
                     subtitle = "Prevent device sleep timer while player is active",
+                    onClick = { scope.launch { settingsManager.setKeepScreenOn(!keepScreenOn) } },
                     control = {
                         AppSwitch(
                             checked = keepScreenOn,
@@ -636,6 +662,7 @@ fun SettingsScreen(
                 SettingsRowItem(
                     title = "Uninterrupted Mode",
                     subtitle = "Don't pause or duck for notifications. Phone calls will still pause playback.",
+                    onClick = { scope.launch { settingsManager.setUninterruptedMode(!uninterruptedMode) } },
                     control = {
                         AppSwitch(
                             checked = uninterruptedMode,
@@ -648,6 +675,7 @@ fun SettingsScreen(
                 SettingsRowItem(
                     title = "Auto-resume on Bluetooth",
                     subtitle = "Automatically start playback when Bluetooth headphones connect.",
+                    onClick = { scope.launch { settingsManager.setAutoResumeOnBluetooth(!autoResumeOnBluetooth) } },
                     control = {
                         AppSwitch(
                             checked = autoResumeOnBluetooth,
@@ -660,10 +688,23 @@ fun SettingsScreen(
                 SettingsRowItem(
                     title = "Auto-Play Video Previews",
                     subtitle = "Play in-place muted video previews for visible items as you scroll",
+                    onClick = {
+                        if (!autoPlayVideoPreviews) {
+                            showAutoPlayVideoWarning = true
+                        } else {
+                            scope.launch { settingsManager.setAutoPlayVideoPreviews(false) }
+                        }
+                    },
                     control = {
                         AppSwitch(
                             checked = autoPlayVideoPreviews,
-                            onCheckedChange = { scope.launch { settingsManager.setAutoPlayVideoPreviews(it) } }
+                            onCheckedChange = { enable ->
+                                if (enable) {
+                                    showAutoPlayVideoWarning = true
+                                } else {
+                                    scope.launch { settingsManager.setAutoPlayVideoPreviews(false) }
+                                }
+                            }
                         )
                     }
                 )
@@ -672,24 +713,23 @@ fun SettingsScreen(
                 SettingsRowItem(
                     title = "Auto-Play Animated GIFs",
                     subtitle = "Play animated GIFs in-place for visible items in library",
+                    onClick = {
+                        if (!autoPlayGifPreviews) {
+                            showAutoPlayGifWarning = true
+                        } else {
+                            scope.launch { settingsManager.setAutoPlayGifPreviews(false) }
+                        }
+                    },
                     control = {
                         AppSwitch(
                             checked = autoPlayGifPreviews,
-                            onCheckedChange = { scope.launch { settingsManager.setAutoPlayGifPreviews(it) } }
-                        )
-                    }
-                )
-
-                // Subtitle Search Quota
-                SettingsRowItem(
-                    title = "Subtitle Search Limit",
-                    subtitle = "OpenSubtitles daily limit: $dailySubtitleCount / 5 searches used today.",
-                    control = {
-                        Text(
-                            text = if (dailySubtitleCount >= 5) "LIMIT REACHED" else "OK",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (dailySubtitleCount >= 5) Color.Red else Color(0xFF34D399)
+                            onCheckedChange = { enable ->
+                                if (enable) {
+                                    showAutoPlayGifWarning = true
+                                } else {
+                                    scope.launch { settingsManager.setAutoPlayGifPreviews(false) }
+                                }
+                            }
                         )
                     }
                 )
@@ -698,6 +738,7 @@ fun SettingsScreen(
                 SettingsRowItem(
                     title = "Offline Mode",
                     subtitle = "Block all online network calls and lyrics fetching",
+                    onClick = { scope.launch { settingsManager.setOfflineMode(!offlineMode) } },
                     control = {
                         AppSwitch(
                             checked = offlineMode,
@@ -713,6 +754,7 @@ fun SettingsScreen(
                     title = "Storage & All Files Access",
                     subtitle = if (hasAllFiles) "Full access granted (all storage directories and files)" else if (hasStandard) "Standard MediaStore access granted. Tap to allow All Files Access for hidden folders" else "Storage permission required to load files",
                     stackedOnPhone = true,
+                    onClick = { com.medianest.util.PermissionUtils.openStorageAccessSettings(context) },
                     control = {
                         Button(
                             onClick = { com.medianest.util.PermissionUtils.openStorageAccessSettings(context) },
@@ -731,11 +773,12 @@ fun SettingsScreen(
             }
 
             // SECTION 4: NOTIFICATIONS & DATA
-            SettingsGlassCard(title = "NOTIFICATIONS & DATA", backdropState = settingsGridBackdropState) {
+            SettingsGlassCard(title = "NOTIFICATIONS & DATA") {
                 // Audio Playback Notifications
                 SettingsRowItem(
                     title = "Audio Playback Notifications",
                     subtitle = "Show control widget for music on lock screen",
+                    onClick = { scope.launch { settingsManager.setShowPlaybackNotification(!showPlaybackNotification) } },
                     control = {
                         AppSwitch(
                             checked = showPlaybackNotification,
@@ -748,6 +791,7 @@ fun SettingsScreen(
                 SettingsRowItem(
                     title = "Video Playback Notifications",
                     subtitle = "Show notification for video background playback",
+                    onClick = { scope.launch { settingsManager.setShowVideoNotification(!showVideoNotification) } },
                     control = {
                         AppSwitch(
                             checked = showVideoNotification,
@@ -815,8 +859,7 @@ fun SettingsScreen(
             // Developer Options
             DeveloperSettingsSection(
                 settingsManager = settingsManager,
-                onDisableDevMode = { versionTapCount = 0 },
-                backdropState = settingsGridBackdropState
+                onDisableDevMode = { versionTapCount = 0 }
             )
 
             // Version info at the bottom
@@ -862,35 +905,311 @@ fun SettingsScreen(
                 }
             }
         }
+
+        // Auto-Play Video Previews Confirmation Warning Dialog
+        if (showAutoPlayVideoWarning) {
+            val shape = RoundedCornerShape(20.dp)
+            val isDark = com.medianest.ui.theme.LocalDarkTheme.current
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) { showAutoPlayVideoWarning = false },
+                contentAlignment = Alignment.Center
+            ) {
+                com.medianest.ui.components.BackdropGlassSurface(
+                    shape = shape,
+                    enableBlur = true,
+                    blurRadius = 24.dp,
+                    tint = Color(0x770A0C10),
+                    baseColor = Color.Transparent,
+                    borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x28000000),
+                    borderWidth = 0.5.dp,
+                    backdropState = backdropState,
+                    modifier = Modifier
+                        .widthIn(max = minOf(420.dp, (LocalConfiguration.current.screenWidthDp * 0.92f).dp))
+                        .wrapContentHeight()
+                        .padding(16.dp)
+                        .clickable(enabled = false) {}
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0x33F59E0B)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = "Warning",
+                                        tint = Color(0xFFF59E0B),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Column {
+                                    Text(
+                                        text = "Auto-Play Video Previews",
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "High Battery & CPU Consumption",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFFFBBF24),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0x33FFFFFF))
+                                    .clickable { showAutoPlayVideoWarning = false },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(16.dp))
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0x1AFFFFFF),
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0x22FFFFFF)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Playing live video previews inside the library grid actively runs ExoPlayer video codecs for multiple visible items as you scroll.",
+                                    color = Color(0xFFE2E8F0),
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 17.sp
+                                )
+                                Text(
+                                    text = "• Increased device heating & thermal throttling\n• Significantly faster battery discharge\n• High RAM & GPU memory footprint during fast scrolling",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 11.5.sp,
+                                    lineHeight = 16.sp
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            com.medianest.ui.components.AppActionButton(
+                                text = "Cancel",
+                                onClick = { showAutoPlayVideoWarning = false },
+                                modifier = Modifier.weight(1f),
+                                style = com.medianest.ui.components.AppButtonStyle.Glossy,
+                                accentColor = Color(0xFF94A3B8)
+                            )
+                            com.medianest.ui.components.AppCriticalButton(
+                                text = "Enable Anyway",
+                                onClick = {
+                                    showAutoPlayVideoWarning = false
+                                    scope.launch { settingsManager.setAutoPlayVideoPreviews(true) }
+                                },
+                                modifier = Modifier.weight(1f),
+                                icon = Icons.Default.PlayArrow,
+                                accentColor = Color(0xFFF59E0B)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Auto-Play Animated GIFs Confirmation Warning Dialog
+        if (showAutoPlayGifWarning) {
+            val shape = RoundedCornerShape(20.dp)
+            val isDark = com.medianest.ui.theme.LocalDarkTheme.current
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) { showAutoPlayGifWarning = false },
+                contentAlignment = Alignment.Center
+            ) {
+                com.medianest.ui.components.BackdropGlassSurface(
+                    shape = shape,
+                    enableBlur = true,
+                    blurRadius = 24.dp,
+                    tint = Color(0x770A0C10),
+                    baseColor = Color.Transparent,
+                    borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x28000000),
+                    borderWidth = 0.5.dp,
+                    backdropState = backdropState,
+                    modifier = Modifier
+                        .widthIn(max = minOf(420.dp, (LocalConfiguration.current.screenWidthDp * 0.92f).dp))
+                        .wrapContentHeight()
+                        .padding(16.dp)
+                        .clickable(enabled = false) {}
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0x33F59E0B)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = "Warning",
+                                        tint = Color(0xFFF59E0B),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Column {
+                                    Text(
+                                        text = "Auto-Play Animated GIFs",
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "High RAM & CPU Decoding Load",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFFFBBF24),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0x33FFFFFF))
+                                    .clickable { showAutoPlayGifWarning = false },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(16.dp))
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0x1AFFFFFF),
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0x22FFFFFF)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Animated GIFs continuously decode frame buffers in memory for every visible image tile simultaneously.",
+                                    color = Color(0xFFE2E8F0),
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 17.sp
+                                )
+                                Text(
+                                    text = "• CPU spikes when many animated GIFs are on-screen\n• Higher memory usage & garbage collection pauses\n• Can introduce scroll micro-stutters on large galleries",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 11.5.sp,
+                                    lineHeight = 16.sp
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            com.medianest.ui.components.AppActionButton(
+                                text = "Cancel",
+                                onClick = { showAutoPlayGifWarning = false },
+                                modifier = Modifier.weight(1f),
+                                style = com.medianest.ui.components.AppButtonStyle.Glossy,
+                                accentColor = Color(0xFF94A3B8)
+                            )
+                            com.medianest.ui.components.AppCriticalButton(
+                                text = "Enable Anyway",
+                                onClick = {
+                                    showAutoPlayGifWarning = false
+                                    scope.launch { settingsManager.setAutoPlayGifPreviews(true) }
+                                },
+                                modifier = Modifier.weight(1f),
+                                icon = Icons.Default.Animation,
+                                accentColor = Color(0xFFF59E0B)
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
-}
 }
 
 @Composable
 fun SettingsGlassCard(
     title: String,
-    backdropState: BackdropBlurState? = LocalBackdropState.current,
+    backdropState: BackdropBlurState? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val isDark = com.medianest.ui.theme.LocalDarkTheme.current
     val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
     val shape = RoundedCornerShape(20.dp)
     
-    // Frosted White Glass Card Background (0x33FFFFFF)
-    val cardBg = Color(0x33FFFFFF)
+    // High-performance frosted obsidian glass
+    val cardBg = if (isDark) Color(0x331C1F2B) else Color(0x22FFFFFF)
+    val cardBorder = if (isDark) Color(0x28FFFFFF) else Color(0x1F000000)
 
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center
     ) {
-        BackdropGlassSurface(
+        GlassSurface(
             shape = shape,
             backgroundColor = cardBg,
-            borderColor = Color.Transparent, // Border commented out/removed
-            borderWidth = 0.dp,
-            enableBlur = true,
-            blurRadius = 20.dp,
-            backdropState = backdropState,
+            borderColor = cardBorder,
+            borderWidth = 0.5.dp,
+            enableBlur = false,
             modifier = Modifier.fillMaxWidth(if (isPhoneScreen) 1f else 0.80f)
         ) {
             Column(
@@ -917,14 +1236,24 @@ fun SettingsRowItem(
     title: String,
     subtitle: String,
     stackedOnPhone: Boolean = false,
+    onClick: (() -> Unit)? = null,
     control: @Composable () -> Unit
 ) {
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val isPhoneScreen = configuration.screenWidthDp < 600
 
+    val rowModifier = if (onClick != null) {
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+    } else {
+        Modifier.fillMaxWidth()
+    }
+
     if (isPhoneScreen && stackedOnPhone) {
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = rowModifier,
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Column(
@@ -953,7 +1282,7 @@ fun SettingsRowItem(
         }
     } else {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = rowModifier,
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {

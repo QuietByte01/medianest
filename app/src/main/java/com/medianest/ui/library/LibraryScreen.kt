@@ -89,8 +89,9 @@ fun LibraryScreen(
     val settingsManager = com.medianest.MediaNestApp.instance.settingsManager
     val showHiddenFiles by settingsManager.showHiddenFiles.collectAsState(initial = false)
     val hiddenFolders by settingsManager.hiddenFolders.collectAsState(initial = emptySet())
-    val autoPlayVideoPreviews by settingsManager.autoPlayVideoPreviews.collectAsState(initial = true)
-    val autoPlayGifPreviews by settingsManager.autoPlayGifPreviews.collectAsState(initial = true)
+    val autoPlayVideoPreviews by settingsManager.autoPlayVideoPreviews.collectAsState(initial = false)
+    val autoPlayGifPreviews by settingsManager.autoPlayGifPreviews.collectAsState(initial = false)
+    val dynamicAmbientBackground by settingsManager.dynamicAmbientBackground.collectAsState(initial = false)
 
         val totalTabs = if (enableAnalyticsTab) 4 else 3
         val pagerState = androidx.compose.foundation.pager.rememberPagerState(initialPage = initialTab.coerceIn(0, totalTabs - 1)) { totalTabs }
@@ -184,7 +185,8 @@ fun LibraryScreen(
                         imagesList = imagesList,
                         videosList = videosList,
                         audioList = audioList,
-                        activeImageItem = activeImageItem
+                        activeImageItem = activeImageItem,
+                        isDynamicAmbientEnabled = dynamicAmbientBackground
                     )
                 }
 
