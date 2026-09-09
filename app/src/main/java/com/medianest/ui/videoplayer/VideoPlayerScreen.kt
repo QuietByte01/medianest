@@ -150,8 +150,8 @@ fun VideoPlayerScreen(
 
     val pictureModeEnabled by settingsManager.pictureModeEnabled.collectAsState(initial = true)
     val pictureMode by settingsManager.pictureMode.collectAsState(initial = "BALANCED")
-    val activeMediaEffect = remember(pictureModeEnabled, pictureMode) {
-        if (!pictureModeEnabled || pictureMode == "DEVICE_DEFAULT" || pictureMode == "OFF") {
+    val activeMediaEffect = remember(pictureModeEnabled, pictureMode, playerState.isHdrContent) {
+        if (playerState.isHdrContent || !pictureModeEnabled || pictureMode == "DEVICE_DEFAULT" || pictureMode == "OFF") {
             com.medianest.ui.components.media.MediaEffect.OFF
         } else {
             try {

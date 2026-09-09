@@ -31,6 +31,7 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
 import com.medianest.data.model.MediaItem
+import com.medianest.ui.components.media.MediaEffect
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -233,6 +234,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
 
                     val newPos = engine.currentPositionMs
                     val newDur = engine.durationMs
+                    val wasHdr = _playerState.value.isHdrContent
 
                     abRepeatController.checkAndLoop(newPos)
                     
@@ -260,6 +262,10 @@ class ExoPlayerManager private constructor(private val context: Context) {
                         audioSampleFormat = diag.audioSampleFormat,
                         audioSharingMode = diag.audioSharingMode
                     )
+
+                    if (wasHdr != diag.isHdr) {
+                        setVideoEffect(currentVideoEffect)
+                    }
 
                     // Periodically save progress to DB (every ~5 seconds)
                     if (engine.isPlaying && System.currentTimeMillis() % 5000 < 200) {
@@ -1634,7 +1640,8 @@ class ExoPlayerManager private constructor(private val context: Context) {
         currentVideoEffect = effect
         if (activeEngine == media3Engine) {
             try {
-                if (effect == com.medianest.ui.components.media.MediaEffect.OFF || 
+                if (_playerState.value.isHdrContent ||
+                    effect == MediaEffect.OFF ||
                     effect == com.medianest.ui.components.media.MediaEffect.NORMAL || 
                     effect == com.medianest.ui.components.media.MediaEffect.ORIGINAL) {
                     media3Engine?.player?.setVideoEffects(emptyList())

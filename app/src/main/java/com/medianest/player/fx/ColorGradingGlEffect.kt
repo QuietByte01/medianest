@@ -12,6 +12,15 @@ import com.medianest.ui.components.media.MediaEffect
 class ColorGradingGlEffect(private val effectMode: MediaEffect) : RgbMatrix {
 
     override fun getMatrix(presentationTimeUs: Long, useHdr: Boolean): FloatArray {
+        if (useHdr) {
+            // Do NOT distort 10-bit ST2084 / HLG PQ curves with 8-bit sRGB color matrices
+            return floatArrayOf(
+                1f, 0f, 0f, 0f,
+                0f, 1f, 0f, 0f,
+                0f, 0f, 1f, 0f,
+                0f, 0f, 0f, 1f
+            )
+        }
         return when (effectMode) {
             MediaEffect.OFF, MediaEffect.NORMAL, MediaEffect.ORIGINAL -> {
                 floatArrayOf(
