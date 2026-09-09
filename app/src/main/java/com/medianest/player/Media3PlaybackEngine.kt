@@ -7,6 +7,9 @@ import android.os.Looper
 import android.view.Surface
 import com.medianest.util.Logger
 import androidx.annotation.OptIn
+import androidx.media3.common.C
+import androidx.media3.common.ColorInfo
+import androidx.media3.common.Format
 import androidx.media3.common.MediaItem as Media3Item
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
@@ -153,6 +156,7 @@ class Media3PlaybackEngine(
             _diagnosticState.value = _diagnosticState.value.copy(
                 videoCodec = formatVideoCodec(format)
             )
+            updateHdrDiagnostics(format)
         }
 
         override fun onAudioInputFormatChanged(
@@ -166,6 +170,52 @@ class Media3PlaybackEngine(
         }
     }
 
+    private fun updateHdrDiagnostics(format: Format?) {
+        if (format == null) {
+            _diagnosticState.value = _diagnosticState.value.copy(
+                isHdr = false,
+                hdrType = "SDR",
+                colorSpace = "SDR"
+            )
+            return
+        }
+
+        val colorInfo = format.colorInfo
+        val isHdr = if (colorInfo != null) {
+            ColorInfo.isTransferHdr(colorInfo)
+        } else false
+
+        val mime = format.sampleMimeType ?: ""
+        val codecs = format.codecs?.lowercase() ?: ""
+
+        val isHdr10Plus = codecs.contains("hvc1.2.4") || codecs.contains("hdr10+") || codecs.contains("hdr10plus") || codecs.contains("dvh1") || codecs.contains("dvhe")
+        val hdrType = when {
+            mime.contains("dolby-vision", ignoreCase = true) || codecs.contains("dvhe") || codecs.contains("dvh1") -> "Dolby Vision"
+            isHdr10Plus -> "HDR10+"
+            isHdr && (colorInfo?.colorTransfer == C.COLOR_TRANSFER_ST2084) -> {
+                if (isHdr10Plus) "HDR10+" else "HDR10"
+            }
+            isHdr && (colorInfo?.colorTransfer == C.COLOR_TRANSFER_HLG) -> "HLG"
+            isHdr -> "HDR"
+            else -> "SDR"
+        }
+
+        val cs = when (colorInfo?.colorSpace) {
+            C.COLOR_SPACE_BT2020 -> "BT.2020"
+            C.COLOR_SPACE_BT709 -> "BT.709"
+            C.COLOR_SPACE_BT601 -> "BT.601"
+            else -> if (isHdr) "BT.2020" else "SDR"
+        }
+
+        Logger.i("Media3PlaybackEngine", "HDR Detection [Immediate]: isHdr=$isHdr, Type=$hdrType, ColorSpace=$cs, Mime=$mime, Codecs=$codecs")
+
+        _diagnosticState.value = _diagnosticState.value.copy(
+            isHdr = isHdr,
+            hdrType = hdrType,
+            colorSpace = cs
+        )
+    }
+
     init {
         startBitrateSampling()
         player.addAnalyticsListener(analyticsListener)
@@ -177,6 +227,7 @@ class Media3PlaybackEngine(
                     _diagnosticState.value = _diagnosticState.value.copy(
                         videoCodec = formatVideoCodec(vFormat)
                     )
+                    updateHdrDiagnostics(vFormat)
                 }
             }
 
@@ -189,54 +240,18 @@ class Media3PlaybackEngine(
             }
 
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
-            val vFormat = player.videoFormat
-            val aFormat = player.audioFormat
-            val format = vFormat
-
-            _diagnosticState.value = _diagnosticState.value.copy(
-                videoCodec = formatVideoCodec(vFormat),
-                audioCodec = formatAudioCodec(aFormat)
-            )
-
-            if (format != null) {
-                Logger.d("Media3PlaybackEngine", "onTracksChanged: Format=$format")
-                val colorInfo = format.colorInfo
-                val isHdr = if (colorInfo != null) {
-                    androidx.media3.common.ColorInfo.isTransferHdr(colorInfo)
-                } else false
-                
-                val mime = format.sampleMimeType ?: ""
-                val hdrType = when {
-                    mime.contains("dolby-vision", ignoreCase = true) -> "Dolby Vision"
-                    isHdr && (colorInfo?.colorTransfer == androidx.media3.common.C.COLOR_TRANSFER_ST2084) -> {
-                        // Check if it's HDR10+ by looking at supplemental data if possible
-                        // Media3 doesn't always expose HDR10+ vs HDR10 in the Format, 
-                        // but we can look at the MIME or profile if it's HEVC
-                        if (format.codecs?.contains("hvc1.2.4") == true) "HDR10+" else "HDR10"
-                    }
-                    isHdr && (colorInfo?.colorTransfer == androidx.media3.common.C.COLOR_TRANSFER_HLG) -> "HLG"
-                    isHdr -> "HDR"
-                    else -> "SDR"
-                }
-
-                val cs = when (colorInfo?.colorSpace) {
-                    androidx.media3.common.C.COLOR_SPACE_BT2020 -> "BT.2020"
-                    androidx.media3.common.C.COLOR_SPACE_BT709 -> "BT.709"
-                    androidx.media3.common.C.COLOR_SPACE_BT601 -> "BT.601"
-                    else -> "SDR"
-                }
-
-                Logger.i("Media3PlaybackEngine", "HDR Detected: Type=$hdrType, ColorSpace=$cs")
+                val vFormat = player.videoFormat
+                val aFormat = player.audioFormat
 
                 _diagnosticState.value = _diagnosticState.value.copy(
-                    isHdr = isHdr,
-                    hdrType = hdrType,
-                    colorSpace = cs
+                    videoCodec = formatVideoCodec(vFormat),
+                    audioCodec = formatAudioCodec(aFormat)
                 )
-            }
-        }
 
-        override fun onPlaybackStateChanged(playbackState: Int) {
+                updateHdrDiagnostics(vFormat)
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
                 val stateName = when (playbackState) {
                     Player.STATE_IDLE -> "IDLE"
                     Player.STATE_BUFFERING -> "BUFFERING"
@@ -254,6 +269,19 @@ class Media3PlaybackEngine(
     }
 
     override fun prepare(requestUri: Uri, playWhenReady: Boolean) {
+        // Reset HDR and format state for the incoming media item to prevent stale HDR state leaks
+        _diagnosticState.value = _diagnosticState.value.copy(
+            isHdr = false,
+            hdrType = "SDR",
+            colorSpace = "SDR",
+            videoCodec = "Hardware/MediaCodec",
+            audioCodec = "Hardware/MediaCodec",
+            droppedFrames = 0,
+            audioDecodeErrors = 0,
+            audioMissingFrames = 0,
+            corruptedFrames = 0
+        )
+
         val currentItem = player.currentMediaItem
         val currentUriString = currentItem?.localConfiguration?.uri?.toString()
         
