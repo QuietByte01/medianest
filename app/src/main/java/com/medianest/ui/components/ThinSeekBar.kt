@@ -24,7 +24,8 @@ fun ThinSeekBar(
     value: Float,
     onValueChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
-    onValueChangeFinished: (() -> Unit)? = null,
+    onValueChangeStarted: (() -> Unit)? = null,
+    onValueChangeFinished: ((Float) -> Unit)? = null,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
     activeTrackColor: Color = Color.White,
     inactiveTrackColor: Color = Color.White.copy(alpha = 0.25f),
@@ -37,6 +38,9 @@ fun ThinSeekBar(
     abHighlightColor: Color = Color(0xFF4FC3F7)
 ) {
     var isDragging by remember { mutableStateOf(false) }
+    var dragProgressValue by remember { mutableFloatStateOf(value) }
+
+    val displayValue = if (isDragging) dragProgressValue else value
 
     Box(
         modifier = modifier
@@ -48,8 +52,9 @@ fun ThinSeekBar(
                         val width = size.width.toFloat().coerceAtLeast(1f)
                         val newFrac = (offset.x / width).coerceIn(0f, 1f)
                         val newValue = valueRange.start + newFrac * (valueRange.endInclusive - valueRange.start)
+                        onValueChangeStarted?.invoke()
                         onValueChange(newValue)
-                        onValueChangeFinished?.invoke()
+                        onValueChangeFinished?.invoke(newValue)
                     }
                 )
             }
@@ -60,21 +65,26 @@ fun ThinSeekBar(
                         val width = size.width.toFloat().coerceAtLeast(1f)
                         val newFrac = (offset.x / width).coerceIn(0f, 1f)
                         val newValue = valueRange.start + newFrac * (valueRange.endInclusive - valueRange.start)
+                        dragProgressValue = newValue
+                        onValueChangeStarted?.invoke()
                         onValueChange(newValue)
                     },
                     onDragEnd = {
+                        val finalVal = dragProgressValue
                         isDragging = false
-                        onValueChangeFinished?.invoke()
+                        onValueChangeFinished?.invoke(finalVal)
                     },
                     onDragCancel = {
+                        val finalVal = dragProgressValue
                         isDragging = false
-                        onValueChangeFinished?.invoke()
+                        onValueChangeFinished?.invoke(finalVal)
                     },
                     onHorizontalDrag = { change, _ ->
                         change.consume()
                         val width = size.width.toFloat().coerceAtLeast(1f)
                         val newFrac = (change.position.x / width).coerceIn(0f, 1f)
                         val newValue = valueRange.start + newFrac * (valueRange.endInclusive - valueRange.start)
+                        dragProgressValue = newValue
                         onValueChange(newValue)
                     }
                 )
@@ -86,7 +96,7 @@ fun ThinSeekBar(
             val centerY = height / 2f
 
             val rangeLen = valueRange.endInclusive - valueRange.start
-            val frac = if (rangeLen > 0) ((value - valueRange.start) / rangeLen).coerceIn(0f, 1f) else 0f
+            val frac = if (rangeLen > 0) ((displayValue - valueRange.start) / rangeLen).coerceIn(0f, 1f) else 0f
             val activeX = (width * frac).coerceIn(0f, width)
 
             val trackHeightPx = trackHeight.toPx()

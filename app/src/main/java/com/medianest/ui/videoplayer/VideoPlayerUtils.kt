@@ -35,8 +35,13 @@ fun safeFormatDuration(context: Context, item: MediaItem): String {
 fun captureVideoFrame(
     context: Context,
     item: MediaItem?,
-    currentPositionMs: Long
+    currentPositionMs: Long,
+    liveBitmap: Bitmap? = null
 ) {
+    if (liveBitmap != null) {
+        saveScreenshot(context, liveBitmap)
+        return
+    }
     if (item?.uri == null) return
     CoroutineScope(Dispatchers.IO).launch {
         var retriever: MediaMetadataRetriever? = null

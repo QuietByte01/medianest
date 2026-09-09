@@ -249,6 +249,8 @@ fun VideoPlayerScreen(
     var swipeEdgeState by remember { mutableStateOf(SwipeEdge.NONE) }
     var swipeProgressState by remember { mutableFloatStateOf(0f) }
 
+    var activeTextureViewRef by remember { mutableStateOf<android.view.TextureView?>(null) }
+
     var subtitleList by remember { mutableStateOf<List<com.medianest.data.model.SubtitleItem>>(emptyList()) }
     var audioSyncOffsetMs by remember { mutableLongStateOf(0L) }
     var isSearchingSubtitles by remember { mutableStateOf(false) }
@@ -648,26 +650,32 @@ fun VideoPlayerScreen(
                                             scaleY = scale
                                             translationX = panOffset.x
                                             translationY = panOffset.y
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && androidFxColorFilter != null) {
+                                            // Do NOT apply sRGB 8-bit RenderEffect on HDR content (causes milky/grainy white overlay)
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && androidFxColorFilter != null && !playerState.isHdrContent) {
                                                 renderEffect = android.graphics.RenderEffect.createColorFilterEffect(androidFxColorFilter).asComposeRenderEffect()
                                             }
                                         },
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    androidx.compose.runtime.key(playerState.activeEngineName, playerState.media3InstanceId, currentItem?.id) {
+                                    // Key ONLY on engine and instanceId — do NOT key on currentItem.id,
+                                    // as changing items or background metadata updates would tear down
+                                    // the SurfaceTexture and cause playback to freeze at 00:00.
+                                    androidx.compose.runtime.key(playerState.activeEngineName, playerState.media3InstanceId) {
                                         if (playerState.activeEngineName.contains("Media3")) {
                                             AndroidView(
                                                 factory = { ctx ->
-                                                    Logger.i("VideoPlayerScreen", "Creating NEW PlayerView for Media3 for item: ${currentItem?.id}")
+                                                    Logger.i("VideoPlayerScreen", "Creating NEW PlayerView for Media3")
                                                     val inflater = android.view.LayoutInflater.from(ctx)
                                                     (inflater.inflate(com.medianest.R.layout.player_view_texture, null) as androidx.media3.ui.PlayerView).apply {
                                                         useController = false
                                                         subtitleView?.visibility = View.GONE
+                                                        setKeepContentOnPlayerReset(true)
                                                         try {
                                                             this.player = playerManager.exoPlayer
                                                         } catch (_: Exception) {}
                                                         resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
                                                         layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                                                        activeTextureViewRef = videoSurfaceView as? android.view.TextureView
                                                     }
                                                 },
                                                 update = { view ->
@@ -677,10 +685,20 @@ fun VideoPlayerScreen(
                                                             Logger.i("VideoPlayerScreen", "Syncing PlayerView with new ExoPlayer instance")
                                                             view.player = currentExo
                                                         }
+                                                        view.onResume()
                                                     } catch (e: Exception) {
                                                         Logger.e("VideoPlayerScreen", "Error syncing player", e)
                                                     }
                                                     view.resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                                    activeTextureViewRef = view.videoSurfaceView as? android.view.TextureView
+                                                },
+                                                onRelease = { view ->
+                                                    if (activeTextureViewRef == view.videoSurfaceView) {
+                                                        activeTextureViewRef = null
+                                                    }
+                                                    try {
+                                                        view.onPause()
+                                                    } catch (_: Exception) {}
                                                 },
                                                 modifier = Modifier.fillMaxSize()
                                             )
@@ -689,6 +707,7 @@ fun VideoPlayerScreen(
                                                 factory = { ctx ->
                                                     Logger.i("VideoPlayerScreen", "Creating TextureView for FFmpeg")
                                                     android.view.TextureView(ctx).apply {
+                                                        activeTextureViewRef = this
                                                         surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
                                                             private var activeSurface: android.view.Surface? = null
                                                             override fun onSurfaceTextureAvailable(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
@@ -720,6 +739,7 @@ fun VideoPlayerScreen(
                                                     }
                                                 },
                                                 update = { view ->
+                                                    activeTextureViewRef = view
                                                     if (view.isAvailable && view.surfaceTexture != null) {
                                                         val st = view.surfaceTexture!!
                                                         if (playerManager.lastSurface == null || !playerManager.lastSurface!!.isValid) {
@@ -728,6 +748,9 @@ fun VideoPlayerScreen(
                                                     }
                                                 },
                                                 onRelease = { view ->
+                                                    if (activeTextureViewRef == view) {
+                                                        activeTextureViewRef = null
+                                                    }
                                                     view.surfaceTextureListener = null
                                                 },
                                                 modifier = Modifier.fillMaxSize()
@@ -736,7 +759,7 @@ fun VideoPlayerScreen(
                                     }
                                 }
 
-                                if (isFilmGrainEnabled) {
+                                if (isFilmGrainEnabled && !playerState.isHdrContent) {
                                     FilmGrainOverlay(intensity = filmGrainIntensity, modifier = Modifier.matchParentSize())
                                 }
                             }
@@ -799,7 +822,10 @@ fun VideoPlayerScreen(
                     onDecoderDropdownExpandedChange = { decoderDropdownExpanded = it },
                     onDrawerClick = { showDrawer = true }, onSubtitleClick = { showSubtitleSheet = true },
                     onInfoClick = { showDetailsSheet = true }, onMenuClick = { showOverflowMenu = true },
-                    onCaptureClick = { captureVideoFrame(context, currentItem, playerState.currentPositionMs) },
+                    onCaptureClick = { 
+                        val liveBmp = try { activeTextureViewRef?.bitmap } catch (_: Exception) { null }
+                        captureVideoFrame(context, currentItem, playerState.currentPositionMs, liveBmp)
+                    },
                     isControlsLocked = isControlsLocked
                 )
             }
@@ -812,7 +838,10 @@ fun VideoPlayerScreen(
             ) {
                 VideoPlayerBottomBar(
                     playerState = playerState, isControlsLocked = isControlsLocked, isHorizontalDragging = isHorizontalDragging,
-                    seekTargetPositionMs = seekTargetPositionMs, onSeek = { playerManager.seekTo(it) },
+                    seekTargetPositionMs = seekTargetPositionMs,
+                    onSeekStart = { playerManager.scrubStart() },
+                    onSeekProgress = { playerManager.scrubSeek(it) },
+                    onSeekEnd = { playerManager.scrubEnd(it) },
                     isControlsLockedState = isControlsLocked, onLockClick = { isControlsLocked = !isControlsLocked },
                     onRotateClick = {
                         activity?.let { act ->

@@ -86,6 +86,21 @@ class VideoPlayerActivity : ComponentActivity() {
         setContent {
             val settingsManager = com.medianest.MediaNestApp.instance.settingsManager
             val themeMode by settingsManager.theme.collectAsState(initial = "DARK")
+            val playerState by playerManager.playerState.collectAsState()
+
+            // Automatically switch window color mode to HDR on Android 8.0+ (API 26+)
+            // to enable full wide-color-gamut (BT.2020 / PQ / HLG) display pipeline without SDR clipping
+            androidx.compose.runtime.LaunchedEffect(playerState.isHdrContent) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    try {
+                        window.colorMode = if (playerState.isHdrContent) {
+                            android.content.pm.ActivityInfo.COLOR_MODE_HDR
+                        } else {
+                            android.content.pm.ActivityInfo.COLOR_MODE_DEFAULT
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
 
             MediaNestTheme(themeMode = themeMode) {
                 VideoPlayerScreen(
@@ -143,7 +158,13 @@ class VideoPlayerActivity : ComponentActivity() {
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         // Stop background notification when full player activity is visible
         stopService(Intent(this, FloatingPlayerService::class.java))
+        if (wasPlayingBeforePause && !playerManager.isPlaying) {
+            wasPlayingBeforePause = false
+            playerManager.play()
+        }
     }
+
+    private var wasPlayingBeforePause = false
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
@@ -156,15 +177,17 @@ class VideoPlayerActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
-        // If app is minimized (not finishing/destroying) and not in Picture-in-Picture mode
+        // If app is minimized / sent to recent apps (not finishing/destroying) and not in Picture-in-Picture mode
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !isInPictureInPictureMode) {
             val state = playerManager.playerState.value
             val isBgPlayEnabled = state.isVideoBackgroundPlayEnabled
             
             if (playerManager.isPlaying && !isFinishing && !isChangingConfigurations) {
                 if (!isBgPlayEnabled) {
+                    wasPlayingBeforePause = true
                     playerManager.pause()
                 } else {
+                    wasPlayingBeforePause = false
                     val currentItem = state.currentItem
                     if (currentItem != null) {
                         val isVideo = currentItem.mimeType.startsWith("video") || currentItem.type == com.medianest.data.db.MediaType.VIDEO
@@ -203,14 +226,12 @@ class VideoPlayerActivity : ComponentActivity() {
         super.onDestroy()
         try {
             val state = playerManager.playerState.value
-            // Only stop service if background play is disabled
-            if (!state.isVideoBackgroundPlayEnabled) {
-                if (isFinishing) {
-                    playerManager.stop()
-                } else {
-                    playerManager.pause()
-                }
+            // If finishing or background play is disabled, stop playback and service
+            if (isFinishing || !state.isVideoBackgroundPlayEnabled) {
+                playerManager.stop()
                 stopService(Intent(this, FloatingPlayerService::class.java))
+            } else {
+                playerManager.pause()
             }
             
             if (isFinishing) {

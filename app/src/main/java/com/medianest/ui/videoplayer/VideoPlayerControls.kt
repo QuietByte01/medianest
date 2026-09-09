@@ -169,7 +169,9 @@ fun VideoPlayerBottomBar(
     isControlsLocked: Boolean,
     isHorizontalDragging: Boolean,
     seekTargetPositionMs: Long,
-    onSeek: (Long) -> Unit,
+    onSeekStart: () -> Unit,
+    onSeekProgress: (Long) -> Unit,
+    onSeekEnd: (Long) -> Unit,
     isControlsLockedState: Boolean,
     onLockClick: () -> Unit,
     onRotateClick: () -> Unit,
@@ -183,6 +185,9 @@ fun VideoPlayerBottomBar(
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
+    var isDraggingBar by remember { mutableStateOf(false) }
+    var draggingSeekPos by remember { mutableLongStateOf(0L) }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -195,10 +200,23 @@ fun VideoPlayerBottomBar(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (!isControlsLocked && !isHorizontalDragging) {
-            val effectiveSeekPos = playerState.currentPositionMs
+            val effectiveSeekPos = if (isDraggingBar) draggingSeekPos else playerState.currentPositionMs
             ThinSeekBar(
                 value = if (playerState.durationMs > 0) effectiveSeekPos.toFloat() else 0f,
-                onValueChange = { onSeek(it.toLong()) },
+                onValueChange = { newPos ->
+                    draggingSeekPos = newPos.toLong().coerceIn(0L, playerState.durationMs)
+                    onSeekProgress(draggingSeekPos)
+                },
+                onValueChangeStarted = {
+                    isDraggingBar = true
+                    draggingSeekPos = playerState.currentPositionMs
+                    onSeekStart()
+                },
+                onValueChangeFinished = { finalPos ->
+                    isDraggingBar = false
+                    val targetPos = finalPos.toLong().coerceIn(0L, playerState.durationMs)
+                    onSeekEnd(targetPos)
+                },
                 valueRange = 0f..(playerState.durationMs.toFloat().coerceAtLeast(1f)),
                 modifier = Modifier.fillMaxWidth().padding(vertical = if (isLandscape) 1.dp else 2.dp),
                 activeTrackColor = Color.White,

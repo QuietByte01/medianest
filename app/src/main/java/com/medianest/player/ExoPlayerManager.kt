@@ -898,10 +898,15 @@ class ExoPlayerManager private constructor(private val context: Context) {
                         isAbRepeatActive = false
                     )
                     val isNetworkUrl = uriString.startsWith("http://") || uriString.startsWith("https://")
-                    val isStandardFastPath = isNetworkUrl ||
-                                             fileName.endsWith(".mp4") || fileName.endsWith(".mkv") || fileName.endsWith(".webm") ||
+                    val isVideoType = currentTarget.type == com.medianest.data.db.MediaType.VIDEO ||
+                                     currentTarget.mimeType.startsWith("video/") ||
+                                     currentTarget.mimeType.startsWith("audio/")
+                    val isStandardContainer = fileName.endsWith(".mp4") || fileName.endsWith(".mkv") || fileName.endsWith(".webm") ||
                                              fileName.endsWith(".mov") || fileName.endsWith(".3gp") || fileName.endsWith(".m4v") ||
+                                             fileName.endsWith(".mp3") || fileName.endsWith(".flac") || fileName.endsWith(".aac") ||
+                                             fileName.endsWith(".m4a") || fileName.endsWith(".wav") || fileName.endsWith(".ogg") ||
                                              uriString.endsWith(".mp4") || uriString.endsWith(".mkv") || uriString.endsWith(".webm")
+                    val isStandardFastPath = isNetworkUrl || isStandardContainer || (isVideoType && !fileName.endsWith(".avi") && !fileName.endsWith(".wmv") && !fileName.endsWith(".flv"))
                     
                     val probeResult = if (isStandardFastPath) {
                         null
@@ -966,19 +971,20 @@ class ExoPlayerManager private constructor(private val context: Context) {
                     if (currentTarget.type == com.medianest.data.db.MediaType.AUDIO && (currentTarget.artist == null || currentTarget.title.startsWith("Track") || currentTarget.title == "Media")) {
                         scope.launch(Dispatchers.IO) {
                             val enriched = com.medianest.util.AudioMetadataUtils.extractMetadata(context, currentTarget.uri, rawTitleHint = currentTarget.title, mimeTypeHint = currentTarget.mimeType)
+                            val stableEnriched = enriched.copy(id = currentTarget.id)
                             withContext(Dispatchers.Main) {
                                 val currentQ = _playerState.value.queue.toMutableList()
                                 val curIndex = _playerState.value.queueIndex
                                 if (curIndex in currentQ.indices) {
-                                    currentQ[curIndex] = enriched
+                                    currentQ[curIndex] = stableEnriched
                                 }
-                                _playerState.value = _playerState.value.copy(queue = currentQ, currentItem = enriched)
+                                _playerState.value = _playerState.value.copy(queue = currentQ, currentItem = stableEnriched)
                                 com.medianest.player.FloatingPlayerService.startOrUpdateService(
                                     context = context,
-                                    title = enriched.title,
-                                    artist = enriched.artist ?: "Unknown Artist",
+                                    title = stableEnriched.title,
+                                    artist = stableEnriched.artist ?: "Unknown Artist",
                                     isPlaying = _playerState.value.isPlaying,
-                                    artworkUri = enriched.albumArtUri?.toString() ?: "",
+                                    artworkUri = stableEnriched.albumArtUri?.toString() ?: "",
                                     isVideo = false
                                 )
                             }
@@ -1013,10 +1019,49 @@ class ExoPlayerManager private constructor(private val context: Context) {
 
     fun playSingleUri(uri: Uri?, title: String = "Media", mimeType: String = "") {
         if (uri == null) return
+
+        // FAST-PATH: Infer basic type and start playback immediately without waiting for slow I/O
+        val pathStr = (uri.path ?: uri.toString()).lowercase(java.util.Locale.ROOT)
+        val resolvedMime = when {
+            mimeType.isNotBlank() && mimeType != "*/*" -> mimeType
+            pathStr.endsWith(".mp4") || pathStr.endsWith(".mkv") || pathStr.endsWith(".webm") ||
+            pathStr.endsWith(".mov") || pathStr.endsWith(".3gp") || pathStr.endsWith(".avi") ||
+            pathStr.endsWith(".ts") || pathStr.endsWith(".flv") || pathStr.endsWith(".m4v") -> "video/mp4"
+            pathStr.endsWith(".mp3") || pathStr.endsWith(".wav") || pathStr.endsWith(".flac") ||
+            pathStr.endsWith(".aac") || pathStr.endsWith(".m4a") || pathStr.endsWith(".ogg") || pathStr.endsWith(".opus") -> "audio/mpeg"
+            else -> "video/mp4" // Default to video if launched from viewer
+        }
+        val mediaType = if (resolvedMime.startsWith("audio/")) com.medianest.data.db.MediaType.AUDIO else com.medianest.data.db.MediaType.VIDEO
+        val fallbackTitle = if (title.isNotBlank() && title != "Media") title else (uri.lastPathSegment?.substringAfterLast('/') ?: "Media")
+
+        val fastItemId = uri.hashCode().toLong()
+        val fastItem = MediaItem(
+            id = fastItemId,
+            uri = uri,
+            title = fallbackTitle,
+            mimeType = resolvedMime,
+            type = mediaType
+        )
+
+        // Immediately start playback on Main thread
+        playMediaList(listOf(fastItem), 0, 0L)
+
+        // Asynchronously extract and enrich metadata in background without blocking video startup
         scope.launch(Dispatchers.IO) {
-            val item = com.medianest.util.AudioMetadataUtils.extractMetadata(context, uri, rawTitleHint = title, mimeTypeHint = mimeType)
-            withContext(Dispatchers.Main) {
-                playMediaList(listOf(item), 0, 0L)
+            try {
+                val enriched = com.medianest.util.AudioMetadataUtils.extractMetadata(context, uri, rawTitleHint = fallbackTitle, mimeTypeHint = resolvedMime)
+                val stableEnriched = enriched.copy(id = fastItemId)
+                withContext(Dispatchers.Main) {
+                    val currentQ = _playerState.value.queue
+                    if (currentQ.isNotEmpty() && currentQ[0].uri == uri) {
+                        _playerState.value = _playerState.value.copy(
+                            queue = listOf(stableEnriched),
+                            currentItem = stableEnriched
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Logger.w("ExoPlayerManager", "Background metadata extraction failed for $uri: ${e.message}")
             }
         }
     }
@@ -1070,7 +1115,15 @@ class ExoPlayerManager private constructor(private val context: Context) {
         } catch (_: Exception) {}
         isScrubbing = false
     }
-    fun seekTo(positionMs: Long) = activeEngine?.seekTo(positionMs)
+    fun seekTo(positionMs: Long) {
+        try {
+            val clamped = positionMs.coerceAtLeast(0L)
+            _playerState.value = _playerState.value.copy(currentPositionMs = clamped)
+            activeEngine?.seekTo(clamped)
+        } catch (e: Exception) {
+            Logger.e("ExoPlayerManager", "seekTo error: ${e.message}")
+        }
+    }
     fun seekForward(offsetMs: Long = 10000L) = seekTo(((activeEngine?.currentPositionMs ?: 0L) + offsetMs).coerceAtMost(activeEngine?.durationMs ?: 0L))
     fun seekBackward(offsetMs: Long = 10000L) = seekTo(((activeEngine?.currentPositionMs ?: 0L) - offsetMs).coerceAtLeast(0L))
     fun next() = _playerState.value.let {
