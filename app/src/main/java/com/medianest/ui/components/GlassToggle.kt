@@ -56,8 +56,8 @@ fun GlassToggle(
     enabled: Boolean = true,
     width: Dp = 52.dp,
     height: Dp = 32.dp,
-    backdropState: BackdropBlurState? = LocalBackdropState.current,
-    enableBackdropBlur: Boolean = true,
+    backdropState: BackdropBlurState? = null,
+    enableBackdropBlur: Boolean = false,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
 ) {
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -68,14 +68,14 @@ fun GlassToggle(
     // Progress: 0f (OFF) -> 1f (ON)
     val checkProgress by animateFloatAsState(
         targetValue = if (checked) 1f else 0f,
-        animationSpec = tween(durationMillis = 300, easing = standardCubicBezier),
+        animationSpec = tween(durationMillis = 200, easing = standardCubicBezier),
         label = "glassToggleProgress"
     )
 
     // Press scale: 0.96 when active/pressed
     val knobScale by animateFloatAsState(
         targetValue = if (isPressed && enabled) 0.96f else 1f,
-        animationSpec = tween(durationMillis = 150, easing = standardCubicBezier),
+        animationSpec = tween(durationMillis = 100, easing = standardCubicBezier),
         label = "glassToggleScale"
     )
 

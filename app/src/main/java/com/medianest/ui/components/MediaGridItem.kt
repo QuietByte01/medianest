@@ -157,7 +157,7 @@ fun MediaGridItem(
             .size(targetSize)
 
         if (item.type == MediaType.VIDEO) {
-            builder.decoderFactory(VideoFrameDecoder.Factory())
+            builder.decoderFactory(com.medianest.util.SemaphoreVideoFrameDecoder.Factory())
             builder.videoFrameMicros(videoSeekMicros)
         } else if (isGif) {
             if (!autoPlayGifPreviews || item.size >= 25 * 1024 * 1024L) {

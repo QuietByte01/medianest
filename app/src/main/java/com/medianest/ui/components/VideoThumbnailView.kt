@@ -80,6 +80,7 @@ fun VideoThumbnailView(
             .data(uri)
             .crossfade(true)
             .precision(Precision.INEXACT)
+            .size(400, 225)
             .decoderFactory(com.medianest.util.SemaphoreVideoFrameDecoder.Factory())
             .videoFrameMicros(videoSeekMicros)
             .build()

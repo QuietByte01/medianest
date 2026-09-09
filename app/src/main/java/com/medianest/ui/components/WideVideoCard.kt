@@ -95,7 +95,9 @@ fun WideVideoCard(
             .diskCacheKey("wide_${item.uri}_${item.size}_${item.dateAdded}_$rebuildToken")
             .memoryCacheKey("wide_${item.uri}_${item.size}_${item.dateAdded}_$rebuildToken")
             .crossfade(true)
-            .decoderFactory(VideoFrameDecoder.Factory())
+            .precision(coil.size.Precision.INEXACT)
+            .size(640, 360)
+            .decoderFactory(com.medianest.util.SemaphoreVideoFrameDecoder.Factory())
             .videoFrameMicros(videoSeekMicros)
             .build()
     }
