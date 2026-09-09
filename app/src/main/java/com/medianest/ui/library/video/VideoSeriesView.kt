@@ -481,14 +481,6 @@ private fun extractSeasonNumber(item: MediaItem): Int {
     return match?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 1
 }
 
-private fun extractEpisodeNumber(item: MediaItem): Int {
-    val path = ((item.relativePath ?: "") + "/" + item.title).lowercase()
-    val match = Regex("(?i)\\b(?:ep|episode|e)[\\s\\-_.]*(\\d{1,3})\\b").find(path)
-        ?: Regex("(?i)s\\d{1,2}e(\\d{1,3})").find(path)
-        ?: Regex("(?i)\\b\\d{1,2}x(\\d{1,3})\\b").find(path)
-    return match?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 1
-}
-
 private fun fetchAndSaveSubtitle(
     seriesName: String,
     season: Int,
