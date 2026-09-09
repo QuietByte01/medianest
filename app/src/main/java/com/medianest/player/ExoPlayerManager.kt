@@ -263,10 +263,6 @@ class ExoPlayerManager private constructor(private val context: Context) {
                         audioSharingMode = diag.audioSharingMode
                     )
 
-                    if (wasHdr != diag.isHdr) {
-                        setVideoEffect(currentVideoEffect)
-                    }
-
                     // Periodically save progress to DB (every ~5 seconds)
                     if (engine.isPlaying && System.currentTimeMillis() % 5000 < 200) {
                         savePlaybackProgress()
@@ -1638,19 +1634,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
 
     fun setVideoEffect(effect: com.medianest.ui.components.media.MediaEffect) {
         currentVideoEffect = effect
-        if (activeEngine == media3Engine) {
-            try {
-                if (_playerState.value.isHdrContent ||
-                    effect == MediaEffect.OFF ||
-                    effect == com.medianest.ui.components.media.MediaEffect.NORMAL || 
-                    effect == com.medianest.ui.components.media.MediaEffect.ORIGINAL) {
-                    media3Engine?.player?.setVideoEffects(emptyList())
-                } else {
-                    media3Engine?.player?.setVideoEffects(listOf(com.medianest.player.fx.ColorGradingGlEffect(effect)))
-                }
-            } catch (e: Exception) {
-                Logger.e("ExoPlayerManager", "Failed to set video effect on Media3", e)
-            }
-        }
+        // Note: Picture mode color matrix filters are rendered via Compose graphicsLayer RenderEffect 
+        // in VideoPlayerScreen.kt to keep ExoPlayer's surface pipeline 100% stable without TextureView surface teardowns.
     }
 }
