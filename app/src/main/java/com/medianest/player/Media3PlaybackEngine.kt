@@ -16,6 +16,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import com.medianest.hardware.AndroidHardwareEngine
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -175,44 +176,65 @@ class Media3PlaybackEngine(
             _diagnosticState.value = _diagnosticState.value.copy(
                 isHdr = false,
                 hdrType = "SDR",
-                colorSpace = "SDR"
+                colorSpace = "SDR (BT.709)"
             )
             return
         }
 
         val colorInfo = format.colorInfo
-        val isHdr = if (colorInfo != null) {
-            ColorInfo.isTransferHdr(colorInfo)
-        } else false
-
+        val width = format.width
+        val height = format.height
         val mime = format.sampleMimeType ?: ""
         val codecs = format.codecs?.lowercase() ?: ""
 
-        val isHdr10Plus = codecs.contains("hvc1.2.4") || codecs.contains("hdr10+") || codecs.contains("hdr10plus") || codecs.contains("dvh1") || codecs.contains("dvhe")
-        val hdrType = when {
+        // 1. Resolution-based fallback rules when colorInfo is missing or unspecified
+        val is4K = width >= 3840 || height >= 2160
+        val isHD = width >= 1280 || height >= 720
+
+        val isHdrTransfer = colorInfo != null && ColorInfo.isTransferHdr(colorInfo)
+        val isHdr10PlusCodecs = codecs.contains("hvc1.2.4") || codecs.contains("hdr10+") || codecs.contains("hdr10plus") || codecs.contains("dvh1") || codecs.contains("dvhe")
+        
+        val isHdr = isHdrTransfer || isHdr10PlusCodecs || mime.contains("dolby-vision", ignoreCase = true)
+
+        // 2. Transfer Function & Stream Classification
+        val transferStr = when {
             mime.contains("dolby-vision", ignoreCase = true) || codecs.contains("dvhe") || codecs.contains("dvh1") -> "Dolby Vision"
-            isHdr10Plus -> "HDR10+"
-            isHdr && (colorInfo?.colorTransfer == C.COLOR_TRANSFER_ST2084) -> {
-                if (isHdr10Plus) "HDR10+" else "HDR10"
-            }
-            isHdr && (colorInfo?.colorTransfer == C.COLOR_TRANSFER_HLG) -> "HLG"
+            isHdr10PlusCodecs -> "HDR10+"
+            colorInfo?.colorTransfer == C.COLOR_TRANSFER_ST2084 -> "HDR10 (PQ ST 2084)"
+            colorInfo?.colorTransfer == C.COLOR_TRANSFER_HLG -> "HLG"
             isHdr -> "HDR"
             else -> "SDR"
         }
 
-        val cs = when (colorInfo?.colorSpace) {
+        // 3. Primaries & Color Space Matrix Resolution
+        val csStr = when (colorInfo?.colorSpace) {
             C.COLOR_SPACE_BT2020 -> "BT.2020"
             C.COLOR_SPACE_BT709 -> "BT.709"
             C.COLOR_SPACE_BT601 -> "BT.601"
-            else -> if (isHdr) "BT.2020" else "SDR"
+            else -> when {
+                isHdr || is4K -> "BT.2020"
+                isHD -> "BT.709"
+                width > 0 && height > 0 -> "BT.601"
+                else -> "BT.709"
+            }
         }
 
-        Logger.i("Media3PlaybackEngine", "HDR Detection [Immediate]: isHdr=$isHdr, Type=$hdrType, ColorSpace=$cs, Mime=$mime, Codecs=$codecs")
+        // 4. Display Capability Check
+        val hwDiag = AndroidHardwareEngine.detectCapabilities(context)
+        val displaySupportsHdr = hwDiag.isHdrSupported || hwDiag.supportedHdrTypes.isNotEmpty()
+
+        val finalHdrType = if (isHdr && !displaySupportsHdr) {
+            "$transferStr (SDR Tone-Mapped)"
+        } else {
+            transferStr
+        }
+
+        Logger.i("Media3PlaybackEngine", "HDR Pipeline [Frame-1]: isHdr=$isHdr, Type=$finalHdrType, ColorSpace=$csStr, DisplayHDR=$displaySupportsHdr, Res=${width}x${height}, Mime=$mime, Codecs=$codecs")
 
         _diagnosticState.value = _diagnosticState.value.copy(
             isHdr = isHdr,
-            hdrType = hdrType,
-            colorSpace = cs
+            hdrType = finalHdrType,
+            colorSpace = csStr
         )
     }
 
