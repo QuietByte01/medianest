@@ -63,10 +63,24 @@ fun BackdropGlassSurface(
         )
     )
 
+    val isSurfaceViewMode = LocalIsSurfaceViewMode.current
+
     val surfaceModifier = modifier
         .clip(shape)
         .then(
-            if (enableBlur && backdropState != null) {
+            if (isSurfaceViewMode) {
+                // When over zero-copy SurfaceView, do not invoke backdropReceiver (which blurs empty/transparent pixels).
+                // Instead, render rich frosted black acrylic background directly!
+                Modifier.background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xCC08080C), // 80% Frosted black acrylic top
+                            Color(0xE6040406)  // 90% Deep frosted black base
+                        )
+                    ),
+                    shape = shape
+                )
+            } else if (enableBlur && backdropState != null) {
                 Modifier.backdropReceiver(
                     state = backdropState,
                     blurRadius = blurRadius,

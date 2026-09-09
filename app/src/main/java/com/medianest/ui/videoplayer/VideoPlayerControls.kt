@@ -43,6 +43,7 @@ fun VideoPlayerTopBar(
     onInfoClick: () -> Unit,
     onMenuClick: () -> Unit,
     onCaptureClick: () -> Unit,
+    onRequestSoftwareDecoder: () -> Unit = {},
     isControlsLocked: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -109,7 +110,11 @@ fun VideoPlayerTopBar(
                                     },
                                     onClick = {
                                         onDecoderDropdownExpandedChange(false)
-                                        onDecoderModeChange(modeKey)
+                                        if (modeKey == "SOFTWARE" && !isSelected) {
+                                            onRequestSoftwareDecoder()
+                                        } else {
+                                            onDecoderModeChange(modeKey)
+                                        }
                                     }
                                 )
                             }

@@ -184,6 +184,10 @@ private fun SettingsContent(
             
             com.medianest.ui.components.HdrPlaybackSetting(settingsManager = settingsManager)
 
+            Spacer(modifier = Modifier.height(4.dp))
+
+            com.medianest.ui.components.TextureViewSetting(settingsManager = settingsManager)
+
             if (playerState.isHdrContent) {
                 GlassSurface(
                     modifier = Modifier.fillMaxWidth(),

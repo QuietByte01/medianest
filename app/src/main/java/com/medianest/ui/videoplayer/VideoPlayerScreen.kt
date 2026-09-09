@@ -178,6 +178,7 @@ fun VideoPlayerScreen(
     var showControls by remember { mutableStateOf(true) }
     var cropMode by remember { mutableStateOf(MediaAspectRatio.FIT) }
     val savedDecoderMode by settingsManager.decoderMode.collectAsState(initial = "HW+")
+    val useSurfaceView by settingsManager.useSurfaceView.collectAsState(initial = true)
     var decoderMode by remember(savedDecoderMode) { mutableStateOf(savedDecoderMode) }
     var showAspectRatioMenu by remember { mutableStateOf(false) }
     var showSpeedMenu by remember { mutableStateOf(false) }
@@ -244,6 +245,7 @@ fun VideoPlayerScreen(
     var showAbRepeatBar by remember { mutableStateOf(false) }
     var activeSubtitleText by remember { mutableStateOf<String?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showSoftwareDecoderWarning by remember { mutableStateOf(false) }
     var decoderDropdownExpanded by remember { mutableStateOf(false) }
 
     var swipeEdgeState by remember { mutableStateOf(SwipeEdge.NONE) }
@@ -323,7 +325,7 @@ fun VideoPlayerScreen(
     val anyOverlayOpen = showOverflowMenu || showDetailsSheet || showDrawer || showSubtitleSheet ||
             showSubtitleCustomizationSheet || showSettingsSheet || showAudioTrackSheet ||
             showAspectRatioMenu || showSpeedMenu || showAbRepeatBar || showEngineDialog ||
-            showVideoFxSheet || showVideoEditorSheet || showDeleteDialog
+            showVideoFxSheet || showVideoEditorSheet || showDeleteDialog || showSoftwareDecoderWarning
 
     LaunchedEffect(anyOverlayOpen) {
         if (anyOverlayOpen) {
@@ -348,6 +350,7 @@ fun VideoPlayerScreen(
                 showVideoFxSheet -> showVideoFxSheet = false
                 showVideoEditorSheet -> showVideoEditorSheet = false
                 showDeleteDialog -> showDeleteDialog = false
+                showSoftwareDecoderWarning -> showSoftwareDecoderWarning = false
             }
         } else if (isControlsLocked) {
             isControlsLocked = false
@@ -473,8 +476,12 @@ fun VideoPlayerScreen(
     }
 
     val controlsFadeSpec = tween<Float>(durationMillis = 500)
+    val isSurfaceActive = playerState.activeEngineName.contains("Media3") && useSurfaceView
 
-    CompositionLocalProvider(com.medianest.ui.components.LocalBackdropState provides playerBackdropState) {
+    CompositionLocalProvider(
+        com.medianest.ui.components.LocalBackdropState provides playerBackdropState,
+        com.medianest.ui.components.LocalIsSurfaceViewMode provides isSurfaceActive
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -650,23 +657,24 @@ fun VideoPlayerScreen(
                                             scaleY = scale
                                             translationX = panOffset.x
                                             translationY = panOffset.y
-                                            // Do NOT apply sRGB 8-bit RenderEffect on HDR content (causes milky/grainy white overlay)
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && androidFxColorFilter != null && !playerState.isHdrContent) {
+                                            // Do NOT apply sRGB 8-bit RenderEffect on HDR content or in SurfaceView mode
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && androidFxColorFilter != null && !playerState.isHdrContent && !useSurfaceView) {
                                                 renderEffect = android.graphics.RenderEffect.createColorFilterEffect(androidFxColorFilter).asComposeRenderEffect()
                                             }
                                         },
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    // Key ONLY on engine and instanceId — do NOT key on currentItem.id,
+                                    // Key ONLY on engine, instanceId, and surface type — do NOT key on currentItem.id,
                                     // as changing items or background metadata updates would tear down
                                     // the SurfaceTexture and cause playback to freeze at 00:00.
-                                    androidx.compose.runtime.key(playerState.activeEngineName, playerState.media3InstanceId) {
+                                    androidx.compose.runtime.key(playerState.activeEngineName, playerState.media3InstanceId, useSurfaceView) {
                                         if (playerState.activeEngineName.contains("Media3")) {
                                             AndroidView(
                                                 factory = { ctx ->
-                                                    Logger.i("VideoPlayerScreen", "Creating NEW PlayerView for Media3")
+                                                    Logger.i("VideoPlayerScreen", "Creating NEW PlayerView for Media3 (surfaceView=$useSurfaceView)")
                                                     val inflater = android.view.LayoutInflater.from(ctx)
-                                                    (inflater.inflate(com.medianest.R.layout.player_view_texture, null) as androidx.media3.ui.PlayerView).apply {
+                                                    val layoutRes = if (useSurfaceView) com.medianest.R.layout.player_view_surface else com.medianest.R.layout.player_view_texture
+                                                    (inflater.inflate(layoutRes, null) as androidx.media3.ui.PlayerView).apply {
                                                         useController = false
                                                         subtitleView?.visibility = View.GONE
                                                         setKeepContentOnPlayerReset(false)
@@ -826,6 +834,7 @@ fun VideoPlayerScreen(
                         val liveBmp = try { activeTextureViewRef?.bitmap } catch (_: Exception) { null }
                         captureVideoFrame(context, currentItem, playerState.currentPositionMs, liveBmp)
                     },
+                    onRequestSoftwareDecoder = { showSoftwareDecoderWarning = true },
                     isControlsLocked = isControlsLocked
                 )
             }
@@ -951,16 +960,20 @@ fun VideoPlayerScreen(
             resumePromptPositionMs?.let { resumePos ->
                 val shape = RoundedCornerShape(16.dp)
                 val cardBg = Color(0x6608090E)
+                val isSurfaceMode = com.medianest.ui.components.LocalIsSurfaceViewMode.current
+                val acrylicBg = Color(0xD908080C)
                 GlassSurface(
                     shape = shape,
-                    backgroundColor = if (playerBackdropState != null) Color.Transparent else cardBg,
+                    backgroundColor = if (isSurfaceMode) acrylicBg else if (playerBackdropState != null) Color.Transparent else cardBg,
                     borderColor = Color(0x33FFFFFF),
                     borderWidth = 0.5.dp,
                     modifier = Modifier
                         .padding(horizontal = 16.dp)
                         .clip(shape)
                         .then(
-                            if (playerBackdropState != null) {
+                            if (isSurfaceMode) {
+                                Modifier.background(acrylicBg, shape = shape)
+                            } else if (playerBackdropState != null) {
                                 Modifier.backdropReceiver(
                                     state = playerBackdropState,
                                     blurRadius = 24.dp,
@@ -1267,6 +1280,7 @@ fun VideoPlayerScreen(
                     showAspectRatioMenu = false
                     showSpeedMenu = false
                 },
+                showVideoFx = !isSurfaceActive,
                 onVideoFx = {
                     showVideoFxSheet = true
                     showAspectRatioMenu = false
@@ -1349,6 +1363,148 @@ fun VideoPlayerScreen(
                             TextButton(onClick = { showEngineDialog = false }) {
                                 Text("Done", color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (showSoftwareDecoderWarning) {
+            val shape = RoundedCornerShape(20.dp)
+            val isDark = com.medianest.ui.theme.LocalDarkTheme.current
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) { showSoftwareDecoderWarning = false },
+                contentAlignment = Alignment.Center
+            ) {
+                com.medianest.ui.components.BackdropGlassSurface(
+                    shape = shape,
+                    enableBlur = true,
+                    blurRadius = 24.dp,
+                    tint = Color(0x770A0C10),
+                    baseColor = Color.Transparent,
+                    borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x28000000),
+                    borderWidth = 0.5.dp,
+                    backdropState = playerBackdropState,
+                    modifier = Modifier
+                        .widthIn(max = minOf(420.dp, (LocalConfiguration.current.screenWidthDp * 0.92f).dp))
+                        .wrapContentHeight()
+                        .padding(16.dp)
+                        .clickable(enabled = false) {}
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Header row matching Subtitle Options Dialog design
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0x33EF4444)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = "Warning",
+                                        tint = Color(0xFFEF4444),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Column {
+                                    Text(
+                                        text = "Software Decoding",
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "High Thermal & Battery Load",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFFF87171),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0x33FFFFFF))
+                                    .clickable { showSoftwareDecoderWarning = false },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(16.dp))
+                            }
+                        }
+
+                        // Explanation card
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0x1AFFFFFF),
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0x22FFFFFF)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Software mode decodes video directly on CPU cores instead of dedicated hardware processors.",
+                                    color = Color(0xFFE2E8F0),
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 17.sp
+                                )
+                                Text(
+                                    text = "• Noticeable device heating & throttling\n• Significantly higher battery consumption\n• Recommended only if Hardware (HW) mode fails",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 11.5.sp,
+                                    lineHeight = 16.sp
+                                )
+                            }
+                        }
+
+                        // Actions matching AppActionButton / Subtitle dialog aesthetic
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            com.medianest.ui.components.AppActionButton(
+                                text = "Cancel",
+                                onClick = { showSoftwareDecoderWarning = false },
+                                modifier = Modifier.weight(1f),
+                                style = com.medianest.ui.components.AppButtonStyle.Glossy,
+                                accentColor = Color(0xFF94A3B8)
+                            )
+                            com.medianest.ui.components.AppCriticalButton(
+                                text = "Switch to SW",
+                                onClick = {
+                                    showSoftwareDecoderWarning = false
+                                    decoderMode = "SOFTWARE"
+                                    scope.launch { settingsManager.setDecoderMode("SOFTWARE") }
+                                },
+                                modifier = Modifier.weight(1f),
+                                icon = Icons.Default.FlashOn,
+                                accentColor = Color(0xFFEF4444)
+                            )
                         }
                     }
                 }

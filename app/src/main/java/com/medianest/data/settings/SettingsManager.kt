@@ -60,6 +60,7 @@ class SettingsManager(private val context: Context) {
         val KEY_VIDEO_SHUFFLE_MODE = booleanPreferencesKey("video_shuffle_mode")
 
         val KEY_PICTURE_MODE_ENABLED = booleanPreferencesKey("picture_mode_enabled")
+        val KEY_USE_SURFACE_VIEW = booleanPreferencesKey("use_surface_view")
         val KEY_DECODER_MODE = stringPreferencesKey("decoder_mode") // AUTO, HARDWARE, SOFTWARE
         val KEY_PICTURE_MODE = stringPreferencesKey("picture_mode") // DEVICE_DEFAULT, BALANCED, NATURAL, VIVID, CINEMATIC, CUSTOM
         val KEY_HDR_PLAYBACK_ENABLED = booleanPreferencesKey("hdr_playback_enabled")
@@ -98,6 +99,7 @@ class SettingsManager(private val context: Context) {
     val largeImageGrid: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_LARGE_IMAGE_GRID] ?: false }
 
     val decoderMode: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_DECODER_MODE] ?: "AUTO" }
+    val useSurfaceView: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_USE_SURFACE_VIEW] ?: true }
     val pictureModeEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_PICTURE_MODE_ENABLED] ?: true }
     val pictureMode: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_PICTURE_MODE] ?: "DEVICE_DEFAULT" }
     val rememberVideoPosition: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_REMEMBER_VIDEO_POSITION] ?: true }
@@ -241,6 +243,7 @@ class SettingsManager(private val context: Context) {
     suspend fun setVideoShuffleMode(enabled: Boolean) = context.dataStore.edit { it[KEY_VIDEO_SHUFFLE_MODE] = enabled }
 
     suspend fun setDecoderMode(mode: String) = context.dataStore.edit { it[KEY_DECODER_MODE] = mode }
+    suspend fun setUseSurfaceView(enabled: Boolean) = context.dataStore.edit { it[KEY_USE_SURFACE_VIEW] = enabled }
     suspend fun setHdrPlaybackEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_HDR_PLAYBACK_ENABLED] = enabled }
     suspend fun setPictureModeEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_PICTURE_MODE_ENABLED] = enabled }
     suspend fun setPictureMode(mode: String) = context.dataStore.edit { it[KEY_PICTURE_MODE] = mode }

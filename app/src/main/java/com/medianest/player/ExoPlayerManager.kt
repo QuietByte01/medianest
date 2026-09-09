@@ -219,9 +219,11 @@ class ExoPlayerManager private constructor(private val context: Context) {
         setupVolumeReceiver()
 
         scope.launch {
+            var lastSavedPos = -1L
             while (isActive) {
                 val engine = activeEngine
                 if (engine != null) {
+                    val isPlaying = engine.isPlaying
                     val diag = engine.diagnosticState.value
                     // Grab the live session ID from the underlying ExoPlayer instance.
                     // This ensures the correct (non-zero) session ID is always exposed
@@ -234,41 +236,55 @@ class ExoPlayerManager private constructor(private val context: Context) {
 
                     val newPos = engine.currentPositionMs
                     val newDur = engine.durationMs
-                    val wasHdr = _playerState.value.isHdrContent
 
                     abRepeatController.checkAndLoop(newPos)
-                    
-                    _playerState.value = _playerState.value.copy(
-                        currentPositionMs = newPos,
-                        durationMs = newDur,
-                        isPlaying = engine.isPlaying,
-                        currentBitrate = diag.currentBitrate,
-                        droppedFrames = diag.droppedFrames,
-                        audioDecodeErrors = diag.audioDecodeErrors,
-                        audioMissingFrames = diag.audioMissingFrames,
-                        corruptedFrames = diag.corruptedFrames,
-                        bitrateHistory = diag.bitrateHistory,
-                        timestampRecoveryCount = diag.timestampRecoveryCount,
-                        containerName = diag.containerName,
-                        videoCodec = diag.videoCodec,
-                        audioCodec = diag.audioCodec,
-                        activeDecoderName = diag.decoderName,
-                        isHardwareAccelerated = diag.isHardwareAccelerated,
-                        audioSessionId = if (liveSessionId != 0 && liveSessionId != C.AUDIO_SESSION_ID_UNSET) liveSessionId else _playerState.value.audioSessionId,
-                        isSystemVolumeMaxed = isMaxed,
-                        isHdrContent = diag.isHdr,
-                        hdrType = diag.hdrType,
-                        colorSpace = diag.colorSpace,
-                        audioSampleFormat = diag.audioSampleFormat,
-                        audioSharingMode = diag.audioSharingMode
-                    )
 
-                    // Periodically save progress to DB (every ~5 seconds)
-                    if (engine.isPlaying && System.currentTimeMillis() % 5000 < 200) {
+                    val oldState = _playerState.value
+                    val stateChanged = isPlaying != oldState.isPlaying ||
+                            kotlin.math.abs(newPos - oldState.currentPositionMs) >= 100 ||
+                            newDur != oldState.durationMs ||
+                            diag.droppedFrames != oldState.droppedFrames ||
+                            diag.currentBitrate != oldState.currentBitrate ||
+                            diag.videoCodec != oldState.videoCodec ||
+                            diag.decoderName != oldState.activeDecoderName ||
+                            isMaxed != oldState.isSystemVolumeMaxed ||
+                            diag.isHdr != oldState.isHdrContent ||
+                            (liveSessionId != 0 && liveSessionId != C.AUDIO_SESSION_ID_UNSET && liveSessionId != oldState.audioSessionId)
+
+                    if (stateChanged) {
+                        _playerState.value = oldState.copy(
+                            currentPositionMs = newPos,
+                            durationMs = newDur,
+                            isPlaying = isPlaying,
+                            currentBitrate = diag.currentBitrate,
+                            droppedFrames = diag.droppedFrames,
+                            audioDecodeErrors = diag.audioDecodeErrors,
+                            audioMissingFrames = diag.audioMissingFrames,
+                            corruptedFrames = diag.corruptedFrames,
+                            bitrateHistory = diag.bitrateHistory,
+                            timestampRecoveryCount = diag.timestampRecoveryCount,
+                            containerName = diag.containerName,
+                            videoCodec = diag.videoCodec,
+                            audioCodec = diag.audioCodec,
+                            activeDecoderName = diag.decoderName,
+                            isHardwareAccelerated = diag.isHardwareAccelerated,
+                            audioSessionId = if (liveSessionId != 0 && liveSessionId != C.AUDIO_SESSION_ID_UNSET) liveSessionId else oldState.audioSessionId,
+                            isSystemVolumeMaxed = isMaxed,
+                            isHdrContent = diag.isHdr,
+                            hdrType = diag.hdrType,
+                            colorSpace = diag.colorSpace,
+                            audioSampleFormat = diag.audioSampleFormat,
+                            audioSharingMode = diag.audioSharingMode
+                        )
+                    }
+
+                    // Periodically save progress to DB (every ~5 seconds while playing)
+                    if (isPlaying && (lastSavedPos == -1L || kotlin.math.abs(newPos - lastSavedPos) >= 5000)) {
+                        lastSavedPos = newPos
                         savePlaybackProgress()
                     }
                 }
-                delay(200)
+                delay(if (activeEngine?.isPlaying == true) 200 else 600)
             }
         }
     }

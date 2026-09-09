@@ -197,7 +197,7 @@ class AudioVisualizerGLSurfaceView(
         glView.setEGLContextClientVersion(3)
         renderer = AudioVisualizerRenderer(styleProvider)
         glView.setRenderer(renderer)
-        glView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+        glView.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
         glView.isClickable = false
         glView.isFocusable = false
 
@@ -206,6 +206,14 @@ class AudioVisualizerGLSurfaceView(
         canvasView.setWillNotDraw(false)
         canvasView.setOpaqueBackground(false)
         updateMode(styleProvider())
+    }
+
+    fun onPause() {
+        try { glView.onPause() } catch (_: Exception) {}
+    }
+
+    fun onResume() {
+        try { glView.onResume() } catch (_: Exception) {}
     }
 
     private var lastStyle: VisualizerStyle? = null
@@ -223,6 +231,9 @@ class AudioVisualizerGLSurfaceView(
             updateMode(currentStyle)
             lastStyle = currentStyle
         }
+        if (currentStyle.is3D()) {
+            glView.requestRender()
+        }
     }
 
     fun getTagStyle(): VisualizerStyle = styleProvider()
@@ -239,6 +250,9 @@ class AudioVisualizerGLSurfaceView(
         // Always keep canvas visible so it can draw background in fullscreen if needed
         canvasView.visibility = View.VISIBLE
         glView.visibility = if (is3D) View.VISIBLE else View.GONE
+        if (is3D) {
+            glView.requestRender()
+        }
     }
 }
 
@@ -942,11 +956,48 @@ fun AudioVisualizer(
                 androidVisualizer = null
             }
         }
-        onDispose { try { androidVisualizer?.enabled = false; androidVisualizer?.release() } catch (_: Exception) {} }
+        onDispose {
+            try {
+                androidVisualizer?.enabled = false
+                androidVisualizer?.release()
+                visualizerView?.onPause()
+            } catch (_: Exception) {}
+        }
     }
 
     LaunchedEffect(Unit) {
         while (true) {
+            if (!currentIsPlaying) {
+                // Decay active audio bands to 0 when paused, then sleep
+                var hasActiveData = false
+                for (i in 0 until state.numBands) {
+                    if (state.smoothedBands[i] > 0.005f || state.peakCaps[i] > 0.005f) {
+                        hasActiveData = true
+                        state.smoothedBands[i] *= 0.82f
+                        state.peakCaps[i] = (state.peakCaps[i] - 0.05f).coerceAtLeast(0f)
+                    } else {
+                        state.smoothedBands[i] = 0f
+                        state.peakCaps[i] = 0f
+                    }
+                }
+                if (hasActiveData) {
+                    state.bassEnergy = 0f
+                    state.midEnergy = 0f
+                    state.trebleEnergy = 0f
+                    state.overallAmplitude = 0f
+                    visualizerView?.updateAudioData(
+                        0f, 0f, 0f, 0f,
+                        0f, state.smoothedBands,
+                        state.artBaseHue.floatValue, state.peakCaps
+                    )
+                    kotlinx.coroutines.delay(33)
+                } else {
+                    // Fully paused & decayed: sleep coroutine to avoid CPU/GPU burn
+                    kotlinx.coroutines.delay(300)
+                }
+                continue
+            }
+
             withFrameNanos { frameNanos ->
                 val nowSeconds = frameNanos / 1_000_000_000f
 
@@ -1015,11 +1066,19 @@ fun AudioVisualizer(
                 AudioVisualizerGLSurfaceView(ctx) { internalStyle }.also { view ->
                     visualizerView = view
                     view.setFullscreenBackground(isFullscreen)
+                    view.onResume()
                 }
             },
             update = { view ->
                 visualizerView = view
                 view.setFullscreenBackground(isFullscreen)
+                view.onResume()
+            },
+            onRelease = { view ->
+                view.onPause()
+                if (visualizerView == view) {
+                    visualizerView = null
+                }
             },
             modifier = Modifier.fillMaxSize()
         )

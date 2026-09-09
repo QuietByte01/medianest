@@ -86,6 +86,7 @@ fun SettingsScreen(
     val offlineMode by settingsManager.offlineMode.collectAsState(initial = false)
     val showHiddenFiles by settingsManager.showHiddenFiles.collectAsState(initial = false)
     val decoderMode by settingsManager.decoderMode.collectAsState(initial = "AUTO")
+    val useSurfaceView by settingsManager.useSurfaceView.collectAsState(initial = true)
     val developerModeEnabled by settingsManager.developerModeEnabled.collectAsState(initial = false)
 
     var versionTapCount by remember { mutableIntStateOf(0) }
@@ -604,6 +605,21 @@ fun SettingsScreen(
             // SECTION 3: PLAYBACK & ENGINE
             SettingsGlassCard(title = "PLAYBACK & ENGINE", backdropState = settingsGridBackdropState) {
                 
+                // TextureView vs SurfaceView Mode
+                val isTextureViewEnabled = !useSurfaceView
+                SettingsRowItem(
+                    title = "Enable TextureView Mode",
+                    subtitle = "Enables Live Video Backdrop Blur & Video FX (Color Filters). Renders video through the app's graphics pipeline (causes extra GPU/CPU buffer copying, higher battery consumption & device warmth). When disabled, uses zero-copy SurfaceView for cooler, high-efficiency playback.",
+                    control = {
+                        AppSwitch(
+                            checked = isTextureViewEnabled,
+                            onCheckedChange = { enableTextureView ->
+                                scope.launch { settingsManager.setUseSurfaceView(!enableTextureView) }
+                            }
+                        )
+                    }
+                )
+
                 // Keep Screen On During Playback
                 SettingsRowItem(
                     title = "Keep Screen On During Playback",

@@ -68,6 +68,7 @@ internal fun VideoPlayerOverflowMenu(
     onToggleAutoRepeat: (Boolean) -> Unit,
     isAbRepeatActive: Boolean = false,
     onAbRepeat: () -> Unit = {},
+    showVideoFx: Boolean = true,
     onVideoFx: () -> Unit,
     onAudioTracks: () -> Unit,
     onSettings: () -> Unit,
@@ -177,11 +178,13 @@ internal fun VideoPlayerOverflowMenu(
                     onClick = { onCast(); onDismiss() }
                 )
                 */
-                DropdownMenuItem(
-                    text = { Text("Video FX & Filters", color = Color.White, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.Tune, null, tint = Color.White, modifier = Modifier.size(15.dp)) },
-                    onClick = { onVideoFx(); onDismiss() }
-                )
+                if (showVideoFx) {
+                    DropdownMenuItem(
+                        text = { Text("Video FX & Filters", color = Color.White, fontSize = 14.sp) },
+                        leadingIcon = { Icon(Icons.Default.Tune, null, tint = Color.White, modifier = Modifier.size(15.dp)) },
+                        onClick = { onVideoFx(); onDismiss() }
+                    )
+                }
                 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = Color.White.copy(alpha = 0.1f))
                 

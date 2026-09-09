@@ -53,11 +53,16 @@ fun AbRepeatControlBar(
     val pointB = abRepeatState.pointB
     val isActive = abRepeatState.isActive && pointA != null && pointB != null
 
+    val isSurfaceMode = com.medianest.ui.components.LocalIsSurfaceViewMode.current
+    val acrylicBg = Color(0xD908080C)
+
     val cardModifier = modifier
         .fillMaxWidth(0.96f)
         .clip(shape)
         .then(
-            if (backdropState != null) {
+            if (isSurfaceMode) {
+                Modifier.background(acrylicBg, shape = shape)
+            } else if (backdropState != null) {
                 Modifier.backdropReceiver(
                     state = backdropState,
                     blurRadius = 24.dp,
@@ -72,7 +77,7 @@ fun AbRepeatControlBar(
     GlassSurface(
         modifier = cardModifier,
         shape = shape,
-        backgroundColor = if (backdropState != null) Color.Transparent else cardBg,
+        backgroundColor = if (isSurfaceMode) acrylicBg else if (backdropState != null) Color.Transparent else cardBg,
         borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x33000000),
         borderWidth = 0.5.dp
     ) {

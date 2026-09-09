@@ -162,3 +162,42 @@ fun HdrPlaybackSetting(
         )
     }
 }
+
+@Composable
+fun TextureViewSetting(
+    settingsManager: SettingsManager
+) {
+    val scope = rememberCoroutineScope()
+    val useSurfaceView by settingsManager.useSurfaceView.collectAsState(initial = true)
+    val isTextureViewEnabled = !useSurfaceView
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(
+                "Enable TextureView Mode",
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                "Enables Live Video Backdrop Blur & Video FX (Color Filters). Renders video through the app's graphics pipeline (causes extra GPU/CPU buffer copying, higher battery consumption & device warmth). When disabled, uses zero-copy SurfaceView for cooler, high-efficiency playback.",
+                color = Color.White.copy(alpha = 0.65f),
+                fontSize = 11.sp,
+                lineHeight = 15.sp
+            )
+        }
+        AppSwitch(
+            checked = isTextureViewEnabled,
+            onCheckedChange = { enableTextureView ->
+                scope.launch { settingsManager.setUseSurfaceView(!enableTextureView) }
+            },
+            style = AppSwitchStyle.Glossy,
+            accentColor = Color(0xFF38BDF8)
+        )
+    }
+}

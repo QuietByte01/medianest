@@ -96,6 +96,8 @@ fun rememberBackdropBlurState(): BackdropBlurState {
 
 val LocalBackdropState = compositionLocalOf<BackdropBlurState?> { null }
 
+val LocalIsSurfaceViewMode = compositionLocalOf { false }
+
 /**
  * Marks the composable (e.g. main screen or video player) as the backdrop source to be
  * sampled and blurred.
@@ -146,6 +148,7 @@ fun Modifier.backdropReceiver(
     borderColor: Color = Color.White.copy(alpha = 0.12f),
     downscaleFactor: Float = 3f
 ): Modifier = composed {
+    val isSurfaceViewMode = LocalIsSurfaceViewMode.current
     var receiverCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val downsampleLayer = rememberGraphicsLayer()
     val blurLayer = rememberGraphicsLayer()
@@ -168,9 +171,17 @@ fun Modifier.backdropReceiver(
             @Suppress("UNUSED_EXPRESSION")
             invalidationTick
 
-            // 1. Opaque base layer first, to fully occlude unblurred content beneath if specified.
-            if (baseColor != Color.Transparent) {
-                drawRect(color = baseColor, size = size)
+            // 1. Opaque / acrylic base layer. If over a zero-copy SurfaceView, apply frosted black
+            // acrylic tint (0xD908080C - 85%) so the panel has a rich frosted black acrylic backing.
+            // When in TextureView or other screens, keep transparent so live video blur shines through!
+            val effectiveBaseColor = if (isSurfaceViewMode && baseColor == Color.Transparent) {
+                Color(0xD908080C)
+            } else {
+                baseColor
+            }
+
+            if (effectiveBaseColor != Color.Transparent) {
+                drawRect(color = effectiveBaseColor, size = size)
             }
 
             val offset = state.getRelativeOffset(receiverCoordinates)

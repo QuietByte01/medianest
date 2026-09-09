@@ -1588,6 +1588,18 @@ fun SidebarQueueDrawer(
             ) {
                 items(filteredQueue) { video ->
                     val isCurrent = video.uri == playerState.currentItem?.uri
+                    val isSurfaceMode = LocalIsSurfaceViewMode.current
+                    val cardBg = if (isSurfaceMode) {
+                        if (isCurrent) Color(0xCC1A1E29) else Color(0x9910141E)
+                    } else {
+                        if (isCurrent) Color(0x33FFFFFF) else Color(0x1AFFFFFF)
+                    }
+                    val cardBorder = if (isCurrent) {
+                        if (isSurfaceMode) Color(0x8038BDF8) else Color.White
+                    } else {
+                        if (isSurfaceMode) Color(0x33FFFFFF) else Color(0x22FFFFFF)
+                    }
+
                     GlassSurface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1595,9 +1607,9 @@ fun SidebarQueueDrawer(
                                 onVideoClick(video)
                             },
                         shape = RoundedCornerShape(14.dp),
-                        enableBlur = true,
-                        backgroundColor = if (isCurrent) Color(0x33FFFFFF) else Color(0x1AFFFFFF),
-                        borderColor = if (isCurrent) Color.White else Color(0x22FFFFFF)
+                        enableBlur = !isSurfaceMode,
+                        backgroundColor = cardBg,
+                        borderColor = cardBorder
                     ) {
                         Column(
                             modifier = Modifier
@@ -1607,7 +1619,7 @@ fun SidebarQueueDrawer(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(95.dp)
+                                    .height(125.dp)
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(
                                         Brush.radialGradient(
