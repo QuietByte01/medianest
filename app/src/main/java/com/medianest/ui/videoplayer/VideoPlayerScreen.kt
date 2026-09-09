@@ -669,11 +669,11 @@ fun VideoPlayerScreen(
                                                     (inflater.inflate(com.medianest.R.layout.player_view_texture, null) as androidx.media3.ui.PlayerView).apply {
                                                         useController = false
                                                         subtitleView?.visibility = View.GONE
-                                                        setKeepContentOnPlayerReset(true)
+                                                        setKeepContentOnPlayerReset(false)
                                                         try {
                                                             this.player = playerManager.exoPlayer
                                                         } catch (_: Exception) {}
-                                                        resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
                                                         layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                                                         activeTextureViewRef = videoSurfaceView as? android.view.TextureView
                                                     }
@@ -689,7 +689,7 @@ fun VideoPlayerScreen(
                                                     } catch (e: Exception) {
                                                         Logger.e("VideoPlayerScreen", "Error syncing player", e)
                                                     }
-                                                    view.resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                                    view.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
                                                     activeTextureViewRef = view.videoSurfaceView as? android.view.TextureView
                                                 },
                                                 onRelease = { view ->
