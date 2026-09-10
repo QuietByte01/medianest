@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
@@ -44,6 +45,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
+
+    // Debounced: used by filtered list combines so each keystroke doesn't immediately
+    // trigger full sort+filter of thousands of items on Dispatchers.Default.
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
+    private val _debouncedSearchQuery = _searchQuery.debounce(150L).stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     private val _imagesList = MutableStateFlow<List<MediaItem>>(emptyList())
     private val _videosList = MutableStateFlow<List<MediaItem>>(emptyList())
@@ -116,7 +122,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     val audioSortAscending: StateFlow<Boolean> = _audioSortAscending
 
     val filteredImagesList: StateFlow<List<MediaItem>> = combine(
-        combine(_imagesList, _searchQuery, _imageFilterTab) { list, query, tab -> Triple(list, query, tab) },
+        // Use debounced query: raw _searchQuery fires on every keystroke, triggering full
+        // sort+filter on Dispatchers.Default for each character typed.
+        combine(_imagesList, _debouncedSearchQuery, _imageFilterTab) { list, query, tab -> Triple(list, query, tab) },
         combine(_imageSortField, _imageSortAscending, settingsManager.showHiddenFiles) { sort, asc, showHidden -> Triple(sort, asc, showHidden) }
     ) { (list, query, tab), (sort, asc, showHidden) ->
         withContext(Dispatchers.Default) {
@@ -146,7 +154,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val filteredAudioList: StateFlow<List<MediaItem>> = combine(
-        combine(_audioList, _searchQuery, _audioFilterTab) { list, query, tab -> Triple(list, query, tab) },
+        combine(_audioList, _debouncedSearchQuery, _audioFilterTab) { list, query, tab -> Triple(list, query, tab) },
         combine(_audioSortField, _audioSortAscending, settingsManager.showHiddenFiles) { sort, asc, showHidden -> Triple(sort, asc, showHidden) }
     ) { (list, query, tab), (sort, asc, showHidden) ->
         withContext(Dispatchers.Default) {
@@ -175,7 +183,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val filteredVideosList: StateFlow<List<MediaItem>> = combine(
-        combine(_videosList, _searchQuery, _videoFilterTab) { list, query, tab -> Triple(list, query, tab) },
+        combine(_videosList, _debouncedSearchQuery, _videoFilterTab) { list, query, tab -> Triple(list, query, tab) },
         combine(_videoSortField, _videoSortAscending, settingsManager.showHiddenFiles) { sort, asc, showHidden -> Triple(sort, asc, showHidden) }
     ) { (list, query, tab), (sort, asc, showHidden) ->
         withContext(Dispatchers.Default) {

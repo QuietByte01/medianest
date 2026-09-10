@@ -39,6 +39,8 @@ class SemaphoreVideoFrameDecoder(
     }
 
     companion object {
-        private val semaphore = Semaphore(1)
+        // 3 permits: allows parallel thumbnail decoding for smoother grid scroll while
+        // still preventing too many concurrent MediaMetadataRetriever instances (OOM risk).
+        private val semaphore = Semaphore(3)
     }
 }

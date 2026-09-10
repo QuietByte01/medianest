@@ -171,6 +171,10 @@ fun VideoPlayerTopBar(
 @Composable
 fun VideoPlayerBottomBar(
     playerState: PlayerState,
+    // These two come from the lightweight PlaybackPositionState (200ms updates).
+    // Keeping them separate avoids recomposing the full player screen every tick.
+    currentPositionMs: Long = playerState.currentPositionMs,
+    durationMs: Long = playerState.durationMs,
     isControlsLocked: Boolean,
     isHorizontalDragging: Boolean,
     seekTargetPositionMs: Long,
@@ -205,24 +209,24 @@ fun VideoPlayerBottomBar(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (!isControlsLocked && !isHorizontalDragging) {
-            val effectiveSeekPos = if (isDraggingBar) draggingSeekPos else playerState.currentPositionMs
+            val effectiveSeekPos = if (isDraggingBar) draggingSeekPos else currentPositionMs
             ThinSeekBar(
-                value = if (playerState.durationMs > 0) effectiveSeekPos.toFloat() else 0f,
+                value = if (durationMs > 0) effectiveSeekPos.toFloat() else 0f,
                 onValueChange = { newPos ->
-                    draggingSeekPos = newPos.toLong().coerceIn(0L, playerState.durationMs)
+                    draggingSeekPos = newPos.toLong().coerceIn(0L, durationMs)
                     onSeekProgress(draggingSeekPos)
                 },
                 onValueChangeStarted = {
                     isDraggingBar = true
-                    draggingSeekPos = playerState.currentPositionMs
+                    draggingSeekPos = currentPositionMs
                     onSeekStart()
                 },
                 onValueChangeFinished = { finalPos ->
                     isDraggingBar = false
-                    val targetPos = finalPos.toLong().coerceIn(0L, playerState.durationMs)
+                    val targetPos = finalPos.toLong().coerceIn(0L, durationMs)
                     onSeekEnd(targetPos)
                 },
-                valueRange = 0f..(playerState.durationMs.toFloat().coerceAtLeast(1f)),
+                valueRange = 0f..(durationMs.toFloat().coerceAtLeast(1f)),
                 modifier = Modifier.fillMaxWidth().padding(vertical = if (isLandscape) 1.dp else 2.dp),
                 activeTrackColor = Color.White,
                 inactiveTrackColor = Color.White.copy(alpha = 0.3f),
@@ -235,10 +239,11 @@ fun VideoPlayerBottomBar(
             )
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(text = formatDuration(effectiveSeekPos), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                Text(text = formatDuration(playerState.durationMs), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(text = formatDuration(durationMs), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
             }
             Spacer(modifier = Modifier.height(if (isLandscape) 4.dp else 8.dp))
         }
+
 
         if (!isHorizontalDragging) {
             Surface(shape = RoundedCornerShape(28.dp), color = Color.Transparent, contentColor = Color.White) {

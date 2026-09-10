@@ -90,6 +90,15 @@ android {
     prefab = true
   }
 
+  composeCompiler {
+    // Stability config: lists classes the Compose compiler should treat as @Stable.
+    // Without this, data classes with List<T> fields are unstable — child composables
+    // receiving them can never be skipped even if nothing they read has changed.
+    stabilityConfigurationFiles.add(
+      rootProject.layout.projectDirectory.file("compose_stability.conf")
+    )
+  }
+
   packaging {
     jniLibs {
       useLegacyPackaging = false

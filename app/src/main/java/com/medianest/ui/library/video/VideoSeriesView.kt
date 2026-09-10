@@ -28,9 +28,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -938,26 +941,26 @@ private fun SeriesDetailHeaderSection(
                                 .align(Alignment.TopEnd)
                                 .padding(8.dp)
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0x4D000000))
+                                .background(Color(0x1A000000))
                                 .padding(horizontal = 6.dp, vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (isImdb) {
                                 Text(
-                                    text = "IMDb ",
+                                    text = "IMDb",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Color(0xFFF5C518)
                                 )
-                            } else {
-                                Icon(
-                                    Icons.Default.Star,
-                                    contentDescription = null,
-                                    tint = Color(0xFFF5C518),
-                                    modifier = Modifier.size(11.dp)
-                                )
-                                Spacer(modifier = Modifier.width(2.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
                             }
+                            Icon(
+                                Icons.Default.Star,
+                                contentDescription = null,
+                                tint = Color(0xFFF5C518),
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
                             Text(
                                 text = "%.1f".format(meta.rating),
                                 fontSize = 11.sp,
@@ -994,7 +997,7 @@ private fun SeriesDetailHeaderSection(
                 if (infoParts.isNotEmpty()) {
                     Text(
                         text = infoParts.joinToString(" • "),
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF00E5FF),
                         maxLines = 1,
@@ -1006,11 +1009,11 @@ private fun SeriesDetailHeaderSection(
                 if (!meta?.originType.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(3.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.MenuBook, contentDescription = null, tint = Color(0xFFFFD54F), modifier = Modifier.size(12.dp))
+                        Icon(Icons.Filled.MenuBook, contentDescription = null, tint = Color(0xFFFFD54F), modifier = Modifier.size(13.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = meta.originType,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
                             color = Color(0xFFFFD54F),
                             maxLines = 1,
@@ -1023,8 +1026,13 @@ private fun SeriesDetailHeaderSection(
                 if (!meta?.directors.isNullOrEmpty()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Director: ${meta.directors.joinToString(", ")}",
-                        fontSize = 10.sp,
+                        text = buildAnnotatedString {
+                            withStyle(SpanStyle(color = Color.White, fontWeight = FontWeight.Bold)) {
+                                append("Director: ")
+                            }
+                            append(meta.directors.joinToString(", "))
+                        },
+                        fontSize = 11.sp,
                         color = Color(0xFFBAC0CD),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -1033,8 +1041,13 @@ private fun SeriesDetailHeaderSection(
                 if (!meta?.producers.isNullOrEmpty()) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Producer: ${meta.producers.joinToString(", ")}",
-                        fontSize = 10.sp,
+                        text = buildAnnotatedString {
+                            withStyle(SpanStyle(color = Color.White, fontWeight = FontWeight.Bold)) {
+                                append("Producer: ")
+                            }
+                            append(meta.producers.joinToString(", "))
+                        },
+                        fontSize = 11.sp,
                         color = Color(0xFFBAC0CD),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -1044,19 +1057,25 @@ private fun SeriesDetailHeaderSection(
                 // Summary with Show More if > 5 lines
                 if (!meta?.summary.isNullOrBlank()) {
                     var isExpanded by remember(meta.summary) { mutableStateOf(false) }
+                    var canExpand by remember(meta.summary) { mutableStateOf(false) }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = meta.summary,
-                        fontSize = 10.5.sp,
+                        fontSize = 11.5.sp,
                         color = Color(0xFFBAC0CD),
                         maxLines = if (isExpanded) Int.MAX_VALUE else 5,
                         overflow = TextOverflow.Ellipsis,
-                        lineHeight = 14.sp
+                        lineHeight = 15.5.sp,
+                        onTextLayout = { textLayoutResult ->
+                            if (!isExpanded && (textLayoutResult.hasVisualOverflow || textLayoutResult.lineCount >= 5)) {
+                                canExpand = true
+                            }
+                        }
                     )
-                    if (meta.summary.length > 220) {
+                    if (canExpand) {
                         Text(
                             text = if (isExpanded) "Show Less" else "Show More",
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF00E5FF),
                             modifier = Modifier
@@ -1133,8 +1152,9 @@ private fun SeriesDetailHeaderSection(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .align(Alignment.BottomCenter)
-                                        .padding(horizontal = 6.dp, vertical = 5.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy((-1.0).dp)
                                 ) {
                                     Text(
                                         text = c.name,
@@ -1154,6 +1174,7 @@ private fun SeriesDetailHeaderSection(
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                             textAlign = TextAlign.Center,
+                                            lineHeight = 9.5.sp,
                                             modifier = Modifier.fillMaxWidth()
                                         )
                                     }
@@ -1311,7 +1332,7 @@ private fun SeriesPosterCard(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0x4D000000))
+                            .background(Color(0x1A000000))
                             .padding(horizontal = 6.dp, vertical = 1.dp)
                     ) {
                         Text(
@@ -1330,26 +1351,26 @@ private fun SeriesPosterCard(
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0x4D000000))
+                            .background(Color(0x1A000000))
                             .padding(horizontal = 6.dp, vertical = 1.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (isImdb) {
                             Text(
-                                text = "IMDb ",
+                                text = "IMDb",
                                 fontSize = 9.5.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color(0xFFF5C518)
                             )
-                        } else {
-                            Icon(
-                                Icons.Default.Star,
-                                contentDescription = null,
-                                tint = Color(0xFFF5C518),
-                                modifier = Modifier.size(10.dp)
-                            )
-                            Spacer(modifier = Modifier.width(2.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
                         }
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = null,
+                            tint = Color(0xFFF5C518),
+                            modifier = Modifier.size(10.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
                         Text(
                             text = "%.1f".format(metadata.rating),
                             fontSize = 10.sp,

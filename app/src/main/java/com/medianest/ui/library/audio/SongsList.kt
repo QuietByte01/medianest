@@ -242,16 +242,22 @@ private fun SongRow(
     val albumArtModel = item.albumArtUri ?: item.uri
     val isCurrentlyPlaying = item.uri.toString() == currentlyPlayingUri
 
-    val highlightPulse = rememberInfiniteTransition(label = "SongHighlightPulse")
-    val pulseAlpha by highlightPulse.animateFloat(
-        initialValue = 0.45f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(500, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "PulseAlpha"
-    )
+    // Only create infinite transition for the actively playing song — avoids running
+    // an infiniteRepeatable on every list row which compounds badly on large libraries.
+    val pulseAlpha: Float = if (isCurrentlyPlaying) {
+        val highlightPulse = rememberInfiniteTransition(label = "SongHighlightPulse")
+        highlightPulse.animateFloat(
+            initialValue = 0.45f,
+            targetValue = 1.0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(500, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "PulseAlpha"
+        ).value
+    } else {
+        0.70f // static — border never shown on non-playing rows
+    }
 
     GlassSurface(
         modifier = Modifier

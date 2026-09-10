@@ -35,7 +35,6 @@ import com.medianest.ui.components.media.MediaEffect
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,6 +50,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.pow
 
+// @Stable: tells Compose compiler this type's equals() is stable and consistent so
+// composables receiving PlayerState can be skipped when their read fields haven't changed.
+@androidx.compose.runtime.Stable
 data class PlayerState(
     val currentItem: MediaItem? = null,
     val isPlaying: Boolean = false,
@@ -123,6 +125,22 @@ class ExoPlayerManager private constructor(private val context: Context) {
 
     private val _playerState = MutableStateFlow(PlayerState())
     val playerState: StateFlow<PlayerState> = _playerState.asStateFlow()
+
+    /**
+     * Lightweight playback position state emitted every 200ms during playback.
+     * Composables that only need seek-bar progress (position/duration/isPlaying) should
+     * collect this instead of [playerState] to avoid recomposing the full player screen
+     * 5 times per second.
+     */
+    @androidx.compose.runtime.Stable
+    data class PlaybackPositionState(
+        val positionMs: Long = 0L,
+        val durationMs: Long = 0L,
+        val isPlaying: Boolean = false
+    )
+    private val _playbackPositionState = MutableStateFlow(PlaybackPositionState())
+    val playbackPositionState: StateFlow<PlaybackPositionState> = _playbackPositionState.asStateFlow()
+
     val abRepeatController = AbRepeatController { activeEngine?.seekTo(it) }
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -276,6 +294,13 @@ class ExoPlayerManager private constructor(private val context: Context) {
                             audioSampleFormat = diag.audioSampleFormat,
                             audioSharingMode = diag.audioSharingMode
                         )
+                    }
+
+                    // Always keep the lightweight position state up-to-date every tick.
+                    // VideoPlayerBottomBar subscribes to this instead of the heavy playerState.
+                    val curPosState = _playbackPositionState.value
+                    if (newPos != curPosState.positionMs || newDur != curPosState.durationMs || isPlaying != curPosState.isPlaying) {
+                        _playbackPositionState.value = PlaybackPositionState(newPos, newDur, isPlaying)
                     }
 
                     // Periodically save progress to DB (every ~5 seconds while playing)
@@ -435,8 +460,8 @@ class ExoPlayerManager private constructor(private val context: Context) {
             isRebirthing = false
         }
 
-        // Background "Hopeful" Cleanup
-        GlobalScope.launch(Dispatchers.Main) {
+        // Background "Hopeful" Cleanup — use scope (not GlobalScope) to stay lifecycle-bound.
+        scope.launch(Dispatchers.Main) {
             delay(30000) // Wait 30s before trying to touch the dead ones
             synchronized(brokenEngines) {
                 val iterator = brokenEngines.iterator()
@@ -875,7 +900,7 @@ class ExoPlayerManager private constructor(private val context: Context) {
             list
         }
         if (toRelease.isNotEmpty()) {
-            GlobalScope.launch(Dispatchers.Main) {
+            scope.launch(Dispatchers.Main) {
                 for (dead in toRelease) {
                     try {
                         dead.release()
@@ -1327,9 +1352,9 @@ class ExoPlayerManager private constructor(private val context: Context) {
         media3Engine = null
         activeEngine = null
         
-        // Use GlobalScope or a dedicated Non-Cancellable block for final cleanup
-        // to ensure release() completes even if the manager's scope is cancelled.
-        GlobalScope.launch(Dispatchers.Main) {
+        // Use NonCancellable so release() completes even if the manager's scope is being
+        // cancelled — this is the correct idiom, not GlobalScope which leaks coroutines.
+        scope.launch(Dispatchers.Main + kotlinx.coroutines.NonCancellable) {
             try {
                 m3?.release()
                 ff.release()

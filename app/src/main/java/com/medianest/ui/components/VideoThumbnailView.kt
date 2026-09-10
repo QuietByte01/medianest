@@ -35,7 +35,9 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
-private val thumbnailSemaphore = Semaphore(1) // Limit concurrent decoders
+// 3 permits: allows parallel thumbnail decoding for grid scroll responsiveness while
+// still capping concurrent MediaMetadataRetriever instances to avoid OOM.
+private val thumbnailSemaphore = Semaphore(3)
 
 /**
  * Robust video thumbnail renderer that automatically skips initial black/blank frames

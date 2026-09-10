@@ -60,7 +60,9 @@ class MediaNestApp : Application() {
             }
             .memoryCache {
                 MemoryCache.Builder(this)
-                    .maxSizePercent(0.20)
+                    // Increased from 20% → 30%: ThumbnailManager's competing 64MB LruCache was
+                    // removed from the primary load path, so Coil now needs more headroom alone.
+                    .maxSizePercent(0.30)
                     .build()
             }
             .diskCache {
@@ -69,7 +71,9 @@ class MediaNestApp : Application() {
                     .maxSizeBytes(hwMemConfig.thumbnailCacheMb.toLong() * 1024L * 1024L)
                     .build()
             }
-            .crossfade(true)
+            // NOTE: global crossfade removed — local thumbnails served from memory/disk cache
+            // (0–2ms) don't need a 300ms fade. Crossfade is set per-request where genuinely
+            // useful (e.g., series poster network images in VideoSeriesView).
             .build()
         Coil.setImageLoader(imageLoader)
     }

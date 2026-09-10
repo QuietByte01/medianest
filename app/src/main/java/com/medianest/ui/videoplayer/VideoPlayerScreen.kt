@@ -122,6 +122,10 @@ fun VideoPlayerScreen(
     val scope = rememberCoroutineScope()
 
     val playerState by playerManager.playerState.collectAsState()
+    // Lightweight position state — only positionMs/durationMs/isPlaying, emitted every 200ms.
+    // Subscribe child composables that need the seek bar to THIS instead of playerState so
+    // the entire 1600-line VideoPlayerScreen doesn't recompose during every playback tick.
+    val playbackPositionState by playerManager.playbackPositionState.collectAsState()
     val currentItem = playerState.currentItem?.takeIf { it.type == com.medianest.data.db.MediaType.VIDEO }
     val settingsManager = MediaNestApp.instance.settingsManager
 
@@ -268,10 +272,18 @@ fun VideoPlayerScreen(
         mutableStateOf<List<SubtitleItem>>(emptyList())
     }
 
-    val localDirSubtitles = remember(currentItem?.uri, currentItem?.id) {
+    // NOTE: Moved from remember{} to LaunchedEffect+IO. findLocalSubtitlesInDirectory calls
+    // dir.listFiles() which is blocking filesystem I/O — it was freezing the composition thread
+    // briefly every time the current item changed. Now runs on Dispatchers.IO.
+    var localDirSubtitles by remember { mutableStateOf<List<com.medianest.data.model.SubtitleItem>>(emptyList()) }
+    LaunchedEffect(currentItem?.uri, currentItem?.id) {
         if (currentItem != null) {
-            findLocalSubtitlesInDirectory(context, currentItem)
-        } else emptyList()
+            localDirSubtitles = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                findLocalSubtitlesInDirectory(context, currentItem)
+            }
+        } else {
+            localDirSubtitles = emptyList()
+        }
     }
 
     LaunchedEffect(currentItem?.id, localDirSubtitles) {
@@ -791,7 +803,9 @@ fun VideoPlayerScreen(
                 exit = fadeOut(animationSpec = controlsFadeSpec),
                 modifier = Modifier.align(Alignment.Center)
             ) {
-                CenterTransportControls(isPlaying = playerState.isPlaying, onPrevious = { playerManager.previous() }, onNext = { playerManager.next() }, onTogglePlayPause = { playerManager.togglePlayPause() })
+                // NOTE: isPlaying comes from playbackPositionState — that's the 200ms flow.
+                // Only CenterTransportControls and VideoPlayerBottomBar need the fast update.
+                CenterTransportControls(isPlaying = playbackPositionState.isPlaying, onPrevious = { playerManager.previous() }, onNext = { playerManager.next() }, onTogglePlayPause = { playerManager.togglePlayPause() })
             }
 
             AnimatedVisibility(visible = isDraggingBrightness, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut(), modifier = Modifier.align(Alignment.CenterStart).padding(start = 28.dp)) {
@@ -846,7 +860,10 @@ fun VideoPlayerScreen(
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 VideoPlayerBottomBar(
-                    playerState = playerState, isControlsLocked = isControlsLocked, isHorizontalDragging = isHorizontalDragging,
+                    playerState = playerState,
+                    currentPositionMs = playbackPositionState.positionMs,
+                    durationMs = playbackPositionState.durationMs,
+                    isControlsLocked = isControlsLocked, isHorizontalDragging = isHorizontalDragging,
                     seekTargetPositionMs = seekTargetPositionMs,
                     onSeekStart = { playerManager.scrubStart() },
                     onSeekProgress = { playerManager.scrubSeek(it) },

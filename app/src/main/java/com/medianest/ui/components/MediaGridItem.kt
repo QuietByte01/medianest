@@ -19,7 +19,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,8 +67,8 @@ fun MediaGridItem(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val configuration = LocalConfiguration.current
-    val isTablet = configuration.screenWidthDp >= 600
+    // NOTE: LocalConfiguration removed from this composable — reading it here caused all grid
+    // items to invalidate their imageRequest on rotation, reloading every visible thumbnail.
 
     var showMenu by remember { mutableStateOf(false) }
     var dynamicRatio by remember(item.id, item.width, item.height) {
@@ -77,16 +76,22 @@ fun MediaGridItem(
     }
     val itemShape = if (roundedCornersEnabled) RoundedCornerShape(cornerRadiusDp.dp) else RoundedCornerShape(0.dp)
 
-    val highlightPulse = rememberInfiniteTransition(label = "MediaHighlightPulse")
-    val pulseAlpha by highlightPulse.animateFloat(
-        initialValue = 0.45f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(500, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "PulseAlpha"
-    )
+    // Pulse animation is only created when this item is highlighted — avoids running
+    // an infiniteRepeatable on every single grid item (200+ animations tanked FPS).
+    val pulseAlpha: Float = if (isHighlighted) {
+        val highlightPulse = rememberInfiniteTransition(label = "MediaHighlightPulse")
+        highlightPulse.animateFloat(
+            initialValue = 0.45f,
+            targetValue = 1.0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(500, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "PulseAlpha"
+        ).value
+    } else {
+        0.70f // static — border is never shown when !isHighlighted anyway
+    }
 
     val autoPlayVideoPreviews = LocalAutoPlayVideoPreviews.current
     val autoPlayGifPreviews = LocalAutoPlayGifPreviews.current
@@ -95,14 +100,9 @@ fun MediaGridItem(
     // Rebuild trigger: incrementing this forces the image request to be recreated
     var rebuildToken by remember(item.uri) { mutableStateOf(0) }
 
-    LaunchedEffect(item.uri, rebuildToken, item.type) {
-        if (item.type == MediaType.VIDEO && fallbackBitmap == null) {
-            val cachedBmp = ThumbnailManager.getThumbnail(context, item.uri, rebuildToken)
-            if (cachedBmp != null) {
-                fallbackBitmap = cachedBmp
-            }
-        }
-    }
+    // NOTE: Removed the eager LaunchedEffect that pre-fetched from ThumbnailManager on every
+    // item enter. This competed with Coil's own cache, causing dual eviction and double memory
+    // pressure. Coil now handles the primary load; ThumbnailManager is only used in onError.
 
     Card(
         modifier = modifier
@@ -145,14 +145,18 @@ fun MediaGridItem(
         s.contains("webp") || s.contains("avif")
     }
 
-    val imageRequest = remember(item.uri, item.type, item.durationMs, context, item.size, item.dateAdded, isTablet, rebuildToken, isGif, isAnimatedWebpOrAvif, autoPlayGifPreviews, gridSizeLevel) {
+    // NOTE: isTablet removed from keys — it came from LocalConfiguration which changes on rotation,
+    // invalidating every grid item's imageRequest at once. targetSize is derived from gridSizeLevel only.
+    // NOTE: context removed from keys — context identity is stable per-composition slot, not a cache key.
+    val imageRequest = remember(item.uri, item.type, item.durationMs, item.size, item.dateAdded, rebuildToken, isGif, isAnimatedWebpOrAvif, autoPlayGifPreviews, gridSizeLevel) {
         val targetSize = if (gridSizeLevel >= 3) 800 else 400
         val builder = ImageRequest.Builder(context)
             .data(item.uri)
-            // Include rebuildToken, gridSizeLevel, and autoPlayGifPreviews so cache correctly invalidates
             .diskCacheKey("${item.uri}_${item.size}_${item.dateAdded}_${rebuildToken}_${gridSizeLevel}_${autoPlayGifPreviews}")
             .memoryCacheKey("${item.uri}_${item.size}_${item.dateAdded}_${rebuildToken}_${gridSizeLevel}_${autoPlayGifPreviews}")
-            .crossfade(true)
+            // crossfade(false): memory-cache hits (0ms latency) were running a 300ms fade animation.
+            // Scroll with 50 items entering viewport = 50 concurrent fade animations.
+            .crossfade(false)
             .precision(Precision.INEXACT)
             .size(targetSize)
 
