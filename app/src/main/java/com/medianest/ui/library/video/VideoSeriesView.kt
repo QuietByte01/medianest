@@ -136,7 +136,7 @@ fun cleanSeriesQueryForSearch(rawName: String): String {
 fun extractEpisodeNumber(item: MediaItem): Int {
     val name = item.title
     // 1. SxxExx or Exx / EPxx / Episode xx
-    val epRegex = Regex("(?i)(?:s\\d{1,2})?[._\\-\\s]*(?:e|ep|episode)[._\\-\\s]*(\\d{1,4})\\b")
+    val epRegex = Regex("(?i)(?:s\\d{1,3})?[._\\-\\s]*(?:e|ep|episode)[._\\-\\s]*(\\d{1,4})\\b")
     val match1 = epRegex.find(name)
     if (match1 != null) {
         val numStr = match1.groupValues.getOrNull(1)

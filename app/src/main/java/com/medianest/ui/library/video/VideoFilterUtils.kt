@@ -55,19 +55,19 @@ fun containsWord(text: String, keyword: String): Boolean {
 }
 
 private val patternVideoEditor = Regex("(?i)\\bvideo\\s*editor\\b")
-private val patternSeasonEpisode = Regex("(?i)s\\d{1,2}e\\d{1,2}")
-private val patternNumberXNumber = Regex("(?i)\\d{1,2}x\\d{1,2}")
-private val patternEpisodeExplicit = Regex("(?i)\\b(?:episode|ep|e)[\\s._-]*(\\d{1,3})\\b")
+private val patternSeasonEpisode = Regex("(?i)s\\d{1,3}[._\\-\\s]*e\\d{1,4}\\b")
+private val patternNumberXNumber = Regex("(?i)\\b\\d{1,2}x\\d{1,3}\\b")
+private val patternEpisodeExplicit = Regex("(?i)\\b(?:episode|ep|e)[\\s._-]*(\\d{1,4})\\b")
 private val patternAnimeEpisode = Regex("(?i)(?:[_\\-]+\\s*|\\s+0)(\\d{1,4})(?:\\s*[(\\[]|\\s*$)|(?:\\s+)(?!19\\d{2}|20\\d{2})(\\d{3,4})(?:\\s*[(\\[]|\\s*$)")
-private val patternSeasonRemoval = Regex("(?i)\\b(season\\s*(?:[1-9][0-9]?|100)|s(?:[1-9][0-9]?|100)|s0?[1-9]|s[1-9][0-9]|s100)\\b")
+private val patternSeasonRemoval = Regex("(?i)\\b(?:season\\s*\\d{1,3}|s\\d{1,3})\\b")
 private val patternSpecialChars = Regex("[.,#!?\\-_+=()\\[\\]/{}&$@*]")
 private val patternWhitespace = Regex("\\s+")
-private val patternSeasonExtract = Regex("(?i)\\b(?:season|s)[\\s\\-_()\\[\\]]*((?:[1-9][0-9]?|100)|(?:0[1-9]|[1-9][0-9]|100))\\b")
+private val patternSeasonExtract = Regex("(?i)\\b(?:season|s)[\\s\\-_()\\[\\]]*(\\d{1,3})\\b")
 private val patternDigitsOnly = Regex("\\d+")
 private val patternAlphanumericWord = Regex("[^a-zA-Z0-9]+")
 private val patternPathSegments = Regex("[/_\\s.\\-]+")
 private val patternSeasonExplicit = Regex("(?i)\\bs\\d{1,3}\\b")
-private val patternPureSeason = Regex("(?i)^(season\\s*(?:[1-9][0-9]?|100)|s(?:[1-9][0-9]?|100)|s0?[1-9]|s[1-9][0-9]|s100)$")
+private val patternPureSeason = Regex("(?i)^(season\\s*\\d{1,3}|s\\d{1,3})$")
 
 /**
  * Checks if a filename title looks like a random hex/hash/cache string
@@ -246,13 +246,13 @@ fun isTVSeries(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean 
     val seriesFolders = setOf("series", "tv", "shows", "web-series", "webseries", "anime")
     val isSeriesFolder = pathSegments.any { it in seriesFolders }
 
-    // 2. Exclusion keywords for non-series content
+    // Exclusion keywords for non-series content
     val exclusionKeywords = listOf("recording", "screen_recording", "live", "test", "interview", "webinar", "zoom", "meeting", "tutorial", "presentation", "exam")
     if (exclusionKeywords.any { containsWord(title, it) || containsWord(fullPath, it) }) return false
 
     if (isGarbageOrHashTitle(item.title) && !isSeriesFolder && !fullPath.contains("season")) return false
 
-    // Check if path or title contains explicit episode/season formatting
+    // Check if path or title contains explicit episode/season formatting (e.g. S0E01, S01E01, 1x01, Ep 1)
     val hasPattern = patternSeasonEpisode.containsMatchIn(fullPath) || 
                      patternNumberXNumber.containsMatchIn(fullPath) ||
                      patternEpisodeExplicit.containsMatchIn(fullPath) ||
@@ -260,6 +260,10 @@ fun isTVSeries(item: MediaItem, sharedWords: Set<String> = emptySet()): Boolean 
 
     // Evaluate explicit television markers
     val matchesExplicitCriteria = hasPattern || isSeriesFolder || fullPath.contains("season")
+
+    // For items with explicit series markers, require at least 1 minute (60,000ms); otherwise 10 minutes
+    val minDuration = if (matchesExplicitCriteria) 60_000L else 600_000L
+    if (item.durationMs < minDuration) return false
 
     if (matchesExplicitCriteria) return true
 
