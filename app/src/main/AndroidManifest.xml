@@ -32,6 +32,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <queries>
+        <package android:name="com.medianest.studio" />
+        <intent>
+            <action android:name="com.medianest.studio.ACTION_EDIT_MEDIA" />
+        </intent>
+        <intent>
+            <action android:name="com.medianest.studio.ACTION_EDIT_VIDEO" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="video/*" />

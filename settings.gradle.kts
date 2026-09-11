@@ -26,4 +26,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "MediaNest"
 
-include(":app")
+include(":app", ":studio")

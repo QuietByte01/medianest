@@ -2,6 +2,7 @@ package com.medianest.player
 
 import android.content.Context
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.medianest.util.Logger
 import android.view.Surface
@@ -16,10 +17,15 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
         private var isLibLoaded = false
         init {
             try {
-                System.loadLibrary("medianest_ffmpeg")
+                System.loadLibrary("medianest_lib")
                 isLibLoaded = true
-            } catch (e: Throwable) {
-                Logger.e(TAG, "Failed to load medianest_ffmpeg native library: ${e.message}")
+            } catch (_: Throwable) {
+                try {
+                    System.loadLibrary("medianest_ffmpeg")
+                    isLibLoaded = true
+                } catch (e: Throwable) {
+                    Logger.e(TAG, "Failed to load medianest_lib native library: ${e.message}")
+                }
             }
         }
     }
@@ -73,7 +79,7 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
         return try {
             context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
                 // dup() the fd so the native layer has its own independent copy that survives PFD close
-                val dupFd = android.os.ParcelFileDescriptor.dup(pfd.fileDescriptor)
+                val dupFd = ParcelFileDescriptor.dup(pfd.fileDescriptor)
                 val res = try {
                     nativeProbe(nativeContextPtr, dupFd.fd)
                 } finally {
@@ -108,7 +114,7 @@ class FFmpegPlaybackEngine(private val context: Context) : PlaybackEngine {
         try {
             context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
                 // dup() the fd — native layer holds it open independently for seeks/async reads
-                val dupFd = android.os.ParcelFileDescriptor.dup(pfd.fileDescriptor)
+                val dupFd = ParcelFileDescriptor.dup(pfd.fileDescriptor)
                 Logger.d(TAG, "Opening FD: ${dupFd.fd} for nativePrepare")
                 try {
                     nativePrepare(nativeContextPtr, dupFd.fd, currentSurface)

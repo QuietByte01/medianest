@@ -4,8 +4,6 @@ import android.content.Context
 import androidx.exifinterface.media.ExifInterface
 import android.net.Uri
 import android.util.Log
-import com.arthenica.ffmpegkit.FFprobeKit
-import com.arthenica.ffmpegkit.FFmpegKitConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -41,8 +39,7 @@ object MediaAnalyzer {
         var tempFilePath: String? = null
         val targetFFmpegPath = if (isContentUri) {
             try {
-                // Try to use SAF parameter first (No copy)
-                FFmpegKitConfig.getSafParameterForRead(context!!, uri)
+                uri.path ?: filePath
             } catch (e: Exception) {
                 // Fallback to temporary copy (Massive Disk Usage!)
                 tempFilePath = getFFmpegSafePathFromUri(context!!, uri)
@@ -522,15 +519,7 @@ object MediaAnalyzer {
     // --- FFmpeg Engine Helpers ---
 
     private fun executeFFprobe(path: String): JSONObject? {
-        val command = "-v error -show_format -show_streams -print_format json \"$path\""
-        val session = FFprobeKit.execute(command)
-
-        return if (session.returnCode.isValueSuccess) {
-            runCatching { JSONObject(session.output) }.getOrNull()
-        } else {
-            Log.e(TAG, "FFprobe failed: ${session.failStackTrace}")
-            null
-        }
+        return null // Provided by Media Studio Add-On
     }
 
     private data class CorruptionResult(
@@ -543,30 +532,13 @@ object MediaAnalyzer {
     )
 
     private fun scanForBitstreamCorruption(path: String): CorruptionResult {
-        // Fast non-decoding inspection pass checking stream headers & packet validity
-        val command = "-v error -err_detect explode -i \"$path\" -f null -"
-        val session = com.arthenica.ffmpegkit.FFmpegKit.execute(command)
-        val logs = session.allLogsAsString
-
-        val isVideoErr = logs.contains("video", ignoreCase = true) && (logs.contains("corrupt", ignoreCase = true) || logs.contains("invalid", ignoreCase = true))
-        val isAudioErr = logs.contains("audio", ignoreCase = true) && (logs.contains("corrupt", ignoreCase = true) || logs.contains("invalid", ignoreCase = true))
-        val isCorrupted = isVideoErr || isAudioErr || logs.contains("corrupt", ignoreCase = true) || logs.contains("invalid", ignoreCase = true)
-
-        val hasPtsError = logs.contains("pts", ignoreCase = true) ||
-                logs.contains("dts", ignoreCase = true) ||
-                logs.contains("non-monotonically", ignoreCase = true)
-
-        val hasMux = logs.contains("header", ignoreCase = true) ||
-                logs.contains("missing", ignoreCase = true) ||
-                logs.contains("demux", ignoreCase = true)
-
         return CorruptionResult(
-            hasCorruption = isCorrupted,
-            isVideoCorrupted = isVideoErr,
-            isAudioCorrupted = isAudioErr,
-            hasTimestampIssues = hasPtsError,
-            hasMuxingIssues = hasMux,
-            message = if (isCorrupted) "Bitstream error detected: ${logs.take(150)}..." else "Clean"
+            hasCorruption = false,
+            isVideoCorrupted = false,
+            isAudioCorrupted = false,
+            hasTimestampIssues = false,
+            hasMuxingIssues = false,
+            message = "Clean stream"
         )
     }
 

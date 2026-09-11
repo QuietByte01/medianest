@@ -85,6 +85,8 @@ import com.medianest.data.repository.NetworkRepository
 import com.medianest.data.repository.SubtitleProvider
 import com.medianest.player.ExoPlayerManager
 import com.medianest.player.PlayerState
+import com.medianest.plugin.StudioInstallDialog
+import com.medianest.plugin.StudioIntegrationManager
 import com.medianest.ui.components.debug.PlayerDebugOverlay
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.HardwareAccelerationSetting
@@ -1224,10 +1226,10 @@ fun VideoPlayerScreen(
             )
         }
 
-        if (showVideoEditorSheet && currentItem != null) {
-            VideoEditorStudioSheet(
-                mediaItem = currentItem!!,
-                onDismiss = { showVideoEditorSheet = false }
+        if (showVideoEditorSheet) {
+            StudioInstallDialog(
+                onDismiss = { showVideoEditorSheet = false },
+                titleName = "Video Editor"
             )
         }
 
@@ -1300,7 +1302,15 @@ fun VideoPlayerScreen(
                 },
                 onEdit = {
                     playerManager.pause()
-                    showVideoEditorSheet = true
+                    if (currentItem != null) {
+                        StudioIntegrationManager.launchEditor(
+                            context = context,
+                            mediaItem = currentItem!!,
+                            onNotInstalled = { showVideoEditorSheet = true }
+                        )
+                    } else {
+                        showVideoEditorSheet = true
+                    }
                 },
                 isAutoRepeatEnabled = playerState.repeatMode == androidx.media3.common.Player.REPEAT_MODE_ONE,
                 onToggleAutoRepeat = { enabled ->

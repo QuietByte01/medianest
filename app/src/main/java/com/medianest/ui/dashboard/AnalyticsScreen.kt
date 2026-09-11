@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -32,6 +33,8 @@ import androidx.compose.ui.unit.sp
 import com.medianest.data.db.FileStatSnapshot
 import com.medianest.data.db.FormatStat
 import com.medianest.data.model.MediaItem
+import com.medianest.plugin.StudioInstallDialog
+import com.medianest.plugin.StudioIntegrationManager
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.MediaConverterStudioDialog
 import com.medianest.ui.components.PaletteTagChip
@@ -194,24 +197,40 @@ fun AnalyticsScreen(
             )
 
             // 4. Lossless Media Studio (Converter, Compressor, Extractor, Crop, Repair)
+            val context = LocalContext.current
             MediaProcessorStudioCard(
                 onOpenStudioTab = { tab ->
                     activeStudioTab = tab
-                    showStudioDialog = true
+                    if (StudioIntegrationManager.isStudioInstalled(context)) {
+                        StudioIntegrationManager.launchStudio(
+                            context = context,
+                            initialTab = tab.name,
+                            onNotInstalled = { showStudioDialog = true }
+                        )
+                    } else {
+                        showStudioDialog = true
+                    }
                 }
             )
         }
 
         if (showStudioDialog) {
-            MediaConverterStudioDialog(
-                initialTab = activeStudioTab,
-                imagesList = imagesList,
-                videosList = videosList,
-                audioList = audioList,
-                onDismissRequest = { showStudioDialog = false },
-                onOpenVideoPlayer = onOpenVideoPlayer,
-                onOpenAudioPlayer = onOpenAudioPlayer
-            )
+            val context = LocalContext.current
+            if (StudioIntegrationManager.isStudioInstalled(context)) {
+                LaunchedEffect(Unit) {
+                    StudioIntegrationManager.launchStudio(
+                        context = context,
+                        initialTab = activeStudioTab.name,
+                        onNotInstalled = {}
+                    )
+                    showStudioDialog = false
+                }
+            } else {
+                StudioInstallDialog(
+                    onDismiss = { showStudioDialog = false },
+                    titleName = "Media Studio"
+                )
+            }
         }
     }
 }

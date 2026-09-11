@@ -177,12 +177,7 @@ dependencies {
   implementation(libs.media3.session)
   implementation(libs.media3.common)
   implementation("androidx.media:media:1.7.0")
-  implementation(libs.ffmpeg.kit)
-  implementation(libs.converter.moshi)
-
-
-  implementation(libs.haze)
-  implementation(libs.haze.materials)
+  // Unused libraries (converter.moshi, haze, haze.materials) removed
 
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
