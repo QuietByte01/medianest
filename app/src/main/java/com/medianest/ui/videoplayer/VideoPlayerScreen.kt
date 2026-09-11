@@ -653,6 +653,7 @@ fun VideoPlayerScreen(
                             }
                         }
 
+                        val isHdrContent = playerState.isHdrContent
                         Box(
                             modifier = Modifier.fillMaxSize().clipToBounds(),
                             contentAlignment = Alignment.Center
@@ -670,7 +671,7 @@ fun VideoPlayerScreen(
                                             translationX = panOffset.x
                                             translationY = panOffset.y
                                             // Do NOT apply sRGB 8-bit RenderEffect on HDR content or in SurfaceView mode
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && androidFxColorFilter != null && !playerState.isHdrContent && !useSurfaceView) {
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && androidFxColorFilter != null && !isHdrContent && !useSurfaceView) {
                                                 renderEffect = android.graphics.RenderEffect.createColorFilterEffect(androidFxColorFilter).asComposeRenderEffect()
                                             }
                                         },
@@ -689,7 +690,8 @@ fun VideoPlayerScreen(
                                                     (inflater.inflate(layoutRes, null) as androidx.media3.ui.PlayerView).apply {
                                                         useController = false
                                                         subtitleView?.visibility = View.GONE
-                                                        setKeepContentOnPlayerReset(false)
+                                                        // Keep content on reset so video frames are not blacked out during state updates or pause/resume
+                                                        setKeepContentOnPlayerReset(true)
                                                         try {
                                                             this.player = playerManager.exoPlayer
                                                         } catch (_: Exception) {}
@@ -705,7 +707,10 @@ fun VideoPlayerScreen(
                                                             Logger.i("VideoPlayerScreen", "Syncing PlayerView with new ExoPlayer instance")
                                                             view.player = currentExo
                                                         }
-                                                        view.onResume()
+                                                        // NOTE: view.onResume() intentionally removed — for standard SurfaceView/TextureView
+                                                        // it is a no-op (only does work for SphericalGLSurfaceView). Calling it on every
+                                                        // recomposition caused rapid surface lifecycle events that detached the video surface
+                                                        // from the player after pause→resume, producing audio-only playback.
                                                     } catch (e: Exception) {
                                                         Logger.e("VideoPlayerScreen", "Error syncing player", e)
                                                     }
@@ -1158,7 +1163,7 @@ fun VideoPlayerScreen(
                 modifier = Modifier
                     .widthIn(max = minOf(420.dp, (LocalConfiguration.current.screenWidthDp * 0.92f).dp))
                     .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.88f).dp)
-                    .padding(12.dp)
+                    .padding(11.dp)
             )
         }
 
