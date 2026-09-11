@@ -1204,7 +1204,6 @@ class ExoPlayerManager private constructor(private val context: Context) {
     }
     fun play() {
         Logger.d("ExoPlayerManager", "play() called. Active Engine: ${_playerState.value.activeEngineName}, isHardwareFaulty: $isHardwareFaulty")
-        stopAllEnginesExcept(activeEngine)
         if (activeEngine == media3Engine) {
             try { media3Engine?.player?.volume = 1.0f } catch (_: Exception) {}
         } else if (activeEngine == ffmpegEngine) {

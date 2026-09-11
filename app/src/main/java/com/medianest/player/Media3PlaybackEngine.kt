@@ -322,6 +322,7 @@ class Media3PlaybackEngine(
 
     override fun play() {
         Logger.i("Media3PlaybackEngine", "play() requested. playWhenReady: ${player.playWhenReady}, playbackState: ${player.playbackState}")
+        player.playWhenReady = true
         player.play()
     }
 

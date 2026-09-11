@@ -658,19 +658,31 @@ fun VideoPlayerScreen(
                                 modifier = surfaceModifier.clipToBounds(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .requiredSize(videoWidthDp, videoHeightDp)
-                                        .graphicsLayer {
-                                            scaleX = scale
-                                            scaleY = scale
-                                            translationX = panOffset.x
-                                            translationY = panOffset.y
-                                            // Do NOT apply sRGB 8-bit RenderEffect on HDR content or in SurfaceView mode
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && androidFxColorFilter != null && !isHdrContent && !useSurfaceView) {
-                                                renderEffect = android.graphics.RenderEffect.createColorFilterEffect(androidFxColorFilter).asComposeRenderEffect()
+                                val hasTransform = scale != 1f || panOffset != Offset.Zero
+                                val hasEffect = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && androidFxColorFilter != null && !isHdrContent && !useSurfaceView
+                                val videoBoxModifier = Modifier
+                                    .requiredSize(videoWidthDp, videoHeightDp)
+                                    .let { baseMod ->
+                                        if (hasTransform || hasEffect) {
+                                            baseMod.graphicsLayer {
+                                                if (hasTransform) {
+                                                    scaleX = scale
+                                                    scaleY = scale
+                                                    translationX = panOffset.x
+                                                    translationY = panOffset.y
+                                                }
+                                                // Do NOT apply sRGB 8-bit RenderEffect on HDR content or in SurfaceView mode
+                                                if (hasEffect) {
+                                                    renderEffect = android.graphics.RenderEffect.createColorFilterEffect(androidFxColorFilter).asComposeRenderEffect()
+                                                }
                                             }
-                                        },
+                                        } else {
+                                            baseMod
+                                        }
+                                    }
+
+                                Box(
+                                    modifier = videoBoxModifier,
                                     contentAlignment = Alignment.Center
                                 ) {
                                     // Key ONLY on engine, instanceId, and surface type — do NOT key on currentItem.id,
