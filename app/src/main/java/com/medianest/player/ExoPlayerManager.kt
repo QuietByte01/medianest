@@ -841,8 +841,11 @@ class ExoPlayerManager private constructor(private val context: Context) {
 
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
+            // Focus granted (or delayed grant arrived) — resume if we had queued a play
             AudioManager.AUDIOFOCUS_GAIN -> if (playOnFocusGain) { activeEngine?.play(); playOnFocusGain = false }
-            AudioManager.AUDIOFOCUS_LOSS -> { playOnFocusGain = false; activeEngine?.pause() }
+            // Permanent loss (another app took focus for good) — stop and don't resume
+            AudioManager.AUDIOFOCUS_LOSS -> { playOnFocusGain = false; pause() }
+            // Transient loss (notification, etc.) — remember playing state and pause
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> if (!(isUninterruptedMode && !isCallActive)) { playOnFocusGain = activeEngine?.isPlaying == true; activeEngine?.pause() }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> if (!isUninterruptedMode) activeEngine?.setVolume(0.2f)
         }
@@ -851,8 +854,18 @@ class ExoPlayerManager private constructor(private val context: Context) {
     private fun requestAudioFocus(): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val attr = AndroidAudioAttributes.Builder().setUsage(AndroidAudioAttributes.USAGE_MEDIA).setContentType(AndroidAudioAttributes.CONTENT_TYPE_MUSIC).build()
-            focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN).setAudioAttributes(attr).setAcceptsDelayedFocusGain(true).setOnAudioFocusChangeListener(audioFocusChangeListener).setWillPauseWhenDucked(false).build()
-            return audioManager.requestAudioFocus(focusRequest!!) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN).setAudioAttributes(attr)
+                // NOTE: setAcceptsDelayedFocusGain(true) means requestAudioFocus can return
+                // AUDIOFOCUS_REQUEST_DELAYED instead of GRANTED. We handle this by setting
+                // playOnFocusGain = true so the listener resumes when focus eventually arrives.
+                .setAcceptsDelayedFocusGain(true).setOnAudioFocusChangeListener(audioFocusChangeListener).setWillPauseWhenDucked(false).build()
+            val result = audioManager.requestAudioFocus(focusRequest!!)
+            if (result == AudioManager.AUDIOFOCUS_REQUEST_DELAYED) {
+                // Focus will arrive via AUDIOFOCUS_GAIN callback; queue the play for then.
+                playOnFocusGain = true
+                return false // caller should NOT call play() now — listener will do it
+            }
+            return result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         }
         return true
     }
@@ -1207,7 +1220,10 @@ class ExoPlayerManager private constructor(private val context: Context) {
         try { activeEngine?.pause() } catch (_: Exception) {}
         _playerState.value = _playerState.value.copy(isPlaying = false)
         savePlaybackProgress()
-        abandonAudioFocus()
+        // NOTE: Do NOT call abandonAudioFocus() here. Abandoning on every user pause fires
+        // AUDIOFOCUS_LOSS on the registered listener, which calls pause() again asynchronously
+        // right as play() tries to resume — causing video+audio to freeze after pause→play.
+        // Audio focus is only abandoned on stop() and release().
     }
 
     fun stop() {
