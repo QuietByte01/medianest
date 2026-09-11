@@ -73,13 +73,17 @@ fun MediaInfoBottomSheet(
     val isDark = com.medianest.ui.theme.LocalDarkTheme.current
     val sheetBg = if (isDark) Color(0xCC08090E) else Color(0xBFFFFFFF)
 
-    val backdropState = com.medianest.ui.components.LocalBackdropState.current
+    val backdropState = LocalBackdropState.current
+    val isSurfaceViewMode = LocalIsSurfaceViewMode.current
+    val effectiveBackdropState = if (isSurfaceViewMode) null else backdropState
+    val effectiveBackgroundImage = if (isSurfaceViewMode || backdropState == null) (item.albumArtUri ?: item.uri) else null
+
     if (item.type == MediaType.IMAGE) {
         com.medianest.ui.components.mediainfo.ImageInfoOverlay(
             item = item,
             onClose = onDismiss,
             onShowFileLocation = onShowFileLocation,
-            backdropState = backdropState
+            backdropState = effectiveBackdropState
         )
         return
     }
@@ -90,8 +94,8 @@ fun MediaInfoBottomSheet(
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         containerColor = Color.Unspecified,
         contentColor = if (isDark) Color.White else Color.Black,
-        backgroundImage = if (backdropState != null) null else (item.albumArtUri ?: item.uri),
-        backdropState = backdropState,
+        backgroundImage = effectiveBackgroundImage,
+        backdropState = effectiveBackdropState,
         dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
         if (item.type == MediaType.VIDEO) {

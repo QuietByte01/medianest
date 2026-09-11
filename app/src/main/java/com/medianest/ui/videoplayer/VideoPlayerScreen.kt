@@ -936,6 +936,7 @@ fun VideoPlayerScreen(
             AbRepeatControlBar(
                 abRepeatState = playerState.abRepeatState,
                 backdropState = playerBackdropState,
+                backgroundImage = currentItem?.albumArtUri ?: currentItem?.uri,
                 onSetPointA = {
                     playerManager.setAbRepeatPointA()
                     val pos = playerManager.playerState.value.abRepeatA ?: 0L
@@ -1105,6 +1106,7 @@ fun VideoPlayerScreen(
         if (showSubtitleSheet) Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).clickable { showSubtitleSheet = false }, contentAlignment = Alignment.Center) {
             SubtitleOptionsDialog(
                 playerState = playerState,
+                backgroundImage = currentItem?.albumArtUri ?: currentItem?.uri,
                 embeddedTracks = embeddedTracksState,
                 selectedTrackIndex = selectedSubtitleTrackIndex,
                 onTrackSelect = { selectedSubtitleTrackIndex = it; playerManager.selectTextTrack(it) },
@@ -1170,7 +1172,7 @@ fun VideoPlayerScreen(
                 modifier = Modifier
                     .widthIn(max = minOf(420.dp, (LocalConfiguration.current.screenWidthDp * 0.92f).dp))
                     .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.88f).dp)
-                    .padding(11.dp)
+                    .padding(10.dp)
             )
         }
 
@@ -1187,7 +1189,8 @@ fun VideoPlayerScreen(
             onBgColorChange = { subtitleBgColor = it },
             hasShadow = subtitleHasShadow,
             onHasShadowChange = { subtitleHasShadow = it },
-            backdropState = playerBackdropState
+            backdropState = playerBackdropState,
+            backgroundImage = currentItem?.albumArtUri ?: currentItem?.uri
         )
 
         if (showAudioTrackSheet) AudioTrackSelectionSheet(
@@ -1196,7 +1199,8 @@ fun VideoPlayerScreen(
             audioSyncOffsetMs = audioSyncOffsetMs,
             onAudioSyncOffsetChange = { audioSyncOffsetMs = it },
             context = context,
-            backdropState = playerBackdropState
+            backdropState = playerBackdropState,
+            backgroundImage = currentItem?.albumArtUri ?: currentItem?.uri
         )
 
         if (showVideoFxSheet) {
@@ -1238,7 +1242,8 @@ fun VideoPlayerScreen(
             onFilmGrainEnabledChange = { scope.launch { settingsManager.setFilmGrainEnabled(it) } },
             filmGrainIntensity = filmGrainIntensity,
             onFilmGrainIntensityChange = { scope.launch { settingsManager.setFilmGrainIntensity(it) } },
-            backdropState = playerBackdropState
+            backdropState = playerBackdropState,
+            backgroundImage = currentItem?.albumArtUri ?: currentItem?.uri
         )
 
         if (showAspectRatioMenu) AspectRatioModal(currentMode = cropMode, onModeChange = { mode: MediaAspectRatio ->
@@ -1255,6 +1260,7 @@ fun VideoPlayerScreen(
             VideoPlayerOverflowMenu(
                 onDismiss = { showOverflowMenu = false },
                 backdropState = playerBackdropState,
+                backgroundImage = currentItem?.albumArtUri ?: currentItem?.uri,
                 onOpenWith = {
                     currentItem?.let { item ->
                         val sharingUri = com.medianest.util.ContentUriUtils.getSharingUri(context, item.uri)

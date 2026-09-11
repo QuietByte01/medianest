@@ -34,9 +34,23 @@ fun BackdropGlassSurface(
     tint: Color = Color.Unspecified,
     baseColor: Color = Color.Transparent,
     backdropState: BackdropBlurState? = LocalBackdropState.current,
+    backgroundImage: Any? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
     val isDark = LocalDarkTheme.current
+    val isSurfaceViewMode = LocalIsSurfaceViewMode.current
+
+    if (isSurfaceViewMode && backgroundImage != null) {
+        AmbientGlassSurface(
+            modifier = modifier,
+            shape = shape,
+            backgroundImage = backgroundImage,
+            borderWidth = borderWidth,
+            containerColor = backgroundColor,
+            content = content
+        )
+        return
+    }
 
     val effectiveTint = if (tint != Color.Unspecified) {
         tint
@@ -63,24 +77,21 @@ fun BackdropGlassSurface(
         )
     )
 
-    val isSurfaceViewMode = LocalIsSurfaceViewMode.current
+
 
     val surfaceModifier = modifier
         .clip(shape)
         .then(
             if (isSurfaceViewMode) {
-                // When over zero-copy SurfaceView, do not invoke backdropReceiver (which blurs empty/transparent pixels).
-                // Instead, render rich frosted black acrylic background directly!
-                Modifier.background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xCC08080C), // 80% Frosted black acrylic top
-                            Color(0xE6040406)  // 90% Deep frosted black base
-                        )
-                    ),
-                    shape = shape
-                )
+                // When TextureView is disabled (zero-copy SurfaceView mode), allow window-level blur
+                // (FLAG_BLUR_BEHIND / setBackgroundBlurRadius) to shine through via translucent tint!
+                Modifier
+                    .background(baseColor, shape = shape)
+                    .drawBehind {
+                        drawRect(color = effectiveTint)
+                    }
             } else if (enableBlur && backdropState != null) {
+                // When TextureView is active, keep live Compose backdropReceiver blur as-is!
                 Modifier.backdropReceiver(
                     state = backdropState,
                     blurRadius = blurRadius,

@@ -96,7 +96,7 @@ fun GlossySidePanel(
         enableBlur = true,
         blurRadius = 30.dp,
         backdropState = backdropState,
-        backgroundImage = backgroundArt,
+        backgroundImage = backgroundArt ?: (currentItem?.albumArtUri ?: currentItem?.uri),
         modifier = Modifier.fillMaxSize()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1487,6 +1487,7 @@ fun SidebarQueueDrawer(
         borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x28000000),
         borderWidth = 0.5.dp,
         backdropState = backdropState,
+        backgroundImage = playerState.currentItem?.albumArtUri ?: playerState.currentItem?.uri,
         modifier = modifier.clickable(enabled = false) {}
     ) {
         Column(

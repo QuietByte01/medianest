@@ -302,7 +302,7 @@ fun PlaybackSpeedChip(
                 val isSurfaceViewMode = LocalIsSurfaceViewMode.current
                 if (isSurfaceViewMode) {
                     Modifier
-                        .background(Color(0xCC0D0D12))
+                        .background(Color(0x33FFFFFF))
                         .border(0.5.dp, Color(0x38FFFFFF), shape)
                 } else if (backdropState != null) {
                     Modifier

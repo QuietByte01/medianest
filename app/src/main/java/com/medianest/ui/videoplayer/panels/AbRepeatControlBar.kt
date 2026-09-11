@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.player.AbRepeatState
 import com.medianest.ui.components.BackdropBlurState
+import com.medianest.ui.components.BackdropGlassSurface
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.backdropReceiver
 import com.medianest.ui.components.formatDuration
@@ -43,6 +44,7 @@ fun AbRepeatControlBar(
     onClear: () -> Unit,
     onClose: () -> Unit,
     backdropState: BackdropBlurState? = null,
+    backgroundImage: Any? = null,
     modifier: Modifier = Modifier
 ) {
     val isDark = com.medianest.ui.theme.LocalDarkTheme.current
@@ -53,33 +55,18 @@ fun AbRepeatControlBar(
     val pointB = abRepeatState.pointB
     val isActive = abRepeatState.isActive && pointA != null && pointB != null
 
-    val isSurfaceMode = com.medianest.ui.components.LocalIsSurfaceViewMode.current
-    val acrylicBg = Color(0xD908080C)
-
-    val cardModifier = modifier
-        .fillMaxWidth(0.96f)
-        .clip(shape)
-        .then(
-            if (isSurfaceMode) {
-                Modifier.background(acrylicBg, shape = shape)
-            } else if (backdropState != null) {
-                Modifier.backdropReceiver(
-                    state = backdropState,
-                    blurRadius = 24.dp,
-                    tint = cardBg,
-                    baseColor = Color.Transparent,
-                    showTopBorder = false
-                )
-            } else Modifier
-        )
-        .clickable(enabled = false) {}
-
-    GlassSurface(
-        modifier = cardModifier,
+    BackdropGlassSurface(
+        modifier = modifier
+            .fillMaxWidth(0.96f)
+            .clickable(enabled = false) {},
         shape = shape,
-        backgroundColor = if (isSurfaceMode) acrylicBg else if (backdropState != null) Color.Transparent else cardBg,
+        blurRadius = 24.dp,
+        tint = cardBg,
+        baseColor = Color.Transparent,
         borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x33000000),
-        borderWidth = 0.5.dp
+        borderWidth = 0.5.dp,
+        backdropState = backdropState,
+        backgroundImage = backgroundImage
     ) {
         Column(
             modifier = Modifier

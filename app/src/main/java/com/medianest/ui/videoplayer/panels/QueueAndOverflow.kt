@@ -74,6 +74,7 @@ internal fun VideoPlayerOverflowMenu(
     onSettings: () -> Unit,
     onShowInfo: () -> Unit = {},
     backdropState: BackdropBlurState? = LocalBackdropState.current,
+    backgroundImage: Any? = null,
     modifier: Modifier = Modifier
 ) {
     val isDark = LocalDarkTheme.current
@@ -102,7 +103,8 @@ internal fun VideoPlayerOverflowMenu(
             baseColor = Color.Transparent,
             borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x28000000),
             borderWidth = 0.5.dp,
-            backdropState = backdropState
+            backdropState = backdropState,
+            backgroundImage = backgroundImage
         ) {
             Column(
                 modifier = Modifier

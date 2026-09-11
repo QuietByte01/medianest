@@ -45,6 +45,7 @@ internal fun SubtitleOptionsDialog(
     statusMessage: String?,
     onClose: () -> Unit,
     backdropState: BackdropBlurState? = null,
+    backgroundImage: Any? = null,
     modifier: Modifier = Modifier
 ) {
     val isDark = com.medianest.ui.theme.LocalDarkTheme.current
@@ -58,7 +59,8 @@ internal fun SubtitleOptionsDialog(
         baseColor = Color.Transparent,
         borderColor = if (isDark) Color(0x38FFFFFF) else Color(0x28000000),
         borderWidth = 0.5.dp,
-        backdropState = backdropState
+        backdropState = backdropState,
+        backgroundImage = backgroundImage
     ) {
         val scrollState = rememberScrollState()
         Column(
@@ -363,11 +365,13 @@ internal fun SubtitleCustomizationSheet(
     onBgColorChange: (Color) -> Unit,
     hasShadow: Boolean,
     onHasShadowChange: (Boolean) -> Unit,
-    backdropState: BackdropBlurState? = LocalBackdropState.current
+    backdropState: BackdropBlurState? = LocalBackdropState.current,
+    backgroundImage: Any? = null
 ) {
     AdaptiveBottomSheet(
         onDismissRequest = onDismiss,
-        backdropState = backdropState
+        backdropState = backdropState,
+        backgroundImage = backgroundImage
     ) {
         Column(
             modifier = Modifier
@@ -562,11 +566,13 @@ internal fun AudioTrackSelectionSheet(
     audioSyncOffsetMs: Long,
     onAudioSyncOffsetChange: (Long) -> Unit,
     context: Context,
-    backdropState: BackdropBlurState? = LocalBackdropState.current
+    backdropState: BackdropBlurState? = LocalBackdropState.current,
+    backgroundImage: Any? = null
 ) {
     AdaptiveBottomSheet(
         onDismissRequest = onDismiss,
-        backdropState = backdropState
+        backdropState = backdropState,
+        backgroundImage = backgroundImage
     ) {
         Column(
             modifier = Modifier

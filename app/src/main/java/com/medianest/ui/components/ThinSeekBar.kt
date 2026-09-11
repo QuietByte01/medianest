@@ -1,5 +1,6 @@
 package com.medianest.ui.components
 
+import android.graphics.Paint
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -99,8 +100,11 @@ fun ThinSeekBar(
             val frac = if (rangeLen > 0) ((displayValue - valueRange.start) / rangeLen).coerceIn(0f, 1f) else 0f
             val activeX = (width * frac).coerceIn(0f, width)
 
-            val trackHeightPx = trackHeight.toPx()
-            val thumbRadiusPx = thumbRadius.toPx()
+            val currentTrackHeight = if (isDragging) trackHeight * 1.25f else trackHeight
+            val currentThumbRadius = if (isDragging) thumbRadius * 1.25f else thumbRadius
+
+            val trackHeightPx = currentTrackHeight.toPx()
+            val thumbRadiusPx = currentThumbRadius.toPx()
 
             // 1. Inactive Track line (Centered vertically at centerY)
             drawLine(
@@ -136,26 +140,12 @@ fun ThinSeekBar(
                 )
             }
 
-            // 2. Active Track line with REAL DIFFUSED GLOW effect
+            // 2. Active Track line
             if (activeX > 0f) {
+                // Soft diffused glow around thumb only
                 drawIntoCanvas { canvas ->
-                    // Soft diffused glow paint along active track
-                    val glowPaint = android.graphics.Paint().apply {
-                        color = activeTrackColor.copy(alpha = 0.35f).toArgb()
-                        strokeWidth = trackHeightPx * 2.5f
-                        strokeCap = android.graphics.Paint.Cap.ROUND
-                        isAntiAlias = true
-                        maskFilter = android.graphics.BlurMaskFilter(10f, android.graphics.BlurMaskFilter.Blur.NORMAL)
-                    }
-                    canvas.nativeCanvas.drawLine(
-                        0f, centerY,
-                        activeX, centerY,
-                        glowPaint
-                    )
-
-                    // Soft diffused glow around thumb
-                    val thumbGlowPaint = android.graphics.Paint().apply {
-                        color = activeTrackColor.copy(alpha = 0.45f).toArgb()
+                    val thumbGlowPaint = Paint().apply {
+                        color = (if (thumbColor != Color.Transparent) thumbColor else activeTrackColor).copy(alpha = 0.45f).toArgb()
                         isAntiAlias = true
                         maskFilter = android.graphics.BlurMaskFilter(12f, android.graphics.BlurMaskFilter.Blur.NORMAL)
                     }

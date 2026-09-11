@@ -632,7 +632,7 @@ fun VideoSeriesView(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Tv, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(22.dp))
+                Icon(Icons.Default.Tv, contentDescription = null, tint = Color(0xFF6366F1), modifier = Modifier.size(22.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("TV SERIES", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 Spacer(modifier = Modifier.weight(1f))
@@ -999,7 +999,7 @@ private fun SeriesDetailHeaderSection(
                         text = infoParts.joinToString(" • "),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF00E5FF),
+                        color = Color(0xFF6366F1),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -1077,7 +1077,7 @@ private fun SeriesDetailHeaderSection(
                             text = if (isExpanded) "Show Less" else "Show More",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF00E5FF),
+                            color = Color(0xFF6366F1),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
                                 .clickable { isExpanded = !isExpanded }
@@ -1414,7 +1414,7 @@ private fun SeriesPosterCard(
                     text = "$seasonsCount ${if (seasonsCount == 1) "Season" else "Seasons"} • $episodesCount ${if (episodesCount == 1) "Episode" else "Episodes"}",
                     fontSize = 10.5.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF00E5FF),
+                    color = Color(0xFF6366F1),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -1438,7 +1438,7 @@ private fun SeasonCard(
             .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         backgroundColor = if (isSelected) Color(0x553B4252) else Color(0x24181C2B),
-        borderColor = if (isSelected) Color(0x8800E5FF) else Color(0x20FFFFFF)
+        borderColor = if (isSelected) Color(0x886366F1) else Color(0x20FFFFFF)
     ) {
         Row(
             modifier = Modifier.padding(8.dp),
@@ -1466,7 +1466,7 @@ private fun SeasonCard(
                     name,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 12.sp,
-                    color = if (isSelected) Color(0xFF00E5FF) else Color.White,
+                    color = if (isSelected) Color(0xFF6366F1) else Color.White,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )

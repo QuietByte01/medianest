@@ -43,7 +43,8 @@ internal fun VideoPlayerSettingsOverlay(
     filmGrainIntensity: Float,
     onFilmGrainIntensityChange: (Float) -> Unit,
     onShowDetails: (() -> Unit)? = null,
-    backdropState: BackdropBlurState? = null
+    backdropState: BackdropBlurState? = null,
+    backgroundImage: Any? = null
 ) {
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
@@ -70,7 +71,8 @@ internal fun VideoPlayerSettingsOverlay(
             baseColor = Color.Transparent,
             borderColor = Color(0x38FFFFFF),
             borderWidth = 0.5.dp,
-            backdropState = backdropState
+            backdropState = backdropState,
+            backgroundImage = backgroundImage
         ) {
             Column(
                 modifier = Modifier

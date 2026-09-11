@@ -3,6 +3,7 @@ package com.medianest.ui.components
 import android.app.Activity
 import android.net.Uri
 import android.os.Build
+import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -64,6 +65,8 @@ fun AdaptiveBottomSheet(
     val isDark = LocalDarkTheme.current
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
+    val isSurfaceViewMode = LocalIsSurfaceViewMode.current
+    val effectiveBackdropState = if (isSurfaceViewMode) null else backdropState
 
     // Frosted obsidian glass for dark mode, frosted white for light mode
     val resolvedColor = when {
@@ -86,6 +89,7 @@ fun AdaptiveBottomSheet(
                     ?: (dialogView.context as? Activity)?.window
                 window?.let { w ->
                     WindowCompat.setDecorFitsSystemWindows(w, false)
+                    w.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
                     w.navigationBarColor = android.graphics.Color.TRANSPARENT
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         w.isNavigationBarContrastEnforced = false
@@ -137,7 +141,7 @@ fun AdaptiveBottomSheet(
                             content()
                         }
                     }
-                } else if (backdropState != null) {
+                } else if (effectiveBackdropState != null) {
                     BackdropGlassSurface(
                         modifier = modifier
                             .clickable(
@@ -150,7 +154,7 @@ fun AdaptiveBottomSheet(
                         backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color.Unspecified,
                         borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
                         enableBlur = enableBlur,
-                        backdropState = backdropState
+                        backdropState = effectiveBackdropState
                     ) {
                         Column(
                             modifier = Modifier
@@ -228,6 +232,7 @@ fun AdaptiveBottomSheet(
                     ?: (sheetView.context as? Activity)?.window
                 window?.let { w ->
                     WindowCompat.setDecorFitsSystemWindows(w, false)
+                    w.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
                     w.navigationBarColor = android.graphics.Color.TRANSPARENT
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         w.isNavigationBarContrastEnforced = false
@@ -266,14 +271,14 @@ fun AdaptiveBottomSheet(
                         content()
                     }
                 }
-            } else if (backdropState != null) {
+            } else if (effectiveBackdropState != null) {
                 BackdropGlassSurface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = shape,
                     backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color.Unspecified,
                     borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
                     enableBlur = enableBlur,
-                    backdropState = backdropState
+                    backdropState = effectiveBackdropState
                 ) {
                     Column(modifier = Modifier.navigationBarsPadding()) {
                         if (dragHandle != null) {
