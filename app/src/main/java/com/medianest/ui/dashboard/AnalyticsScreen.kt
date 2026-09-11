@@ -310,8 +310,8 @@ fun DeviceStorageAnalysisCard(
     val othersSize = if (calcOthers > 0L) calcOthers else (knownMediaSize * 0.2).toLong().coerceAtLeast(1024L * 1024L * 120L)
 
     val colorVideos = Color(0xFF3B82F6) // Blue
-    val colorAudios = Color(0xFF8B5CF6) // Purple
-    val colorImages = Color(0xFFEC4899) // Pink / Magenta
+    val colorAudios = Color(0xFFEC4899) // Purple
+    val colorImages = Color(0xFF8B5CF6) // Pink / Magenta
     val colorOthers = Color(0xFFF59E0B) // Orange
 
     GlassSurface(
@@ -333,12 +333,23 @@ fun DeviceStorageAnalysisCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Storage Analysis",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Storage,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "Storage Analysis",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -551,12 +562,23 @@ fun AllAvailableFormatsSection(
         verticalArrangement = Arrangement.spacedBy(14.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text(
-            text = "Formats Analysis",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Analytics,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = "Formats Analysis",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
 
         if (sortedFormatStats.isEmpty()) {
             GlassSurface(
@@ -679,12 +701,23 @@ fun MediaCategoriesSection(
         verticalArrangement = Arrangement.spacedBy(14.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text(
-            text = "Media Categories",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Category,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = "Media Categories",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
 
         val categoriesList = listOf(
             Triple("Images", "JPG, PNG, WEBP, HEIC", Triple(snapshot.imageCount, snapshot.imageSize, "IMAGE")),

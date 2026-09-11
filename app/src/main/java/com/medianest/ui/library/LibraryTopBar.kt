@@ -38,6 +38,16 @@ fun LibraryTopBar(
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
 
+    val tabIcon = remember(isDashboardTab, isImagesTab, isVideosTab, isAudioTab) {
+        when {
+            isDashboardTab -> Icons.Default.Dashboard
+            isImagesTab -> Icons.Default.PhotoLibrary
+            isVideosTab -> Icons.Default.VideoLibrary
+            isAudioTab -> Icons.Default.LibraryMusic
+            else -> Icons.Default.Dashboard
+        }
+    }
+
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = Color.Transparent,
@@ -53,18 +63,37 @@ fun LibraryTopBar(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = when {
-                            isDashboardTab -> "MediaNest"
-                            isImagesTab -> "Image Gallery"
-                            isVideosTab -> "Video Library"
-                            isAudioTab -> "Music Library"
-                            else -> "MediaNest"
-                        },
-                        fontWeight = FontWeight.Bold,
-                        fontSize = if (isDashboardTab) 24.sp else 20.sp,
-                        color = Color.White
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = tabIcon,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = when {
+                                isDashboardTab -> "MediaNest"
+                                isImagesTab -> "Image Gallery"
+                                isVideosTab -> "Video Library"
+                                isAudioTab -> "Music Library"
+                                else -> "MediaNest"
+                            },
+                            fontWeight = FontWeight.Bold,
+                            fontSize = if (isDashboardTab) 24.sp else 20.sp,
+                            color = Color.White
+                        )
+                        if (isDashboardTab) {
+                            Icon(
+                                imageVector = Icons.Default.FastForward,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                    }
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -225,6 +254,16 @@ fun LibraryTopBar(
                             }
                         }
                     } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = tabIcon,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
                         Text(
                             text = when {
                                 isDashboardTab -> "MediaNest"
@@ -236,6 +275,15 @@ fun LibraryTopBar(
                             fontWeight = FontWeight.Bold,
                             fontSize = if (isDashboardTab) 24.sp else 20.sp
                         )
+                        if (isDashboardTab) {
+                            Icon(
+                                imageVector = Icons.Default.FastForward,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
                     }
                 }
             }

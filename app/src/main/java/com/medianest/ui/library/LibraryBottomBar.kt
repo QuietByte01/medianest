@@ -132,6 +132,7 @@ fun LibraryBottomBar(
                             selected = currentTab == 0,
                             icon = Icons.Default.BarChart,
                             label = "Dashboard",
+                            accentColor = Color(0xFF6366F1),
                             onClick = { onTabSelected(0) }
                         )
                     }
@@ -140,6 +141,7 @@ fun LibraryBottomBar(
                         selected = if (enableAnalyticsTab) currentTab == 1 else currentTab == 0,
                         icon = Icons.Default.Image,
                         label = "Images",
+                        accentColor = Color(0xFF06A77D),
                         onClick = { onTabSelected(if (enableAnalyticsTab) 1 else 0) }
                     )
 
@@ -147,6 +149,7 @@ fun LibraryBottomBar(
                         selected = if (enableAnalyticsTab) currentTab == 2 else currentTab == 1,
                         icon = Icons.Default.Movie,
                         label = "Videos",
+                        accentColor = Color(0xFF3B82F6),
                         onClick = { onTabSelected(if (enableAnalyticsTab) 2 else 1) }
                     )
 
@@ -154,6 +157,7 @@ fun LibraryBottomBar(
                         selected = if (enableAnalyticsTab) currentTab == 3 else currentTab == 2,
                         icon = Icons.Default.Audiotrack,
                         label = "Audio",
+                        accentColor = Color(0xFFFF006E),
                         onClick = { onTabSelected(if (enableAnalyticsTab) 3 else 2) }
                     )
                 }
@@ -167,12 +171,15 @@ private fun FloatingDockTabItem(
     selected: Boolean,
     icon: ImageVector,
     label: String,
+    accentColor: Color = Color.Unspecified,
     onClick: () -> Unit
 ) {
     val isDark = LocalDarkTheme.current
+    val effectiveAccent = if (accentColor != Color.Unspecified) accentColor else (if (isDark) Color.White else Color(0xFF0F172A))
+
     val contentColor by animateColorAsState(
         targetValue = when {
-            selected -> if (isDark) Color.White else Color(0xFF0F172A)
+            selected -> effectiveAccent
             else -> if (isDark) Color(0xB3FFFFFF) else Color(0x990F172A)
         },
         animationSpec = tween(220),
