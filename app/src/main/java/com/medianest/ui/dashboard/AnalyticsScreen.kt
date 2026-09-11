@@ -33,12 +33,8 @@ import androidx.compose.ui.unit.sp
 import com.medianest.data.db.FileStatSnapshot
 import com.medianest.data.db.FormatStat
 import com.medianest.data.model.MediaItem
-import com.medianest.plugin.StudioInstallDialog
-import com.medianest.plugin.StudioIntegrationManager
 import com.medianest.ui.components.GlassSurface
-import com.medianest.ui.components.MediaConverterStudioDialog
 import com.medianest.ui.components.PaletteTagChip
-import com.medianest.ui.components.StudioTab
 
 @Composable
 fun AnalyticsScreen(
@@ -60,8 +56,6 @@ fun AnalyticsScreen(
     var activeDrillDownTitle by remember { mutableStateOf<String?>(null) }
     var activeFilterCategory by remember { mutableStateOf<String?>(null) }
     var activeFilterFormat by remember { mutableStateOf<String?>(null) }
-    var showStudioDialog by remember { mutableStateOf(false) }
-    var activeStudioTab by remember { mutableStateOf(StudioTab.CONVERT) }
 
     if (searchQuery.isNotBlank()) {
         DashboardSearchResultView(
@@ -195,118 +189,6 @@ fun AnalyticsScreen(
                     activeFilterFormat = null
                 }
             )
-
-            // 4. Lossless Media Studio (Converter, Compressor, Extractor, Crop, Repair)
-            val context = LocalContext.current
-            MediaProcessorStudioCard(
-                onOpenStudioTab = { tab ->
-                    activeStudioTab = tab
-                    if (StudioIntegrationManager.isStudioInstalled(context)) {
-                        StudioIntegrationManager.launchStudio(
-                            context = context,
-                            initialTab = tab.name,
-                            onNotInstalled = { showStudioDialog = true }
-                        )
-                    } else {
-                        showStudioDialog = true
-                    }
-                }
-            )
-        }
-
-        if (showStudioDialog) {
-            val context = LocalContext.current
-            if (StudioIntegrationManager.isStudioInstalled(context)) {
-                LaunchedEffect(Unit) {
-                    StudioIntegrationManager.launchStudio(
-                        context = context,
-                        initialTab = activeStudioTab.name,
-                        onNotInstalled = {}
-                    )
-                    showStudioDialog = false
-                }
-            } else {
-                StudioInstallDialog(
-                    onDismiss = { showStudioDialog = false },
-                    titleName = "Media Studio"
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun MediaProcessorStudioCard(
-    onOpenStudioTab: (StudioTab) -> Unit
-) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            text = "Media Studio",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
-
-        GlassSurface(
-            shape = RoundedCornerShape(22.dp),
-            backgroundColor = Color(0x3D181A24),
-            borderColor = Color(0x2EFFFFFF),
-            enableBlur = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onOpenStudioTab(StudioTab.CONVERT) }
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(
-                            androidx.compose.ui.graphics.Brush.verticalGradient(
-                                listOf(Color(0xFF6366F1), Color(0xFF4338CA))
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AutoFixHigh,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Open Media Studio",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Text(
-                        text = "Professional tools for lossless conversion, deterministic non-AI colorization, smart compression, cropping, and bitstream repair.",
-                        fontSize = 12.sp,
-                        color = Color(0xFF94A3B8),
-                        lineHeight = 16.sp
-                    )
-                }
-
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = Color(0xFF64748B),
-                    modifier = Modifier.size(24.dp)
-                )
-            }
         }
     }
 }
