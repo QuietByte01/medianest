@@ -221,7 +221,6 @@ class FloatingPlayerService : Service() {
             ACTION_STOP -> {
                 val activeManager = ExoPlayerManager.getInstance(applicationContext)
                 activeManager.stop()
-                activeManager.releaseSurface()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
@@ -501,14 +500,9 @@ private fun extractHueFromBitmap(bitmap: Bitmap): Float? {
     override fun onDestroy() {
         super.onDestroy()
         serviceJob.cancel()
-        // NOTE: Do NOT call stopPlayback() or stop() here.
-        // The notification service being destroyed does NOT mean the user wants playback to stop.
-        // Calling stopPlayback() here was killing ExoPlayer mid-startup whenever the
-        // notification service was briefly stopped and restarted (e.g. during track change).
-        try {
-            val mgr = ExoPlayerManager.getInstance(applicationContext)
-            mgr.releaseSurface()
-        } catch (_: Exception) {}
+        // NOTE: Do NOT call stopPlayback(), stop(), or releaseSurface() here.
+        // The notification service being destroyed does NOT mean the user wants playback or the surface to stop.
+        // Clearing the surface here detaches the video surface from the player whenever playback pauses!
         try {
             mediaSession?.isActive = false
             mediaSession?.release()

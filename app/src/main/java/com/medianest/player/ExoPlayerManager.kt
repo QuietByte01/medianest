@@ -853,12 +853,14 @@ class ExoPlayerManager private constructor(private val context: Context) {
 
     private fun requestAudioFocus(): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val attr = AndroidAudioAttributes.Builder().setUsage(AndroidAudioAttributes.USAGE_MEDIA).setContentType(AndroidAudioAttributes.CONTENT_TYPE_MUSIC).build()
-            focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN).setAudioAttributes(attr)
-                // NOTE: setAcceptsDelayedFocusGain(true) means requestAudioFocus can return
-                // AUDIOFOCUS_REQUEST_DELAYED instead of GRANTED. We handle this by setting
-                // playOnFocusGain = true so the listener resumes when focus eventually arrives.
-                .setAcceptsDelayedFocusGain(true).setOnAudioFocusChangeListener(audioFocusChangeListener).setWillPauseWhenDucked(false).build()
+            if (focusRequest == null) {
+                val attr = AndroidAudioAttributes.Builder().setUsage(AndroidAudioAttributes.USAGE_MEDIA).setContentType(AndroidAudioAttributes.CONTENT_TYPE_MUSIC).build()
+                focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN).setAudioAttributes(attr)
+                    // NOTE: setAcceptsDelayedFocusGain(true) means requestAudioFocus can return
+                    // AUDIOFOCUS_REQUEST_DELAYED instead of GRANTED. We handle this by setting
+                    // playOnFocusGain = true so the listener resumes when focus eventually arrives.
+                    .setAcceptsDelayedFocusGain(true).setOnAudioFocusChangeListener(audioFocusChangeListener).setWillPauseWhenDucked(false).build()
+            }
             val result = audioManager.requestAudioFocus(focusRequest!!)
             if (result == AudioManager.AUDIOFOCUS_REQUEST_DELAYED) {
                 // Focus will arrive via AUDIOFOCUS_GAIN callback; queue the play for then.

@@ -335,9 +335,15 @@ fun VideoPlayerScreen(
             showAspectRatioMenu || showSpeedMenu || showAbRepeatBar || showEngineDialog ||
             showVideoFxSheet || showVideoEditorSheet || showDeleteDialog || showSoftwareDecoderWarning
 
-    LaunchedEffect(anyOverlayOpen) {
+    LaunchedEffect(anyOverlayOpen, playerState.isPlaying) {
         if (anyOverlayOpen) {
-//            playerBackdropState.drawSignal++
+            playerBackdropState.drawSignal++
+            if (playerState.isPlaying) {
+                while (true) {
+                    kotlinx.coroutines.delay(66L)
+                    playerBackdropState.drawSignal++
+                }
+            }
         }
     }
 
@@ -500,7 +506,7 @@ fun VideoPlayerScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .backdropSource(state = playerBackdropState, backgroundColor = Color.Black)
+                    .backdropSource(state = playerBackdropState, backgroundColor = Color.Transparent)
                     .videoPlayerGestures(
                     currentItemId = currentItem?.id,
                     isControlsLocked = isControlsLocked,
@@ -651,11 +657,11 @@ fun VideoPlayerScreen(
 
                         val isHdrContent = playerState.isHdrContent
                         Box(
-                            modifier = Modifier.fillMaxSize().clipToBounds(),
+                            modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
                             Box(
-                                modifier = surfaceModifier.clipToBounds(),
+                                modifier = surfaceModifier,
                                 contentAlignment = Alignment.Center
                             ) {
                                 val hasTransform = scale != 1f || panOffset != Offset.Zero
@@ -700,6 +706,7 @@ fun VideoPlayerScreen(
                                                         subtitleView?.visibility = View.GONE
                                                         // Keep content on reset so video frames are not blacked out during state updates or pause/resume
                                                         setKeepContentOnPlayerReset(true)
+                                                        setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
                                                         try {
                                                             this.player = playerManager.exoPlayer
                                                         } catch (_: Exception) {}
@@ -715,23 +722,18 @@ fun VideoPlayerScreen(
                                                             Logger.i("VideoPlayerScreen", "Syncing PlayerView with new ExoPlayer instance")
                                                             view.player = currentExo
                                                         }
-                                                        // NOTE: view.onResume() intentionally removed — for standard SurfaceView/TextureView
-                                                        // it is a no-op (only does work for SphericalGLSurfaceView). Calling it on every
-                                                        // recomposition caused rapid surface lifecycle events that detached the video surface
-                                                        // from the player after pause→resume, producing audio-only playback.
                                                     } catch (e: Exception) {
                                                         Logger.e("VideoPlayerScreen", "Error syncing player", e)
                                                     }
-                                                    view.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                                    if (view.resizeMode != AspectRatioFrameLayout.RESIZE_MODE_FILL) {
+                                                        view.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                                    }
                                                     activeTextureViewRef = view.videoSurfaceView as? android.view.TextureView
                                                 },
                                                 onRelease = { view ->
                                                     if (activeTextureViewRef == view.videoSurfaceView) {
                                                         activeTextureViewRef = null
                                                     }
-                                                    try {
-                                                        view.onPause()
-                                                    } catch (_: Exception) {}
                                                 },
                                                 modifier = Modifier.fillMaxSize()
                                             )
@@ -753,9 +755,10 @@ fun VideoPlayerScreen(
                                                             override fun onSurfaceTextureSizeChanged(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
                                                                 if (activeSurface == null || !activeSurface!!.isValid) {
                                                                     activeSurface?.release()
-                                                                    activeSurface = android.view.Surface(st)
+                                                                    val newSurface = android.view.Surface(st)
+                                                                    activeSurface = newSurface
+                                                                    playerManager.setVideoSurface(newSurface)
                                                                 }
-                                                                playerManager.setVideoSurface(activeSurface)
                                                             }
                                                             override fun onSurfaceTextureDestroyed(st: android.graphics.SurfaceTexture): Boolean {
                                                                 Logger.i("VideoPlayerScreen", "FFmpeg SurfaceTexture Destroyed")

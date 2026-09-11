@@ -53,6 +53,7 @@ private const val TAG = "BackdropBlur"
 class BackdropBlurState {
     var sourceLayer: GraphicsLayer? = null
     var sourceCoordinates: LayoutCoordinates? by mutableStateOf(null)
+    var drawSignal by mutableStateOf(0)
 
     private val invalidators = mutableListOf<() -> Unit>()
 
@@ -110,6 +111,8 @@ fun Modifier.backdropSource(
         state.sourceCoordinates = coordinates
     }
     .drawWithContent {
+        @Suppress("UNUSED_EXPRESSION")
+        state.drawSignal
         val layer = state.sourceLayer
         if (layer != null) {
             val srcSize = IntSize(
