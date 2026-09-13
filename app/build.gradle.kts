@@ -80,10 +80,19 @@ android {
       }
 
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: envProperties.getProperty("KEYSTORE_PATH") ?: "my-upload-key.jks"
-      storeFile = rootProject.file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD") ?: envProperties.getProperty("STORE_PASSWORD")
-      keyAlias = System.getenv("KEY_ALIAS") ?: envProperties.getProperty("KEY_ALIAS") ?: "upload"
-      keyPassword = System.getenv("KEY_PASSWORD") ?: envProperties.getProperty("KEY_PASSWORD")
+      val kFile = rootProject.file(keystorePath)
+      val storePwd = System.getenv("STORE_PASSWORD") ?: envProperties.getProperty("STORE_PASSWORD")
+      val alias = System.getenv("KEY_ALIAS") ?: envProperties.getProperty("KEY_ALIAS") ?: "upload"
+      val keyPwd = System.getenv("KEY_PASSWORD") ?: envProperties.getProperty("KEY_PASSWORD")
+
+      if (kFile.exists() && !storePwd.isNullOrEmpty() && !keyPwd.isNullOrEmpty()) {
+        storeFile = kFile
+        storePassword = storePwd
+        keyAlias = alias
+        keyPassword = keyPwd
+      } else {
+        initWith(getByName("debug"))
+      }
     }
   }
 
