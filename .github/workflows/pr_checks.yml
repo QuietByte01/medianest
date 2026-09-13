@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - ai-development
+  workflow_dispatch:
 
 jobs:
   check:
