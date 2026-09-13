@@ -1,8 +1,7 @@
 # MediaNest ▶▶
 
-[![Deploy & Release](https://github.com/Sac071/medianest/actions/workflows/deploy.yml/badge.svg)](https://github.com/Sac071/medianest/actions/workflows/deploy.yml)
-[![PR Checks](https://github.com/Sac071/medianest/actions/workflows/pr_checks.yml/badge.svg)](https://github.com/Sac071/medianest/actions/workflows/pr_checks.yml)
-[![Kotlin](https://img.shields.io/badge/Kotlin-100%25-blue.svg)](https://kotlinlang.org)
+[![Deploy](https://github.com/Sac071/medianest/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/Sac071/medianest/actions/workflows/deploy.yml)
+[![PR Checks](https://github.com/Sac071/medianest/actions/workflows/pr_checks.yml/badge.svg?branch=main)](https://github.com/Sac071/medianest/actions/workflows/pr_checks.yml)
 [![Android](https://img.shields.io/badge/Platform-Android-green.svg)](https://developer.android.com)
 [![Material 3](https://img.shields.io/badge/Design-Material_3-7C4DFF.svg)](https://m3.material.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -28,7 +27,6 @@ MediaNest is a hardware-optimized media management application designed for seam
 - **Privacy Suite**: App Lock (PIN/Biometric), Stealth Mode, and Hidden Folder support.
 
 ### 🎨 Elite User Experience
-- **FFmpeg Media Studio**: Integrated on-device laboratory for conversion, smart compression, and bitstream repair.
 - **Glassmorphic UI**: High-performance "Ambient" surfaces and fluid liquid animations.
 - **Unified Library**: Seamlessly browse Images, Videos, and Audio in a single hub.
 - **Deep Analytics & DSP**: Pro-audio 5-band equalizer, visualizers, and detailed format insights.
