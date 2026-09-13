@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Terminal
@@ -44,6 +45,7 @@ import kotlinx.coroutines.launch
 fun DeveloperSettingsSection(
     settingsManager: SettingsManager,
     onDisableDevMode: () -> Unit,
+    onOpenPlayStoreScreenshots: () -> Unit = {},
     backdropState: BackdropBlurState? = null
 ) {
     val context = LocalContext.current
@@ -175,6 +177,22 @@ fun DeveloperSettingsSection(
         }
 
         SettingsGlassCard(title = "DEVELOPER TOOLS", backdropState = backdropState) {
+            SettingsRowItem(
+                title = "Play Store Screenshot Generator",
+                subtitle = "Preview & export 9:16 store listing graphics with device frames & headlines",
+                control = {
+                    Button(
+                        onClick = onOpenPlayStoreScreenshots,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = com.medianest.ui.theme.AccentViolet)
+                    ) {
+                        Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Preview Screens", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            )
+
             SettingsRowItem(
                 title = "In-App Log Viewer",
                 subtitle = "View application logs and filter by level",

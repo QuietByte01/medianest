@@ -53,7 +53,7 @@ android {
   defaultConfig {
     applicationId = "com.medianest.app"
     minSdk = 30
-    targetSdk = 36
+    targetSdk = 35
     versionCode = 5
     versionName = "1.4"
 
@@ -147,13 +147,14 @@ android {
     } 
   }
 
-  // ABI splits: reduces APK size from ~90MB to ~25MB for release per-ABI split
+  // ABI splits: disabled when building App Bundles to prevent resource shrinking conflicts (AGP issue 402800800).
+  // App Bundles (.aab) automatically handle per-ABI splitting on Google Play.
   splits {
     abi {
-      isEnable = true
+      isEnable = false
       reset()
       include("arm64-v8a", "armeabi-v7a", "x86_64")
-      isUniversalApk = true // keeps a universal APK as fallback
+      isUniversalApk = true
     }
   }
 }

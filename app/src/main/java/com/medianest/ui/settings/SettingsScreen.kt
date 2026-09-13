@@ -106,6 +106,7 @@ fun SettingsScreen(
     var showAutoPlayGifWarning by remember { mutableStateOf(false) }
     var phoneSizeWarningText by remember { mutableStateOf<String?>(null) }
     var showSelectiveCacheCleanDialog by remember { mutableStateOf(false) }
+    var showPlayStoreScreenshots by remember { mutableStateOf(false) }
 
     var versionTapCount by remember { mutableIntStateOf(0) }
     val packageInfo = remember { context.packageManager.getPackageInfo(context.packageName, 0) }
@@ -951,7 +952,8 @@ fun SettingsScreen(
             // Developer Options
             DeveloperSettingsSection(
                 settingsManager = settingsManager,
-                onDisableDevMode = { versionTapCount = 0 }
+                onDisableDevMode = { versionTapCount = 0 },
+                onOpenPlayStoreScreenshots = { showPlayStoreScreenshots = true }
             )
 
             // Banner Ad at the bottom of Settings
@@ -1281,6 +1283,18 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+    }
+
+    // Play Store Screenshots Dialog
+    if (showPlayStoreScreenshots) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showPlayStoreScreenshots = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            com.medianest.ui.playstore.PlayStoreExportScreen(
+                onBack = { showPlayStoreScreenshots = false }
+            )
         }
     }
 
