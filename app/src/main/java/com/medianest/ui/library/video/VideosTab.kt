@@ -243,6 +243,9 @@ fun VideosTab(
     }
 
     val showHiddenSetting by settingsManager.showHiddenFiles.collectAsState(initial = false)
+    val appHiddenFolders by settingsManager.hiddenFolders.collectAsState(initial = emptySet())
+
+
 
     val videoFolderGroups by viewModel.videoFolderGroups.collectAsState()
     val sharedTitleWords by viewModel.sharedTitleWords.collectAsState()
@@ -406,7 +409,7 @@ fun VideosTab(
         var isFilterProcessing by remember { mutableStateOf(false) }
         var displayList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
 
-        LaunchedEffect(videosList, videoFolderGroups, activeFilterTab, isFolderViewActive, selectedFolder, selectedCategory, categoryUris, showHiddenSetting, searchQuery) {
+        LaunchedEffect(videosList, videoFolderGroups, activeFilterTab, isFolderViewActive, selectedFolder, selectedCategory, categoryUris, showHiddenSetting, searchQuery, appHiddenFolders) {
             isFilterProcessing = true
             val result = withContext(Dispatchers.Default) {
                 val raw = if (isFolderViewActive || selectedFolder != null) {
@@ -443,7 +446,7 @@ fun VideosTab(
                 } else if (activeFilterTab == "CATEGORIES") {
                     emptyList()
                 } else {
-                    filterVideoList(videosList, activeFilterTab, showHiddenSetting)
+                    filterVideoList(videosList, activeFilterTab, showHiddenSetting, appHiddenFolders)
                 }
 
                 if (searchQuery.isNotBlank()) {

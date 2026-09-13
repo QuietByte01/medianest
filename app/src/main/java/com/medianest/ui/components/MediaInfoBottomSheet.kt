@@ -36,6 +36,7 @@ import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.mediainfo.*
 import com.medianest.util.ArtistImageUtils
+import com.medianest.util.MediaAnalyzer
 import com.medianest.util.rememberArtistImageUrl
 import kotlinx.coroutines.launch
 
@@ -74,16 +75,13 @@ fun MediaInfoBottomSheet(
     val sheetBg = if (isDark) Color(0xCC08090E) else Color(0xBFFFFFFF)
 
     val backdropState = LocalBackdropState.current
-    val isSurfaceViewMode = LocalIsSurfaceViewMode.current
-    val effectiveBackdropState = if (isSurfaceViewMode) null else backdropState
-    val effectiveBackgroundImage = if (isSurfaceViewMode || backdropState == null) (item.albumArtUri ?: item.uri) else null
 
     if (item.type == MediaType.IMAGE) {
         com.medianest.ui.components.mediainfo.ImageInfoOverlay(
             item = item,
             onClose = onDismiss,
             onShowFileLocation = onShowFileLocation,
-            backdropState = effectiveBackdropState
+            backdropState = backdropState
         )
         return
     }
@@ -92,10 +90,11 @@ fun MediaInfoBottomSheet(
         onDismissRequest = onDismiss,
         skipPartiallyExpanded = true,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        isSolidGlossy = false,
         containerColor = Color.Unspecified,
         contentColor = if (isDark) Color.White else Color.Black,
-        backgroundImage = effectiveBackgroundImage,
-        backdropState = effectiveBackdropState,
+        backgroundImage = item.albumArtUri ?: item.uri,
+        backdropState = null,
         dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
         if (item.type == MediaType.VIDEO) {
@@ -323,7 +322,7 @@ fun MediaInfoBottomSheet(
                                 .clickable {
                                     scope.launch {
                                         isAudioAnalyzing = true
-                                        val report = com.medianest.util.MediaAnalyzer.analyze(filePath, item.type.name, context)
+                                        val report = MediaAnalyzer.analyze(filePath, item.type.name, context, uri = item.uri)
                                         audioDiagReport = report
                                         isAudioAnalyzing = false
                                         showAudioDiagnosticsDialog = true
@@ -865,7 +864,7 @@ fun MediaInfoBottomSheet(
                     .clickable {
                         scope.launch {
                             isAudioAnalyzing = true
-                            val report = com.medianest.util.MediaAnalyzer.analyze(filePath, item.type.name, context)
+                            val report = MediaAnalyzer.analyze(filePath, item.type.name, context, uri = item.uri)
                             audioDiagReport = report
                             isAudioAnalyzing = false
                             showAudioDiagnosticsDialog = true

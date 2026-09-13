@@ -18,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -30,12 +31,11 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
-import coil.compose.SubcomposeAsyncImage
-import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
 import com.medianest.data.db.MediaCategory
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.GlassSurface
+import kotlin.math.abs
 
 @Composable
 fun UserPlaylistCard(
@@ -79,28 +79,7 @@ fun UserPlaylistCard(
                     .background(Color(0x33FFFFFF)),
                 contentAlignment = Alignment.Center
             ) {
-                if (artUri != null) {
-                    SubcomposeAsyncImage(
-                        model = ImageRequest.Builder(context).data(artUri).crossfade(true).build(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        val state = painter.state
-                        if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.MusicNote,
-                                    contentDescription = null,
-                                    tint = Color.White.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
-                        } else {
-                            SubcomposeAsyncImageContent()
-                        }
-                    }
-                } else {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.MusicNote,
                         contentDescription = null,
@@ -108,11 +87,23 @@ fun UserPlaylistCard(
                         modifier = Modifier.size(32.dp)
                     )
                 }
+
+                if (artUri != null) {
+                    val imageRequest = remember(artUri) {
+                        ImageRequest.Builder(context).data(artUri).crossfade(false).build()
+                    }
+                    AsyncImage(
+                        model = imageRequest,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(10.dp))
 
-            Column(modifier = Modifier.weight(1f).padding(start = 14.dp)) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = pl.name,
                     fontWeight = FontWeight.Bold,

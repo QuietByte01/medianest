@@ -29,8 +29,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
-import coil.compose.SubcomposeAsyncImage
-import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.itemKey
@@ -319,34 +317,37 @@ private fun SongRow(
                     .clip(RoundedCornerShape(14.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                SubcomposeAsyncImage(
-                    model = ImageRequest.Builder(context).data(albumArtModel).crossfade(true).build(),
+                // Placeholder fallback drawn underneath
+                GlassSurface(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(14.dp),
+                    enableBlur = false,
+                    backgroundColor = Color.Transparent,
+                    borderColor = Color(0x22FFFFFF)
+                ) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.MusicNote,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+
+                val imageRequest = remember(albumArtModel) {
+                    ImageRequest.Builder(context)
+                        .data(albumArtModel)
+                        .crossfade(false)
+                        .build()
+                }
+
+                AsyncImage(
+                    model = imageRequest,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
-                ) {
-                    val state = painter.state
-                    if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
-                        GlassSurface(
-                            modifier = Modifier.fillMaxSize(),
-                            shape = RoundedCornerShape(14.dp),
-                            enableBlur = false,
-                            backgroundColor = Color.Transparent,
-                            borderColor = Color(0x22FFFFFF)
-                        ) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.MusicNote,
-                                    contentDescription = null,
-                                    tint = Color.White.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-                        }
-                    } else {
-                        SubcomposeAsyncImageContent()
-                    }
-                }
+                )
 
                 if (isCurrentlyPlaying) {
                     Box(

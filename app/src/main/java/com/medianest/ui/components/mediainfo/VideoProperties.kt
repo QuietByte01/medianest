@@ -45,6 +45,7 @@ import com.medianest.ui.components.PaletteTagChip
 import com.medianest.ui.components.PlaybackSpeedChip
 import com.medianest.ui.components.RoundedPlayIcon
 import com.medianest.ui.components.formatDuration
+import com.medianest.util.MediaAnalyzer
 import kotlinx.coroutines.launch
 
 @Composable
@@ -631,7 +632,7 @@ internal fun VideoFilePropertiesContent(
                 .clickable {
                     scope.launch {
                         isAnalyzing = true
-                        val report = com.medianest.util.MediaAnalyzer.analyze(filePath, item.type.name, context)
+                        val report = MediaAnalyzer.analyze(filePath, item.type.name, context, uri = item.uri)
                         diagReport = report
                         isAnalyzing = false
                         showDiagnosticsDialog = true

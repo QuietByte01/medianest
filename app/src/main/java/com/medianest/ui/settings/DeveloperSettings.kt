@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,6 +35,7 @@ import com.medianest.ui.components.AppSwitchStyle
 import com.medianest.ui.components.BackdropBlurState
 import com.medianest.ui.components.debug.HardwarePipelineDiagnosticsCard
 import com.medianest.data.settings.SettingsManager
+import com.medianest.ui.components.GlassSurface
 import com.medianest.util.LogLevel
 import com.medianest.util.Logger
 import kotlinx.coroutines.launch
@@ -59,6 +61,54 @@ fun DeveloperSettingsSection(
     var showLogs by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        // Developer Mode Warning Banner
+        GlassSurface(
+            shape = RoundedCornerShape(18.dp),
+            backgroundColor = Color(0x33EF4444),
+            borderColor = Color(0x80EF4444),
+            borderWidth = 1.dp,
+            enableBlur = false,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+            ) {
+                // Translucent Background Warning Icon Watermark
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = Color(0x22F87171),
+                    modifier = Modifier
+                        .size(82.dp)
+                        .align(Alignment.CenterEnd)
+                        .offset(x = 16.dp, y = 12.dp)
+                )
+
+                // Foreground Warning Text
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "DEVELOPER MODE ACTIVE",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = "Developer Mode is intended for development & testing purposes only. Enabling live telemetry overlays, verbose logging, or deep diagnostics may slow down app performance.",
+                        fontSize = 11.5.sp,
+                        color = Color(0xFFFECACA),
+                        lineHeight = 16.sp
+                    )
+                }
+            }
+        }
+
         // Hardware Pipeline Diagnostics Component
         HardwarePipelineDiagnosticsCard(context = context, backdropState = backdropState)
 

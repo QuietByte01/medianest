@@ -13,6 +13,10 @@ object MediaMetadataUtils {
 
     private val metadataCache = android.util.LruCache<String, MetadataResult>(1000)
 
+    fun clearCache() {
+        metadataCache.evictAll()
+    }
+
     data class MetadataResult(
         val title: String? = null,
         val durationMs: Long = 0L,

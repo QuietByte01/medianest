@@ -13,9 +13,7 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -65,9 +63,15 @@ fun GlassToggle(
     // Animation curve: cubic-bezier(0.4, 0, 0.2, 1)
     val standardCubicBezier = remember { CubicBezierEasing(0.4f, 0.0f, 0.2f, 1.0f) }
 
+    var localChecked by remember(checked) { mutableStateOf(checked) }
+
+    LaunchedEffect(checked) {
+        localChecked = checked
+    }
+
     // Progress: 0f (OFF) -> 1f (ON)
     val checkProgress by animateFloatAsState(
-        targetValue = if (checked) 1f else 0f,
+        targetValue = if (localChecked) 1f else 0f,
         animationSpec = tween(durationMillis = 200, easing = standardCubicBezier),
         label = "glassToggleProgress"
     )
@@ -101,7 +105,11 @@ fun GlassToggle(
             indication = null, // Custom glass click feel without material ripple
             enabled = enabled,
             role = Role.Switch,
-            onClick = { onCheckedChange(!checked) }
+            onClick = {
+                val target = !localChecked
+                localChecked = target
+                onCheckedChange(target)
+            }
         )
     } else Modifier
 

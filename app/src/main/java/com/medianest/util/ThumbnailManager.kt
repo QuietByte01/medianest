@@ -169,4 +169,17 @@ object ThumbnailManager {
     fun clearCache() {
         memoryCache.evictAll()
     }
+
+    fun clearDiskCache(context: Context) {
+        try {
+            memoryCache.evictAll()
+            val dir = getDiskCacheDir(context)
+            if (dir.exists()) {
+                dir.deleteRecursively()
+                dir.mkdirs()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 }

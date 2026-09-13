@@ -4,6 +4,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -305,38 +306,6 @@ fun AudioMetadataEditDialog(
                     }
                 }
 
-                // Online Fetch Button with Choice Options
-                SolidGlossySurface(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable(enabled = !isFetching) {
-                            showFetchOptionsSheet = true
-                        },
-                    shape = RoundedCornerShape(14.dp),
-                    backgroundColor = Color(0x221C1F2B),
-                    borderColor = Color(0x28FFFFFF),
-                    showTopSheen = true
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CloudDownload,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.7f),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "Fetch Tags...",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White
-                        )
-                    }
-                }
-
                 // Remove Art Button (if art is present)
                 if (!editAlbumArtUri.isNullOrBlank()) {
                     SolidGlossySurface(
@@ -490,7 +459,35 @@ fun AudioMetadataEditDialog(
                 )
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Online Fetch Tags Button (Positioned at bottom above Save)
+            OutlinedButton(
+                onClick = { showFetchOptionsSheet = true },
+                enabled = !isFetching && !isSaving,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0x66818CF8)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF818CF8))
+            ) {
+                if (isFetching) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color(0xFF818CF8))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Fetching Online Metadata...", fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.CloudDownload,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Fetch Tags & Cover Art Online", fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Save / Update Action Button (Physically writes tags & updates library)
             SolidGlossySurface(

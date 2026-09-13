@@ -530,13 +530,7 @@ fun AudioPlayerScreen(
                                     leadingIcon = { Icon(Icons.Default.Album, null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
                                     onClick = { showOverflowMenu = false; onClose(); onOpenAlbum(currentItem.album ?: "Unknown Album") }
                                 )
-                                if (currentItem?.artist != null) {
-                                    DropdownMenuItem(
-                                        text = { Text("Artist Info & Bio", color = if (isDark) Color.White else Color.Black) },
-                                        leadingIcon = { Icon(Icons.Default.Person, null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },
-                                        onClick = { showOverflowMenu = false; showArtistInfoPanel = true }
-                                    )
-                                }
+
                                 DropdownMenuItem(
                                     text = { Text("Show In Folder", color = if (isDark) Color.White else Color.Black) },
                                     leadingIcon = { Icon(Icons.Default.Folder, null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(20.dp)) },

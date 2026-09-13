@@ -141,7 +141,7 @@ fun ImagesMainGrid(
                 horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
                 verticalItemSpacing = Dp(gridGapDp.toFloat())
             ) {
-                items(images, key = { "${it.id}_${it.uri}" }) { item ->
+                items(images, key = { it.id }) { item ->
                     MediaGridItem(
                         item = item,
                         isSelected = selectedUris.contains(item.uri.toString()),

@@ -69,29 +69,14 @@ fun generateHarmonicHeartPalette(hue: Float?): List<Color> {
 }
 
 private val baseHeartPath = Path().apply {
-    val width = 100f
-    val height = 100f
-    moveTo(width * 0.5f, height * 0.88f)
-    cubicTo(
-        width * 0.10f, height * 0.62f,
-        width * 0.02f, height * 0.32f,
-        width * 0.25f, height * 0.12f
-    )
-    cubicTo(
-        width * 0.42f, height * 0.02f,
-        width * 0.50f, height * 0.22f,
-        width * 0.50f, height * 0.25f
-    )
-    cubicTo(
-        width * 0.50f, height * 0.22f,
-        width * 0.58f, height * 0.02f,
-        width * 0.75f, height * 0.12f
-    )
-    cubicTo(
-        width * 0.98f, height * 0.32f,
-        width * 0.90f, height * 0.62f,
-        width * 0.5f, height * 0.88f
-    )
+    // Exact symmetric ♡ heart path matching Material / Unicode ♡
+    moveTo(50f, 24f)
+    cubicTo(42f, 10f, 22f, 10f, 11f, 23f)
+    cubicTo(0f, 36f, 2f, 58f, 20f, 72f)
+    cubicTo(32f, 82f, 44f, 92f, 50f, 96f)
+    cubicTo(56f, 92f, 68f, 82f, 80f, 72f)
+    cubicTo(98f, 58f, 100f, 36f, 89f, 23f)
+    cubicTo(78f, 10f, 58f, 10f, 50f, 24f)
     close()
 }
 

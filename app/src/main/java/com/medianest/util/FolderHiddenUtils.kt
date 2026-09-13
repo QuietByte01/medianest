@@ -2,6 +2,7 @@ package com.medianest.util
 
 import android.content.Context
 import android.net.Uri
+import com.medianest.data.model.MediaItem
 import java.io.File
 
 object FolderHiddenUtils {
@@ -42,10 +43,13 @@ object FolderHiddenUtils {
         return false
     }
 
-    fun isItemExcluded(item: com.medianest.data.model.MediaItem): Boolean {
+    fun isItemExcluded(
+        item: MediaItem,
+        userExcludedFolders: Set<String> = emptySet()
+    ): Boolean {
         if (item.isExcluded) return true
-        val bucket = (item.bucketName ?: "").lowercase()
-        val relPath = (item.relativePath ?: "").lowercase()
+        val bucket = (item.bucketName ?: "").lowercase().trim('/')
+        val relPath = (item.relativePath ?: "").lowercase().trim('/')
 
         if (isFolderExcludedByDefault(relPath, bucket)) return true
 
@@ -55,21 +59,43 @@ object FolderHiddenUtils {
                 return true
             }
         }
+
+        if (userExcludedFolders.isNotEmpty()) {
+            if (userExcludedFolders.contains(bucket) || userExcludedFolders.contains(relPath)) return true
+            for (ex in userExcludedFolders) {
+                val exLower = ex.lowercase().trim('/')
+                if (exLower.isNotEmpty()) {
+                    if (relPath == exLower || relPath.startsWith("$exLower/") || relPath.endsWith("/$exLower") || relPath.contains("/$exLower/") || bucket == exLower) {
+                        return true
+                    }
+                }
+            }
+        }
+
         return false
     }
 
-    fun isItemHidden(item: com.medianest.data.model.MediaItem): Boolean {
+    /**
+     * Fast system hidden check for dot-files, dot-folders, and .nomedia directories.
+     */
+    fun isItemHidden(item: MediaItem): Boolean {
         if (item.isHidden) return true
-        val name = item.title.lowercase()
-        if (name.startsWith(".")) return true
-        val bucket = (item.bucketName ?: "").lowercase()
-        if (bucket.startsWith(".")) return true
-        val relPath = (item.relativePath ?: "").lowercase()
-        return relPath.startsWith(".") || relPath.contains("/.")
+        val title = item.title
+        if (title.isNotEmpty() && title[0] == '.') return true
+        val bucket = item.bucketName
+        if (!bucket.isNullOrEmpty() && bucket[0] == '.') return true
+        val relPath = item.relativePath
+        if (!relPath.isNullOrEmpty()) {
+            return relPath.startsWith(".") || relPath.contains("/.")
+        }
+        return false
     }
 
-    fun isItemHiddenOrExcluded(item: com.medianest.data.model.MediaItem): Boolean {
-        return isItemExcluded(item) || isItemHidden(item)
+    fun isItemHiddenOrExcluded(
+        item: MediaItem,
+        userExcludedFolders: Set<String> = emptySet()
+    ): Boolean {
+        return isItemExcluded(item, userExcludedFolders) || isItemHidden(item)
     }
 
     fun deleteMediaUri(context: Context, uri: Uri): Boolean {

@@ -136,17 +136,18 @@ fun AudioTab(
     val db = remember { com.medianest.MediaNestApp.instance.database }
     val cachedMetadataList by db.metadataCacheDao().getAllCacheFlow().collectAsState(initial = emptyList<com.medianest.data.db.AudioMetadataCache>())
     val cacheMap = remember(cachedMetadataList) { cachedMetadataList.associateBy { it.audioUri } }
-    
+
+    val appHiddenFolders by settingsManager.hiddenFolders.collectAsState(initial = emptySet())
     var effectiveAudioList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
 
-    LaunchedEffect(audioList, cacheMap, sortField, isAscending, subTabState, showHiddenSetting, searchQuery) {
+    LaunchedEffect(audioList, cacheMap, sortField, isAscending, subTabState, showHiddenSetting, searchQuery, appHiddenFolders) {
         val result = withContext(Dispatchers.Default) {
             val baseList = when (subTabState) {
-                7 -> audioList.filter { FolderHiddenUtils.isItemExcluded(it) }
-                8 -> audioList.filter { FolderHiddenUtils.isItemHidden(it) && !FolderHiddenUtils.isItemExcluded(it) }
-                5 -> audioList.filter { !FolderHiddenUtils.isItemExcluded(it) }
+                7 -> audioList.filter { FolderHiddenUtils.isItemExcluded(it, appHiddenFolders) }
+                8 -> audioList.filter { FolderHiddenUtils.isItemHidden(it) && !FolderHiddenUtils.isItemExcluded(it, appHiddenFolders) }
+                5 -> audioList.filter { !FolderHiddenUtils.isItemExcluded(it, appHiddenFolders) }
                 else -> audioList.filter { item ->
-                    !FolderHiddenUtils.isItemExcluded(item) &&
+                    !FolderHiddenUtils.isItemExcluded(item, appHiddenFolders) &&
                     (showHiddenSetting || !FolderHiddenUtils.isItemHidden(item))
                 }
             }

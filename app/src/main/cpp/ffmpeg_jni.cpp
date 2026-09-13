@@ -11,6 +11,7 @@
 #include <chrono>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <oboe/Oboe.h>
 
 #define TAG "FFmpegNativePlayer"
@@ -421,8 +422,8 @@ Java_com_medianest_player_FFmpegPlaybackEngine_nativeProbe(JNIEnv *env, jobject 
     lseek(dup_fd, 0, SEEK_SET);
     sprintf(path, "/proc/self/fd/%d", dup_fd);
 
-    probe_fmt_ctx->probesize = 5000000;
-    probe_fmt_ctx->max_analyze_duration = 5000000;
+    probe_fmt_ctx->probesize = 10000000;
+    probe_fmt_ctx->max_analyze_duration = 10000000;
 
     if (avformat_open_input(&probe_fmt_ctx, path, nullptr, nullptr) != 0) {
         avformat_free_context(probe_fmt_ctx);
@@ -431,16 +432,212 @@ Java_com_medianest_player_FFmpegPlaybackEngine_nativeProbe(JNIEnv *env, jobject 
     }
 
     avformat_find_stream_info(probe_fmt_ctx, nullptr);
+
     std::string container = probe_fmt_ctx->iformat ? probe_fmt_ctx->iformat->name : "unknown";
+    std::string container_long = probe_fmt_ctx->iformat && probe_fmt_ctx->iformat->long_name ? probe_fmt_ctx->iformat->long_name : container;
+
+    double duration_sec = probe_fmt_ctx->duration > 0 ? (double)probe_fmt_ctx->duration / (double)AV_TIME_BASE : 0.0;
+    int64_t bitrate = probe_fmt_ctx->bit_rate > 0 ? probe_fmt_ctx->bit_rate : 0;
+
+    int v_width = 0, v_height = 0, a_channels = 0, a_sample_rate = 0;
     std::string vcodec = "none", acodec = "none";
+    std::string v_fps = "30/1";
+
+    int64_t v_bitrate = 0;
+    int64_t a_bitrate = 0;
+
+    int v_stream_idx = -1;
+    int a_stream_idx = -1;
     for (unsigned int i = 0; i < probe_fmt_ctx->nb_streams; i++) {
         auto cp = probe_fmt_ctx->streams[i]->codecpar;
-        if (cp->codec_type == AVMEDIA_TYPE_VIDEO && vcodec == "none") vcodec = avcodec_get_name(cp->codec_id);
-        else if (cp->codec_type == AVMEDIA_TYPE_AUDIO && acodec == "none") acodec = avcodec_get_name(cp->codec_id);
+        if (cp->codec_type == AVMEDIA_TYPE_VIDEO && vcodec == "none") {
+            vcodec = avcodec_get_name(cp->codec_id);
+            v_width = cp->width;
+            v_height = cp->height;
+            v_stream_idx = i;
+            v_bitrate = cp->bit_rate;
+            if (probe_fmt_ctx->streams[i]->avg_frame_rate.den > 0) {
+                double fps = (double)probe_fmt_ctx->streams[i]->avg_frame_rate.num / (double)probe_fmt_ctx->streams[i]->avg_frame_rate.den;
+                char fps_buf[32];
+                snprintf(fps_buf, sizeof(fps_buf), "%.2f", fps);
+                v_fps = fps_buf;
+            }
+        } else if (cp->codec_type == AVMEDIA_TYPE_AUDIO && acodec == "none") {
+            acodec = avcodec_get_name(cp->codec_id);
+            a_channels = cp->ch_layout.nb_channels > 0 ? cp->ch_layout.nb_channels : cp->channels;
+            a_sample_rate = cp->sample_rate;
+            a_bitrate = cp->bit_rate;
+            a_stream_idx = i;
+        }
     }
+
+    // Fallback: Compute overall bitrate from file size and duration if probe_fmt_ctx->bit_rate is 0
+    if (bitrate <= 0 && duration_sec > 0.0) {
+        struct stat st;
+        if (fstat(dup_fd, &st) == 0 && st.st_size > 0) {
+            bitrate = (int64_t)((st.st_size * 8.0) / duration_sec);
+        }
+    }
+    if (v_bitrate <= 0 && bitrate > 0) {
+        v_bitrate = (a_bitrate > 0 && bitrate > a_bitrate) ? (bitrate - a_bitrate) : (int64_t)(bitrate * 0.85);
+    }
+
+    // Initialize decoders for stream corruption & bitstream integrity validation
+    AVCodecContext *v_dec_ctx = nullptr;
+    AVCodecContext *a_dec_ctx = nullptr;
+
+    if (v_stream_idx >= 0) {
+        const AVCodec *codec = avcodec_find_decoder(probe_fmt_ctx->streams[v_stream_idx]->codecpar->codec_id);
+        if (codec) {
+            v_dec_ctx = avcodec_alloc_context3(codec);
+            if (v_dec_ctx) {
+                avcodec_parameters_to_context(v_dec_ctx, probe_fmt_ctx->streams[v_stream_idx]->codecpar);
+                // Flag errors explicitly
+                v_dec_ctx->err_recognition = AV_EF_EXPLODE | AV_EF_CRCCHECK;
+                if (avcodec_open2(v_dec_ctx, codec, nullptr) < 0) {
+                    avcodec_free_context(&v_dec_ctx);
+                    v_dec_ctx = nullptr;
+                }
+            }
+        }
+    }
+
+    if (a_stream_idx >= 0) {
+        const AVCodec *codec = avcodec_find_decoder(probe_fmt_ctx->streams[a_stream_idx]->codecpar->codec_id);
+        if (codec) {
+            a_dec_ctx = avcodec_alloc_context3(codec);
+            if (a_dec_ctx) {
+                avcodec_parameters_to_context(a_dec_ctx, probe_fmt_ctx->streams[a_stream_idx]->codecpar);
+                a_dec_ctx->err_recognition = AV_EF_CRCCHECK;
+                if (avcodec_open2(a_dec_ctx, codec, nullptr) < 0) {
+                    avcodec_free_context(&a_dec_ctx);
+                    a_dec_ctx = nullptr;
+                }
+            }
+        }
+    }
+
+    int v_corrupt = 0, a_corrupt = 0, ts_discontinuity = 0;
+    int64_t v_frames_count = 0;
+    AVPacket *pkt = av_packet_alloc();
+    AVFrame *dec_frame = av_frame_alloc();
+    int64_t prev_v_pts = AV_NOPTS_VALUE, prev_a_pts = AV_NOPTS_VALUE;
+
+    // Full-file scan across all packets with decoder validation
+    while (av_read_frame(probe_fmt_ctx, pkt) == 0) {
+        bool pkt_corrupted = (pkt->flags & AV_PKT_FLAG_CORRUPT) != 0;
+
+        if (pkt->stream_index == v_stream_idx) {
+            v_frames_count++;
+            if (pkt_corrupted) {
+                v_corrupt++;
+            } else if (v_dec_ctx) {
+                int send_ret = avcodec_send_packet(v_dec_ctx, pkt);
+                if (send_ret < 0 && send_ret != AVERROR(EAGAIN) && send_ret != AVERROR_EOF) {
+                    v_corrupt++;
+                } else {
+                    while (true) {
+                        int rec_ret = avcodec_receive_frame(v_dec_ctx, dec_frame);
+                        if (rec_ret < 0) break;
+                        if ((dec_frame->flags & AV_FRAME_FLAG_CORRUPT) || dec_frame->decode_error_flags != 0) {
+                            v_corrupt++;
+                        }
+                        av_frame_unref(dec_frame);
+                    }
+                }
+            }
+
+            if (prev_v_pts != AV_NOPTS_VALUE && pkt->pts != AV_NOPTS_VALUE && pkt->pts < prev_v_pts) {
+                ts_discontinuity++;
+            }
+            if (pkt->pts != AV_NOPTS_VALUE) prev_v_pts = pkt->pts;
+        } else if (pkt->stream_index == a_stream_idx) {
+            if (pkt_corrupted) {
+                a_corrupt++;
+            } else if (a_dec_ctx) {
+                int send_ret = avcodec_send_packet(a_dec_ctx, pkt);
+                if (send_ret < 0 && send_ret != AVERROR(EAGAIN) && send_ret != AVERROR_EOF) {
+                    a_corrupt++;
+                } else {
+                    while (true) {
+                        int rec_ret = avcodec_receive_frame(a_dec_ctx, dec_frame);
+                        if (rec_ret < 0) break;
+                        if ((dec_frame->flags & AV_FRAME_FLAG_CORRUPT) || dec_frame->decode_error_flags != 0) {
+                            a_corrupt++;
+                        }
+                        av_frame_unref(dec_frame);
+                    }
+                }
+            }
+
+            if (prev_a_pts != AV_NOPTS_VALUE && pkt->pts != AV_NOPTS_VALUE && pkt->pts < prev_a_pts) {
+                ts_discontinuity++;
+            }
+            if (pkt->pts != AV_NOPTS_VALUE) prev_a_pts = pkt->pts;
+        }
+        av_packet_unref(pkt);
+    }
+    av_frame_free(&dec_frame);
+    av_packet_free(&pkt);
+
+    if (v_dec_ctx) avcodec_free_context(&v_dec_ctx);
+    if (a_dec_ctx) avcodec_free_context(&a_dec_ctx);
+
     avformat_close_input(&probe_fmt_ctx);
     close(dup_fd);
-    return env->NewStringUTF((container + "|" + vcodec + "|" + acodec).c_str());
+
+    // Fallback stream frame count from stream header if available
+    if (v_stream_idx >= 0 && probe_fmt_ctx && probe_fmt_ctx->streams[v_stream_idx]->nb_frames > 0) {
+        if (v_frames_count <= 0) v_frames_count = probe_fmt_ctx->streams[v_stream_idx]->nb_frames;
+    }
+
+    // Construct valid FFprobe JSON response
+    std::string json = "{";
+    json += "\"format\":{";
+    json += "\"format_name\":\"" + container + "\",";
+    json += "\"format_long_name\":\"" + container_long + "\",";
+    json += "\"duration\":\"" + std::to_string(duration_sec) + "\",";
+    json += "\"bit_rate\":\"" + std::to_string(bitrate) + "\",";
+    json += "\"v_corrupt\":" + std::to_string(v_corrupt) + ",";
+    json += "\"a_corrupt\":" + std::to_string(a_corrupt) + ",";
+    json += "\"ts_discontinuity\":" + std::to_string(ts_discontinuity) + ",";
+    json += "\"probe_score\":100";
+    json += "},";
+
+    json += "\"streams\":[";
+    bool has_prev = false;
+    if (vcodec != "none") {
+        json += "{";
+        json += "\"index\":0,";
+        json += "\"codec_type\":\"video\",";
+        json += "\"codec_name\":\"" + vcodec + "\",";
+        json += "\"codec_long_name\":\"FFmpeg " + vcodec + " Decoder\",";
+        json += "\"width\":" + std::to_string(v_width) + ",";
+        json += "\"height\":" + std::to_string(v_height) + ",";
+        json += "\"r_frame_rate\":\"" + v_fps + "\",";
+        json += "\"nb_frames\":\"" + std::to_string(v_frames_count) + "\",";
+        json += "\"duration\":\"" + std::to_string(duration_sec) + "\",";
+        json += "\"bit_rate\":\"" + std::to_string(v_bitrate) + "\"";
+        json += "}";
+        has_prev = true;
+    }
+    if (acodec != "none") {
+        if (has_prev) json += ",";
+        json += "{";
+        json += "\"index\":1,";
+        json += "\"codec_type\":\"audio\",";
+        json += "\"codec_name\":\"" + acodec + "\",";
+        json += "\"codec_long_name\":\"FFmpeg " + acodec + " Decoder\",";
+        json += "\"channels\":" + std::to_string(a_channels) + ",";
+        json += "\"sample_rate\":\"" + std::to_string(a_sample_rate) + "\",";
+        json += "\"duration\":\"" + std::to_string(duration_sec) + "\",";
+        json += "\"bit_rate\":\"" + std::to_string(a_bitrate) + "\"";
+        json += "}";
+    }
+    json += "]";
+    json += "}";
+
+    return env->NewStringUTF(json.c_str());
 }
 
 void playback_loop(PlayerContext *ctx) {

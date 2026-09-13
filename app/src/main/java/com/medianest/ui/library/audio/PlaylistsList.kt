@@ -1,11 +1,13 @@
 package com.medianest.ui.library.audio
 
 import android.net.Uri
+import android.os.Environment
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -41,12 +43,120 @@ import com.medianest.util.rememberArtistImageUrl
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
+import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
-import coil.compose.SubcomposeAsyncImage
-import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
+import com.medianest.MediaNestApp
+import com.medianest.ui.components.GlassDropdownMenu
+import com.medianest.util.formatDurationReport
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.io.File
+import kotlin.math.abs
+
+private fun formatPlaylistDuration(totalMs: Long): String {
+    if (totalMs <= 0) return "0s"
+    val totalSec = totalMs / 1000
+    val hours = totalSec / 3600
+    val mins = (totalSec % 3600) / 60
+    val secs = totalSec % 60
+
+    return when {
+        hours > 0 -> "${hours} hr ${mins} mins"
+        mins > 0 && secs > 0 -> "${mins} mins ${secs}s"
+        mins > 0 -> "${mins} mins"
+        else -> "${secs}s"
+    }
+}
+
+@Composable
+private fun FavoriteArtistCard(
+    artistName: String,
+    favCount: Int,
+    coverUri: Uri?,
+    onClick: () -> Unit
+) {
+    val artistImgUrl = rememberArtistImageUrl(artistName)
+    val cardShape = RoundedCornerShape(16.dp)
+
+    GlassSurface(
+        shape = cardShape,
+        enableBlur = false,
+        backgroundColor = Color(0x1F24293A),
+        borderColor = Color(0x2BFFFFFF),
+        modifier = Modifier
+            .width(110.dp)
+            .height(120.dp)
+            .clip(cardShape)
+            .clickable { onClick() }
+    ) {
+        Box(modifier = Modifier.fillMaxSize().clip(cardShape)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White.copy(alpha = 0.08f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.3f),
+                    modifier = Modifier.size(36.dp)
+                )
+            }
+
+            val context = LocalContext.current
+            val primaryModel = remember(artistImgUrl, coverUri, artistName) {
+                artistImgUrl ?: coverUri ?: ArtistImageUtils.getFallbackArtistImageUrl(artistName)
+            }
+            val imageRequest = remember(primaryModel) {
+                ImageRequest.Builder(context)
+                    .data(primaryModel)
+                    .crossfade(false)
+                    .build()
+            }
+
+            AsyncImage(
+                model = imageRequest,
+                contentDescription = artistName,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().clip(cardShape)
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
+                        )
+                    )
+            )
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = artistName,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -186,64 +296,168 @@ fun PlaylistsList(
         }
     }
 
-    if (selectedArtistForInfo != null) {
-        Box(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            if (isArtistInfoLoading || artistInfoObject == null) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    MediaLoadingAnimation(mediaType = MediaType.AUDIO, iconSize = 52.dp)
-                }
-            } else {
-                ArtistInfoPanel(
-                    artistInfo = artistInfoObject!!,
-                    browsingAlbumName = browsingAlbumName,
-                    onPopularAlbumClick = { albumName ->
-                        browsingAlbumName = albumName
-                    },
-                    onLocalAlbumClick = { albumName ->
-                        browsingAlbumName = albumName
-                    },
-                    onBackToArtist = {
-                        browsingAlbumName = null
-                    },
-                    onArtistClick = { newArtist ->
-                        browsingAlbumName = null
-                        selectedArtistForInfo = newArtist
-                    },
-                    allAudioItems = audioList,
-                    useCardShape = false,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-        }
-    } else if (selectedPlaylist != null) {
-        val playlistSongs = audioList.filter { playlistUris.contains(it.uri.toString()) }
-
-        val isFavoritesPlaylist = remember(selectedPlaylist) {
-            selectedPlaylist?.name.equals("Favourites", ignoreCase = true) ||
-            selectedPlaylist?.name.equals("Favorites", ignoreCase = true)
-        }
-
-        val followedArtistsWithCount = remember(followedArtistNames, playlistSongs, audioList, isFavoritesPlaylist) {
-            if (!isFavoritesPlaylist) emptyList()
-            else {
-                followedArtistNames.map { artistName ->
-                    val favCount = playlistSongs.count { song ->
-                        val rawArtist = song.artist ?: "Unknown Artist"
-                        rawArtist.contains(artistName, ignoreCase = true)
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (selectedArtistForInfo != null) {
+            Box(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                if (isArtistInfoLoading || artistInfoObject == null) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        MediaLoadingAnimation(mediaType = MediaType.AUDIO, iconSize = 52.dp)
                     }
-                    val artistSongs = audioList.filter { it.artist?.contains(artistName, ignoreCase = true) == true }
-                    val coverUri = artistSongs.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: artistSongs.firstOrNull()?.uri
-                    Triple(artistName, favCount, coverUri)
-                }.sortedByDescending { it.second } // Sort from most fav songs to least
+                } else {
+                    ArtistInfoPanel(
+                        artistInfo = artistInfoObject!!,
+                        browsingAlbumName = browsingAlbumName,
+                        onPopularAlbumClick = { albumName ->
+                            browsingAlbumName = albumName
+                        },
+                        onLocalAlbumClick = { albumName ->
+                            browsingAlbumName = albumName
+                        },
+                        onBackToArtist = {
+                            browsingAlbumName = null
+                        },
+                        onArtistClick = { newArtist ->
+                            browsingAlbumName = null
+                            selectedArtistForInfo = newArtist
+                        },
+                        allAudioItems = audioList,
+                        useCardShape = false,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
+        } else if (selectedPlaylist != null) {
+            val playlistSongs = audioList.filter { playlistUris.contains(it.uri.toString()) }
+
+            val isFavoritesPlaylist = remember(selectedPlaylist) {
+                selectedPlaylist?.name.equals("Favourites", ignoreCase = true) ||
+                selectedPlaylist?.name.equals("Favorites", ignoreCase = true)
+            }
+
+            val followedArtistsWithCount = remember(followedArtistNames, playlistSongs, audioList, isFavoritesPlaylist) {
+                if (!isFavoritesPlaylist) {
+                    emptyList()
+                } else {
+                    followedArtistNames.map { artistName ->
+                        val favCount = playlistSongs.count { song ->
+                            val rawArtist = song.artist ?: "Unknown Artist"
+                            rawArtist.contains(artistName, ignoreCase = true)
+                        }
+                        val artistSongs = audioList.filter { it.artist?.contains(artistName, ignoreCase = true) == true }
+                        val coverUri = artistSongs.firstOrNull { it.albumArtUri != null }?.albumArtUri ?: artistSongs.firstOrNull()?.uri
+                        Triple(artistName, favCount, coverUri)
+                    }.sortedByDescending { it.second }
+                }
+            }
+
+        var showPlaylistDetailMenu by remember { mutableStateOf(false) }
+
+        val headerGradient = remember(selectedPlaylist?.id, selectedPlaylist?.name) {
+            val pl = selectedPlaylist
+            val idHash = if (pl != null) abs(pl.name.hashCode() + pl.id.toInt()) else 0
+            val hue = (idHash % 360).toFloat()
+            listOf(
+                Color.hsv(hue, 0.45f, 0.28f, 0.85f),
+                Color.hsv((hue + 20f) % 360f, 0.50f, 0.38f, 0.85f),
+                Color.hsv(hue, 0.45f, 0.28f, 0.85f)
+            )
         }
 
         Column(modifier = Modifier.fillMaxSize()) {
+            if (!isFavoritesPlaylist) {
+                GlassSurface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    enableBlur = false,
+                    backgroundBrush = Brush.horizontalGradient(colors = headerGradient),
+                    borderColor = Color(0x44FFFFFF)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 22.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(end = 40.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "PLAYLIST",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White.copy(alpha = 0.70f),
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                text = selectedPlaylist?.name ?: "Playlist",
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            val totalDurationMs = remember(playlistSongs) { playlistSongs.sumOf { it.durationMs } }
+                            val formattedDuration = remember(totalDurationMs) { formatPlaylistDuration(totalDurationMs) }
+                            Text(
+                                text = "${playlistSongs.size} tracks • $formattedDuration",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White.copy(alpha = 0.85f)
+                            )
+                        }
+
+                        Box(modifier = Modifier.align(Alignment.TopEnd)) {
+                            IconButton(
+                                onClick = { showPlaylistDetailMenu = true },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Playlist Options",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            GlassDropdownMenu(
+                                expanded = showPlaylistDetailMenu,
+                                onDismissRequest = { showPlaylistDetailMenu = false },
+                                modifier = Modifier.width(200.dp),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Export Playlist (.m3u)", color = Color.White) },
+                                    leadingIcon = { Icon(Icons.Default.Download, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp)) },
+                                    onClick = {
+                                        showPlaylistDetailMenu = false
+                                        selectedPlaylist?.let { pl ->
+                                            exportPlaylistToM3u(context, pl, audioList)
+                                        }
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Delete Playlist", color = MaterialTheme.colorScheme.error) },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
+                                    onClick = {
+                                        showPlaylistDetailMenu = false
+                                        playlistToDelete = selectedPlaylist
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             if (isFavoritesPlaylist && followedArtistsWithCount.isNotEmpty()) {
                 Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp)) {
                     LazyRow(
@@ -462,10 +676,47 @@ fun PlaylistsList(
             message = "Are you sure you want to delete the playlist '${target.name}'? The songs will not be deleted from your device.",
             onDismiss = { playlistToDelete = null },
             onConfirm = {
+                val catToDelete = target
                 playlistToDelete = null
-                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                    val db = com.medianest.MediaNestApp.instance.database
-                    db.categoryDao().deleteCategory(target)
+                if (selectedPlaylist?.id == catToDelete.id || selectedPlaylist?.name.equals(catToDelete.name, ignoreCase = true)) {
+                    selectedPlaylist = null
+                    onSelectPlaylist(null)
+                }
+                scope.launch(Dispatchers.IO) {
+                    val db = MediaNestApp.instance.database
+                    db.categoryDao().clearCategoryMedia(catToDelete.id)
+                    db.categoryDao().deleteCategoryById(catToDelete.id)
+                    db.categoryDao().deleteCategory(catToDelete)
+                    db.categoryDao().deleteCategoryByNameAndType(catToDelete.name, catToDelete.type)
+
+                    try {
+                        // Delete original source file if stored in coverUri
+                        if (!catToDelete.coverUri.isNullOrBlank()) {
+                            val originalFile = File(catToDelete.coverUri)
+                            if (originalFile.exists() && originalFile.isFile) {
+                                originalFile.delete()
+                            }
+                        }
+
+                        // Also clean up any exported or scanned files in standard media folders
+                        val safeName = catToDelete.name.replace("[^a-zA-Z0-9_\\-]".toRegex(), "_")
+                        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                        val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
+                        listOf(
+                            File(downloadsDir, "$safeName.m3u"),
+                            File(downloadsDir, "$safeName.m3u8"),
+                            File(downloadsDir, "${catToDelete.name}.m3u"),
+                            File(downloadsDir, "${catToDelete.name}.m3u8"),
+                            File(musicDir, "$safeName.m3u"),
+                            File(musicDir, "$safeName.m3u8"),
+                            File(musicDir, "${catToDelete.name}.m3u"),
+                            File(musicDir, "${catToDelete.name}.m3u8")
+                        ).forEach { f ->
+                            if (f.exists()) f.delete()
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
                 }
             }
         )
@@ -478,108 +729,4 @@ fun PlaylistsList(
         )
     }
 }
-
-@Composable
-private fun FavoriteArtistCard(
-    artistName: String,
-    favCount: Int,
-    coverUri: Uri?,
-    onClick: () -> Unit
-) {
-    val artistImgUrl = rememberArtistImageUrl(artistName)
-    val cardShape = RoundedCornerShape(16.dp)
-
-    GlassSurface(
-        shape = cardShape,
-        enableBlur = false,
-        backgroundColor = Color(0x1F24293A),
-        borderColor = Color(0x2BFFFFFF),
-        modifier = Modifier
-            .width(110.dp)
-            .height(120.dp)
-            .clip(cardShape)
-            .clickable { onClick() }
-    ) {
-        Box(modifier = Modifier.fillMaxSize().clip(cardShape)) {
-            SubcomposeAsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(artistImgUrl ?: coverUri ?: ArtistImageUtils.getFallbackArtistImageUrl(artistName))
-                    .crossfade(true)
-                    .build(),
-                contentDescription = artistName,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().clip(cardShape)
-            ) {
-                val state = painter.state
-                if (state is AsyncImagePainter.State.Loading) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.White.copy(alpha = 0.08f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.3f),
-                            modifier = Modifier.size(36.dp)
-                        )
-                    }
-                } else if (state is AsyncImagePainter.State.Error) {
-                    SubcomposeAsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(ArtistImageUtils.getFallbackArtistImageUrl(artistName))
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = artistName,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().clip(cardShape)
-                    )
-                } else {
-                    SubcomposeAsyncImageContent()
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .align(Alignment.BottomCenter)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
-                        )
-                    )
-            )
-
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = artistName,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                /*
-                Text(
-                    text = if (favCount > 0) "$favCount ${if (favCount == 1) "fav song" else "fav songs"}" else "Followed",
-                    fontSize = 10.5.sp,
-                    color = Color(0xFFC0C0C0),
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center
-                )
-                */
-            }
-        }
-    }
 }

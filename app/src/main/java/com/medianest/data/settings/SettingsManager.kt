@@ -88,11 +88,14 @@ class SettingsManager(private val context: Context) {
         val KEY_DAILY_SUBTITLE_SEARCH_COUNT = intPreferencesKey("daily_subtitle_search_count")
         val KEY_LAST_SUBTITLE_SEARCH_DATE = stringPreferencesKey("last_subtitle_search_date")
         val KEY_FIRST_LAUNCH_COMPLETED = booleanPreferencesKey("first_launch_completed")
+        val KEY_CACHE_INVALIDATION_TOKEN = intPreferencesKey("cache_invalidation_token")
     }
+
+    val cacheInvalidationToken: Flow<Int> = context.dataStore.data.map { prefs -> prefs[KEY_CACHE_INVALIDATION_TOKEN] ?: 0 }
 
     val theme: Flow<String> = context.dataStore.data.map { prefs -> prefs[KEY_THEME] ?: "DARK" }
     val accentColor: Flow<Int> = context.dataStore.data.map { prefs -> prefs[KEY_ACCENT_COLOR] ?: 0xFF818CF8.toInt() }
-    val gridGapDp: Flow<Int> = context.dataStore.data.map { prefs -> prefs[KEY_GRID_GAP_DP] ?: 8 }
+    val gridGapDp: Flow<Int> = context.dataStore.data.map { prefs -> prefs[KEY_GRID_GAP_DP] ?: 12 }
     val gridSizeLevel: Flow<Int> = context.dataStore.data.map { prefs -> prefs[KEY_GRID_SIZE_LEVEL] ?: 1 }
     val roundedCornersEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_ROUNDED_CORNERS_ENABLED] ?: true }
     val gridCornerRadiusDp: Flow<Int> = context.dataStore.data.map { prefs -> prefs[KEY_GRID_CORNER_RADIUS_DP] ?: 8 }
@@ -216,6 +219,10 @@ class SettingsManager(private val context: Context) {
         } catch (e: Exception) {
             pin
         }
+    }
+    suspend fun invalidateCacheToken() = context.dataStore.edit { prefs ->
+        val current = prefs[KEY_CACHE_INVALIDATION_TOKEN] ?: 0
+        prefs[KEY_CACHE_INVALIDATION_TOKEN] = current + 1
     }
     suspend fun setShowHiddenFiles(show: Boolean) = context.dataStore.edit { it[KEY_SHOW_HIDDEN_FILES] = show }
     suspend fun setHiddenFolders(folders: Set<String>) = context.dataStore.edit { it[KEY_HIDDEN_FOLDERS] = folders }

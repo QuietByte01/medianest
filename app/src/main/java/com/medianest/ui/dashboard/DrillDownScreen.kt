@@ -1,4 +1,4 @@
-@file:kotlin.OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class)
 package com.medianest.ui.dashboard
 
 import android.content.Intent
@@ -12,10 +12,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,22 +25,27 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.decode.VideoFrameDecoder
 import coil.request.ImageRequest
 import coil.request.videoFrameMicros
+import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
-
+import com.medianest.data.settings.SettingsManager
 import com.medianest.ui.components.BackdropGlassSurface
 import com.medianest.ui.components.GlassDropdownMenu
 import com.medianest.ui.components.GlassSurface
-import com.medianest.ui.theme.LocalDarkTheme
+import com.medianest.ui.components.MediaGridItem
+import com.medianest.util.FolderHiddenUtils
 
 enum class AnalyticsSortType {
     DATE_DESC, DATE_ASC, SIZE_DESC, SIZE_ASC, NAME_ASC
@@ -77,7 +82,7 @@ private fun getEffectiveExtension(item: MediaItem, filterFormat: String? = null)
             sub.contains("aac") -> return "AAC"
             sub.contains("ogg") || sub.contains("vorbis") || sub.contains("opus") -> return "OGG"
             sub.contains("m4a") -> return "M4A"
-            sub.contains("mp4") -> return if (item.type == com.medianest.data.db.MediaType.AUDIO) "M4A" else "MP4"
+            sub.contains("mp4") -> return if (item.type == MediaType.AUDIO) "M4A" else "MP4"
             sub.contains("jpeg") || sub.contains("jpg") -> return "JPG"
             sub.contains("png") -> return "PNG"
             sub.contains("webp") -> return "WEBP"
@@ -93,17 +98,17 @@ private fun getEffectiveExtension(item: MediaItem, filterFormat: String? = null)
     }
 
     return when (item.type) {
-        com.medianest.data.db.MediaType.AUDIO -> "MP3"
-        com.medianest.data.db.MediaType.VIDEO -> "MP4"
-        com.medianest.data.db.MediaType.IMAGE -> "JPG"
+        MediaType.AUDIO -> "MP3"
+        MediaType.VIDEO -> "MP4"
+        MediaType.IMAGE -> "JPG"
     }
 }
 
 @Composable
 fun DrillDownScreen(
     title: String,
-    filterCategory: String?, 
-    filterFormat: String?,   
+    filterCategory: String?,
+    filterFormat: String?,
     allImages: List<MediaItem>,
     allVideos: List<MediaItem>,
     allAudio: List<MediaItem>,
@@ -113,6 +118,13 @@ fun DrillDownScreen(
     onOpenAudioPlayer: (MediaItem) -> Unit
 ) {
     val context = LocalContext.current
+    val settingsManager = remember(context) { SettingsManager(context) }
+    
+    val gridSizeLevel by settingsManager.gridSizeLevel.collectAsState(initial = 1)
+    val gridGapDp by settingsManager.gridGapDp.collectAsState(initial = 12)
+    val cornerRadiusDp by settingsManager.gridCornerRadiusDp.collectAsState(initial = 8)
+    val roundedCornersEnabled by settingsManager.roundedCornersEnabled.collectAsState(initial = true)
+
     var isGridView by remember { mutableStateOf(true) }
     var sortType by remember { mutableStateOf(AnalyticsSortType.DATE_DESC) }
     var selectedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -149,13 +161,13 @@ fun DrillDownScreen(
 
                 when (targetFmt) {
                     "MP3" -> combined.contains(".mp3") || mime.contains("mpeg") || mime.contains("mp3") || targetFmt.lowercase() in mime
-                    "MP4" -> (combined.contains(".mp4") || mime.contains("mp4")) && (item.type == com.medianest.data.db.MediaType.VIDEO || filterCategory != "AUDIO")
+                    "MP4" -> (combined.contains(".mp4") || mime.contains("mp4")) && (item.type == MediaType.VIDEO || filterCategory != "AUDIO")
                     "JPG", "JPEG" -> combined.contains(".jpg") || combined.contains(".jpeg") || mime.contains("jpeg") || mime.contains("jpg")
                     "PNG" -> combined.contains(".png") || mime.contains("png")
                     "FLAC" -> combined.contains(".flac") || mime.contains("flac")
                     "WAV" -> combined.contains(".wav") || mime.contains("wav") || mime.contains("wave")
                     "AAC" -> combined.contains(".aac") || mime.contains("aac")
-                    "M4A" -> combined.contains(".m4a") || mime.contains("m4a") || (mime.contains("mp4") && (item.type == com.medianest.data.db.MediaType.AUDIO || filterCategory == "AUDIO"))
+                    "M4A" -> combined.contains(".m4a") || mime.contains("m4a") || (mime.contains("mp4") && (item.type == MediaType.AUDIO || filterCategory == "AUDIO"))
                     else -> combined.contains(targetFmt.lowercase()) || mime.contains(targetFmt.lowercase())
                 }
             }
@@ -175,13 +187,23 @@ fun DrillDownScreen(
     val totalSize = remember(sortedFiles) { sortedFiles.sumOf { it.size } }
 
     val fixedDarkGradient = remember {
-        androidx.compose.ui.graphics.Brush.verticalGradient(
+        Brush.verticalGradient(
             colors = listOf(
                 Color(0xFF1E222A),
                 Color(0xFF121419),
                 Color(0xFF0C0E12)
             )
         )
+    }
+
+    val itemMinSize = remember(gridSizeLevel) {
+        when (gridSizeLevel) {
+            0 -> 95.dp   // Compact
+            2 -> 160.dp  // Large
+            3 -> 210.dp  // XL
+            4 -> 280.dp  // XXL (Tablets)
+            else -> 125.dp // Standard
+        }
     }
 
     Scaffold(
@@ -192,7 +214,7 @@ fun DrillDownScreen(
         topBar = {
             GlassSurface(
                 shape = RoundedCornerShape(0.dp),
-                backgroundColor = Color.Transparent, 
+                backgroundColor = Color.Transparent,
                 borderColor = Color(0x1AFFFFFF),
                 enableBlur = true,
                 modifier = Modifier.fillMaxWidth()
@@ -200,20 +222,20 @@ fun DrillDownScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .statusBarsPadding() 
+                        .statusBarsPadding()
                         .padding(horizontal = 4.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
-                    
+
                     Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
                         Text(
-                            text = title, 
-                            fontWeight = FontWeight.Bold, 
-                            maxLines = 1, 
-                            overflow = TextOverflow.Ellipsis, 
+                            text = title,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             color = Color.White,
                             fontSize = 18.sp
                         )
@@ -243,7 +265,7 @@ fun DrillDownScreen(
                             useImageBackground = false
                         ) {
                             val itemColor = { selected: Boolean -> if (selected) Color.White else Color.White.copy(alpha = 0.6f) }
-                            
+
                             DropdownMenuItem(
                                 text = { Text("Date (Newest First)", color = itemColor(sortType == AnalyticsSortType.DATE_DESC)) },
                                 onClick = { sortType = AnalyticsSortType.DATE_DESC; showSortMenu = false }
@@ -283,133 +305,45 @@ fun DrillDownScreen(
                     Text("No files found matching criteria", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else if (isGridView) {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 110.dp),
-                    contentPadding = PaddingValues(bottom = 80.dp, start = 8.dp, end = 8.dp, top = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                LazyVerticalStaggeredGrid(
+                    columns = StaggeredGridCells.Adaptive(minSize = itemMinSize),
+                    contentPadding = PaddingValues(
+                        bottom = 80.dp,
+                        start = Dp(gridGapDp.toFloat()),
+                        end = Dp(gridGapDp.toFloat()),
+                        top = 4.dp
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
+                    verticalItemSpacing = Dp(gridGapDp.toFloat()),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    items(sortedFiles, key = { it.uri.toString() }) { item ->
+                    items(sortedFiles, key = { "${it.id}_${it.uri}" }) { item ->
                         val isSelected = selectedUris.contains(item.uri.toString())
-                        val ext = getEffectiveExtension(item, filterFormat)
-                        val formatColor = AnalyticsColors.getFormatColor(
-                            ext,
-                            if (allImages.contains(item)) "IMAGE" else if (allVideos.contains(item)) "VIDEO" else "AUDIO"
-                        )
 
-                        Card(
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .combinedClickable(
-                                    onClick = {
-                                        if (isSelectionMode) {
-                                            selectedUris = if (isSelected) selectedUris - item.uri.toString() else selectedUris + item.uri.toString()
-                                        } else {
-                                            when {
-                                                allImages.contains(item) -> onOpenQuickView(item, sortedFiles.filter { it.type == com.medianest.data.db.MediaType.IMAGE })
-                                                allVideos.contains(item) -> onOpenVideoPlayer(item, sortedFiles.filter { it.type == com.medianest.data.db.MediaType.VIDEO || allVideos.contains(it) }, title)
-                                                else -> onOpenAudioPlayer(item)
-                                            }
-                                        }
-                                    },
-                                    onLongClick = {
-                                        if (!isSelectionMode) {
-                                            selectedUris = setOf(item.uri.toString())
-                                        }
-                                    }
-                                )
-                        ) {
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                val isVideo = item.type == com.medianest.data.db.MediaType.VIDEO || allVideos.contains(item)
-                                val imageRequest = remember(item.uri, item.albumArtUri, item.durationMs, isVideo) {
-                                    val builder = ImageRequest.Builder(context)
-                                        .data(item.albumArtUri ?: item.uri)
-                                        .crossfade(true)
-                                    if (isVideo) {
-                                        builder.decoderFactory(coil.decode.VideoFrameDecoder.Factory())
-                                        if (item.durationMs > 1_000) {
-                                            builder.videoFrameMicros((item.durationMs * 150L).coerceAtLeast(1_500_000L))
-                                        }
-                                    }
-                                    builder.build()
-                                }
-                                AsyncImage(
-                                    model = imageRequest,
-                                    contentDescription = item.title,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-
+                        MediaGridItem(
+                            item = item,
+                            isSelected = isSelected,
+                            isSelectionMode = isSelectionMode,
+                            cornerRadiusDp = cornerRadiusDp,
+                            roundedCornersEnabled = roundedCornersEnabled,
+                            onClick = {
                                 if (isSelectionMode) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(if (isSelected) Color.Black.copy(alpha = 0.3f) else Color.Transparent)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .align(Alignment.TopEnd)
-                                                .padding(8.dp)
-                                                .size(22.dp)
-                                                .clip(CircleShape)
-                                                .border(
-                                                    width = if (isSelected) 1.0.dp else 0.5.dp,
-                                                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
-                                                    shape = CircleShape
-                                                )
-                                                .background(
-                                                    if (isSelected) Color.White.copy(alpha = 0.2f)
-                                                    else Color.Black.copy(alpha = 0.2f)
-                                                ),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            if (isSelected) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Check,
-                                                    contentDescription = "Selected",
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(14.dp)
-                                                )
-                                            }
-                                        }
+                                    selectedUris = if (isSelected) selectedUris - item.uri.toString() else selectedUris + item.uri.toString()
+                                } else {
+                                    when {
+                                        allImages.contains(item) -> onOpenQuickView(item, sortedFiles.filter { it.type == MediaType.IMAGE })
+                                        allVideos.contains(item) -> onOpenVideoPlayer(item, sortedFiles.filter { it.type == MediaType.VIDEO || allVideos.contains(it) }, title)
+                                        else -> onOpenAudioPlayer(item)
                                     }
                                 }
-
-                                Surface(
-                                    color = formatColor,
-                                    shape = RoundedCornerShape(bottomEnd = 8.dp),
-                                    modifier = Modifier.align(Alignment.TopStart)
-                                ) {
-                                    Text(
-                                        text = ext.uppercase(),
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
+                            },
+                            onLongClick = {
+                                if (!isSelectionMode) {
+                                    selectedUris = setOf(item.uri.toString())
                                 }
-
-                                Surface(
-                                    color = Color.Black.copy(alpha = 0.65f),
-                                    shape = RoundedCornerShape(topStart = 8.dp),
-                                    modifier = Modifier.align(Alignment.BottomEnd)
-                                ) {
-                                    Text(
-                                        text = AnalyticsColors.formatBytes(item.size),
-                                        fontSize = 10.sp,
-                                        color = Color.White,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
-                        }
+                            },
+                            gridSizeLevel = gridSizeLevel
+                        )
                     }
                 }
             } else {
@@ -440,13 +374,13 @@ fun DrillDownScreen(
                                         .background(MaterialTheme.colorScheme.surfaceVariant),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    val isVideo = item.type == com.medianest.data.db.MediaType.VIDEO || allVideos.contains(item)
+                                    val isVideo = item.type == MediaType.VIDEO || allVideos.contains(item)
                                     val listImageRequest = remember(item.uri, item.albumArtUri, item.durationMs, isVideo) {
                                         val builder = ImageRequest.Builder(context)
                                             .data(item.albumArtUri ?: item.uri)
                                             .crossfade(true)
                                         if (isVideo) {
-                                            builder.decoderFactory(coil.decode.VideoFrameDecoder.Factory())
+                                            builder.decoderFactory(VideoFrameDecoder.Factory())
                                             if (item.durationMs > 1_000) {
                                                 builder.videoFrameMicros((item.durationMs * 150L).coerceAtLeast(1_500_000L))
                                             }
@@ -510,8 +444,8 @@ fun DrillDownScreen(
                                         selectedUris = if (isSelected) selectedUris - item.uri.toString() else selectedUris + item.uri.toString()
                                     } else {
                                         when {
-                                            allImages.contains(item) -> onOpenQuickView(item, sortedFiles.filter { it.type == com.medianest.data.db.MediaType.IMAGE })
-                                            allVideos.contains(item) -> onOpenVideoPlayer(item, sortedFiles.filter { it.type == com.medianest.data.db.MediaType.VIDEO || allVideos.contains(it) }, title)
+                                            allImages.contains(item) -> onOpenQuickView(item, sortedFiles.filter { it.type == MediaType.IMAGE })
+                                            allVideos.contains(item) -> onOpenVideoPlayer(item, sortedFiles.filter { it.type == MediaType.VIDEO || allVideos.contains(it) }, title)
                                             else -> onOpenAudioPlayer(item)
                                         }
                                     }
@@ -597,8 +531,8 @@ fun DrillDownScreen(
             if (showDeleteConfirmDialog) {
                 AlertDialog(
                     onDismissRequest = { showDeleteConfirmDialog = false },
-                    containerColor = androidx.compose.ui.graphics.Color(0xDC141722),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                    containerColor = Color(0xDC141722),
+                    shape = RoundedCornerShape(24.dp),
                     title = { Text("Delete Selected Items?") },
                     text = { Text("Are you sure you want to delete ${selectedUris.size} item(s)?") },
                     confirmButton = {
@@ -606,7 +540,7 @@ fun DrillDownScreen(
                             showDeleteConfirmDialog = false
                             selectedUris.forEach { uriStr ->
                                 try {
-                                    com.medianest.util.FolderHiddenUtils.deleteMediaUri(context, Uri.parse(uriStr))
+                                    FolderHiddenUtils.deleteMediaUri(context, Uri.parse(uriStr))
                                 } catch (e: Exception) {
                                     e.printStackTrace()
                                 }

@@ -90,7 +90,7 @@ fun VideosMainGrid(
                 horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
                 verticalItemSpacing = Dp(gridGapDp.toFloat())
             ) {
-                items(sortedDisplayList, key = { "${it.id}_${it.uri}" }) { item ->
+                items(sortedDisplayList, key = { it.id }) { item ->
                     WideVideoCard(
                         item = item,
                         isSelected = selectedUris.contains(item.uri.toString()),
@@ -120,7 +120,7 @@ fun VideosMainGrid(
                 horizontalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat())),
                 verticalArrangement = Arrangement.spacedBy(Dp(gridGapDp.toFloat()))
             ) {
-                items(sortedDisplayList, key = { "${it.id}_${it.uri}" }) { item ->
+                items(sortedDisplayList, key = { it.id }) { item ->
                     WideVideoCard(
                         item = item,
                         isSelected = selectedUris.contains(item.uri.toString()),
@@ -144,6 +144,7 @@ fun VideosMainGrid(
             0 -> 100.dp
             2 -> 180.dp
             3 -> 220.dp
+            4 -> 280.dp
             else -> 135.dp
         }
         LazyVerticalStaggeredGrid(

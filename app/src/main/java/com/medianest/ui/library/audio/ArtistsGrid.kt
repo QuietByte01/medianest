@@ -33,13 +33,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
-import coil.compose.SubcomposeAsyncImage
-import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.AlphabetScroller
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.translucentScrollBarGrid
+import com.medianest.util.ArtistImageUtils
 import com.medianest.util.rememberArtistImageUrl
 import kotlinx.coroutines.launch
 
@@ -177,37 +176,18 @@ fun ArtistsGrid(
                         .clip(RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    SubcomposeAsyncImage(
-                        model = ImageRequest.Builder(context).data(artistImgUrl).crossfade(true).build(),
+                    val primaryModel = remember(artistImgUrl, coverUri, artistName) {
+                        artistImgUrl ?: coverUri ?: ArtistImageUtils.getFallbackArtistImageUrl(artistName)
+                    }
+                    val imageRequest = remember(primaryModel) {
+                        ImageRequest.Builder(context).data(primaryModel).crossfade(false).build()
+                    }
+                    AsyncImage(
+                        model = imageRequest,
                         contentDescription = artistName,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
-                    ) {
-                        val state = painter.state
-                        if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
-                            // Secondary fallback to album art if network artist image fails
-                            SubcomposeAsyncImage(
-                                model = ImageRequest.Builder(context).data(coverUri).crossfade(true).build(),
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            ) {
-                                val coverState = painter.state
-                                if (coverState is AsyncImagePainter.State.Loading || coverState is AsyncImagePainter.State.Error || coverUri == null) {
-                                    SubcomposeAsyncImage(
-                                        model = ImageRequest.Builder(context).data(com.medianest.util.ArtistImageUtils.getFallbackArtistImageUrl(artistName)).crossfade(true).build(),
-                                        contentDescription = artistName,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                } else {
-                                    SubcomposeAsyncImageContent()
-                                }
-                            }
-                        } else {
-                            SubcomposeAsyncImageContent()
-                        }
-                    }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -355,34 +335,34 @@ fun ArtistsGrid(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         val albumArtModel = coverItem?.albumArtUri
-                                        SubcomposeAsyncImage(
-                                            model = ImageRequest.Builder(context).data(albumArtModel).crossfade(true).build(),
+
+                                        GlassSurface(
+                                            modifier = Modifier.fillMaxSize(),
+                                            shape = RoundedCornerShape(16.dp),
+                                            enableBlur = false,
+                                            backgroundColor = Color.Transparent,
+                                            borderColor = Color(0x22FFFFFF)
+                                        ) {
+                                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Album,
+                                                    contentDescription = null,
+                                                    tint = Color.White.copy(alpha = 0.8f),
+                                                    modifier = Modifier.size(52.dp)
+                                                )
+                                            }
+                                        }
+
+                                        val imageRequest = remember(albumArtModel) {
+                                            ImageRequest.Builder(context).data(albumArtModel).crossfade(false).build()
+                                        }
+
+                                        AsyncImage(
+                                            model = imageRequest,
                                             contentDescription = albumName,
                                             contentScale = ContentScale.Crop,
                                             modifier = Modifier.fillMaxSize()
-                                        ) {
-                                            val state = painter.state
-                                            if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error || albumArtModel == null) {
-                                                GlassSurface(
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    shape = RoundedCornerShape(16.dp),
-                                                    enableBlur = false,
-                                                    backgroundColor = Color.Transparent,
-                                                    borderColor = Color(0x22FFFFFF)
-                                                ) {
-                                                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.Album,
-                                                            contentDescription = null,
-                                                            tint = Color.White.copy(alpha = 0.8f),
-                                                            modifier = Modifier.size(52.dp)
-                                                        )
-                                                    }
-                                                }
-                                            } else {
-                                                SubcomposeAsyncImageContent()
-                                            }
-                                        }
+                                        )
                                     }
 
                                     Spacer(modifier = Modifier.height(8.dp))
@@ -450,24 +430,18 @@ fun ArtistsGrid(
                                         .clip(CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    SubcomposeAsyncImage(
-                                        model = ImageRequest.Builder(context).data(artistImgUrl).crossfade(true).build(),
+                                    val primaryModel = remember(artistImgUrl, coverUri, artistName) {
+                                        artistImgUrl ?: coverUri ?: ArtistImageUtils.getFallbackArtistImageUrl(artistName)
+                                    }
+                                    val imageRequest = remember(primaryModel) {
+                                        ImageRequest.Builder(context).data(primaryModel).crossfade(false).build()
+                                    }
+                                    AsyncImage(
+                                        model = imageRequest,
                                         contentDescription = artistName,
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier.fillMaxSize()
-                                    ) {
-                                        val state = painter.state
-                                        if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
-                                            SubcomposeAsyncImage(
-                                                model = ImageRequest.Builder(context).data(coverUri ?: com.medianest.util.ArtistImageUtils.getFallbackArtistImageUrl(artistName)).crossfade(true).build(),
-                                                contentDescription = null,
-                                                contentScale = ContentScale.Crop,
-                                                modifier = Modifier.fillMaxSize()
-                                            )
-                                        } else {
-                                            SubcomposeAsyncImageContent()
-                                        }
-                                    }
+                                    )
                                 }
 
                                 Spacer(modifier = Modifier.width(14.dp))
@@ -583,47 +557,35 @@ fun ArtistsGrid(
                                         .clip(CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    SubcomposeAsyncImage(
-                                        model = ImageRequest.Builder(context).data(artistImgUrl).crossfade(true).build(),
+                                    GlassSurface(
+                                        modifier = Modifier.fillMaxSize(),
+                                        shape = CircleShape,
+                                        enableBlur = false,
+                                        backgroundColor = Color.Transparent,
+                                        borderColor = Color(0x22FFFFFF)
+                                    ) {
+                                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.Person,
+                                                contentDescription = artistName,
+                                                tint = Color.White.copy(alpha = 0.8f),
+                                                modifier = Modifier.size(36.dp)
+                                            )
+                                        }
+                                    }
+
+                                    val primaryModel = remember(artistImgUrl, coverItem, artistName) {
+                                        artistImgUrl ?: coverItem?.albumArtUri ?: ArtistImageUtils.getFallbackArtistImageUrl(artistName)
+                                    }
+                                    val imageRequest = remember(primaryModel) {
+                                        ImageRequest.Builder(context).data(primaryModel).crossfade(false).build()
+                                    }
+                                    AsyncImage(
+                                        model = imageRequest,
                                         contentDescription = artistName,
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier.fillMaxSize()
-                                    ) {
-                                        val state = painter.state
-                                        if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error) {
-                                            val albumArtModel = coverItem?.albumArtUri
-                                            SubcomposeAsyncImage(
-                                                model = ImageRequest.Builder(context).data(albumArtModel).crossfade(true).build(),
-                                                contentDescription = artistName,
-                                                contentScale = ContentScale.Crop,
-                                                modifier = Modifier.fillMaxSize()
-                                            ) {
-                                                val coverState = painter.state
-                                                if (coverState is AsyncImagePainter.State.Loading || coverState is AsyncImagePainter.State.Error || albumArtModel == null) {
-                                                    GlassSurface(
-                                                        modifier = Modifier.fillMaxSize(),
-                                                        shape = CircleShape,
-                                                        enableBlur = false,
-                                                        backgroundColor = Color.Transparent,
-                                                        borderColor = Color(0x22FFFFFF)
-                                                    ) {
-                                                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.Person,
-                                                                contentDescription = artistName,
-                                                                tint = Color.White.copy(alpha = 0.8f),
-                                                                modifier = Modifier.size(36.dp)
-                                                            )
-                                                        }
-                                                    }
-                                                } else {
-                                                    SubcomposeAsyncImageContent()
-                                                }
-                                            }
-                                        } else {
-                                            SubcomposeAsyncImageContent()
-                                        }
-                                    }
+                                    )
                                 }
 
                                 Spacer(modifier = Modifier.height(10.dp))

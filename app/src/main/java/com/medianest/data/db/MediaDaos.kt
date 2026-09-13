@@ -48,8 +48,11 @@ interface MediaCategoryDao {
     suspend fun countCategoryMediaCrossRef(categoryId: Long, mediaUri: String): Int
 
     /** Find an existing playlist by exact name + type — used to avoid creating duplicates on re-import */
-    @Query("SELECT * FROM media_categories WHERE name = :name AND type = :type LIMIT 1")
+    @Query("SELECT * FROM media_categories WHERE LOWER(name) = LOWER(:name) AND type = :type LIMIT 1")
     suspend fun getCategoryByNameAndType(name: String, type: String): MediaCategory?
+
+    @Query("DELETE FROM media_categories WHERE LOWER(name) = LOWER(:name) AND type = :type")
+    suspend fun deleteCategoryByNameAndType(name: String, type: String)
 
     /** Synchronous version of getMediaUrisForCategory — used for duplicate-song check */
     @Query("SELECT mediaUri FROM category_media_cross_ref WHERE categoryId = :categoryId")

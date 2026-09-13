@@ -12,6 +12,10 @@ object ArtistImageUtils {
 
     private val cache = ConcurrentHashMap<String, String>()
 
+    fun clearCache() {
+        cache.clear()
+    }
+
     private val ARTIST_PORTRAITS = listOf(
         "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80", // Singer microphone
         "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&q=80", // Concert stage

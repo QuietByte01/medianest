@@ -366,7 +366,7 @@ fun ImageInfoOverlay(
         if (filePath.isNotBlank()) {
             value = withContext(Dispatchers.IO) {
                 try {
-                    MediaAnalyzer.analyze(filePath, "IMAGE", context)
+                    MediaAnalyzer.analyze(filePath, "IMAGE", context, uri = item.uri)
                 } catch (t: Throwable) {
                     t.printStackTrace()
                     null

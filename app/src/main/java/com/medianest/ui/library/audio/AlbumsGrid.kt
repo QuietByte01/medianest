@@ -24,9 +24,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
-import coil.compose.SubcomposeAsyncImage
-import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.AlphabetScroller
@@ -112,34 +111,36 @@ fun AlbumsGrid(
                         .clip(RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    SubcomposeAsyncImage(
-                        model = ImageRequest.Builder(context).data(coverUri).crossfade(true).build(),
+                    GlassSurface(
+                        modifier = Modifier.fillMaxSize(),
+                        shape = RoundedCornerShape(16.dp),
+                        enableBlur = false,
+                        backgroundColor = Color.Transparent,
+                        borderColor = Color(0x22FFFFFF)
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Album,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.8f),
+                                modifier = Modifier.size(64.dp)
+                            )
+                        }
+                    }
+
+                    val imageRequest = remember(coverUri) {
+                        ImageRequest.Builder(context)
+                            .data(coverUri)
+                            .crossfade(false)
+                            .build()
+                    }
+
+                    AsyncImage(
+                        model = imageRequest,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
-                    ) {
-                        val state = painter.state
-                        if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error || coverUri == null) {
-                                    GlassSurface(
-                                        modifier = Modifier.fillMaxSize(),
-                                        shape = RoundedCornerShape(16.dp),
-                                        enableBlur = false,
-                                        backgroundColor = Color.Transparent,
-                                        borderColor = Color(0x22FFFFFF)
-                                    ) {
-                                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.Default.Album,
-                                                contentDescription = null,
-                                                tint = Color.White.copy(alpha = 0.8f),
-                                                modifier = Modifier.size(64.dp) // Increased from 52.dp
-                                            )
-                                        }
-                                    }
-                        } else {
-                            SubcomposeAsyncImageContent()
-                        }
-                    }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -290,34 +291,37 @@ fun AlbumsGrid(
                                 contentAlignment = Alignment.Center
                             ) {
                                 val albumArtModel = coverItem?.albumArtUri
-                                SubcomposeAsyncImage(
-                                    model = ImageRequest.Builder(context).data(albumArtModel).crossfade(true).build(),
+
+                                GlassSurface(
+                                    modifier = Modifier.fillMaxSize(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    enableBlur = false,
+                                    backgroundColor = Color.Transparent,
+                                    borderColor = Color(0x22FFFFFF)
+                                ) {
+                                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.Album,
+                                            contentDescription = null,
+                                            tint = Color.White.copy(alpha = 0.85f),
+                                            modifier = Modifier.size(48.dp)
+                                        )
+                                    }
+                                }
+
+                                val imageRequest = remember(albumArtModel) {
+                                    ImageRequest.Builder(context)
+                                        .data(albumArtModel)
+                                        .crossfade(false)
+                                        .build()
+                                }
+
+                                AsyncImage(
+                                    model = imageRequest,
                                     contentDescription = albumName,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize()
-                                ) {
-                                    val state = painter.state
-                                    if (state is AsyncImagePainter.State.Loading || state is AsyncImagePainter.State.Error || albumArtModel == null) {
-                                        GlassSurface(
-                                            modifier = Modifier.fillMaxSize(),
-                                            shape = RoundedCornerShape(16.dp),
-                                            enableBlur = false,
-                                            backgroundColor = Color.Transparent,
-                                            borderColor = Color(0x22FFFFFF)
-                                        ) {
-                                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Album,
-                                                    contentDescription = null,
-                                                    tint = Color.White.copy(alpha = 0.85f),
-                                                    modifier = Modifier.size(48.dp) // Increased from 32.dp
-                                                )
-                                            }
-                                        }
-                                    } else {
-                                        SubcomposeAsyncImageContent()
-                                    }
-                                }
+                                )
 
                                 if (isCurrentlyPlaying) {
                                     Box(

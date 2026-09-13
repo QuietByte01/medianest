@@ -38,6 +38,8 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
+import com.medianest.MediaNestApp
+import kotlin.math.abs
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -100,6 +102,16 @@ fun MediaGridItem(
     // Rebuild trigger: incrementing this forces the image request to be recreated
     var rebuildToken by remember(item.uri) { mutableStateOf(0) }
 
+    val settingsManager = remember { MediaNestApp.instance.settingsManager }
+    val cacheInvalidationToken by settingsManager.cacheInvalidationToken.collectAsState(initial = 0)
+
+    LaunchedEffect(cacheInvalidationToken) {
+        if (cacheInvalidationToken > 0) {
+            rebuildToken++
+            fallbackBitmap = null
+        }
+    }
+
     // NOTE: Removed the eager LaunchedEffect that pre-fetched from ThumbnailManager on every
     // item enter. This competed with Coil's own cache, causing dual eviction and double memory
     // pressure. Coil now handles the primary load; ThumbnailManager is only used in onError.
@@ -148,12 +160,19 @@ fun MediaGridItem(
     // NOTE: isTablet removed from keys — it came from LocalConfiguration which changes on rotation,
     // invalidating every grid item's imageRequest at once. targetSize is derived from gridSizeLevel only.
     // NOTE: context removed from keys — context identity is stable per-composition slot, not a cache key.
-    val imageRequest = remember(item.uri, item.type, item.durationMs, item.size, item.dateAdded, rebuildToken, isGif, isAnimatedWebpOrAvif, autoPlayGifPreviews, gridSizeLevel) {
-        val targetSize = if (gridSizeLevel >= 3) 800 else 400
+    val settingsManager = remember { MediaNestApp.instance.settingsManager }
+    val cacheInvalidationToken by settingsManager.cacheInvalidationToken.collectAsState(initial = 0)
+
+    val imageRequest = remember(item.uri, item.type, item.durationMs, item.size, item.dateAdded, rebuildToken, cacheInvalidationToken, isGif, isAnimatedWebpOrAvif, autoPlayGifPreviews, gridSizeLevel) {
+        val targetSize = when {
+            gridSizeLevel >= 4 -> 1200
+            gridSizeLevel >= 3 -> 800
+            else -> 400
+        }
         val builder = ImageRequest.Builder(context)
             .data(item.uri)
-            .diskCacheKey("${item.uri}_${item.size}_${item.dateAdded}_${rebuildToken}_${gridSizeLevel}_${autoPlayGifPreviews}")
-            .memoryCacheKey("${item.uri}_${item.size}_${item.dateAdded}_${rebuildToken}_${gridSizeLevel}_${autoPlayGifPreviews}")
+            .diskCacheKey("${item.uri}_${item.size}_${item.dateAdded}_${rebuildToken}_${cacheInvalidationToken}_${gridSizeLevel}_${autoPlayGifPreviews}")
+            .memoryCacheKey("${item.uri}_${item.size}_${item.dateAdded}_${rebuildToken}_${cacheInvalidationToken}_${gridSizeLevel}_${autoPlayGifPreviews}")
             // crossfade(false): memory-cache hits (0ms latency) were running a 300ms fade animation.
             // Scroll with 50 items entering viewport = 50 concurrent fade animations.
             .crossfade(false)
@@ -201,7 +220,7 @@ fun MediaGridItem(
                     val intrinsicSize = success.painter.intrinsicSize
                     if (intrinsicSize.width > 0 && intrinsicSize.height > 0) {
                         val loadedRatio = (intrinsicSize.width / intrinsicSize.height).coerceIn(0.45f, 2.2f)
-                        if (kotlin.math.abs(loadedRatio - dynamicRatio) > 0.04f) {
+                        if (abs(loadedRatio - dynamicRatio) > 0.04f) {
                             dynamicRatio = loadedRatio
                         }
                     }

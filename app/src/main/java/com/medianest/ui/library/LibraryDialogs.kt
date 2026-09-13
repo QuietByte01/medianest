@@ -6,8 +6,10 @@ import android.os.Build
 import android.view.WindowManager
 import java.util.Locale
 import android.net.Uri
+import com.medianest.ui.components.SolidGlossySurface
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -58,9 +60,9 @@ fun CreateCategoryDialog(
     backdropState: BackdropBlurState? = LocalBackdropState.current
 ) {
     var newCategoryName by remember { mutableStateOf("") }
-    var selectedIconName by remember { mutableStateOf("Category") }
+    var selectedIconName by remember { mutableStateOf(if (isVideosTab) "Category" else "queue_music") }
     val isDark = LocalDarkTheme.current
-    val shape = RoundedCornerShape(24.dp)
+    val shape = RoundedCornerShape(26.dp)
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -73,7 +75,7 @@ fun CreateCategoryDialog(
         DisposableEffect(dialogView) {
             val window = (dialogView.parent as? DialogWindowProvider)?.window
             window?.let { w ->
-                w.setDimAmount(0.32f)
+                w.setDimAmount(0.40f)
                 w.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     w.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
@@ -95,7 +97,7 @@ fun CreateCategoryDialog(
             contentAlignment = Alignment.Center
         ) {
             val cardModifier = Modifier
-                .fillMaxWidth(0.88f)
+                .fillMaxWidth(0.85f)
                 .wrapContentHeight()
                 .padding(16.dp)
                 .clickable(
@@ -118,150 +120,170 @@ fun CreateCategoryDialog(
 
             GlassSurface(
                 shape = shape,
+                enableBlur = true,
+                backdropState = backdropState,
                 backgroundColor = if (backdropState != null) Color.Transparent else if (isDark) Color(0xCC08090E) else Color(0xBFFFFFFF),
-                borderColor = if (isDark) Color(0x28FFFFFF) else Color(0x28000000),
+                borderColor = if (isDark) Color(0x33FFFFFF) else Color(0x22000000),
                 modifier = cardModifier
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(22.dp),
+                        .padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // Header Icon in Glowing Blue Container
+                    // Header Icon Container
                     Box(
                         modifier = Modifier
                             .size(52.dp)
-                            .background(Color(0x2500A8FF), CircleShape),
+                            .background(Color(0x22FFFFFF), CircleShape)
+                            .border(1.dp, Color(0x33FFFFFF), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = if (isVideosTab) Icons.Default.FolderSpecial else Icons.AutoMirrored.Filled.QueueMusic,
                             contentDescription = null,
-                            tint = Color(0xFF38BDF8),
-                            modifier = Modifier.size(28.dp)
+                            tint = Color.White,
+                            modifier = Modifier.size(26.dp)
                         )
                     }
 
                     // Dialog Title
                     Text(
-                        text = if (isVideosTab) "Create Video Category" else "Create Audio Playlist",
+                        text = if (isVideosTab) "Create Video Category" else "New Playlist",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 19.sp,
-                        color = if (isDark) Color.White else Color(0xFF1E293B),
+                        fontSize = 20.sp,
+                        color = Color.White,
                         textAlign = TextAlign.Center
                     )
 
-                    // Text Field with White Input Border
+                    // Text Field
                     OutlinedTextField(
                         value = newCategoryName,
                         onValueChange = { newCategoryName = it },
-                        label = { Text("Category Name") },
+                        label = { Text(if (isVideosTab) "Category Name" else "Playlist Name", fontSize = 13.sp) },
+                        placeholder = {
+                            Text(
+                                text = if (isVideosTab) "e.g. Movies, Series, Clips" else "e.g. Chill Vibes, Workout Mix",
+                                color = Color.White.copy(alpha = 0.35f),
+                                fontSize = 13.sp
+                            )
+                        },
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Color.White,
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.60f),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.30f),
                             focusedLabelColor = Color.White,
-                            unfocusedLabelColor = Color.White.copy(alpha = 0.70f),
+                            unfocusedLabelColor = Color.White.copy(alpha = 0.60f),
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
-                            cursorColor = Color(0xFF38BDF8)
+                            cursorColor = Color.White,
+                            focusedContainerColor = Color(0x18000000),
+                            unfocusedContainerColor = Color(0x18000000)
                         ),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // Icon Selection Header
-                    Text(
-                        text = "Choose Icon",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF38BDF8),
-                        modifier = Modifier.align(Alignment.Start)
-                    )
+                    // Choose Icon Section (Shown ONLY for Video Categories, NOT for Playlists)
+                    if (isVideosTab) {
+                        Text(
+                            text = "Choose Icon",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                            modifier = Modifier.align(Alignment.Start)
+                        )
 
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(vertical = 4.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        val iconsToDisplay = if (isVideosTab) CategoryIconUtils.AVAILABLE_ICONS else CategoryIconUtils.AUDIO_ICONS
-                        items(iconsToDisplay) { (iconKey, vector) ->
-                            val isSelected = selectedIconName == iconKey
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { selectedIconName = iconKey },
-                                label = { Text(iconKey) },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = vector,
-                                        contentDescription = iconKey,
-                                        tint = if (isSelected) Color(0xFF38BDF8) else Color.White.copy(alpha = 0.7f),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Color(0x3338BDF8),
-                                    selectedLabelColor = Color(0xFF38BDF8),
-                                    containerColor = Color(0x1AFFFFFF),
-                                    labelColor = Color.White
-                                ),
-                                border = FilterChipDefaults.filterChipBorder(
-                                    enabled = true,
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(vertical = 2.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(CategoryIconUtils.AVAILABLE_ICONS) { (iconKey, vector) ->
+                                val isSelected = selectedIconName == iconKey
+                                FilterChip(
                                     selected = isSelected,
-                                    borderColor = Color.White.copy(alpha = 0.40f),
-                                    selectedBorderColor = Color(0xFF38BDF8)
+                                    onClick = { selectedIconName = iconKey },
+                                    label = { Text(iconKey) },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = vector,
+                                            contentDescription = iconKey,
+                                            tint = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Color(0x33FFFFFF),
+                                        selectedLabelColor = Color.White,
+                                        containerColor = Color(0x1AFFFFFF),
+                                        labelColor = Color.White.copy(alpha = 0.7f)
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        enabled = true,
+                                        selected = isSelected,
+                                        borderColor = Color.White.copy(alpha = 0.25f),
+                                        selectedBorderColor = Color.White
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // Action Buttons with White Border
+                    // Clean Proportioned Action Buttons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TextButton(
-                            onClick = onDismiss,
+                        // Cancel Button
+                        Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(44.dp),
-                            shape = RoundedCornerShape(12.dp)
+                                .height(46.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0x22FFFFFF))
+                                .border(1.dp, Color(0x28FFFFFF), RoundedCornerShape(14.dp))
+                                .clickable { onDismiss() },
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = "Cancel",
                                 fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
                             )
                         }
 
-                        Button(
-                            onClick = {
-                                if (newCategoryName.isNotBlank()) {
-                                    val typeStr = if (isVideosTab) "VIDEO" else "AUDIO"
-                                    onCreateCategory(newCategoryName, typeStr, selectedIconName)
-                                    onDismiss()
-                                }
-                            },
+                        // Create Button
+                        val isCreateEnabled = newCategoryName.isNotBlank()
+                        val btnBg = if (isCreateEnabled) Color(0xFF6366F1) else Color(0x336366F1)
+
+                        Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(44.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, Color.White),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF0284C7).copy(alpha = 0.85f),
-                                contentColor = Color.White
-                            )
+                                .height(46.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(btnBg)
+                                .border(1.dp, if (isCreateEnabled) Color(0x88818CF8) else Color(0x22FFFFFF), RoundedCornerShape(14.dp))
+                                .clickable(enabled = isCreateEnabled) {
+                                    if (isCreateEnabled) {
+                                        val typeStr = if (isVideosTab) "VIDEO" else "AUDIO"
+                                        onCreateCategory(newCategoryName, typeStr, selectedIconName)
+                                        onDismiss()
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = "Create",
                                 fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.Bold,
+                                color = if (isCreateEnabled) Color.White else Color.White.copy(alpha = 0.40f)
                             )
                         }
                     }

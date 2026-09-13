@@ -66,6 +66,12 @@ fun AppSlider(
     val maxVal = valueRange.endInclusive
     val rangeSpan = (maxVal - minVal).coerceAtLeast(0.0001f)
 
+    var localValue by remember(value) { mutableFloatStateOf(value) }
+
+    LaunchedEffect(value) {
+        localValue = value
+    }
+
     val trackHeightDp = customTrackHeight ?: if (thickness == AppSliderThickness.Thin) 4.dp else 10.dp
     val thumbSizeDp = customThumbSize ?: when (headStyle) {
         AppSliderHeadStyle.Bar -> DpSize(8.dp, 16.dp)
@@ -86,8 +92,9 @@ fun AppSlider(
 
                     val clampedX = offset.x.coerceIn(trackStart, trackEnd)
                     val fraction = (clampedX - trackStart) / usableWidth
-                    val newValue = minVal + fraction * rangeSpan
-                    currentOnValueChange(newValue.coerceIn(minVal, maxVal))
+                    val newValue = (minVal + fraction * rangeSpan).coerceIn(minVal, maxVal)
+                    localValue = newValue
+                    currentOnValueChange(newValue)
                     currentOnValueChangeFinished?.invoke()
                 }
             }
@@ -105,8 +112,9 @@ fun AppSlider(
 
                     val newX = (change.position.x).coerceIn(trackStart, trackEnd)
                     val fraction = (newX - trackStart) / usableWidth
-                    val newValue = minVal + fraction * rangeSpan
-                    currentOnValueChange(newValue.coerceIn(minVal, maxVal))
+                    val newValue = (minVal + fraction * rangeSpan).coerceIn(minVal, maxVal)
+                    localValue = newValue
+                    currentOnValueChange(newValue)
                 }
             }
     ) {
@@ -169,7 +177,7 @@ fun AppSlider(
             }
 
             // 2. Compute Thumb Center X
-            val clampedValue = value.coerceIn(minVal, maxVal)
+            val clampedValue = localValue.coerceIn(minVal, maxVal)
             val fraction = ((clampedValue - minVal) / rangeSpan).coerceIn(0f, 1f)
             val thumbX = trackStart + (fraction * usableWidth)
 

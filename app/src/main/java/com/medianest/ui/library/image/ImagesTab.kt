@@ -306,6 +306,7 @@ fun ImagesTab(
         0 -> 100.dp
         2 -> 180.dp
         3 -> 220.dp
+        4 -> 280.dp
         else -> 135.dp
     }
     val backdropState = LocalBackdropState.current
@@ -367,14 +368,14 @@ fun ImagesTab(
                 var isFilterProcessing by remember { mutableStateOf(false) }
                 var displayList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
 
-                LaunchedEffect(imagesList, activeFilterTab, favoriteUris, showHiddenSetting, searchQuery) {
+                LaunchedEffect(imagesList, activeFilterTab, favoriteUris, showHiddenSetting, searchQuery, appHiddenFolders) {
                     isFilterProcessing = true
                     val result = withContext(Dispatchers.Default) {
                         val baseList = when (activeFilterTab) {
-                            "EXCLUDED" -> imagesList.filter { FolderHiddenUtils.isItemExcluded(it) }
-                            "HIDDEN" -> imagesList.filter { FolderHiddenUtils.isItemHidden(it) && !FolderHiddenUtils.isItemExcluded(it) }
+                            "EXCLUDED" -> imagesList.filter { FolderHiddenUtils.isItemExcluded(it, appHiddenFolders) }
+                            "HIDDEN" -> imagesList.filter { FolderHiddenUtils.isItemHidden(it) && !FolderHiddenUtils.isItemExcluded(it, appHiddenFolders) }
                             else -> imagesList.filter { item ->
-                                !FolderHiddenUtils.isItemExcluded(item) &&
+                                !FolderHiddenUtils.isItemExcluded(item, appHiddenFolders) &&
                                 (showHiddenSetting || !FolderHiddenUtils.isItemHidden(item))
                             }
                         }

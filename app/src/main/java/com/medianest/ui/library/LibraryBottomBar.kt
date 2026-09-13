@@ -1,6 +1,7 @@
 package com.medianest.ui.library
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -22,8 +23,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medianest.player.ExoPlayerManager
@@ -132,7 +135,8 @@ fun LibraryBottomBar(
                             selected = currentTab == 0,
                             icon = Icons.Default.BarChart,
                             label = "Dashboard",
-                            accentColor = Color(0xFF6366F1),
+//                            accentColor = Color(0xFF6366F1),
+                            accentColor = Color.White,
                             onClick = { onTabSelected(0) }
                         )
                     }
@@ -177,22 +181,30 @@ private fun FloatingDockTabItem(
     val isDark = LocalDarkTheme.current
     val effectiveAccent = if (accentColor != Color.Unspecified) accentColor else (if (isDark) Color.White else Color(0xFF0F172A))
 
+    // Icon + Text colored with accent when selected
     val contentColor by animateColorAsState(
         targetValue = when {
             selected -> effectiveAccent
             else -> if (isDark) Color(0xB3FFFFFF) else Color(0x990F172A)
         },
-        animationSpec = tween(220),
+        animationSpec = tween(200),
         label = "dockContentColor"
     )
 
+    // Neutral translucent glass background (NOT colored with accent)
     val itemBgColor by animateColorAsState(
         targetValue = when {
-            selected -> if (isDark) Color(0x3DFFFFFF) else Color(0x40FFFFFF)
+            selected -> if (isDark) Color(0x33FFFFFF) else Color(0x50FFFFFF)
             else -> Color.Transparent
         },
-        animationSpec = tween(220),
+        animationSpec = tween(200),
         label = "dockBgColor"
+    )
+
+    val iconScale by animateFloatAsState(
+        targetValue = if (selected) 1.10f else 1.0f,
+        animationSpec = spring<Float>(dampingRatio = 0.70f, stiffness = 400f),
+        label = "dockIconScale"
     )
 
     Box(
@@ -201,13 +213,13 @@ private fun FloatingDockTabItem(
             .clip(CircleShape)
             .background(itemBgColor)
             .border(
-                width = 0.5.dp,
+                width = if (selected) 0.8.dp else 0.dp,
                 brush = if (selected) {
                     Brush.verticalGradient(
                         colors = if (isDark) {
-                            listOf(Color(0x4DFFFFFF), Color(0x1AFFFFFF))
+                            listOf(Color(0x66FFFFFF), Color(0x1AFFFFFF))
                         } else {
-                            listOf(Color(0x80FFFFFF), Color(0x20000000))
+                            listOf(Color(0x99FFFFFF), Color(0x33000000))
                         }
                     )
                 } else {
@@ -217,9 +229,9 @@ private fun FloatingDockTabItem(
             )
             .clickable(onClick = onClick)
             .animateContentSize(
-                animationSpec = spring(
-                    dampingRatio = 0.82f,
-                    stiffness = 500f
+                animationSpec = spring<IntSize>(
+                    dampingRatio = 0.80f,
+                    stiffness = 450f
                 )
             )
             .padding(horizontal = 14.dp),
@@ -234,23 +246,28 @@ private fun FloatingDockTabItem(
                 imageVector = icon,
                 contentDescription = label,
                 tint = contentColor,
-                modifier = Modifier.size(19.dp)
+                modifier = Modifier
+                    .size(19.dp)
+                    .graphicsLayer {
+                        scaleX = iconScale
+                        scaleY = iconScale
+                    }
             )
             AnimatedVisibility(
                 visible = selected,
-                enter = fadeIn(tween(180)) + expandHorizontally(
-                    animationSpec = spring(dampingRatio = 0.82f, stiffness = 500f),
+                enter = fadeIn(tween(160)) + expandHorizontally(
+                    animationSpec = spring(dampingRatio = 0.80f, stiffness = 450f),
                     expandFrom = Alignment.Start
                 ),
                 exit = fadeOut(tween(120)) + shrinkHorizontally(
-                    animationSpec = spring(dampingRatio = 0.82f, stiffness = 500f),
+                    animationSpec = spring(dampingRatio = 0.80f, stiffness = 450f),
                     shrinkTowards = Alignment.Start
                 )
             ) {
                 Text(
                     text = label,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                     color = contentColor,
                     maxLines = 1,
                     softWrap = false

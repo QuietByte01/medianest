@@ -28,6 +28,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.request.videoFrameMicros
 import coil.decode.VideoFrameDecoder
+import com.medianest.MediaNestApp
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.theme.LocalDarkTheme
 import com.medianest.util.ThumbnailManager
@@ -68,12 +69,13 @@ fun WideVideoCard(
     var fallbackBitmap by remember(item.uri) { mutableStateOf<android.graphics.Bitmap?>(null) }
     var rebuildToken by remember(item.uri) { mutableStateOf(0) }
 
-    LaunchedEffect(item.uri, rebuildToken) {
-        if (fallbackBitmap == null) {
-            val bmp = ThumbnailManager.getThumbnail(context, item.uri, rebuildToken)
-            if (bmp != null) {
-                fallbackBitmap = bmp
-            }
+    val settingsManager = remember { MediaNestApp.instance.settingsManager }
+    val cacheInvalidationToken by settingsManager.cacheInvalidationToken.collectAsState(initial = 0)
+
+    LaunchedEffect(cacheInvalidationToken) {
+        if (cacheInvalidationToken > 0) {
+            rebuildToken++
+            fallbackBitmap = null
         }
     }
 
@@ -89,11 +91,13 @@ fun WideVideoCard(
         }
     }
 
-    val imageRequest = remember(item.uri, item.durationMs, rebuildToken) {
+
+
+    val imageRequest = remember(item.uri, item.durationMs, rebuildToken, cacheInvalidationToken) {
         ImageRequest.Builder(context)
             .data(item.uri)
-            .diskCacheKey("wide_${item.uri}_${item.size}_${item.dateAdded}_$rebuildToken")
-            .memoryCacheKey("wide_${item.uri}_${item.size}_${item.dateAdded}_$rebuildToken")
+            .diskCacheKey("wide_${item.uri}_${item.size}_${item.dateAdded}_${rebuildToken}_${cacheInvalidationToken}")
+            .memoryCacheKey("wide_${item.uri}_${item.size}_${item.dateAdded}_${rebuildToken}_${cacheInvalidationToken}")
             .crossfade(true)
             .precision(coil.size.Precision.INEXACT)
             .size(640, 360)

@@ -30,8 +30,10 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
+import com.medianest.MediaNestApp
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.media.MediaEffect
+import com.medianest.util.AppCacheCleaner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -1679,7 +1681,19 @@ class ExoPlayerManager private constructor(private val context: Context) {
             settingsManager.setVideoBackgroundPlay(enabled)
         }
     }
-    fun clearAllCache(onComplete: () -> Unit = {}) { onComplete() }
+    fun clearAllCache(onComplete: () -> Unit = {}) {
+        scope.launch(Dispatchers.IO) {
+            try {
+                val db = MediaNestApp.instance.database
+                AppCacheCleaner.clearAllAppCacheAndHistory(context, db)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            withContext(Dispatchers.Main) {
+                onComplete()
+            }
+        }
+    }
     fun addToQueue(items: List<MediaItem>) {}
     fun stopPlayback() { 
         stop()

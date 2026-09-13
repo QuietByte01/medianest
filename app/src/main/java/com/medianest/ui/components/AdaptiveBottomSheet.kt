@@ -71,8 +71,8 @@ fun AdaptiveBottomSheet(
     // Frosted obsidian glass for dark mode, frosted white for light mode
     val resolvedColor = when {
         containerColor != Color.Unspecified -> containerColor
-        isDark -> Color(0x330B0D14)
-        else   -> Color(0x44FFFFFF)
+        isDark -> Color(0xEC121520)
+        else   -> Color(0xF0FFFFFF)
     }
 
     if (isTablet) {
@@ -127,7 +127,7 @@ fun AdaptiveBottomSheet(
                             ) {}
                             .fillMaxWidth(0.74f),
                         shape = RoundedCornerShape(24.dp),
-                        backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color.Unspecified,
+                        backgroundColor = resolvedColor,
                         borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.10f),
                         borderWidth = 1.dp,
                         drawBottomBorder = false,
@@ -151,7 +151,7 @@ fun AdaptiveBottomSheet(
                             ) {}
                             .fillMaxWidth(0.74f),
                         shape = RoundedCornerShape(24.dp),
-                        backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color.Unspecified,
+                        backgroundColor = resolvedColor,
                         borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
                         enableBlur = enableBlur,
                         backdropState = effectiveBackdropState
@@ -253,7 +253,7 @@ fun AdaptiveBottomSheet(
                 SolidGlossySurface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = shape,
-                    backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color.Unspecified,
+                    backgroundColor = resolvedColor,
                     borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.10f),
                     borderWidth = 1.dp,
                     drawBottomBorder = false,
@@ -275,7 +275,7 @@ fun AdaptiveBottomSheet(
                 BackdropGlassSurface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = shape,
-                    backgroundColor = if (containerColor != Color.Unspecified) containerColor else Color.Unspecified,
+                    backgroundColor = resolvedColor,
                     borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
                     enableBlur = enableBlur,
                     backdropState = effectiveBackdropState

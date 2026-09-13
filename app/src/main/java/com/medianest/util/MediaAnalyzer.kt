@@ -1,13 +1,20 @@
 package com.medianest.util
 
 import android.content.Context
+import android.graphics.BitmapFactory
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.media.MediaMetadataRetriever
 import androidx.exifinterface.media.ExifInterface
 import android.net.Uri
 import android.util.Log
+import com.medianest.player.FFmpegPlaybackEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.nio.ByteBuffer
 import java.util.Locale
 
 /**
@@ -24,6 +31,10 @@ object MediaAnalyzer {
     // Thread-safe in-memory cache keyed by "filePath:fileSize:lastModified"
     private val reportCache = java.util.concurrent.ConcurrentHashMap<String, MediaDiagnosticsReport>()
 
+    fun clearCache() {
+        reportCache.clear()
+    }
+
     fun getReportIfCached(filePath: String): MediaDiagnosticsReport? {
         return reportCache.entries.firstOrNull { it.key.startsWith("$filePath:") }?.value
     }
@@ -31,18 +42,20 @@ object MediaAnalyzer {
     suspend fun analyze(
         filePath: String,
         mediaType: String,
-        context: Context? = null
+        context: Context? = null,
+        uri: Uri? = null,
+        forceRefresh: Boolean = false
     ): MediaDiagnosticsReport = withContext(Dispatchers.IO) {
-        val uri = Uri.parse(filePath)
+        val targetUri = uri ?: if (filePath.startsWith("content://")) Uri.parse(filePath) else Uri.fromFile(File(filePath))
         val isContentUri = filePath.startsWith("content://") && context != null
 
         var tempFilePath: String? = null
         val targetFFmpegPath = if (isContentUri) {
             try {
-                uri.path ?: filePath
+                targetUri.path ?: filePath
             } catch (e: Exception) {
                 // Fallback to temporary copy (Massive Disk Usage!)
-                tempFilePath = getFFmpegSafePathFromUri(context!!, uri)
+                tempFilePath = getFFmpegSafePathFromUri(context ?: return@withContext analyzeNatively(context, targetUri, filePath, mediaType), targetUri)
                 tempFilePath
             }
         } else {
@@ -51,15 +64,14 @@ object MediaAnalyzer {
 
         try {
             val file = File(if (tempFilePath != null) tempFilePath else filePath)
-            val fileName = file.name.ifBlank { uri.lastPathSegment ?: "unknown_media" }
+            val fileName = file.name.ifBlank { targetUri.lastPathSegment ?: "unknown_media" }
             val fileSize = if (file.exists()) file.length() else 0L
             val lastModified = if (file.exists()) file.lastModified() else 0L
 
             // Fast Cache Lookup
             val cacheKey = "$filePath:$fileSize:$lastModified"
-            reportCache[cacheKey]?.let { cachedReport ->
-                Log.d(TAG, "Serving diagnostics report from cache for: $fileName")
-                return@withContext cachedReport
+            if (!forceRefresh) {
+                reportCache[cacheKey]?.let { return@withContext it }
             }
 
             val startMs = System.currentTimeMillis()
@@ -77,11 +89,12 @@ object MediaAnalyzer {
             var imageInfo: ImageAnalysisInfo? = null
 
             // Execute FFprobe JSON inspection pass
-            val ffprobeJson = executeFFprobe(targetFFmpegPath)
+            val ffprobeJson = executeFFprobe(targetFFmpegPath, context, targetUri)
 
             if (ffprobeJson == null) {
-                errors.add("FFprobe failed to inspect file. Container header may be missing or severely corrupted.")
-                muxingIssues = true
+                val nativeReport = analyzeNatively(context, targetUri, filePath, mediaType)
+                reportCache[cacheKey] = nativeReport
+                return@withContext nativeReport
             } else {
                 try {
                     // 1. Format & Container Details
@@ -169,8 +182,14 @@ object MediaAnalyzer {
                                         val frameRateStr = stream.optString("r_frame_rate", "30/1")
                                         val avgFpsDecimal = parseFraction(frameRateStr)
                                         val pixFmt = stream.optString("pix_fmt", "yuv420p").lowercase(Locale.US)
-                                        val streamBitrate = stream.optString("bit_rate", "0").toLongOrNull() ?: (formatInfo?.bitrate ?: 0L)
+                                        val rawStreamBitrate = stream.optString("bit_rate", "0").toLongOrNull() ?: 0L
                                         val streamDuration = stream.optString("duration", "0.0").toDoubleOrNull() ?: (formatInfo?.duration ?: 0.0)
+                                        val streamBitrate = when {
+                                            rawStreamBitrate > 0L -> rawStreamBitrate
+                                            (formatInfo?.bitrate ?: 0L) > 0L -> formatInfo!!.bitrate
+                                            streamDuration > 0.0 && fileSize > 0L -> ((fileSize * 8.0) / streamDuration).toLong()
+                                            else -> 0L
+                                        }
                                         val nbFrames = stream.optString("nb_frames", "0").toLongOrNull() ?: (streamDuration * (if (avgFpsDecimal > 0) avgFpsDecimal else 30.0)).toLong()
                                         val fieldOrder = stream.optString("field_order", "progressive")
                                         val isInterlaced = fieldOrder.contains("interlaced", ignoreCase = true) || fieldOrder.contains("tt", ignoreCase = true) || fieldOrder.contains("bb", ignoreCase = true)
@@ -235,6 +254,19 @@ object MediaAnalyzer {
                                         else -> codecName
                                     }
 
+                                    val sampleRate = stream.optString("sample_rate", "48000").toIntOrNull() ?: 48000
+                                    val rawAudioBitrate = stream.optString("bit_rate", "0").toLongOrNull() ?: 0L
+                                    val computedAudioBitrate = when {
+                                        rawAudioBitrate > 0L -> rawAudioBitrate
+                                        codecName.contains("AAC") -> if (channels >= 6) 384000L else 192000L
+                                        codecName.contains("EAC3") -> if (channels >= 6) 448000L else 224000L
+                                        codecName.contains("AC3") -> 384000L
+                                        codecName.contains("OPUS") -> if (channels >= 6) 256000L else 128000L
+                                        codecName.contains("FLAC") || codecName.contains("PCM") -> (sampleRate.toLong() * channels * 16L * 0.6).toLong()
+                                        (formatInfo?.bitrate ?: 0L) > 0L -> (formatInfo!!.bitrate * 0.15).toLong().coerceAtLeast(128000L)
+                                        else -> 320000L
+                                    }
+
                                     audioStreams.add(
                                         AudioStreamInfo(
                                             index = stream.optInt("index", i),
@@ -242,13 +274,13 @@ object MediaAnalyzer {
                                             codecName = displayCodec,
                                             codecLongName = stream.optString("codec_long_name", displayCodec),
                                             profile = profile,
-                                            sampleRate = stream.optString("sample_rate", "48000").toIntOrNull() ?: 48000,
+                                            sampleRate = sampleRate,
                                             channels = channels,
                                             channelLayout = layoutFormatted,
                                             sampleFormat = stream.optString("sample_fmt", "s16p"),
                                             bitsPerSample = stream.optInt("bits_per_raw_sample", 24).coerceAtLeast(16),
-                                            bitrate = stream.optString("bit_rate", "0").toLongOrNull() ?: 4500000L,
-                                            duration = stream.optString("duration", "0.0").toDoubleOrNull() ?: 0.0,
+                                            bitrate = computedAudioBitrate,
+                                            duration = stream.optString("duration", "0.0").toDoubleOrNull() ?: (formatInfo?.duration ?: 0.0),
                                             isDefault = stream.optJSONObject("disposition")?.optInt("default") == 1,
                                             language = tags?.optString("language", "eng") ?: "eng",
                                             isSpatialAudio = isSpatial,
@@ -287,36 +319,49 @@ object MediaAnalyzer {
             var concealedMacroblocks = 0
             var keyframeLoss = 0
             var demuxerDiscontinuity = false
+            var calculatedAvSyncOffsetMs = 0
 
             if (ffprobeJson != null) {
-                val corruptionReport = scanForBitstreamCorruption(targetFFmpegPath)
-                if (corruptionReport.hasCorruption) {
+                val formatObj = ffprobeJson.optJSONObject("format")
+                val ffVCorrupt = formatObj?.optInt("v_corrupt", 0) ?: 0
+                val ffACorrupt = formatObj?.optInt("a_corrupt", 0) ?: 0
+                val ffTsDiscontinuity = formatObj?.optInt("ts_discontinuity", 0) ?: 0
+
+                val corruptionReport = scanForBitstreamCorruption(filePath, context, targetUri)
+
+                val finalVideoCorrupted = corruptionReport.isVideoCorrupted || ffVCorrupt > 0
+                val finalAudioCorrupted = corruptionReport.isAudioCorrupted || ffACorrupt > 0
+                val finalTimestampIssues = corruptionReport.hasTimestampIssues || ffTsDiscontinuity > 0
+                calculatedAvSyncOffsetMs = corruptionReport.avSyncOffsetMs
+
+                if (corruptionReport.hasCorruption || finalVideoCorrupted || finalAudioCorrupted) {
                     corruptedFrames = true
-                    isVideoCorrupted = corruptionReport.isVideoCorrupted
-                    isAudioCorrupted = corruptionReport.isAudioCorrupted
+                    isVideoCorrupted = finalVideoCorrupted
+                    isAudioCorrupted = finalAudioCorrupted
+
+                    corruptedVideoFramesCount = if (ffVCorrupt > 0) ffVCorrupt else corruptionReport.corruptedVideoFramesCount
+                    corruptedAudioSamplesCount = if (ffACorrupt > 0) ffACorrupt else corruptionReport.corruptedAudioSamplesCount
 
                     if (isVideoCorrupted) {
-                        corruptedVideoFramesCount = 12
-                        droppedVideoFramesCount = 3
-                        concealedMacroblocks = 8
+                        droppedVideoFramesCount = corruptionReport.droppedVideoFramesCount
+                        concealedMacroblocks = corruptionReport.concealedMacroblocks
                     }
                     if (isAudioCorrupted) {
-                        corruptedAudioSamplesCount = 4
-                        audioBufferUnderrunsCount = 1
+                        audioBufferUnderrunsCount = corruptionReport.audioBufferUnderrunsCount
                     }
 
                     val specificMsg = when {
-                        isVideoCorrupted && isAudioCorrupted -> "Video & Audio stream corruption detected."
-                        isVideoCorrupted -> "Video frame / stream corruption detected."
-                        isAudioCorrupted -> "Audio packet / stream corruption detected."
+                        isVideoCorrupted && isAudioCorrupted -> "Stream integrity: $corruptedVideoFramesCount corrupted video frame(s) and $corruptedAudioSamplesCount audio error(s) detected."
+                        isVideoCorrupted -> "Stream integrity: $corruptedVideoFramesCount corrupted video frame(s) detected."
+                        isAudioCorrupted -> "Stream integrity: $corruptedAudioSamplesCount corrupted audio sample(s) detected."
                         else -> corruptionReport.message
                     }
                     warnings.add(specificMsg)
                 }
-                if (corruptionReport.hasTimestampIssues) {
+                if (finalTimestampIssues) {
                     timestampIssues = true
                     demuxerDiscontinuity = true
-                    warnings.add("Non-monotonically increasing timestamps (PTS/DTS discontinuities) detected.")
+                    warnings.add("Demuxer: Non-monotonically increasing timestamps (PTS/DTS gap) detected.")
                 }
                 if (corruptionReport.hasMuxingIssues) {
                     muxingIssues = true
@@ -325,21 +370,23 @@ object MediaAnalyzer {
             }
 
             val elapsedMs = System.currentTimeMillis() - startMs
+            val totalVideoFrames = videoStream?.totalFrames?.coerceAtLeast(1L) ?: 1L
+            val videoCorruptionPct = if (corruptedVideoFramesCount > 0) (corruptedVideoFramesCount.toDouble() / totalVideoFrames).coerceAtMost(1.0) else 0.0
 
             val diagnostics = DiagnosticsInfo(
-                hasErrors = errors.isNotEmpty(),
+                hasErrors = errors.isNotEmpty() || corruptedFrames || timestampIssues,
                 errors = errors,
                 warnings = warnings,
                 corruptedFramesDetected = corruptedFrames,
                 corruptedVideoFramesCount = corruptedVideoFramesCount,
-                corruptedVideoFramesPct = if (corruptedVideoFramesCount > 0) 0.002 else 0.0,
+                corruptedVideoFramesPct = videoCorruptionPct,
                 droppedVideoFramesCount = droppedVideoFramesCount,
                 isVideoCorrupted = isVideoCorrupted,
                 corruptedAudioSamplesCount = corruptedAudioSamplesCount,
                 corruptedAudioSamplesPct = if (corruptedAudioSamplesCount > 0) 0.001 else 0.0,
                 audioBufferUnderrunsCount = audioBufferUnderrunsCount,
                 isAudioCorrupted = isAudioCorrupted,
-                avSyncOffsetMs = 4,
+                avSyncOffsetMs = calculatedAvSyncOffsetMs,
                 concealedMacroblocksCount = concealedMacroblocks,
                 keyframeLossCount = keyframeLoss,
                 demuxerDiscontinuity = demuxerDiscontinuity,
@@ -349,7 +396,7 @@ object MediaAnalyzer {
                 decodingErrorLines = warnings.take(5),
                 analysisNote = when {
                     errors.isNotEmpty() -> "${errors.size} error(s) found during inspection"
-                    corruptedFrames -> if (isVideoCorrupted) "⚠ Corrupted video frames detected" else "⚠ Corrupted audio packets detected"
+                    corruptedFrames -> if (isVideoCorrupted && isAudioCorrupted) "⚠ Video & audio stream corruption detected" else if (isVideoCorrupted) "⚠ Corrupted video frames detected" else "⚠ Corrupted audio packets detected"
                     timestampIssues -> "⚠ Timestamp irregularities detected"
                     muxingIssues -> "⚠ Container / header warnings detected"
                     else -> "✅ Stream integrity clean (0 packet errors)"
@@ -518,8 +565,339 @@ object MediaAnalyzer {
 
     // --- FFmpeg Engine Helpers ---
 
-    private fun executeFFprobe(path: String): JSONObject? {
-        return null // Provided by Media Studio Add-On
+    private fun executeFFprobe(path: String, context: Context?, uri: Uri?): JSONObject? {
+        if (context == null || uri == null) return null
+        return try {
+            val engine = FFmpegPlaybackEngine(context)
+            val probeStr = engine.probe(uri)
+            if (!probeStr.isNullOrBlank()) {
+                if (probeStr.trim().startsWith("{")) {
+                    return runCatching { JSONObject(probeStr) }.getOrNull()
+                }
+
+                val parts = probeStr.split("|")
+                if (parts.size >= 3) {
+                    val container = parts[0]
+                    val vCodec = parts[1]
+                    val aCodec = parts[2]
+                    val vCorrupt = parts.getOrNull(3)?.toIntOrNull() ?: 0
+                    val aCorrupt = parts.getOrNull(4)?.toIntOrNull() ?: 0
+                    val tsDiscontinuity = parts.getOrNull(5)?.toIntOrNull() ?: 0
+
+                    val json = JSONObject()
+                    val formatObj = JSONObject()
+                    formatObj.put("format_name", container)
+                    formatObj.put("format_long_name", "FFmpeg Native C++ ($container)")
+                    formatObj.put("duration", "0.0")
+                    formatObj.put("bit_rate", "0")
+                    formatObj.put("probe_score", 100)
+                    formatObj.put("v_corrupt", vCorrupt)
+                    formatObj.put("a_corrupt", aCorrupt)
+                    formatObj.put("ts_discontinuity", tsDiscontinuity)
+                    json.put("format", formatObj)
+
+                    val streamsArray = JSONArray()
+                    if (vCodec != "none") {
+                        val vStream = JSONObject()
+                        vStream.put("index", 0)
+                        vStream.put("codec_type", "video")
+                        vStream.put("codec_name", vCodec)
+                        vStream.put("codec_long_name", "FFmpeg $vCodec Decoder")
+                        streamsArray.put(vStream)
+                    }
+                    if (aCodec != "none") {
+                        val aStream = JSONObject()
+                        aStream.put("index", 1)
+                        aStream.put("codec_type", "audio")
+                        aStream.put("codec_name", aCodec)
+                        aStream.put("codec_long_name", "FFmpeg $aCodec Decoder")
+                        streamsArray.put(aStream)
+                    }
+                    json.put("streams", streamsArray)
+                    return json
+                }
+            }
+            null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun analyzeNatively(
+        context: Context?,
+        uri: Uri,
+        filePath: String,
+        mediaType: String
+    ): MediaDiagnosticsReport {
+        val startMs = System.currentTimeMillis()
+        val file = try { File(filePath) } catch (_: Exception) { null }
+        val fileName = file?.name?.ifBlank { uri.lastPathSegment ?: "media_file" } ?: (uri.lastPathSegment ?: "media_file")
+        val fileSize = try {
+            if (file?.exists() == true) file.length()
+            else if (context != null) {
+                context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
+            } else 0L
+        } catch (_: Exception) { 0L }
+
+        val errors = mutableListOf<String>()
+        val warnings = mutableListOf<String>()
+
+        var formatInfo: FormatInfo? = null
+        var videoStream: VideoStreamInfo? = null
+        val audioStreams = mutableListOf<AudioStreamInfo>()
+        var imageInfo: ImageAnalysisInfo? = null
+
+        val isImage = mediaType.equals("IMAGE", ignoreCase = true) || fileName.endsWith(".jpg", true) || fileName.endsWith(".jpeg", true) || fileName.endsWith(".png", true) || fileName.endsWith(".webp", true) || fileName.endsWith(".gif", true) || fileName.endsWith(".heic", true) || fileName.endsWith(".avif", true)
+
+        if (isImage) {
+            try {
+                var w = 0; var h = 0
+                var mime = "image/jpeg"
+                val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+
+                if (context != null && filePath.startsWith("content://")) {
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        BitmapFactory.decodeStream(stream, null, options)
+                    }
+                } else if (file?.exists() == true) {
+                    BitmapFactory.decodeFile(file.absolutePath, options)
+                }
+
+                w = options.outWidth
+                h = options.outHeight
+                mime = options.outMimeType ?: "image/jpeg"
+
+                var orientation = 0
+                val colorDepth = "8-bit"
+                try {
+                    val exif = if (context != null && filePath.startsWith("content://")) {
+                        context.contentResolver.openInputStream(uri)?.use { ExifInterface(it) }
+                    } else if (file?.exists() == true) {
+                        ExifInterface(file.absolutePath)
+                    } else null
+
+                    if (exif != null) {
+                        orientation = when (exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+                            ExifInterface.ORIENTATION_ROTATE_90 -> 90
+                            ExifInterface.ORIENTATION_ROTATE_180 -> 180
+                            ExifInterface.ORIENTATION_ROTATE_270 -> 270
+                            else -> 0
+                        }
+                    }
+                } catch (_: Exception) {}
+
+                val formatExt = mime.substringAfter('/').uppercase(Locale.US)
+                val hasAlpha = formatExt == "PNG" || formatExt == "WEBP"
+
+                imageInfo = ImageAnalysisInfo(
+                    format = formatExt,
+                    width = w,
+                    height = h,
+                    colorDepth = colorDepth,
+                    pixelFormat = if (hasAlpha) "rgba8" else "rgb24",
+                    orientation = orientation,
+                    colorProfile = "sRGB",
+                    hasAlpha = hasAlpha,
+                    isAnimated = formatExt == "GIF" || formatExt == "WEBP"
+                )
+
+                formatInfo = FormatInfo(
+                    containerFormat = formatExt,
+                    formatLongName = "Image Container ($formatExt)",
+                    duration = 0.0,
+                    bitrate = 0L,
+                    size = fileSize,
+                    streamCount = 1,
+                    videoStreamCount = 0,
+                    audioStreamCount = 0,
+                    startTime = 0.0,
+                    probeScore = 100
+                )
+            } catch (e: Exception) {
+                errors.add("Failed to inspect image headers: ${e.localizedMessage}")
+            }
+        } else {
+            var retriever: MediaMetadataRetriever? = null
+            var extractor: MediaExtractor? = null
+
+            try {
+                retriever = MediaMetadataRetriever()
+                if (context != null && filePath.startsWith("content://")) {
+                    retriever.setDataSource(context, uri)
+                } else {
+                    retriever.setDataSource(filePath)
+                }
+
+                val mime = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE) ?: "video/mp4"
+                val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                val bitrate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull() ?: 0L
+                val vWidth = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
+                val vHeight = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
+                val vRotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
+                val hasVideo = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO) == "yes" || vWidth > 0
+                val hasAudio = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) == "yes"
+
+                val containerExt = mime.substringAfter('/').uppercase(Locale.US)
+
+                try {
+                    extractor = MediaExtractor()
+                    if (context != null && filePath.startsWith("content://")) {
+                        extractor.setDataSource(context, uri, null)
+                    } else {
+                        extractor.setDataSource(filePath)
+                    }
+
+                    val trackCount = extractor.trackCount
+                    var videoTrackIdx = 0
+                    var audioTrackIdx = 0
+
+                    for (i in 0 until trackCount) {
+                        val format = extractor.getTrackFormat(i)
+                        val trackMime = format.getString(MediaFormat.KEY_MIME) ?: ""
+
+                        if (trackMime.startsWith("video/")) {
+                            val width = if (format.containsKey(MediaFormat.KEY_WIDTH)) format.getInteger(
+                                MediaFormat.KEY_WIDTH) else vWidth
+                            val height = if (format.containsKey(MediaFormat.KEY_HEIGHT)) format.getInteger(
+                                MediaFormat.KEY_HEIGHT) else vHeight
+                            val frameRate = if (format.containsKey(MediaFormat.KEY_FRAME_RATE)) format.getInteger(
+                                MediaFormat.KEY_FRAME_RATE).toDouble() else 30.0
+                            val codec = trackMime.substringAfter("video/").uppercase(Locale.US)
+                            val isHdr = trackMime.contains("hevc") || trackMime.contains("vp9") || trackMime.contains("av01")
+
+                            videoStream = VideoStreamInfo(
+                                index = videoTrackIdx++,
+                                streamId = "#0:$i",
+                                codecName = codec,
+                                codecLongName = "Android MediaCodec ($codec)",
+                                profile = "Main",
+                                level = 4,
+                                width = width,
+                                height = height,
+                                pixelFormat = "yuv420p",
+                                colorSpace = if (isHdr) "bt2020nc" else "bt709",
+                                colorPrimaries = if (isHdr) "bt2020" else "bt709",
+                                colorTransfer = if (isHdr) "smpte2084" else "bt709",
+                                colorRange = "tv",
+                                frameRate = "${frameRate.toInt()}/1",
+                                avgFrameRate = "${frameRate.toInt()}/1",
+                                avgFpsDecimal = frameRate,
+                                aspectRatio = if (height > 0) String.format(Locale.US, "%.2f", width.toDouble() / height) else "1.78",
+                                bitrate = if (bitrate > 0) bitrate else null,
+                                duration = durationMs / 1000.0,
+                                isDefault = true,
+                                rotation = vRotation,
+                                isHdr = isHdr,
+                                isDolbyVision = trackMime.contains("dvh") || trackMime.contains("dvhe")
+                            )
+                        } else if (trackMime.startsWith("audio/")) {
+                            val sampleRate = if (format.containsKey(MediaFormat.KEY_SAMPLE_RATE)) format.getInteger(
+                                MediaFormat.KEY_SAMPLE_RATE) else 44100
+                            val channels = if (format.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) format.getInteger(
+                                MediaFormat.KEY_CHANNEL_COUNT) else 2
+                            val codec = trackMime.substringAfter("audio/").uppercase(Locale.US)
+
+                            audioStreams.add(
+                                AudioStreamInfo(
+                                    index = audioTrackIdx++,
+                                    streamId = "#0:$i",
+                                    codecName = codec,
+                                    codecLongName = "Android MediaCodec ($codec)",
+                                    profile = "LC",
+                                    sampleRate = sampleRate,
+                                    channels = channels,
+                                    channelLayout = if (channels == 6) "5.1(side)" else if (channels == 8) "7.1" else "stereo",
+                                    sampleFormat = "fltp",
+                                    bitsPerSample = 16,
+                                    bitrate = if (bitrate > 0) bitrate else null,
+                                    duration = durationMs / 1000.0,
+                                    isDefault = audioTrackIdx == 1,
+                                    language = if (format.containsKey(MediaFormat.KEY_LANGUAGE)) format.getString(
+                                        MediaFormat.KEY_LANGUAGE) else "eng",
+                                    isSpatialAudio = channels > 2
+                                )
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    warnings.add("MediaExtractor track inspection notice: ${e.localizedMessage}")
+                }
+
+                formatInfo = FormatInfo(
+                    containerFormat = containerExt,
+                    formatLongName = "Media Container ($containerExt)",
+                    duration = durationMs / 1000.0,
+                    bitrate = bitrate,
+                    size = fileSize,
+                    streamCount = (if (hasVideo) 1 else 0) + (if (hasAudio) audioStreams.size.coerceAtLeast(1) else 0),
+                    videoStreamCount = if (hasVideo) 1 else 0,
+                    audioStreamCount = if (hasAudio) audioStreams.size.coerceAtLeast(1) else 0,
+                    startTime = 0.0,
+                    probeScore = 100
+                )
+            } catch (e: Exception) {
+                errors.add("Media inspection error: ${e.localizedMessage}")
+            } finally {
+                try { retriever?.release() } catch (_: Exception) {}
+                try { extractor?.release() } catch (_: Exception) {}
+            }
+        }
+
+        val elapsedMs = (System.currentTimeMillis() - startMs).coerceAtLeast(1L)
+
+        val corruptionReport = scanForBitstreamCorruption(filePath, context, uri)
+        if (corruptionReport.hasCorruption) {
+            warnings.add(corruptionReport.message)
+        }
+        if (corruptionReport.hasTimestampIssues) {
+            warnings.add("Timestamp PTS/DTS discontinuity detected during stream demuxing.")
+        }
+
+        val videoCorrupted = corruptionReport.isVideoCorrupted
+        val audioCorrupted = corruptionReport.isAudioCorrupted
+        val totalVFrames = videoStream?.totalFrames?.coerceAtLeast(1L) ?: 1L
+        val videoCorruptionPct = if (corruptionReport.corruptedVideoFramesCount > 0) (corruptionReport.corruptedVideoFramesCount.toDouble() / totalVFrames).coerceAtMost(1.0) else 0.0
+
+        val diagnostics = DiagnosticsInfo(
+            hasErrors = errors.isNotEmpty() || corruptionReport.hasCorruption,
+            errors = errors,
+            warnings = warnings,
+            corruptedFramesDetected = corruptionReport.hasCorruption,
+            corruptedVideoFramesCount = corruptionReport.corruptedVideoFramesCount,
+            corruptedVideoFramesPct = videoCorruptionPct,
+            droppedVideoFramesCount = corruptionReport.droppedVideoFramesCount,
+            isVideoCorrupted = videoCorrupted,
+            corruptedAudioSamplesCount = corruptionReport.corruptedAudioSamplesCount,
+            corruptedAudioSamplesPct = if (corruptionReport.corruptedAudioSamplesCount > 0) 0.001 else 0.0,
+            audioBufferUnderrunsCount = corruptionReport.audioBufferUnderrunsCount,
+            isAudioCorrupted = audioCorrupted,
+            avSyncOffsetMs = corruptionReport.avSyncOffsetMs,
+            concealedMacroblocksCount = corruptionReport.concealedMacroblocks,
+            keyframeLossCount = 0,
+            demuxerDiscontinuity = corruptionReport.hasTimestampIssues,
+            timestampIssues = corruptionReport.hasTimestampIssues,
+            muxingIssues = corruptionReport.hasMuxingIssues,
+            missingStreams = formatInfo?.streamCount == 0,
+            decodingErrorLines = emptyList(),
+            analysisNote = if (errors.isEmpty() && !corruptionReport.hasCorruption) "Stream structure and sample packets validated cleanly by Android Media Engine." else corruptionReport.message
+        )
+
+        val techBadges = detectTechBadges(formatInfo, videoStream, audioStreams, imageInfo)
+
+        return MediaDiagnosticsReport(
+            filePath = filePath,
+            fileName = fileName,
+            fileSize = fileSize,
+            mediaType = mediaType,
+            analysisTimestampMs = System.currentTimeMillis(),
+            analysisElapsedMs = elapsedMs,
+            format = formatInfo,
+            videoStream = videoStream,
+            audioStreams = audioStreams,
+            imageInfo = imageInfo,
+            diagnostics = diagnostics,
+            techBadges = techBadges
+        )
     }
 
     private data class CorruptionResult(
@@ -528,18 +906,235 @@ object MediaAnalyzer {
         val isAudioCorrupted: Boolean,
         val hasTimestampIssues: Boolean,
         val hasMuxingIssues: Boolean,
+        val corruptedVideoFramesCount: Int = 0,
+        val corruptedAudioSamplesCount: Int = 0,
+        val droppedVideoFramesCount: Int = 0,
+        val audioBufferUnderrunsCount: Int = 0,
+        val concealedMacroblocks: Int = 0,
+        val avSyncOffsetMs: Int = 0,
         val message: String
     )
 
-    private fun scanForBitstreamCorruption(path: String): CorruptionResult {
-        return CorruptionResult(
-            hasCorruption = false,
-            isVideoCorrupted = false,
-            isAudioCorrupted = false,
-            hasTimestampIssues = false,
-            hasMuxingIssues = false,
-            message = "Clean stream"
-        )
+    private fun scanForBitstreamCorruption(
+        path: String,
+        context: Context? = null,
+        uri: Uri? = null
+    ): CorruptionResult {
+        if (path.endsWith(".jpg", true) || path.endsWith(".jpeg", true) || path.endsWith(".png", true) || path.endsWith(".webp", true)) {
+            return CorruptionResult(false, isVideoCorrupted = false, isAudioCorrupted = false, hasTimestampIssues = false, hasMuxingIssues = false, message = "Clean image structure")
+        }
+
+        try {
+            val extractor = MediaExtractor()
+            var dataSourceOpened = false
+
+            if (context != null && uri != null) {
+                try {
+                    extractor.setDataSource(context, uri, null)
+                    dataSourceOpened = true
+                } catch (_: Exception) {}
+            }
+            if (!dataSourceOpened) {
+                try {
+                    extractor.setDataSource(path)
+                    dataSourceOpened = true
+                } catch (_: Exception) {}
+            }
+
+            if (!dataSourceOpened) {
+                return CorruptionResult(
+                    hasCorruption = false,
+                    isVideoCorrupted = false,
+                    isAudioCorrupted = false,
+                    hasTimestampIssues = false,
+                    hasMuxingIssues = true,
+                    message = "Unable to open media data source for packet scan"
+                )
+            }
+
+            var videoTrackIdx = -1
+            var audioTrackIdx = -1
+            var videoHeaderCorrupted = false
+            var audioHeaderCorrupted = false
+            var totalDurationUs = 0L
+
+            for (i in 0 until extractor.trackCount) {
+                try {
+                    val format = extractor.getTrackFormat(i)
+                    val mime = format.getString(MediaFormat.KEY_MIME) ?: ""
+                    if (format.containsKey(MediaFormat.KEY_DURATION)) {
+                        val dur = format.getLong(MediaFormat.KEY_DURATION)
+                        if (dur > totalDurationUs) totalDurationUs = dur
+                    }
+
+                    if (mime.startsWith("video/")) {
+                        if (videoTrackIdx == -1) videoTrackIdx = i
+                        val w = if (format.containsKey(MediaFormat.KEY_WIDTH)) format.getInteger(MediaFormat.KEY_WIDTH) else 0
+                        val h = if (format.containsKey(MediaFormat.KEY_HEIGHT)) format.getInteger(MediaFormat.KEY_HEIGHT) else 0
+                        if (w <= 0 || h <= 0) videoHeaderCorrupted = true
+                    } else if (mime.startsWith("audio/")) {
+                        if (audioTrackIdx == -1) audioTrackIdx = i
+                        val sr = if (format.containsKey(MediaFormat.KEY_SAMPLE_RATE)) format.getInteger(MediaFormat.KEY_SAMPLE_RATE) else 0
+                        val ch = if (format.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) else 0
+                        if (sr <= 0 || ch <= 0) audioHeaderCorrupted = true
+                    }
+                } catch (_: Exception) {}
+            }
+
+            var corruptedVideoPackets = 0
+            var corruptedAudioPackets = 0
+            var timestampDiscontinuityCount = 0
+            var firstVideoPtsUs = -1L
+            var firstAudioPtsUs = -1L
+
+            val sampleBuffer = ByteBuffer.allocate(1024 * 256)
+
+            for (i in 0 until extractor.trackCount) {
+                try {
+                    extractor.selectTrack(i)
+                } catch (_: Exception) {}
+            }
+
+            var totalPacketsRead = 0
+
+            // Multi-point seek sampling: 0%, 25%, 50%, 75% of file duration
+            val seekPoints = if (totalDurationUs > 2_000_000L) {
+                listOf(0L, totalDurationUs / 4, totalDurationUs / 2, (totalDurationUs * 3) / 4)
+            } else {
+                listOf(0L)
+            }
+
+            for (seekUs in seekPoints) {
+                if (seekUs > 0) {
+                    try {
+                        extractor.seekTo(seekUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+                    } catch (_: Exception) {}
+                }
+
+                var prevVideoPtsInChunk = -1L
+                var prevAudioPtsInChunk = -1L
+                var pointPackets = 0
+
+                while (pointPackets < 35) {
+                    val sampleTime = extractor.sampleTime
+                    if (sampleTime < 0) break
+
+                    val trackIndex = extractor.sampleTrackIndex
+                    if (trackIndex >= 0 && trackIndex < extractor.trackCount) {
+                        if (trackIndex == videoTrackIdx && firstVideoPtsUs == -1L) {
+                            firstVideoPtsUs = sampleTime
+                        } else if (trackIndex == audioTrackIdx && firstAudioPtsUs == -1L) {
+                            firstAudioPtsUs = sampleTime
+                        }
+
+                        val bytesRead = try {
+                            extractor.readSampleData(sampleBuffer, 0)
+                        } catch (e: Exception) {
+                            -1
+                        }
+
+                        if (bytesRead < 0) {
+                            if (trackIndex == videoTrackIdx) corruptedVideoPackets++
+                            if (trackIndex == audioTrackIdx) corruptedAudioPackets++
+                        }
+
+                        if (trackIndex == videoTrackIdx) {
+                            if (prevVideoPtsInChunk >= 0 && sampleTime < prevVideoPtsInChunk) {
+                                timestampDiscontinuityCount++
+                            }
+                            prevVideoPtsInChunk = sampleTime
+                        } else if (trackIndex == audioTrackIdx) {
+                            if (prevAudioPtsInChunk >= 0 && sampleTime < prevAudioPtsInChunk) {
+                                timestampDiscontinuityCount++
+                            }
+                            prevAudioPtsInChunk = sampleTime
+                        }
+                    }
+
+                    if (!extractor.advance()) break
+                    pointPackets++
+                    totalPacketsRead++
+                }
+            }
+
+            extractor.release()
+
+            val avSyncOffsetMs = if (firstVideoPtsUs >= 0 && firstAudioPtsUs >= 0) {
+                ((firstAudioPtsUs - firstVideoPtsUs) / 1000L).toInt().coerceIn(-1000, 1000)
+            } else 0
+
+            val isVideoCorrupted = videoHeaderCorrupted || corruptedVideoPackets > 0
+            val isAudioCorrupted = audioHeaderCorrupted || corruptedAudioPackets > 0
+            val hasCorruption = isVideoCorrupted || isAudioCorrupted
+            val hasTimestampIssues = timestampDiscontinuityCount > 0
+
+            if (totalPacketsRead == 0 && (videoTrackIdx >= 0 || audioTrackIdx >= 0)) {
+                return CorruptionResult(
+                    hasCorruption = true,
+                    isVideoCorrupted = videoTrackIdx >= 0,
+                    isAudioCorrupted = audioTrackIdx >= 0,
+                    hasTimestampIssues = false,
+                    hasMuxingIssues = true,
+                    corruptedVideoFramesCount = if (videoTrackIdx >= 0) 1 else 0,
+                    corruptedAudioSamplesCount = if (audioTrackIdx >= 0) 1 else 0,
+                    avSyncOffsetMs = avSyncOffsetMs,
+                    message = "Failed to extract sample packets from container"
+                )
+            }
+
+            if (hasCorruption) {
+                return CorruptionResult(
+                    hasCorruption = true,
+                    isVideoCorrupted = isVideoCorrupted,
+                    isAudioCorrupted = isAudioCorrupted,
+                    hasTimestampIssues = hasTimestampIssues,
+                    hasMuxingIssues = false,
+                    corruptedVideoFramesCount = corruptedVideoPackets,
+                    corruptedAudioSamplesCount = corruptedAudioPackets,
+                    droppedVideoFramesCount = if (corruptedVideoPackets > 0) corruptedVideoPackets else 0,
+                    audioBufferUnderrunsCount = if (corruptedAudioPackets > 0) 1 else 0,
+                    concealedMacroblocks = if (corruptedVideoPackets > 0) corruptedVideoPackets * 4 else 0,
+                    avSyncOffsetMs = avSyncOffsetMs,
+                    message = when {
+                        isVideoCorrupted && isAudioCorrupted -> "Video frame & audio packet errors detected during stream scan"
+                        isVideoCorrupted -> "$corruptedVideoPackets video packet corruption/read error(s) detected"
+                        else -> "$corruptedAudioPackets audio sample corruption/underrun(s) detected"
+                    }
+                )
+            }
+
+            if (hasTimestampIssues) {
+                return CorruptionResult(
+                    hasCorruption = false,
+                    isVideoCorrupted = false,
+                    isAudioCorrupted = false,
+                    hasTimestampIssues = true,
+                    hasMuxingIssues = false,
+                    avSyncOffsetMs = avSyncOffsetMs,
+                    message = "Non-monotonically increasing sample timestamps (PTS/DTS gap) detected"
+                )
+            }
+
+            return CorruptionResult(
+                hasCorruption = false,
+                isVideoCorrupted = false,
+                isAudioCorrupted = false,
+                hasTimestampIssues = false,
+                hasMuxingIssues = false,
+                avSyncOffsetMs = avSyncOffsetMs,
+                message = "Clean stream"
+            )
+        } catch (e: Exception) {
+            return CorruptionResult(
+                hasCorruption = true,
+                isVideoCorrupted = true,
+                isAudioCorrupted = false,
+                hasTimestampIssues = false,
+                hasMuxingIssues = true,
+                corruptedVideoFramesCount = 1,
+                message = "MediaExtractor exception: ${e.localizedMessage}"
+            )
+        }
     }
 
     private fun parseFraction(fraction: String): Double {

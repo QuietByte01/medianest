@@ -22,6 +22,7 @@ import com.medianest.data.db.MediaCategory
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.AdaptiveBottomSheet
 import com.medianest.ui.components.GlassSurface
+import com.medianest.ui.theme.LocalDarkTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -120,10 +121,11 @@ fun RecognizedPlaylistsSheet(
             val existingCat = db.categoryDao().getCategoryByNameAndType(pl.name, "AUDIO")
             val categoryId = if (existingCat != null) {
                 db.categoryDao().clearCategoryMedia(existingCat.id)
+                db.categoryDao().updateCategory(existingCat.copy(coverUri = pl.path))
                 existingCat.id
             } else {
                 db.categoryDao().insertCategory(
-                    MediaCategory(name = pl.name, type = "AUDIO", iconName = "queue_music")
+                    MediaCategory(name = pl.name, type = "AUDIO", coverUri = pl.path, iconName = "queue_music")
                 )
             }
 
@@ -137,7 +139,15 @@ fun RecognizedPlaylistsSheet(
         }
     }
 
-    AdaptiveBottomSheet(onDismissRequest = onDismiss) {
+    val isDark = LocalDarkTheme.current
+
+    AdaptiveBottomSheet(
+        onDismissRequest = onDismiss,
+        isSolidGlossy = true,
+        containerColor = if (isDark) Color(0xF2121520) else Color(0xF5FFFFFF),
+        contentColor = if (isDark) Color.White else Color.Black,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -206,24 +216,19 @@ fun RecognizedPlaylistsSheet(
                                 Text(text = pl.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 Text(text = pl.path, fontSize = 11.sp, color = Color(0xFF94A3B8), maxLines = 1)
                             }
-                            GlassSurface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable {
-                                        scope.launch {
-                                            isImporting = true
-                                            val count = processImportPlaylist(pl)
-                                            isImporting = false
-                                            Toast.makeText(context, "Imported \"${pl.name}\" ($count tracks)", Toast.LENGTH_SHORT).show()
-                                            onDismiss()
-                                        }
+                            TextButton(
+                                onClick = {
+                                    scope.launch {
+                                        isImporting = true
+                                        val count = processImportPlaylist(pl)
+                                        isImporting = false
+                                        Toast.makeText(context, "Imported \"${pl.name}\" ($count tracks)", Toast.LENGTH_SHORT).show()
+                                        onDismiss()
                                     }
-                                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                backgroundColor = Color(0x33FFFFFF),
-                                borderColor = Color(0x33FFFFFF)
+                                },
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                             ) {
-                                Text("Import", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text("Import", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64B5F6))
                             }
                         }
                     }

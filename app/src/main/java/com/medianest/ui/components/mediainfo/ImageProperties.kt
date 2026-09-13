@@ -24,6 +24,7 @@ import coil.compose.AsyncImage
 import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.GlassSurface
 import com.medianest.ui.components.PlaybackSpeedChip
+import com.medianest.util.MediaAnalyzer
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -67,7 +68,7 @@ internal fun ImageFilePropertiesContent(
         key1 = filePath
     ) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            com.medianest.util.MediaAnalyzer.analyze(filePath, item.type.name, context)
+            MediaAnalyzer.analyze(filePath, item.type.name, context, uri = item.uri)
         }
     }
 

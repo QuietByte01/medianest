@@ -3,13 +3,13 @@ package com.medianest.ui.onboarding
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material3.*
@@ -63,7 +63,7 @@ fun FirstLaunchIndexingScreen(
             Column(
                 modifier = Modifier.padding(28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Header Icon with Accent Glow Container
                 Box(
@@ -110,35 +110,32 @@ fun FirstLaunchIndexingScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
-                // Stage Badge & Counter Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // Stage Badge
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFF818CF8).copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, Color(0xFF818CF8).copy(alpha = 0.30f))
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF818CF8).copy(alpha = 0.15f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF818CF8).copy(alpha = 0.30f))
-                    ) {
-                        Text(
-                            text = "STAGE ${progressState.stageIndex}/5: ${progressState.stageName.uppercase()}",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFA5B4FC),
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                        )
-                    }
-
                     Text(
-                        text = "${(animatedProgress * 100).toInt()}%",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFF34D399)
+                        text = "STAGE ${progressState.stageIndex}/5: ${progressState.stageName.uppercase()}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFA5B4FC),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        textAlign = TextAlign.Center
                     )
                 }
+
+                // Percentage Readout on Next Line
+                Text(
+                    text = "${(animatedProgress * 100).toInt()}%",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF34D399),
+                    textAlign = TextAlign.Center
+                )
 
                 // Smooth Progress Bar
                 LinearProgressIndicator(

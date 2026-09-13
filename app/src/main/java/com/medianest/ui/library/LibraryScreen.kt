@@ -297,7 +297,7 @@ fun LibraryScreen(
                     androidx.compose.foundation.pager.HorizontalPager(
                         state = pagerState,
                         userScrollEnabled = false,
-                        beyondViewportPageCount = 3,
+                        beyondViewportPageCount = 1,
                         modifier = Modifier.fillMaxSize()
                     ) { page ->
                         val isPageImages = (enableAnalyticsTab && page == 1) || (!enableAnalyticsTab && page == 0)

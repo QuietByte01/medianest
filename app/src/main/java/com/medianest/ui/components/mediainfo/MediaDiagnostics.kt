@@ -26,6 +26,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogWindowProvider
@@ -38,6 +39,7 @@ import com.medianest.data.model.MediaItem
 import com.medianest.ui.components.GlassSurface
 import com.medianest.util.MediaDiagnosticsReport
 import java.util.Locale
+import kotlin.math.abs
 
 @Composable
 internal fun MediaDiagnosticsDialog(
@@ -52,7 +54,13 @@ internal fun MediaDiagnosticsDialog(
 ) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-    val isHealthClean = !report.diagnostics.corruptedFramesDetected && !report.diagnostics.timestampIssues && !report.diagnostics.hasErrors
+    val isHealthClean = !report.diagnostics.corruptedFramesDetected &&
+            !report.diagnostics.timestampIssues &&
+            !report.diagnostics.hasErrors &&
+            !report.diagnostics.isVideoCorrupted &&
+            !report.diagnostics.isAudioCorrupted &&
+            report.diagnostics.corruptedVideoFramesCount == 0 &&
+            report.diagnostics.corruptedAudioSamplesCount == 0
     var selectedAudioTrackIndex by remember { mutableIntStateOf(0) }
     val isAudioMedia = item.type == MediaType.AUDIO
     val isImageMedia = item.type == MediaType.IMAGE
@@ -247,8 +255,9 @@ internal fun MediaDiagnosticsDialog(
                                             // Share Button
                                             Box(
                                                 modifier = Modifier
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(Color(0x22FFFFFF))
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(Color(0x28A78BFA))
+                                                    .border(1.dp, Color(0x66A78BFA), RoundedCornerShape(6.dp))
                                                     .clickable {
                                                         val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                                                             type = "text/plain"
@@ -256,12 +265,12 @@ internal fun MediaDiagnosticsDialog(
                                                         }
                                                         context.startActivity(android.content.Intent.createChooser(sendIntent, "Share Diagnostic Report"))
                                                     }
-                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                                    .padding(horizontal = 8.dp, vertical = 2.dp)
                                             ) {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text("Share", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                                    Icon(Icons.Default.Share, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(10.dp))
+                                                    Spacer(modifier = Modifier.width(3.dp))
+                                                    Text("Share", fontSize = 8.5.sp, color = Color(0xFFA78BFA), fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp)
                                                 }
                                             }
                                         }
@@ -348,8 +357,9 @@ internal fun MediaDiagnosticsDialog(
                                         // Share Button
                                         Box(
                                             modifier = Modifier
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(Color(0x22FFFFFF))
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(Color(0x28A78BFA))
+                                                .border(1.dp, Color(0x66A78BFA), RoundedCornerShape(6.dp))
                                                 .clickable {
                                                     val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                                                         type = "text/plain"
@@ -357,12 +367,12 @@ internal fun MediaDiagnosticsDialog(
                                                     }
                                                     context.startActivity(android.content.Intent.createChooser(sendIntent, "Share Diagnostic Report"))
                                                 }
-                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                                .padding(horizontal = 8.dp, vertical = 2.dp)
                                         ) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text("Share", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                                Icon(Icons.Default.Share, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(10.dp))
+                                                Spacer(modifier = Modifier.width(3.dp))
+                                                Text("Share", fontSize = 8.5.sp, color = Color(0xFFA78BFA), fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp)
                                             }
                                         }
                                     }
@@ -467,6 +477,18 @@ internal fun MediaDiagnosticsDialog(
                         }
 
                         // 3. Stream Integrity & Health Card
+                        val hasVideoErrors = report.diagnostics.isVideoCorrupted || report.diagnostics.corruptedVideoFramesCount > 0
+                        val hasAudioErrors = report.diagnostics.isAudioCorrupted || report.diagnostics.corruptedAudioSamplesCount > 0 || report.diagnostics.audioBufferUnderrunsCount > 0
+
+                        val healthHeaderTitle = when {
+                            isHealthClean -> "✔ STREAM INTEGRITY & HEALTH (CLEAN)"
+                            hasVideoErrors && hasAudioErrors -> "⚠ STREAM INTEGRITY — VIDEO & AUDIO ISSUES DETECTED"
+                            hasVideoErrors -> "⚠ STREAM INTEGRITY — VIDEO STREAM ISSUES DETECTED"
+                            hasAudioErrors -> "⚠ STREAM INTEGRITY — AUDIO STREAM ISSUES DETECTED"
+                            report.diagnostics.timestampIssues -> "⚠ STREAM INTEGRITY — PTS/DTS TIMESTAMP GAP DETECTED"
+                            else -> "⚠ STREAM INTEGRITY — CONTAINER HEADER ISSUES DETECTED"
+                        }
+
                         GlassSurface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(18.dp),
@@ -476,37 +498,49 @@ internal fun MediaDiagnosticsDialog(
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Text(
-                                        text = if (isHealthClean) "✔ STREAM INTEGRITY & HEALTH (CLEAN)" else "⚠ STREAM INTEGRITY & HEALTH (ISSUES DETECTED)",
+                                        text = healthHeaderTitle,
                                         fontSize = 11.5.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (isHealthClean) Color(0xFF34D399) else Color(0xFFF87171)
                                     )
                                 }
 
-                                if (isLandscape) {
-                                    Row(modifier = Modifier.fillMaxWidth()) {
-                                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            DiagHealthRow(label = if (isAudioMedia) "Corrupted Audio Packets" else "Corrupted Video Frames", value = if (report.diagnostics.corruptedVideoFramesCount > 0 || report.diagnostics.corruptedAudioSamplesCount > 0) "Errors detected" else "0 errors (0.00%)", isError = report.diagnostics.corruptedFramesDetected)
-                                            DiagHealthRow(label = "Bitstream Decoding Integrity", value = if (report.diagnostics.corruptedFramesDetected) "Failed packet scan" else "0 decoding errors", isError = report.diagnostics.corruptedFramesDetected)
-                                            DiagHealthRow(label = "A/V Sync Offset", value = "+${report.diagnostics.avSyncOffsetMs} ms (In Sync)", isError = false)
-                                            DiagHealthRow(label = "Keyframe Loss (GOP Integrity)", value = "0 lost keyframes", isError = false)
-                                        }
-                                        Spacer(modifier = Modifier.width(16.dp))
-                                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            DiagHealthRow(label = "Dropped Video / Audio Frames", value = if (report.diagnostics.droppedVideoFramesCount > 0) "${report.diagnostics.droppedVideoFramesCount} frames (Lag)" else "0 frames", isError = report.diagnostics.droppedVideoFramesCount > 0)
-                                            DiagHealthRow(label = "Buffer Underruns", value = "${report.diagnostics.audioBufferUnderrunsCount} events", isError = report.diagnostics.audioBufferUnderrunsCount > 0)
-                                            DiagHealthRow(label = "Concealed Macroblocks", value = if (report.diagnostics.concealedMacroblocksCount > 0) "${report.diagnostics.concealedMacroblocksCount} macroblocks" else "0 macroblocks", isError = report.diagnostics.concealedMacroblocksCount > 0)
-                                            DiagHealthRow(label = "Demuxer Packet Discontinuity", value = if (report.diagnostics.demuxerDiscontinuity) "Discontinuity Warn" else "Passed", isError = report.diagnostics.demuxerDiscontinuity)
-                                        }
+                                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    if (isVideoMedia || report.videoStream != null) {
+                                        DiagHealthRow(
+                                            label = "Video Stream Integrity",
+                                            value = if (hasVideoErrors) "${report.diagnostics.corruptedVideoFramesCount} corrupted video frames" else "0 corrupted video frames (Clean)",
+                                            isError = hasVideoErrors
+                                        )
                                     }
-                                } else {
-                                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        DiagHealthRow(label = if (isAudioMedia) "Corrupted Audio Packets" else "Corrupted Frames", value = if (report.diagnostics.corruptedVideoFramesCount > 0 || report.diagnostics.corruptedAudioSamplesCount > 0) "Errors detected" else "0 errors (0.00%)", isError = report.diagnostics.corruptedFramesDetected)
-                                        DiagHealthRow(label = "Bitstream Decoding Integrity", value = if (report.diagnostics.corruptedFramesDetected) "Packet errors" else "0 decoding errors", isError = report.diagnostics.corruptedFramesDetected)
-                                        DiagHealthRow(label = "Buffer Underruns", value = "${report.diagnostics.audioBufferUnderrunsCount} events", isError = report.diagnostics.audioBufferUnderrunsCount > 0)
-                                        DiagHealthRow(label = "A/V Sync Offset", value = "+${report.diagnostics.avSyncOffsetMs} ms (In Sync)", isError = false)
-                                        DiagHealthRow(label = "Demuxer Packet Discontinuity", value = if (report.diagnostics.demuxerDiscontinuity) "Discontinuity Warn" else "Passed", isError = report.diagnostics.demuxerDiscontinuity)
+                                    if (isAudioMedia || report.audioStreams.isNotEmpty()) {
+                                        DiagHealthRow(
+                                            label = "Audio Stream Integrity",
+                                            value = if (hasAudioErrors) {
+                                                val sampleCount = report.diagnostics.corruptedAudioSamplesCount
+                                                val underruns = report.diagnostics.audioBufferUnderrunsCount
+                                                if (sampleCount > 0) "$sampleCount corrupted audio samples"
+                                                else if (underruns > 0) "$underruns audio buffer underruns"
+                                                else "Audio stream issue detected"
+                                            } else "0 corrupted audio samples (Clean)",
+                                            isError = hasAudioErrors
+                                        )
                                     }
+                                    DiagHealthRow(
+                                        label = "Demuxer Timestamp Continuity",
+                                        value = if (report.diagnostics.timestampIssues || report.diagnostics.demuxerDiscontinuity) "PTS/DTS Discontinuity Warning" else "Monotonic Timestamps (Passed)",
+                                        isError = report.diagnostics.timestampIssues || report.diagnostics.demuxerDiscontinuity
+                                    )
+                                    DiagHealthRow(
+                                        label = "Container Header Integrity",
+                                        value = if (report.diagnostics.muxingIssues) "Muxing / Header Warning" else "Passed (Clean Header)",
+                                        isError = report.diagnostics.muxingIssues
+                                    )
+                                    DiagHealthRow(
+                                        label = "A/V Sync Status",
+                                        value = if (report.diagnostics.avSyncOffsetMs != 0) "${report.diagnostics.avSyncOffsetMs} ms offset" else "In Sync (0 ms offset)",
+                                        isError = abs(report.diagnostics.avSyncOffsetMs) > 100
+                                    )
                                 }
                             }
                         }
@@ -748,6 +782,85 @@ internal fun MediaDiagnosticsDialog(
                                 }
                             }
                         }
+
+                        // 8. Inspection Engine Data Source Card at Bottom
+                        GlassSurface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            backgroundColor = Color(0x22181C2B),
+                            borderColor = Color(0x33818CF8)
+                        ) {
+                            val isPhone = LocalConfiguration.current.screenWidthDp < 600
+                            val isFfmpegEngine = report.diagnostics.analysisNote.contains("FFmpeg", ignoreCase = true) ||
+                                    report.format?.encoderTags?.contains("FFmpeg", ignoreCase = true) == true ||
+                                    report.format?.containerFormat?.contains("FFmpeg", ignoreCase = true) == true
+                            val engineName = if (isFfmpegEngine) "FFmpeg Native C++ (libavformat v6.1)" else "Android Native Framework (MediaExtractor)"
+
+                            if (isPhone) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Memory,
+                                            contentDescription = null,
+                                            tint = Color(0xFF818CF8),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = "DATA SOURCE ENGINE",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF818CF8)
+                                        )
+                                    }
+                                    Text(
+                                        text = engineName,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            } else {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Memory,
+                                            contentDescription = null,
+                                            tint = Color(0xFF818CF8),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = "DATA SOURCE ENGINE",
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF818CF8)
+                                        )
+                                    }
+                                    Text(
+                                        text = engineName,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -846,11 +959,8 @@ internal fun DiagnosticTechChip(badge: String) {
         "HDR", "HDR10", "HDR10+" -> Triple(Color(0x2ECA8A04), Color(0x66FACC15), Color(0xFFFDE047))
         "IMAX" -> Triple(Color(0x2E0284C7), Color(0x660284C7), Color(0xFF38BDF8))
         "DOLBY TRUEHD" -> Triple(Color(0x336366F1), Color(0x66818CF8), Color(0xFFA5B4FC))
-        "SPATIAL AUDIO" -> Triple(Color(0x26FFFFFF), Color(0x44FFFFFF), Color.White)
-        "7.1 CH", "7.1CH", "5.1 CH", "5.1CH" -> Triple(Color(0x26FFFFFF), Color(0x44FFFFFF), Color.White)
         "FLAC" -> Triple(Color(0x2E059669), Color(0x6634D399), Color(0xFF34D399))
-        "BLU-RAY", "BLURAY" -> Triple(Color(0x26FFFFFF), Color(0x44FFFFFF), Color.White)
-        else -> Triple(Color(0x26FFFFFF), Color(0x44FFFFFF), Color.White)
+        else -> Triple(Color(0x28A78BFA), Color(0x66A78BFA), Color(0xFFA78BFA))
     }
 
     Box(
@@ -914,18 +1024,40 @@ internal fun DiagStatCard(
 
 @Composable
 internal fun DiagHealthRow(label: String, value: String, isError: Boolean) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label, fontSize = 11.5.sp, color = Color(0xFFB0BAC9))
-        Text(
-            text = value,
-            fontSize = 11.5.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (isError) Color(0xFFF87171) else Color(0xFF34D399)
-        )
+    val configuration = LocalConfiguration.current
+    val isPhone = configuration.screenWidthDp < 600
+
+    if (isPhone) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 1.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
+            Text(label, fontSize = 10.5.sp, color = Color(0xFFB0BAC9))
+            Text(
+                text = value,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isError) Color(0xFFF87171) else Color(0xFF34D399)
+            )
+        }
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(label, fontSize = 11.sp, color = Color(0xFFB0BAC9), modifier = Modifier.weight(1f, fill = false))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = value,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isError) Color(0xFFF87171) else Color(0xFF34D399),
+                textAlign = TextAlign.End
+            )
+        }
     }
 }
 

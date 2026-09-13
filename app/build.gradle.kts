@@ -33,8 +33,8 @@ android {
     applicationId = "com.medianest.app"
     minSdk = 30
     targetSdk = 36
-    versionCode = 2
-    versionName = "1.1"
+    versionCode = 5
+    versionName = "1.4"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     
@@ -65,7 +65,6 @@ android {
 
   buildTypes {
     release {
-      isCrunchPngs = true
       isMinifyEnabled = true
       isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -88,15 +87,6 @@ android {
     compose = true
     buildConfig = true
     prefab = true
-  }
-
-  composeCompiler {
-    // Stability config: lists classes the Compose compiler should treat as @Stable.
-    // Without this, data classes with List<T> fields are unstable — child composables
-    // receiving them can never be skipped even if nothing they read has changed.
-    stabilityConfigurationFiles.add(
-      rootProject.layout.projectDirectory.file("compose_stability.conf")
-    )
   }
 
   packaging {
@@ -132,6 +122,15 @@ android {
       isUniversalApk = true // keeps a universal APK as fallback
     }
   }
+}
+
+composeCompiler {
+  // Stability config: lists classes the Compose compiler should treat as @Stable.
+  // Without this, data classes with List<T> fields are unstable — child composables
+  // receiving them can never be skipped even if nothing they read has changed.
+  stabilityConfigurationFiles.add(
+    rootProject.layout.projectDirectory.file("compose_stability.conf")
+  )
 }
 
 // Configure the Secrets Gradle Plugin to use .env and .env.example files

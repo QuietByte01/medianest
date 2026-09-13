@@ -5,21 +5,27 @@ import com.medianest.MediaNestApp
 import com.medianest.data.db.MediaCategory
 import com.medianest.data.db.MediaType
 import com.medianest.data.model.MediaItem
+import com.medianest.util.FolderHiddenUtils
 import com.medianest.util.TrashManager
 import java.io.File
 import java.util.Locale
 
-fun filterVideoList(videos: List<MediaItem>, filterTab: String, showHidden: Boolean = false): List<MediaItem> {
+fun filterVideoList(
+    videos: List<MediaItem>,
+    filterTab: String,
+    showHidden: Boolean = false,
+    userExcludedFolders: Set<String> = emptySet()
+): List<MediaItem> {
     val sharedWords = if (filterTab == "SERIES" || filterTab == "MOVIES") computeSharedTitleWords(videos) else emptySet()
-    
+
     // Filter out excluded and hidden items from standard tabs
     val baseVideos = when (filterTab) {
-        "EXCLUDED" -> videos.filter { com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
-        "HIDDEN" -> videos.filter { com.medianest.util.FolderHiddenUtils.isItemHidden(it) && !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
-        "FOLDERS" -> videos.filter { !com.medianest.util.FolderHiddenUtils.isItemExcluded(it) }
+        "EXCLUDED" -> videos.filter { FolderHiddenUtils.isItemExcluded(it, userExcludedFolders) }
+        "HIDDEN" -> videos.filter { FolderHiddenUtils.isItemHidden(it) && !FolderHiddenUtils.isItemExcluded(it, userExcludedFolders) }
+        "FOLDERS" -> videos.filter { !FolderHiddenUtils.isItemExcluded(it, userExcludedFolders) }
         else -> videos.filter { item ->
-            !com.medianest.util.FolderHiddenUtils.isItemExcluded(item) &&
-            (showHidden || !com.medianest.util.FolderHiddenUtils.isItemHidden(item))
+            !FolderHiddenUtils.isItemExcluded(item, userExcludedFolders) &&
+            (showHidden || !FolderHiddenUtils.isItemHidden(item))
         }
     }
 

@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,9 +27,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
-import coil.compose.SubcomposeAsyncImage
-import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
 import com.medianest.ui.components.GlassSurface
 
@@ -65,30 +65,21 @@ fun QuickAccessCard(
                     .background(Brush.linearGradient(gradientColors.map { it.copy(alpha = 0.10f) })),
                 contentAlignment = Alignment.Center
             ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.30f),
+                    modifier = Modifier.fillMaxSize()
+                )
+
                 if (artUri != null) {
-                    SubcomposeAsyncImage(
-                        model = ImageRequest.Builder(context).data(artUri).crossfade(true).build(),
+                    val imageRequest = remember(artUri) {
+                        ImageRequest.Builder(context).data(artUri).crossfade(false).build()
+                    }
+                    AsyncImage(
+                        model = imageRequest,
                         contentDescription = title,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        val state = painter.state
-                        if (state is AsyncImagePainter.State.Error || state is AsyncImagePainter.State.Loading) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.30f),
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            SubcomposeAsyncImageContent()
-                        }
-                    }
-                } else {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.30f),
                         modifier = Modifier.fillMaxSize()
                     )
                 }

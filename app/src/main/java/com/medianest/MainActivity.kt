@@ -142,7 +142,7 @@ class MainActivity : ComponentActivity() {
                         var audioPlaylists by remember { mutableStateOf<List<MediaCategory>>(emptyList()) }
                         var imageCollections by remember { mutableStateOf<List<MediaCategory>>(emptyList()) }
 
-                        val gridGapDp by settingsManager.gridGapDp.collectAsState(initial = 8)
+                        val gridGapDp by settingsManager.gridGapDp.collectAsState(initial = 12)
                         val gridSizeLevel by settingsManager.gridSizeLevel.collectAsState(initial = 1)
                         val cornerRadiusDp by settingsManager.gridCornerRadiusDp.collectAsState(initial = 8)
                         val roundedCornersEnabled by settingsManager.roundedCornersEnabled.collectAsState(initial = true)

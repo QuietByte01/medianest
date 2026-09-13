@@ -228,54 +228,109 @@ fun DeviceStorageAnalysisCard(
                 .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Header: Title and Storage capacity
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Storage,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = "Storage Analysis",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
+            val configuration = LocalConfiguration.current
+            val isPhone = configuration.screenWidthDp < 600
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+            // Header: Title and Storage capacity
+            if (isPhone) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Storage,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "Storage Analysis",
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onRefresh,
+                            enabled = !isRefreshing,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .semantics { contentDescription = "Refresh storage analysis" }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Refresh",
+                                tint = Color(0xFF9EA3B0),
+                                modifier = if (isRefreshing) Modifier.rotate(rotationAngle) else Modifier
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
                     Text(
                         text = "${AnalyticsColors.formatBytes(usedBytes)} / ${AnalyticsColors.formatBytes(totalBytes)}",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color(0xFFC0C5D0)
                     )
-
-                    IconButton(
-                        onClick = onRefresh,
-                        enabled = !isRefreshing,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .semantics { contentDescription = "Refresh storage analysis" }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Refresh",
-                            tint = Color(0xFF9EA3B0),
-                            modifier = if (isRefreshing) Modifier.rotate(rotationAngle) else Modifier
+                            imageVector = Icons.Default.Storage,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
                         )
+                        Text(
+                            text = "Storage Analysis",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "${AnalyticsColors.formatBytes(usedBytes)} / ${AnalyticsColors.formatBytes(totalBytes)}",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFFC0C5D0)
+                        )
+
+                        IconButton(
+                            onClick = onRefresh,
+                            enabled = !isRefreshing,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .semantics { contentDescription = "Refresh storage analysis" }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Refresh",
+                                tint = Color(0xFF9EA3B0),
+                                modifier = if (isRefreshing) Modifier.rotate(rotationAngle) else Modifier
+                            )
+                        }
                     }
                 }
             }
