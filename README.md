@@ -1,5 +1,7 @@
 # MediaNest ▶▶
 
+[![Deploy & Release](https://github.com/Sac071/medianest/actions/workflows/deploy.yml/badge.svg)](https://github.com/Sac071/medianest/actions/workflows/deploy.yml)
+[![PR Checks](https://github.com/Sac071/medianest/actions/workflows/pr_checks.yml/badge.svg)](https://github.com/Sac071/medianest/actions/workflows/pr_checks.yml)
 [![Kotlin](https://img.shields.io/badge/Kotlin-100%25-blue.svg)](https://kotlinlang.org)
 [![Android](https://img.shields.io/badge/Platform-Android-green.svg)](https://developer.android.com)
 [![Material 3](https://img.shields.io/badge/Design-Material_3-7C4DFF.svg)](https://m3.material.io/)
