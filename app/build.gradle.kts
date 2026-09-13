@@ -1,3 +1,4 @@
+import java.io.File
 import java.util.Properties
 
 plugins {
@@ -24,6 +25,25 @@ val extractFFmpegNativeLibs = tasks.register<Copy>("extractFFmpegNativeLibs") {
   includeEmptyDirs = false
 }
 
+// Extract FFmpeg libraries immediately at configuration time if missing so CMake configuration can find them
+val ffmpegTargetDir = ffmpegExtractionDir.get().asFile
+if (!File(ffmpegTargetDir, "arm64-v8a/libavcodec.so").exists()) {
+  ffmpegTargetDir.mkdirs()
+  val ffmpegConfig = configurations.detachedConfiguration(dependencies.create(libs.ffmpeg.kit.get()))
+  ffmpegConfig.isTransitive = false
+  val ffmpegAar = ffmpegConfig.singleFile
+  copy {
+    from(zipTree(ffmpegAar))
+    into(ffmpegTargetDir)
+    include("jni/**/*.so")
+    exclude("**/libc++_shared.so")
+    eachFile {
+      path = path.replaceFirst("jni/", "")
+    }
+    includeEmptyDirs = false
+  }
+}
+
 android {
   namespace = "com.medianest"
   compileSdk = 37
@@ -40,7 +60,11 @@ android {
     
     externalNativeBuild {
       cmake {
-        arguments("-DANDROID_STL=c++_shared", "-DFFMPEG_EXTRACTION_DIR=${ffmpegExtractionDir.get().asFile.absolutePath}")
+        arguments(
+          "-DANDROID_STL=c++_shared",
+          "-DFFMPEG_EXTRACTION_DIR=${ffmpegExtractionDir.get().asFile.absolutePath}",
+          "-DCMAKE_BUILD_PARALLEL_LEVEL=2"
+        )
       }
     }
   }
@@ -99,7 +123,7 @@ android {
   externalNativeBuild {
     cmake {
       path = file("src/main/cpp/CMakeLists.txt")
-      version = "3.22.1"
+      // version = "3.22.1"
     }
   }
 
@@ -107,7 +131,7 @@ android {
     unitTests { 
       isIncludeAndroidResources = true 
       all {
-        it.maxHeapSize = "4g"
+        it.maxHeapSize = "2g"
         it.maxParallelForks = 1
       }
     } 
@@ -206,9 +230,13 @@ dependencies {
   "ksp"(libs.moshi.kotlin.codegen)
 }
 
-tasks.withType<com.android.build.gradle.tasks.ExternalNativeBuildTask>().configureEach {
+tasks.named("preBuild") {
   dependsOn(extractFFmpegNativeLibs)
 }
-tasks.withType<com.android.build.gradle.tasks.ExternalNativeBuildJsonTask>().configureEach {
+tasks.matching {
+  it.name.startsWith("configureCMake") ||
+  it.name.startsWith("generateJsonModel") ||
+  it.name.startsWith("externalNativeBuild")
+}.configureEach {
   dependsOn(extractFFmpegNativeLibs)
 }

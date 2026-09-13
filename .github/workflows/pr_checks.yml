@@ -8,13 +8,14 @@ on:
 
 jobs:
   check:
+    name: Lint, Test & Build Debug
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -24,7 +25,10 @@ jobs:
           distribution: 'temurin'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
 
       - name: Run Lint
         run: ./gradlew lintDebug
@@ -35,10 +39,18 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
+      - name: Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: medianest-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 7
+
   automerge:
+    name: Auto Merge
     needs: check
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'github-actions[bot]' || contains(github.event.pull_request.labels.*.name, 'automerge') || true
+    if: github.event_name == 'pull_request' && (github.event.pull_request.user.login == 'github-actions[bot]' || contains(github.event.pull_request.labels.*.name, 'automerge'))
     permissions:
       contents: write
       pull-requests: write
@@ -46,5 +58,5 @@ jobs:
       - name: Enable auto-merge for this PR
         run: gh pr merge --auto --merge "$PR_URL"
         env:
-          PR_URL: ${{github.event.pull_request.html_url}}
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
