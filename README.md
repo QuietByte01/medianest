@@ -53,7 +53,7 @@ Explore the detailed documentation to understand the internals of MediaNest.
 | **[Architecture & Design](docs/architecture/architecture.md)** | Hybrid Engine, [Hardware Acceleration Spec](docs/architecture/hardware-acceleration.md), Media Flow, Fault Tolerance. |
 | **[Technical Reference](docs/reference/api-reference.md)** | SDKs & Dependencies, [Local DB Schema](docs/reference/database-schema.md), [FFmpeg Cheat Sheet](docs/reference/ffmpeg-commands.md). |
 | **[User Interface](docs/ui/ui-components.md)** | Glassmorphic Design System, Custom Wavy Seeker, Ambient Surfaces. |
-| **[Guides & Concepts](docs/guides/media-processing-concepts.md)** | Codecs vs. Containers, [FFmpeg Media Studio](docs/guides/media-studio.md), CRF Quality Deep Dive. |
+| **[Guides & Concepts](docs/guides/media-processing-concepts.md)** | Codecs vs. Containers, [FFmpeg Media Studio](docs/guides/media-studio.md), [Ads & Telemetry Setup](docs/guides/MONETIZATION_AND_ANALYTICS_SETUP.md), CRF Quality Deep Dive. |
 
 ---
 

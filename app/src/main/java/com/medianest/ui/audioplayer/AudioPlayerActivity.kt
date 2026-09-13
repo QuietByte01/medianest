@@ -42,6 +42,11 @@ class AudioPlayerActivity : ComponentActivity() {
         // Hide floating overlay while full player is open to avoid double UI
         MiniPlayerOverlayManager.hide()
 
+        MediaNestApp.instance.analyticsService.logScreenView("AudioPlayerScreen")
+        exoPlayerManager.playerState.value.currentItem?.let { item ->
+            MediaNestApp.instance.analyticsService.logMediaPlayback("AUDIO", item.mimeType, item.durationMs)
+        }
+
         setContent {
             val themeMode by settingsManager.theme.collectAsState(initial = "DARK")
 
@@ -49,7 +54,15 @@ class AudioPlayerActivity : ComponentActivity() {
                 AudioPlayerScreen(
                     playerManager = exoPlayerManager,
                     networkRepository = networkRepository,
-                    onClose = { finish() },
+                    onClose = {
+                        val isPlaying = exoPlayerManager.exoPlayer?.isPlaying == true
+                        com.medianest.ads.InterstitialAdHelper.showAdOnExit(
+                            activity = this@AudioPlayerActivity,
+                            isPlaybackActive = { isPlaying }
+                        ) {
+                            finish()
+                        }
+                    },
                     onOpenAlbum = { finish() },
                     onOpenArtist = { finish() },
                     onOpenFolder = { _, _ -> finish() }

@@ -43,6 +43,7 @@ class SettingsManager(private val context: Context) {
         val KEY_SHOW_HIDDEN_FILES = booleanPreferencesKey("show_hidden_files")
         val KEY_HIDDEN_FOLDERS = stringSetPreferencesKey("hidden_folders")
         val KEY_ENABLE_ANALYTICS_TAB = booleanPreferencesKey("enable_analytics_tab")
+        val KEY_ANONYMOUS_ANALYTICS_ENABLED = booleanPreferencesKey("anonymous_analytics_enabled")
         val KEY_ENABLE_TRASH = booleanPreferencesKey("enable_trash")
         val KEY_DEVELOPER_MODE_ENABLED = booleanPreferencesKey("developer_mode_enabled")
         val KEY_VERBOSE_LOGGING_ENABLED = booleanPreferencesKey("verbose_logging_enabled")
@@ -155,6 +156,7 @@ class SettingsManager(private val context: Context) {
     val showHiddenFiles: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_SHOW_HIDDEN_FILES] ?: false }
     val hiddenFolders: Flow<Set<String>> = context.dataStore.data.map { prefs -> prefs[KEY_HIDDEN_FOLDERS] ?: emptySet() }
     val enableAnalyticsTab: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_ENABLE_ANALYTICS_TAB] ?: true }
+    val anonymousAnalyticsEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_ANONYMOUS_ANALYTICS_ENABLED] ?: true }
     val developerModeEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_DEVELOPER_MODE_ENABLED] ?: false }
     val verboseLoggingEnabled: Flow<Boolean> = context.dataStore.data.map { prefs -> (prefs[KEY_DEVELOPER_MODE_ENABLED] ?: false) && (prefs[KEY_VERBOSE_LOGGING_ENABLED] ?: false) }
     val showPlayerDebugInfo: Flow<Boolean> = context.dataStore.data.map { prefs -> (prefs[KEY_DEVELOPER_MODE_ENABLED] ?: false) && (prefs[KEY_SHOW_PLAYER_DEBUG_INFO] ?: false) }
@@ -276,4 +278,5 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setDailySubtitleSearchCount(count: Int) = context.dataStore.edit { it[KEY_DAILY_SUBTITLE_SEARCH_COUNT] = count }
     suspend fun setLastSubtitleSearchDate(date: String) = context.dataStore.edit { it[KEY_LAST_SUBTITLE_SEARCH_DATE] = date }
+    suspend fun setAnonymousAnalyticsEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_ANONYMOUS_ANALYTICS_ENABLED] = enabled }
 }

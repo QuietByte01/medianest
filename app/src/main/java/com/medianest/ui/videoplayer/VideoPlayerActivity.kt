@@ -102,15 +102,28 @@ class VideoPlayerActivity : ComponentActivity() {
                 }
             }
 
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                com.medianest.MediaNestApp.instance.analyticsService.logScreenView("VideoPlayerScreen")
+                playerManager.playerState.value.currentItem?.let { item ->
+                    com.medianest.MediaNestApp.instance.analyticsService.logMediaPlayback("VIDEO", item.mimeType, item.durationMs)
+                }
+            }
+
             MediaNestTheme(themeMode = themeMode) {
                 VideoPlayerScreen(
                     playerManager = playerManager,
                     networkRepository = networkRepository,
                     onClose = {
                         // Always stop playback on explicit close via UI (Back button or Close icon)
+                        val isPlaying = playerManager.exoPlayer?.isPlaying == true
                         playerManager.stop()
                         stopService(Intent(this@VideoPlayerActivity, FloatingPlayerService::class.java))
-                        finish()
+                        com.medianest.ads.InterstitialAdHelper.showAdOnExit(
+                            activity = this@VideoPlayerActivity,
+                            isPlaybackActive = { isPlaying }
+                        ) {
+                            finish()
+                        }
                     },
                     onEnterPip = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

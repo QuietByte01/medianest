@@ -122,6 +122,10 @@ fun LibraryScreen(
         val coroutineScope = rememberCoroutineScope()
         val playerState by exoPlayerManager.playerState.collectAsState()
 
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            com.medianest.MediaNestApp.instance.analyticsService.logScreenView("LibraryScreen")
+        }
+
         // Map tab indices depending on whether Dashboard is enabled
         val isDashboardTab = enableAnalyticsTab && currentTab == 0
         val isImagesTab = if (enableAnalyticsTab) currentTab == 1 else currentTab == 0
@@ -240,7 +244,15 @@ fun LibraryScreen(
                         enter = slideInVertically { it } + fadeIn(),
                         exit = slideOutVertically { it } + fadeOut()
                     ) {
-                        if (isSelectionMode) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            if (!isSelectionMode) {
+                                com.medianest.ads.BannerAdView(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                            if (isSelectionMode) {
                             LibraryBatchActionBar(
                                 isSelectionMode = isSelectionMode,
                                 selectedUris = selectedUris,
@@ -288,6 +300,7 @@ fun LibraryScreen(
                         }
                     }
                 }
+            }
             ) { innerPadding ->
                 Box(
                     modifier = Modifier

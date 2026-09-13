@@ -84,4 +84,14 @@ class SettingsManagerTest {
         val enabled = settingsManager.enableTrash.first()
         assertEquals(true, enabled)
     }
+
+    @Test
+    fun `test anonymous analytics default and toggle`() = runTest {
+        val defaultEnabled = settingsManager.anonymousAnalyticsEnabled.first()
+        assertEquals(true, defaultEnabled)
+
+        settingsManager.setAnonymousAnalyticsEnabled(false)
+        val updatedEnabled = settingsManager.anonymousAnalyticsEnabled.first()
+        assertEquals(false, updatedEnabled)
+    }
 }

@@ -7,6 +7,7 @@ plugins {
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
+  alias(libs.plugins.googleServices)
 }
 
 val ffmpegExtractionDir = layout.buildDirectory.dir("ffmpeg-kit-extracted")
@@ -218,6 +219,10 @@ dependencies {
   implementation(libs.okhttp)
   // implementation(libs.play.services.location)
   implementation(libs.retrofit)
+  implementation(libs.playServicesAds)
+  implementation(platform(libs.firebaseBom))
+  implementation(libs.firebaseAnalytics)
+  implementation(libs.userMessagingPlatform)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)

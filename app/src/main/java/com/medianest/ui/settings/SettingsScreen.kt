@@ -73,6 +73,10 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        com.medianest.MediaNestApp.instance.analyticsService.logScreenView("SettingsScreen")
+    }
+
     val theme by settingsManager.theme.collectAsState(initial = "DARK")
     val gridGapDp by settingsManager.gridGapDp.collectAsState(initial = 8)
     val gridSizeLevel by settingsManager.gridSizeLevel.collectAsState(initial = 1)
@@ -92,6 +96,7 @@ fun SettingsScreen(
     val autoPlayVideoPreviews by settingsManager.autoPlayVideoPreviews.collectAsState(initial = false)
     val autoPlayGifPreviews by settingsManager.autoPlayGifPreviews.collectAsState(initial = false)
     val offlineMode by settingsManager.offlineMode.collectAsState(initial = false)
+    val anonymousAnalyticsEnabled by settingsManager.anonymousAnalyticsEnabled.collectAsState(initial = true)
     val showHiddenFiles by settingsManager.showHiddenFiles.collectAsState(initial = false)
     val decoderMode by settingsManager.decoderMode.collectAsState(initial = "AUTO")
     val useSurfaceView by settingsManager.useSurfaceView.collectAsState(initial = true)
@@ -786,6 +791,19 @@ fun SettingsScreen(
                     }
                 )
 
+                // Anonymous Analytics & Privacy
+                SettingsRowItem(
+                    title = "Telemetry & Analytics",
+                    subtitle = "Collect device specs, playback metrics, and performance data to improve the app",
+                    onClick = { scope.launch { settingsManager.setAnonymousAnalyticsEnabled(!anonymousAnalyticsEnabled) } },
+                    control = {
+                        AppSwitch(
+                            checked = anonymousAnalyticsEnabled,
+                            onCheckedChange = { scope.launch { settingsManager.setAnonymousAnalyticsEnabled(it) } }
+                        )
+                    }
+                )
+
                 // Storage & All Files Access Permission
                 val hasAllFiles = com.medianest.util.PermissionUtils.hasAllFilesAccess()
                 val hasStandard = com.medianest.util.PermissionUtils.hasStandardMediaPermissions(context)
@@ -934,6 +952,13 @@ fun SettingsScreen(
             DeveloperSettingsSection(
                 settingsManager = settingsManager,
                 onDisableDevMode = { versionTapCount = 0 }
+            )
+
+            // Banner Ad at the bottom of Settings
+            com.medianest.ads.BannerAdView(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
             )
 
             // Version info at the bottom

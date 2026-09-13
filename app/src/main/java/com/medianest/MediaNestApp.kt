@@ -22,6 +22,9 @@ class MediaNestApp : Application() {
     lateinit var artistMetadataRepository: com.medianest.data.repository.ArtistMetadataRepository
         private set
 
+    lateinit var analyticsService: com.medianest.analytics.AnalyticsService
+        private set
+
     val exoPlayerManager by lazy { com.medianest.player.ExoPlayerManager.getInstance(this) }
 
     override fun onCreate() {
@@ -34,6 +37,18 @@ class MediaNestApp : Application() {
         database = AppDatabase.getDatabase(this)
         settingsManager = SettingsManager(this)
         artistMetadataRepository = com.medianest.data.repository.ArtistMetadataRepository(this)
+        analyticsService = com.medianest.analytics.FirebaseAnalyticsService(this)
+
+        // Bind anonymous analytics preference to AnalyticsService in real-time
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            settingsManager.anonymousAnalyticsEnabled.collect { enabled ->
+                analyticsService.setAnalyticsEnabled(enabled)
+            }
+        }
+
+        // Initialize AdMob Mobile Ads SDK and pre-load exit interstitial
+        com.medianest.ads.AdManager.initialize(this)
+        com.medianest.ads.InterstitialAdHelper.preloadAd(this)
 
         // Initialize Hardware Memory Config with safe default for fast UI launch
         val hwMemConfig = com.medianest.hardware.AndroidHardwareEngine.getRecommendedMemoryConfig("4GB")
