@@ -87,19 +87,17 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 enum class VisualizerStyle {
-    GLOSSY_SPECTRUM_BARS,
+    // GLOSSY_SPECTRUM_BARS,
     CIRCULAR_RING_WAVE,
     NEON_WAVEFORM,
     BASS_PARTICLE_HALO,
     DOT_MATRIX_BARS,
-    INDIGO_HYPERSPACE,
-    PARTICLE_GLOBE_SPHERE,
-    WAVE_GRID_TERRAIN,
+    // INDIGO_HYPERSPACE,
+    // PARTICLE_GLOBE_SPHERE,
+    // WAVE_GRID_TERRAIN,
     ENERGY_PARTICLES;
 
-    fun is3D(): Boolean = this == INDIGO_HYPERSPACE ||
-            this == PARTICLE_GLOBE_SPHERE ||
-            this == WAVE_GRID_TERRAIN
+    fun is3D(): Boolean = false
 }
 
 class VisualizerDataState(val numBands: Int = 256) {
@@ -371,7 +369,7 @@ private class AudioVisualizer2DView(context: Context) : View(context) {
         canvas.save()
         canvas.translate(left, top)
         when (currentStyle()) {
-            VisualizerStyle.GLOSSY_SPECTRUM_BARS -> drawBars(canvas, size)
+            // VisualizerStyle.GLOSSY_SPECTRUM_BARS -> drawBars(canvas, size)
             VisualizerStyle.CIRCULAR_RING_WAVE -> drawRing(canvas, size)
             VisualizerStyle.NEON_WAVEFORM -> drawWave(canvas, size)
             VisualizerStyle.BASS_PARTICLE_HALO -> drawHalo(canvas, size, dt)
@@ -383,7 +381,7 @@ private class AudioVisualizer2DView(context: Context) : View(context) {
         if (visibility == VISIBLE) postInvalidateOnAnimation()
     }
 
-    private fun currentStyle(): VisualizerStyle = (parent as? AudioVisualizerGLSurfaceView)?.let { it.getTagStyle() } ?: VisualizerStyle.GLOSSY_SPECTRUM_BARS
+    private fun currentStyle(): VisualizerStyle = (parent as? AudioVisualizerGLSurfaceView)?.let { it.getTagStyle() } ?: VisualizerStyle.ENERGY_PARTICLES
 
     private fun rgba(h: Float, s: Float, l: Float, a: Float): Int {
         val c = hslToRgb(h, s, l)
@@ -679,9 +677,9 @@ class AudioVisualizerRenderer(
         GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT or GLES30.GL_DEPTH_BUFFER_BIT); fftByteBuffer.clear(); for(b in bands) fftByteBuffer.put((b.coerceIn(0f,1f)*255f).toInt().toByte()); fftByteBuffer.position(0)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,fftTextureId[0]); GLES30.glTexSubImage2D(GLES30.GL_TEXTURE_2D,0,0,0,256,1,GLES30.GL_RED,GLES30.GL_UNSIGNED_BYTE,fftByteBuffer)
         when(styleProvider()){
-            VisualizerStyle.INDIGO_HYPERSPACE -> drawHyperspace()
-            VisualizerStyle.PARTICLE_GLOBE_SPHERE -> drawOrb()
-            VisualizerStyle.WAVE_GRID_TERRAIN -> drawTerrain()
+            // VisualizerStyle.INDIGO_HYPERSPACE -> drawHyperspace()
+            // VisualizerStyle.PARTICLE_GLOBE_SPHERE -> drawOrb()
+            // VisualizerStyle.WAVE_GRID_TERRAIN -> drawTerrain()
             else -> Unit
         }
     }
@@ -871,7 +869,7 @@ fun AudioVisualizer(
     currentPosMs: Long = 0L,
     trackSeed: Long = 0L,
     albumArtUri: Uri? = null,
-    style: VisualizerStyle = VisualizerStyle.GLOSSY_SPECTRUM_BARS,
+    style: VisualizerStyle = VisualizerStyle.ENERGY_PARTICLES,
     primaryColor: Color = Color(0xFF00E5FF),
     secondaryColor: Color = Color(0xFFD500F9),
     accentColor: Color = Color(0xFFFFD600),
@@ -1108,14 +1106,14 @@ fun StyleSelectorBar(
     modifier: Modifier = Modifier
 ) {
     val styles = listOf(
-        Triple(VisualizerStyle.GLOSSY_SPECTRUM_BARS,  Icons.Default.BarChart, "Bars"),
+        // Triple(VisualizerStyle.GLOSSY_SPECTRUM_BARS,  Icons.Default.BarChart, "Bars"),
         Triple(VisualizerStyle.CIRCULAR_RING_WAVE,    Icons.Default.Lens,     "Ring"),
         Triple(VisualizerStyle.NEON_WAVEFORM,         Icons.Default.Waves,    "Wave"),
         Triple(VisualizerStyle.BASS_PARTICLE_HALO,    Icons.Default.Grain,    "Particles"),
         Triple(VisualizerStyle.DOT_MATRIX_BARS,       Icons.Default.Lens,     "Dots"),
-        Triple(VisualizerStyle.INDIGO_HYPERSPACE,     Icons.Default.Grain,    "Hyperspace"),
-        Triple(VisualizerStyle.PARTICLE_GLOBE_SPHERE, Icons.Default.Lens,     "Globe"),
-        Triple(VisualizerStyle.WAVE_GRID_TERRAIN,     Icons.Default.Waves,    "Terrain"),
+        // Triple(VisualizerStyle.INDIGO_HYPERSPACE,     Icons.Default.Grain,    "Hyperspace"),
+        // Triple(VisualizerStyle.PARTICLE_GLOBE_SPHERE, Icons.Default.Lens,     "Globe"),
+        // Triple(VisualizerStyle.WAVE_GRID_TERRAIN,     Icons.Default.Waves,    "Terrain"),
         Triple(VisualizerStyle.ENERGY_PARTICLES,      Icons.Default.Grain,    "Energy"),
     )
     val selectedIndex = styles.indexOfFirst { it.first == currentStyle }.coerceAtLeast(0)

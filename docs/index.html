@@ -159,8 +159,12 @@
         </div>
 
         <div class="card">
-            <h2>Data Collection & Analytics</h2>
-            <p>MediaNest does not collect any personally identifiable information (PII). Any preferences, playlist data, or app settings are saved locally on your device in secure app-private storage and are erased if you uninstall the application.</p>
+            <h2>Analytics</h2>
+            <p>MediaNest uses <strong>Google Firebase Analytics</strong> to gather anonymous usage statistics, crash logs, and performance metrics. This data helps us improve app stability and optimize playback across various Android devices.</p>
+            <ul>
+                <li><strong>No Personal Information:</strong> Firebase Analytics does not track your personal media files, photos, videos, or personally identifiable data.</li>
+                <li><strong>User Opt-Out:</strong> You can enable or disable Analytics at any time directly in the app under <strong>Settings > Telemetry & Analytics</strong>.</li>
+            </ul>
         </div>
 
         <div class="card">
@@ -176,14 +180,14 @@
         <div class="card">
             <h2>Contact Us</h2>
             <p>If you have any questions, suggestions, or privacy concerns regarding MediaNest, please contact us at:</p>
-            <p><strong>Email:</strong> <span id="email-placeholder">Loading...</span></p>
+            <p><strong>Email:</strong> <span id="email-placeholder"><a href="mailto:quietbyte01@gmail.com">support@medianest.app</a></span></p>
             <script>
                 (function() {
                     var u = "quietbyte01";
                     var d = "gmail.com";
                     var placeholder = document.getElementById("email-placeholder");
                     if (placeholder) {
-                        placeholder.innerHTML = '<a href="mailto:' + u + '@' + d + '">' + u + '@' + d + '</a>';
+                        placeholder.innerHTML = '<a href="mailto:' + u + '@' + d + '">support@medianest.app</a>';
                     }
                 })();
             </script>

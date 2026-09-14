@@ -1,6 +1,8 @@
 @file:kotlin.OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.medianest.ui.settings
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.*
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -801,6 +803,27 @@ fun SettingsScreen(
                         AppSwitch(
                             checked = anonymousAnalyticsEnabled,
                             onCheckedChange = { scope.launch { settingsManager.setAnonymousAnalyticsEnabled(it) } }
+                        )
+                    }
+                )
+
+                // Privacy Policy
+                SettingsRowItem(
+                    title = "Privacy Policy",
+                    subtitle = "View MediaNest privacy policy and data practices",
+                    onClick = {
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://QuietByte01.github.io/medianest/"))
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Unable to open browser", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    control = {
+                        Icon(
+                            imageVector = Icons.Default.OpenInNew,
+                            contentDescription = "Open Privacy Policy",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 )
