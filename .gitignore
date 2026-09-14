@@ -1,20 +1,37 @@
-*.iml
-.gradle
-.kotlin
-/local.properties
-/.idea/
-.DS_Store
+# Build outputs & caches
 build/
 **/build/
+.gradle/
+.kotlin/
+.externalNativeBuild/
+.cxx/
 /captures
-.externalNativeBuild
-.cxx
+
+# IDE & OS Metadata
+*.iml
+/.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment & Local Configurations
+/local.properties
 local.properties
 .env
-debug.keystore
-my-upload-key.jks
 notes/
 .artifacts/
 .tmp/
 *.tmp
 *.hprof
+*.log
+
+# Keystores & Production Binaries
+debug.keystore
+*.jks
+*.keystore
+*.apk
+*.aab
+
+# Binary Archives (allow wrapper jar)
+*.so
+*.aar

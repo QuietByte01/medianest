@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "431523861465",
-    "project_id": "medianest-a9131",
-    "storage_bucket": "medianest-a9131.firebasestorage.app"
+    "project_number": "456201674242",
+    "project_id": "medianest-36850",
+    "storage_bucket": "medianest-36850.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:431523861465:android:527fd63373f3d063e27fc8",
+        "mobilesdk_app_id": "1:456201674242:android:7bd63ab7bc9699f060d11b",
         "android_client_info": {
           "package_name": "com.medianest.app"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBTPjijAmvfVjQQUX0Q5BzC2I_Ep2CjHFs"
+          "current_key": "AIzaSyB_3KTIPbcqeOtX5FADix2U_CU5J7VR4Vw"
         }
       ],
       "services": {
