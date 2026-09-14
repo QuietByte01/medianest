@@ -176,7 +176,17 @@
         <div class="card">
             <h2>Contact Us</h2>
             <p>If you have any questions, suggestions, or privacy concerns regarding MediaNest, please contact us at:</p>
-            <p><strong>Email:</strong> <a href="mailto:support@medianest.app">support@medianest.app</a></p>
+            <p><strong>Email:</strong> <span id="email-placeholder">Loading...</span></p>
+            <script>
+                (function() {
+                    var u = "quietbyte01";
+                    var d = "gmail.com";
+                    var placeholder = document.getElementById("email-placeholder");
+                    if (placeholder) {
+                        placeholder.innerHTML = '<a href="mailto:' + u + '@' + d + '">' + u + '@' + d + '</a>';
+                    }
+                })();
+            </script>
         </div>
 
     </div>
