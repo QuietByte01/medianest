@@ -16,7 +16,7 @@ The application follows a standard modern Android architecture but with a heavil
 2.  **Media Engine**: A hybrid pipeline using **Android Media3 (ExoPlayer)** for standard hardware-supported formats and **Native FFmpeg** for legacy or corrupted media.
 3.  **Hardware Acceleration Engine**: A proprietary subsystem that manages hardware capability detection, zero-copy rendering, and adaptive memory management.
 4.  **Hybrid Image Pipeline**: Uses **Coil** for standard images and a **Gigapixel Tile Renderer** for ultra-high-resolution files (panoramas, RAW exports).
-5.  **Data Layer**: Uses **Room** for metadata caching and **Jetpack DataStore** for settings. It interacts with the **Android MediaStore API** for indexing local files. See the [Local Database Schema](../reference/database-schema.md) for details.
+5.  **Data Layer**: Uses **Room** for metadata caching and **Jetpack DataStore** for settings. It interacts with the **Android MediaStore API** for indexing local files. See the [Local Database Schema](../../notes/reference/database-schema.md) for details.
 
 ---
 
@@ -77,7 +77,7 @@ graph TD
     Oboe --> AudioHW[Audio Hardware]
 ```
 
-For a detailed breakdown of the routing decisions and format support, see the [Media Processing Concepts](../guides/media-processing-concepts.md).
+For a detailed breakdown of the routing decisions and format support, see the [Media Processing Concepts](../../notes/guides/media-processing-concepts.md).
 
 ---
 
@@ -125,4 +125,4 @@ MediaNest is designed to handle unstable or corrupted media gracefully.
 
 ---
 
-For deep technical details on the hardware engine, refer to the [Hardware Acceleration Specification](./hardware-acceleration.md).
+For deep technical details on the hardware engine, refer to the [Hardware Acceleration Specification](hardware-acceleration.md).

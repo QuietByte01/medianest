@@ -13,7 +13,7 @@ local.properties
 .env
 debug.keystore
 my-upload-key.jks
-docs/
+notes/
 .artifacts/
 .tmp/
 *.tmp

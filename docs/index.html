@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaNest - Privacy Policy</title>
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --background-color: #0f172a;
+            --card-background: #1e293b;
+            --text-color: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-color: #818cf8;
+            --border-color: #334155;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            padding: 3rem 1.5rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 800;
+        }
+
+        .header p {
+            margin-top: 0.5rem;
+            font-size: 1.1rem;
+            color: #e0e7ff;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+        }
+
+        .card {
+            background-color: var(--card-background);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            color: var(--accent-color);
+            font-size: 1.5rem;
+            margin-top: 0;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        h3 {
+            color: var(--text-color);
+            font-size: 1.1rem;
+            margin-top: 1.5rem;
+        }
+
+        p, li {
+            color: var(--text-muted);
+            font-size: 1rem;
+        }
+
+        ul {
+            padding-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        .highlight {
+            background-color: rgba(99, 102, 241, 0.15);
+            border-left: 4px solid var(--primary-color);
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 1rem 0;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>MediaNest</h1>
+        <p>Privacy Policy & Data Transparency</p>
+    </div>
+
+    <div class="container">
+
+        <div class="card">
+            <h2>Overview</h2>
+            <p><strong>Effective Date:</strong> September 14, 2026</p>
+            <p>Welcome to <strong>MediaNest</strong>. Your privacy is our top priority. MediaNest is designed as a privacy-first, local-first media player and manager. We believe your personal media—your photos, videos, and music—should remain private and under your complete control.</p>
+
+            <div class="highlight">
+                <p><strong>Summary:</strong> MediaNest operates entirely on your device. We do NOT collect, upload, sell, or share your personal files, photos, videos, audio recordings, or personal data to any external server or third party.</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Device Permissions & Usage</h2>
+            <p>To provide advanced media playback, floating picture-in-picture, and hidden folder scanning, MediaNest requests the following device permissions:</p>
+
+            <h3>1. Media & Storage Access (`MANAGE_EXTERNAL_STORAGE` / `READ_MEDIA_*`)</h3>
+            <ul>
+                <li><strong>Purpose:</strong> Used to scan, index, organize, and play your local photos, videos, and audio files.</li>
+                <li><strong>Hidden Folder Support:</strong> Full Storage Access (`MANAGE_EXTERNAL_STORAGE`) is required specifically to scan and display hidden media stored in `.nomedia` directories or private vault folders (e.g. `.vault`, `.private`) which are excluded by standard system media queries.</li>
+                <li><strong>Data Handling:</strong> All file scanning and playback occurs strictly on your device. No file content is ever transmitted over the internet.</li>
+            </ul>
+
+            <h3>2. Audio Recording / Microphone (`RECORD_AUDIO`)</h3>
+            <ul>
+                <li><strong>Purpose:</strong> Used exclusively to render real-time audio visualizer effects and equalizer frequency spectrums during music playback.</li>
+                <li><strong>Data Handling:</strong> Audio input is processed transiently in device memory only. No audio is ever recorded, stored, or transmitted.</li>
+            </ul>
+
+            <h3>3. Foreground Service (`FOREGROUND_SERVICE_MEDIA_PLAYBACK`)</h3>
+            <ul>
+                <li><strong>Purpose:</strong> Ensures uninterrupted background audio playback and supports floating video playback (Picture-in-Picture) when switching between apps or when the screen is turned off.</li>
+            </ul>
+
+            <h3>4. Bluetooth & System Notifications</h3>
+            <ul>
+                <li><strong>Bluetooth (`BLUETOOTH_CONNECT`):</strong> Used to detect connected wireless headphones or Bluetooth audio devices for media routing.</li>
+                <li><strong>Notifications (`POST_NOTIFICATIONS`):</strong> Displays playback controls (play, pause, skip, album art) in the device notification shade and lock screen.</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>Data Collection & Analytics</h2>
+            <p>MediaNest does not collect any personally identifiable information (PII). Any preferences, playlist data, or app settings are saved locally on your device in secure app-private storage and are erased if you uninstall the application.</p>
+        </div>
+
+        <div class="card">
+            <h2>Children's Privacy</h2>
+            <p>MediaNest does not knowingly collect or solicit personal information from children under the age of 13. The app is a local utility designed for general audiences.</p>
+        </div>
+
+        <div class="card">
+            <h2>Changes to This Policy</h2>
+            <p>We may update our Privacy Policy from time to time. Any changes will be posted on this page with an updated effective date.</p>
+        </div>
+
+        <div class="card">
+            <h2>Contact Us</h2>
+            <p>If you have any questions, suggestions, or privacy concerns regarding MediaNest, please contact us at:</p>
+            <p><strong>Email:</strong> <a href="mailto:support@medianest.app">support@medianest.app</a></p>
+        </div>
+
+    </div>
+
+    <div class="footer">
+        &copy; 2026 MediaNest. All rights reserved.
+    </div>
+
+</body>
+</html>
