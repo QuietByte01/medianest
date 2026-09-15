@@ -1,6 +1,0 @@
-- `[x]` Polish Subtitle Search buttons in `VideoPlayerPanels.kt`
-- `[x]` Polish Audio Sync buttons in `VideoPlayerPanels.kt`
-- `[x]` Implement `FilmGrainOverlay` (Initial version) in `VideoPlayerScreen.kt`
-- `[x]` Ensure independent background play logic in `MainActivity.kt` and `VideoPlayerActivity.kt`
-- `[x]` Fix Aspect Ratio HUD feedback in `VideoPlayerScreen.kt`
-- `[/]` Optimize `FilmGrainOverlay` with hardware-accelerated noise texture shader
