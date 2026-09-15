@@ -100,9 +100,6 @@ medianest/
 │   │       └── AndroidManifest.xml
 │   └── build.gradle.kts
 ├── docs/                        # Hosted GitHub Pages site & Play Store documentation
-│   ├── index.html               # Privacy Policy
-│   ├── PLAY_STORE_PUBLISHING_GUIDE.md
-│   └── ASSETS_SETUP.md
 ├── build.gradle.kts
 └── settings.gradle.kts
 ```

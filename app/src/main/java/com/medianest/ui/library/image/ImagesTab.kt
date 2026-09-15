@@ -203,6 +203,27 @@ fun ImagesTab(
     var sortedFolderNames by remember { mutableStateOf<List<String>>(emptyList()) }
     var visibleFolders by remember { mutableStateOf<List<String>>(emptyList()) }
 
+    LaunchedEffect(showHiddenSetting, visibleFolders, folderStatusMap, allHiddenImageFolders) {
+        if (!showHiddenSetting) {
+            if (activeFilterTab in listOf("HIDDEN", "EXCLUDED")) {
+                activeFilterTab = "ALL"
+                selectedFolder = null
+            } else if (selectedFolder != null) {
+                val status = folderStatusMap[selectedFolder]
+                val isEx = status?.first == true
+                val isSysH = status?.second == true
+                val normSel = selectedFolder!!.trim('/').lowercase()
+                val fName = normSel.substringAfterLast('/')
+                val isAppHidden = normSel in allHiddenImageFolders || fName in allHiddenImageFolders
+                val isDotFolder = normSel.split('/').any { it.startsWith(".") && it.length > 1 } || fName.startsWith(".")
+
+                if (isEx || isSysH || isAppHidden || isDotFolder || selectedFolder !in visibleFolders) {
+                    selectedFolder = null
+                }
+            }
+        }
+    }
+
     LaunchedEffect(imagesList, showHiddenSetting, viewMode, activeFilterTab, selectedFolder, allHiddenImageFolders, sortField, isAscending, searchQuery) {
         withContext(Dispatchers.Default) {
             val groups = if (viewMode != 1 && activeFilterTab != "FOLDERS" && activeFilterTab != "HIDDEN" && activeFilterTab != "EXCLUDED" && selectedFolder == null) {

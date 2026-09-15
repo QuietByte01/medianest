@@ -165,18 +165,31 @@ fun FoldersGrid(
                     it.equals(target, ignoreCase = true) ||
                     it.lowercase().endsWith(target.lowercase()) ||
                     target.lowercase().endsWith(it.lowercase())
-                } ?: target
+                } ?: if (showHiddenSetting) target else null
             } ?: visibleFolderNames.firstOrNull()
         )
     }
 
-    LaunchedEffect(initialSelectedFolder) {
+    LaunchedEffect(initialSelectedFolder, visibleFolderNames, showHiddenSetting) {
         if (!initialSelectedFolder.isNullOrBlank()) {
             selectedFolder = visibleFolderNames.firstOrNull { 
                 it.equals(initialSelectedFolder, ignoreCase = true) ||
                 it.lowercase().endsWith(initialSelectedFolder.lowercase()) ||
                 initialSelectedFolder.lowercase().endsWith(it.lowercase())
-            } ?: initialSelectedFolder
+            } ?: if (showHiddenSetting) initialSelectedFolder else null
+        }
+    }
+
+    LaunchedEffect(showHiddenSetting, visibleFolderNames) {
+        if (!showHiddenSetting && selectedFolder != null) {
+            val isPresent = visibleFolderNames.any { fn ->
+                fn.equals(selectedFolder, ignoreCase = true) ||
+                fn.lowercase().endsWith(selectedFolder!!.lowercase()) ||
+                selectedFolder!!.lowercase().endsWith(fn.lowercase())
+            }
+            if (!isPresent) {
+                selectedFolder = null
+            }
         }
     }
 

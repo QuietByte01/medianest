@@ -1,21 +1,44 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# ProGuard & R8 Rules for MediaNest Release Builds
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Automatically strip verbose, debug, and info logs in Release builds
+-assumenosideeffects class android.util.Log {
+    public static *** v(...);
+    public static *** d(...);
+    public static *** i(...);
+}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Preserve line numbers and source file attributes for Crashlytics/Stacktrace de-obfuscation
+-keepattributes SourceFile,LineNumberTable,InnerClasses,EnclosingMethod,Signature,*Annotation*
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Retain C++ JNI native method names
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+
+# Keep MediaNest data models, Room entities, DataStore, and ViewModels
+-keep class com.medianest.data.db.** { *; }
+-keep class com.medianest.data.model.** { *; }
+-keep class com.medianest.data.settings.** { *; }
+-keep class com.medianest.ui.** { *; }
+-keepclassmembers class com.medianest.** { *; }
+
+# Room Database rules
+-keep class * extends androidx.room.RoomDatabase
+-dontwarn androidx.room.paging.**
+
+# Media3 & ExoPlayer rules
+-keep class androidx.media3.** { *; }
+-keepclassmembers class androidx.media3.** { *; }
+-dontwarn androidx.media3.**
+
+# Haze, Coil, Moshi, Retrofit
+-keep class dev.chrisbanes.haze.** { *; }
+-keep class io.coilkt.** { *; }
+-keep class com.squareup.moshi.** { *; }
+-keep class com.squareup.retrofit2.** { *; }
+
+# Firebase & AdMob
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
+-dontwarn com.google.firebase.**
+-dontwarn com.google.android.gms.**

@@ -91,6 +91,30 @@ fun AudioTab(
         }
         viewModel.updateAudioFilter(tabId)
     }
+
+    val appHiddenFolders by settingsManager.hiddenFolders.collectAsState(initial = emptySet())
+
+    LaunchedEffect(showHiddenSetting, targetFolder, appHiddenFolders) {
+        if (!showHiddenSetting) {
+            if (subTabState == 7 || subTabState == 8) {
+                subTabState = 0
+                targetFolder = null
+            } else if (targetFolder != null) {
+                val normSel = targetFolder!!.trim('/').lowercase()
+                val fName = normSel.substringAfterLast('/')
+                val isEx = FolderHiddenUtils.isFolderExcludedByDefault(targetFolder, fName) ||
+                        normSel in appHiddenFolders ||
+                        fName in appHiddenFolders ||
+                        appHiddenFolders.any { hf -> normSel == hf.lowercase() || normSel.startsWith("${hf.lowercase()}/") || normSel.contains("/${hf.lowercase()}/") }
+
+                val isSysH = normSel.split('/').any { it.startsWith(".") && it.length > 1 } || fName.startsWith(".")
+
+                if (isEx || isSysH) {
+                    targetFolder = null
+                }
+            }
+        }
+    }
     
     val (isSortVisible, nestedScrollConnection) = rememberSortRevealConnection()
     val scope = rememberCoroutineScope()
@@ -137,7 +161,6 @@ fun AudioTab(
     val cachedMetadataList by db.metadataCacheDao().getAllCacheFlow().collectAsState(initial = emptyList<com.medianest.data.db.AudioMetadataCache>())
     val cacheMap = remember(cachedMetadataList) { cachedMetadataList.associateBy { it.audioUri } }
 
-    val appHiddenFolders by settingsManager.hiddenFolders.collectAsState(initial = emptySet())
     var effectiveAudioList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
 
     LaunchedEffect(audioList, cacheMap, sortField, isAscending, subTabState, showHiddenSetting, searchQuery, appHiddenFolders) {

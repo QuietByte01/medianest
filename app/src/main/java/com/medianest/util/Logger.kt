@@ -1,6 +1,7 @@
 package com.medianest.util
 
 import android.util.Log
+import com.medianest.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +27,7 @@ object Logger {
     private val groupDateFormat = SimpleDateFormat("dd-MMM-yyyy", Locale.US)
     private const val MAX_LOGS = 500
 
+    @Synchronized
     private fun addLog(tag: String, msg: String, level: LogLevel) {
         val now = Date()
         val entry = LogEntry(
@@ -44,17 +46,23 @@ object Logger {
     }
 
     fun v(tag: String, msg: String, throwable: Throwable? = null) {
-        Log.v("MediaNest_$tag", msg, throwable)
+        if (BuildConfig.DEBUG) {
+            Log.v("MediaNest_$tag", msg, throwable)
+        }
         addLog(tag, "$msg ${throwable?.message ?: ""}", LogLevel.DEBUG)
     }
 
     fun d(tag: String, msg: String, throwable: Throwable? = null) {
-        Log.d("MediaNest_$tag", msg, throwable)
+        if (BuildConfig.DEBUG) {
+            Log.d("MediaNest_$tag", msg, throwable)
+        }
         addLog(tag, "$msg ${throwable?.message ?: ""}", LogLevel.DEBUG)
     }
 
     fun i(tag: String, msg: String, throwable: Throwable? = null) {
-        Log.i("MediaNest_$tag", msg, throwable)
+        if (BuildConfig.DEBUG) {
+            Log.i("MediaNest_$tag", msg, throwable)
+        }
         addLog(tag, "$msg ${throwable?.message ?: ""}", LogLevel.INFO)
     }
 

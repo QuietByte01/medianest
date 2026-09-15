@@ -114,6 +114,7 @@ androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterfa
 playServicesAds = { group = "com.google.android.gms", name = "play-services-ads", version.ref = "playServicesAds" }
 firebaseBom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebaseAnalytics = { group = "com.google.firebase", name = "firebase-analytics" }
+firebaseCrashlytics = { group = "com.google.firebase", name = "firebase-crashlytics" }
 userMessagingPlatform = { group = "com.google.android.ump", name = "user-messaging-platform", version.ref = "userMessagingPlatform" }
 
 [plugins]
@@ -123,3 +124,4 @@ google-devtools-ksp = { id = "com.google.devtools.ksp", version.ref = "googleDev
 roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
 secrets = { id = "com.google.android.libraries.mapsplatform.secrets-gradle-plugin", version.ref = "secretsGradlePlugin" }
 googleServices = { id = "com.google.gms.google-services", version = "4.5.0" }
+firebaseCrashlytics = { id = "com.google.firebase.crashlytics", version = "3.0.3" }
