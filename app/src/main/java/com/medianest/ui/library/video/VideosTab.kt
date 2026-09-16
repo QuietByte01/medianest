@@ -247,31 +247,23 @@ fun VideosTab(
 
     val videoFolderGroups by viewModel.videoFolderGroups.collectAsState()
 
-    LaunchedEffect(showHiddenSetting, videoFolderGroups, appHiddenFolders) {
-        if (!showHiddenSetting) {
-            if (activeFilterTab in listOf("HIDDEN", "EXCLUDED")) {
-                activeFilterTab = "ALL"
-                isFolderViewActive = false
+    LaunchedEffect(videoFolderGroups, appHiddenFolders) {
+        if (activeFilterTab == "HIDDEN") {
+            activeFilterTab = "ALL"
+            isFolderViewActive = false
+            selectedFolder = null
+        } else if (selectedFolder != null) {
+            val folderItems = videoFolderGroups[selectedFolder]
+            val normSel = selectedFolder!!.trim('/').lowercase()
+            val fName = normSel.substringAfterLast('/')
+            val isEx = FolderHiddenUtils.isFolderExcludedByDefault(selectedFolder, fName) ||
+                    normSel in appHiddenFolders ||
+                    fName in appHiddenFolders ||
+                    appHiddenFolders.any { hf -> normSel == hf.lowercase() || normSel.startsWith("${hf.lowercase()}/") || normSel.contains("/${hf.lowercase()}/") } ||
+                    (folderItems?.firstOrNull()?.let { FolderHiddenUtils.isItemExcluded(it, appHiddenFolders) } == true)
+
+            if (isEx && activeFilterTab != "EXCLUDED") {
                 selectedFolder = null
-            } else if (selectedFolder != null) {
-                val folderItems = videoFolderGroups[selectedFolder]
-                val normSel = selectedFolder!!.trim('/').lowercase()
-                val fName = normSel.substringAfterLast('/')
-                val isEx = FolderHiddenUtils.isFolderExcludedByDefault(selectedFolder, fName) ||
-                        normSel in appHiddenFolders ||
-                        fName in appHiddenFolders ||
-                        appHiddenFolders.any { hf -> normSel == hf.lowercase() || normSel.startsWith("${hf.lowercase()}/") || normSel.contains("/${hf.lowercase()}/") } ||
-                        (folderItems?.firstOrNull()?.let { FolderHiddenUtils.isItemExcluded(it, appHiddenFolders) } == true)
-
-                val isSysH = if (isEx) false else {
-                    (folderItems?.firstOrNull()?.let { FolderHiddenUtils.isItemHidden(it) } == true) ||
-                    normSel.split('/').any { it.startsWith(".") && it.length > 1 } ||
-                    fName.startsWith(".")
-                }
-
-                if (isEx || isSysH) {
-                    selectedFolder = null
-                }
             }
         }
     }

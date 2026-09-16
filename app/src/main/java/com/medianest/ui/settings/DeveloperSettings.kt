@@ -45,7 +45,6 @@ import kotlinx.coroutines.launch
 fun DeveloperSettingsSection(
     settingsManager: SettingsManager,
     onDisableDevMode: () -> Unit,
-    onOpenPlayStoreScreenshots: () -> Unit = {},
     backdropState: BackdropBlurState? = null
 ) {
     val context = LocalContext.current
@@ -177,6 +176,7 @@ fun DeveloperSettingsSection(
         }
 
         SettingsGlassCard(title = "DEVELOPER TOOLS", backdropState = backdropState) {
+            /*
             SettingsRowItem(
                 title = "Play Store Screenshot Generator",
                 subtitle = "Preview & export 9:16 store listing graphics with device frames & headlines",
@@ -192,6 +192,7 @@ fun DeveloperSettingsSection(
                     }
                 }
             )
+            */
 
             SettingsRowItem(
                 title = "In-App Log Viewer",

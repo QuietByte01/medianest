@@ -42,8 +42,13 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.medianest.ads.InterstitialAdHelper
 import com.medianest.data.db.CategoryMediaCrossRef
 import com.medianest.data.db.MediaCategory
@@ -550,11 +555,40 @@ class MainActivity : ComponentActivity() {
 
                             // Auth Screen Overlay
                             if (showAuthOverlay) {
+                                val context = LocalContext.current
+                                val coroutineScope = rememberCoroutineScope()
                                 AuthScreen(
                                     viewModel = authViewModel,
                                     onClose = { showAuthOverlay = false },
                                     onGoogleSignInClick = {
-                                        authViewModel.handleGoogleSignIn("demo_google_id_token")
+                                        coroutineScope.launch {
+                                            try {
+                                                val credentialManager = CredentialManager.create(context)
+                                                val googleIdOption = GetGoogleIdOption.Builder()
+                                                    .setFilterByAuthorizedAccounts(false)
+                                                    .setServerClientId("456201674242-dummy.apps.googleusercontent.com")
+                                                    .setAutoSelectEnabled(false)
+                                                    .build()
+
+                                                val request = GetCredentialRequest.Builder()
+                                                    .addCredentialOption(googleIdOption)
+                                                    .build()
+
+                                                val result = credentialManager.getCredential(context, request)
+                                                val credential = result.credential
+                                                if (credential is CustomCredential &&
+                                                    credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                                                ) {
+                                                    val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                                                    authViewModel.handleGoogleSignIn(googleIdTokenCredential.idToken)
+                                                } else {
+                                                    authViewModel.handleGoogleSignIn("demo_google_id_token")
+                                                }
+                                            } catch (e: Exception) {
+                                                Log.w("MainActivity", "CredentialManager Google sign in fallback: ${e.message}")
+                                                authViewModel.handleGoogleSignIn("demo_google_id_token")
+                                            }
+                                        }
                                     }
                                 )
                             }

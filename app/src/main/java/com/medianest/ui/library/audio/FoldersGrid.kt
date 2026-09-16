@@ -148,12 +148,12 @@ fun FoldersGrid(
         baseSorted.sortedBy { fn -> isFolderHidden(fn) && !showAllFoldersMode && !isHiddenFeed && !isExcludedFeed }
     }
 
-    val visibleFolderNames = remember(sortedFolderNames, folderStatusMap, isExcludedFeed, isHiddenFeed, showHiddenSetting) {
+    val visibleFolderNames = remember(sortedFolderNames, folderStatusMap, isExcludedFeed, isHiddenFeed) {
         when {
             isExcludedFeed -> sortedFolderNames.filter { fn -> isFolderExcluded(fn) }
-            isHiddenFeed -> sortedFolderNames.filter { fn -> isFolderSystemHidden(fn) }
+            /* isHiddenFeed -> sortedFolderNames.filter { fn -> isFolderSystemHidden(fn) } */
             else -> sortedFolderNames.filter { fn ->
-                !isFolderExcluded(fn) && (showHiddenSetting || !isFolderSystemHidden(fn))
+                !isFolderExcluded(fn)
             }
         }
     }

@@ -389,19 +389,18 @@ fun ImagesTab(
                 var isFilterProcessing by remember { mutableStateOf(false) }
                 var displayList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
 
-                LaunchedEffect(imagesList, activeFilterTab, favoriteUris, showHiddenSetting, searchQuery, appHiddenFolders) {
+                LaunchedEffect(imagesList, activeFilterTab, favoriteUris, searchQuery, appHiddenFolders) {
                     isFilterProcessing = true
                     val result = withContext(Dispatchers.Default) {
                         val baseList = when (activeFilterTab) {
                             "EXCLUDED" -> imagesList.filter { FolderHiddenUtils.isItemExcluded(it, appHiddenFolders) }
-                            "HIDDEN" -> imagesList.filter { FolderHiddenUtils.isItemHidden(it) && !FolderHiddenUtils.isItemExcluded(it, appHiddenFolders) }
+                            /* "HIDDEN" -> imagesList.filter { FolderHiddenUtils.isItemHidden(it) && !FolderHiddenUtils.isItemExcluded(it, appHiddenFolders) } */
                             else -> imagesList.filter { item ->
-                                !FolderHiddenUtils.isItemExcluded(item, appHiddenFolders) &&
-                                (showHiddenSetting || !FolderHiddenUtils.isItemHidden(item))
+                                !FolderHiddenUtils.isItemExcluded(item, appHiddenFolders)
                             }
                         }
 
-                        val tabFiltered = if (activeFilterTab == "ALL" || activeFilterTab == "EXCLUDED" || activeFilterTab == "HIDDEN") {
+                        val tabFiltered = if (activeFilterTab == "ALL" || activeFilterTab == "EXCLUDED") {
                             baseList
                         } else {
                             filterImageList(baseList, activeFilterTab, favoriteUris)

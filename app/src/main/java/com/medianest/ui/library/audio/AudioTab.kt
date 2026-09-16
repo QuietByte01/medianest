@@ -94,24 +94,20 @@ fun AudioTab(
 
     val appHiddenFolders by settingsManager.hiddenFolders.collectAsState(initial = emptySet())
 
-    LaunchedEffect(showHiddenSetting, targetFolder, appHiddenFolders) {
-        if (!showHiddenSetting) {
-            if (subTabState == 7 || subTabState == 8) {
-                subTabState = 0
+    LaunchedEffect(targetFolder, appHiddenFolders) {
+        if (subTabState == 8) {
+            subTabState = 0
+            targetFolder = null
+        } else if (targetFolder != null) {
+            val normSel = targetFolder!!.trim('/').lowercase()
+            val fName = normSel.substringAfterLast('/')
+            val isEx = FolderHiddenUtils.isFolderExcludedByDefault(targetFolder, fName) ||
+                    normSel in appHiddenFolders ||
+                    fName in appHiddenFolders ||
+                    appHiddenFolders.any { hf -> normSel == hf.lowercase() || normSel.startsWith("${hf.lowercase()}/") || normSel.contains("/${hf.lowercase()}/") }
+
+            if (isEx && subTabState != 7) {
                 targetFolder = null
-            } else if (targetFolder != null) {
-                val normSel = targetFolder!!.trim('/').lowercase()
-                val fName = normSel.substringAfterLast('/')
-                val isEx = FolderHiddenUtils.isFolderExcludedByDefault(targetFolder, fName) ||
-                        normSel in appHiddenFolders ||
-                        fName in appHiddenFolders ||
-                        appHiddenFolders.any { hf -> normSel == hf.lowercase() || normSel.startsWith("${hf.lowercase()}/") || normSel.contains("/${hf.lowercase()}/") }
-
-                val isSysH = normSel.split('/').any { it.startsWith(".") && it.length > 1 } || fName.startsWith(".")
-
-                if (isEx || isSysH) {
-                    targetFolder = null
-                }
             }
         }
     }
@@ -273,7 +269,7 @@ fun AudioTab(
 
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
 
-    val subTabs = remember(showHiddenSetting) {
+    val subTabs = remember {
         val base = mutableListOf(
             SubTabInfo(0, "All Songs", Icons.Default.MusicNote),
             SubTabInfo(3, "Albums", Icons.Default.Album),
@@ -281,12 +277,10 @@ fun AudioTab(
             SubTabInfo(5, "Folders", Icons.Default.Folder),
             SubTabInfo(6, "Playlists", Icons.Default.QueueMusic),
             SubTabInfo(1, "Recent", Icons.Default.Schedule),
-            SubTabInfo(2, "Most Played", Icons.Default.LocalFireDepartment)
+            SubTabInfo(2, "Most Played", Icons.Default.LocalFireDepartment),
+            SubTabInfo(7, "Excluded", Icons.Default.VisibilityOff)
+            /* SubTabInfo(8, "Hidden Folders", Icons.Default.FolderZip) */
         )
-        if (showHiddenSetting) {
-            base.add(SubTabInfo(7, "Excluded", Icons.Default.VisibilityOff))
-            base.add(SubTabInfo(8, "Hidden Folders", Icons.Default.FolderZip))
-        }
         base
     }
 
@@ -301,7 +295,7 @@ fun AudioTab(
                 5 -> true
                 6 -> true
                 7 -> audioList.any { it.isExcluded } || subTabState == 7
-                8 -> audioList.any { it.isHidden && !it.isExcluded } || subTabState == 8
+                /* 8 -> audioList.any { it.isHidden && !it.isExcluded } || subTabState == 8 */
                 else -> true
             }
         }
