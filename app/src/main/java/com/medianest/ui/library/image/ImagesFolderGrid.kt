@@ -66,7 +66,6 @@ fun ImagesFolderGrid(
         ) {
             Text(
                 text = if (isFolderSelectionActive) "${selectedFolderNames.size} Folders Selected" 
-                       else if (activeFilterTab == "HIDDEN") "Hidden Folders (${visibleFolders.size})" 
                        else if (activeFilterTab == "EXCLUDED") "Excluded Folders (${visibleFolders.size})"
                        else "All Folders (${folderGroups.size})",
                 fontWeight = FontWeight.SemiBold,
@@ -75,6 +74,7 @@ fun ImagesFolderGrid(
             )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                /*
                 if (activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED") {
                     com.medianest.ui.components.RescanHiddenMediaButton(
                         isScanning = isScanningHidden,
@@ -82,6 +82,7 @@ fun ImagesFolderGrid(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                 }
+                */
 
                 if (isFolderSelectionActive) {
                     TextButton(onClick = {

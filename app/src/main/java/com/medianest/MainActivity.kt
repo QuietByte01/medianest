@@ -43,6 +43,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.medianest.ads.InterstitialAdHelper
 import com.medianest.data.db.CategoryMediaCrossRef
 import com.medianest.data.db.MediaCategory
@@ -51,7 +52,10 @@ import com.medianest.data.model.MediaItem
 import com.medianest.data.repository.MediaStoreRepository
 import com.medianest.player.ExoPlayerManager
 import com.medianest.ui.audioplayer.AudioPlayerScreen
+import com.medianest.ui.auth.AuthScreen
+import com.medianest.ui.auth.AuthViewModel
 import com.medianest.ui.components.AppLockDialog
+import com.medianest.ui.components.MandatoryPermissionsDialog
 import com.medianest.ui.components.backdropSource
 import com.medianest.ui.components.rememberBackdropBlurState
 import com.medianest.ui.library.LibraryScreen
@@ -83,12 +87,15 @@ class MainActivity : ComponentActivity() {
     private val targetVideoFolder = MutableStateFlow<String?>(null)
     private val targetImageFolder = MutableStateFlow<String?>(null)
     private val targetMediaItemUri = MutableStateFlow<String?>(null)
+    private val mandatoryPermissionsGranted = MutableStateFlow(false)
 
     override fun onResume() {
         super.onResume()
         val controller = WindowInsetsControllerCompat(window, window.decorView)
         controller.hide(WindowInsetsCompat.Type.statusBars())
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
+        mandatoryPermissionsGranted.value = PermissionUtils.hasAllMandatoryPermissions(this)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -116,7 +123,10 @@ class MainActivity : ComponentActivity() {
         controller.hide(WindowInsetsCompat.Type.statusBars())
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
-        requestMediaPermissions()
+        mandatoryPermissionsGranted.value = PermissionUtils.hasAllMandatoryPermissions(this)
+        if (!mandatoryPermissionsGranted.value) {
+            requestMediaPermissions()
+        }
 
         val hostActivity: Activity = this
         // Preload full-screen exit ad
@@ -126,6 +136,10 @@ class MainActivity : ComponentActivity() {
         val settingsManager = MediaNestApp.instance.settingsManager
 
         setContent {
+            val isPermissionsGranted by mandatoryPermissionsGranted.collectAsState()
+            val currentPermissions = remember(isPermissionsGranted) {
+                PermissionUtils.getRequiredPermissions(applicationContext)
+            }
             val themeMode by settingsManager.theme.collectAsState(initial = "DARK")
 
             MediaNestTheme(themeMode = themeMode) {
@@ -133,6 +147,13 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
+                    if (!isPermissionsGranted) {
+                        MandatoryPermissionsDialog(
+                            permissions = currentPermissions,
+                            onReattempt = { requestMediaPermissions() },
+                            onCloseApp = { finishAndRemoveTask() }
+                        )
+                    } else {
                     val autoPlayVideoPreviews by settingsManager.autoPlayVideoPreviews.collectAsState(initial = true)
                     val autoPlayGifPreviews by settingsManager.autoPlayGifPreviews.collectAsState(initial = true)
 
@@ -183,6 +204,9 @@ class MainActivity : ComponentActivity() {
 
                     var isUnlocked by remember { mutableStateOf(!appLockEnabled) }
                     var currentScreen by rememberSaveable { mutableStateOf("LIBRARY") } // LIBRARY, SETTINGS, AUDIO_PLAYER
+
+                    val authViewModel: AuthViewModel = viewModel(factory = AuthViewModel.Factory(this))
+                    var showAuthOverlay by remember { mutableStateOf(false) }
 
                     LaunchedEffect(currentScreen) {
                         Logger.i("MainActivity", "Screen changed to: $currentScreen")
@@ -251,32 +275,30 @@ class MainActivity : ComponentActivity() {
                             if (imagesList.isEmpty() && videosList.isEmpty() && audioList.isEmpty()) {
                                 isScanLoading = true
                             }
-                            val msImages = mediaStoreRepository.getImages(imageHiddenPaths, showHidden = true, includeFileSystemScan = false)
-                            val msVideos = mediaStoreRepository.getVideos(videoHiddenPaths, showHidden = true, includeFileSystemScan = false)
-                            val msAudio = mediaStoreRepository.getAudio(audioHiddenPaths, showHidden = true, includeFileSystemScan = false)
+                            val msImages = mediaStoreRepository.getImages(imageHiddenPaths, showHidden = false, includeFileSystemScan = false)
+                            val msVideos = mediaStoreRepository.getVideos(videoHiddenPaths, showHidden = false, includeFileSystemScan = false)
+                            val msAudio = mediaStoreRepository.getAudio(audioHiddenPaths, showHidden = false, includeFileSystemScan = false)
 
-                            // Seamlessly merge without dropping previously scanned hidden files, while pruning deleted/renamed paths
-                            imagesList = (imagesList.filter { it.isHidden && (it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists())) } + msImages).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}_${it.bucketName}" else it.id.toString() }
-                            videosList = (videosList.filter { it.isHidden && (it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists())) } + msVideos).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}_${it.bucketName}" else it.id.toString() }
-                            audioList = (audioList.filter { it.isHidden && (it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists())) } + msAudio).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}_${it.bucketName}" else it.id.toString() }
+                            imagesList = msImages
+                            videosList = msVideos
+                            audioList = msAudio
                             isScanLoading = false
                             
                             Logger.i("MainActivity", "MediaStore Load DONE: imgs=${imagesList.size}, vids=${videosList.size}, audio=${audioList.size}")
 
-                            // 2. Background filesystem scan for hidden & excluded folders (only show full spinner if nothing in memory)
+                            /*
+                            // Hidden filesystem scanning commented out as All Files Access is disabled for Play Store compliance
                             val hasHiddenInMemory = imagesList.any { it.isHidden } || videosList.any { it.isHidden } || audioList.any { it.isHidden }
                             if (!hasHiddenInMemory) {
                                 isScanningHidden = true
                             }
-                            Logger.i("MainActivity", "Hidden File Scan STARTING...")
                             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                kotlinx.coroutines.delay(100) // Yield to allow initial compose of categories and filters
+                                kotlinx.coroutines.delay(100)
                                 val hiddenImages = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.IMAGE, imageHiddenPaths).filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) }
                                 val hiddenVideos = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.VIDEO, videoHiddenPaths).filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) }
                                 val hiddenAudio = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.AUDIO, audioHiddenPaths).filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) }
 
                                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                    Logger.i("MainActivity", "Hidden File Scan COMPLETE: imgs=${hiddenImages.size}, vids=${hiddenVideos.size}, audio=${hiddenAudio.size}")
                                     if (hiddenImages.isNotEmpty()) {
                                         imagesList = (imagesList.filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) } + hiddenImages).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}_${it.bucketName}" else it.id.toString() }
                                     }
@@ -287,9 +309,9 @@ class MainActivity : ComponentActivity() {
                                         audioList = (audioList.filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) } + hiddenAudio).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}_${it.bucketName}" else it.id.toString() }
                                     }
                                     isScanningHidden = false
-                                    Logger.i("MainActivity", "Total Merged List: imgs=${imagesList.size}, vids=${videosList.size}, audio=${audioList.size}")
                                 }
                             }
+                            */
                         }
                     }
 
@@ -391,23 +413,9 @@ class MainActivity : ComponentActivity() {
                                     }
                                 },
                                 onRescanHiddenMedia = {
-                                    lifecycleScope.launch {
-                                        isScanningHidden = true
-                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                            com.medianest.data.repository.MediaStoreRepository.clearHiddenMediaCache(this@MainActivity)
-                                            val hiddenImages = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.IMAGE, emptySet(), forceRescan = true).filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) }
-                                            val hiddenVideos = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.VIDEO, emptySet(), forceRescan = true).filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) }
-                                            val hiddenAudio = mediaStoreRepository.scanHiddenMedia(com.medianest.data.db.MediaType.AUDIO, emptySet(), forceRescan = true).filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) }
-
-                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                imagesList = (imagesList.filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) } + hiddenImages).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}_${it.bucketName}" else it.id.toString() }
-                                                videosList = (videosList.filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) } + hiddenVideos).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}_${it.bucketName}" else it.id.toString() }
-                                                audioList = (audioList.filter { it.uri.scheme != "file" || (it.uri.path != null && java.io.File(it.uri.path!!).exists()) } + hiddenAudio).distinctBy { if (it.size > 0) "${it.title.substringBeforeLast('.').lowercase().trim()}_${it.size}_${it.bucketName}" else it.id.toString() }
-                                                isScanningHidden = false
-                                                android.widget.Toast.makeText(this@MainActivity, "Hidden & excluded folders refreshed!", android.widget.Toast.LENGTH_SHORT).show()
-                                            }
-                                        }
-                                    }
+                                    /*
+                                    // Rescan hidden filesystem media commented out as All Files Access is disabled
+                                    */
                                 },
                                 exoPlayerManager = exoPlayerManager,
                                 initialTab = mainTab,
@@ -534,7 +542,20 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     onClose = { currentScreen = "LIBRARY" },
-                                    backdropState = settingsBackdropState
+                                    backdropState = settingsBackdropState,
+                                    authViewModel = authViewModel,
+                                    onOpenAuthScreen = { showAuthOverlay = true }
+                                )
+                            }
+
+                            // Auth Screen Overlay
+                            if (showAuthOverlay) {
+                                AuthScreen(
+                                    viewModel = authViewModel,
+                                    onClose = { showAuthOverlay = false },
+                                    onGoogleSignInClick = {
+                                        authViewModel.handleGoogleSignIn("demo_google_id_token")
+                                    }
                                 )
                             }
 
@@ -580,38 +601,25 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+}
 
     private fun requestMediaPermissions() {
-        val permissions = mutableListOf<String>()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.READ_MEDIA_IMAGES)
-            permissions.add(Manifest.permission.READ_MEDIA_VIDEO)
-            permissions.add(Manifest.permission.READ_MEDIA_AUDIO)
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        } else {
-            permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
-        }
-        // RECORD_AUDIO is required by the Android Visualizer API to attach to any audio session.
-        // Without it, Visualizer creation is blocked and all FFT-based visualizers show nothing.
-        permissions.add(Manifest.permission.RECORD_AUDIO)
+        val required = PermissionUtils.getRequiredPermissions(this)
+        val ungrantedStandard = required.filter { !it.isGranted }.map { it.permission }
 
-        val ungranted = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (ungranted.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, ungranted.toTypedArray(), 100)
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !com.medianest.util.PermissionUtils.hasAllFilesAccess()) {
-            com.medianest.util.PermissionUtils.openStorageAccessSettings(this)
+        if (ungrantedStandard.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, ungrantedStandard.toTypedArray(), 100)
+        } else if (!PermissionUtils.hasAllMandatoryPermissions(this)) {
+            PermissionUtils.openAppSettings(this)
         }
     }
 
+    @Suppress("DEPRECATION")
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 100) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !com.medianest.util.PermissionUtils.hasAllFilesAccess()) {
-                com.medianest.util.PermissionUtils.openStorageAccessSettings(this)
-            }
+        mandatoryPermissionsGranted.value = PermissionUtils.hasAllMandatoryPermissions(this)
+        if (requestCode == 100 && !mandatoryPermissionsGranted.value) {
+            PermissionUtils.openAppSettings(this)
         }
     }
 

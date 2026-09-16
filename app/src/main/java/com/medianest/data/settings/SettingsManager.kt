@@ -37,6 +37,10 @@ class SettingsManager(private val context: Context) {
         val KEY_SUBTITLE_LANG = stringPreferencesKey("subtitle_lang")
         
         val KEY_OFFLINE_MODE = booleanPreferencesKey("offline_mode")
+        val KEY_CLOUD_SYNC_ENABLED = booleanPreferencesKey("cloud_sync_enabled")
+        val KEY_AUTO_SYNC_PLAYLISTS = booleanPreferencesKey("auto_sync_playlists")
+        val KEY_LAST_SYNC_TIME = longPreferencesKey("last_sync_time")
+        val KEY_IS_GUEST_MODE = booleanPreferencesKey("is_guest_mode")
         val KEY_APP_LOCK_ENABLED = booleanPreferencesKey("app_lock_enabled")
         val KEY_APP_LOCK_PIN = stringPreferencesKey("app_lock_pin")
         val KEY_HIDE_FROM_RECENTS = booleanPreferencesKey("hide_from_recents")
@@ -208,6 +212,9 @@ class SettingsManager(private val context: Context) {
     suspend fun setSubtitleLang(lang: String) = context.dataStore.edit { it[KEY_SUBTITLE_LANG] = lang }
 
     suspend fun setOfflineMode(offline: Boolean) = context.dataStore.edit { it[KEY_OFFLINE_MODE] = offline }
+    suspend fun setCloudSyncEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_CLOUD_SYNC_ENABLED] = enabled }
+    suspend fun setGuestMode(isGuest: Boolean) = context.dataStore.edit { it[KEY_IS_GUEST_MODE] = isGuest }
+    suspend fun setLastSyncTime(timestamp: Long) = context.dataStore.edit { it[KEY_LAST_SYNC_TIME] = timestamp }
     suspend fun setAppLockEnabled(enabled: Boolean) = context.dataStore.edit { it[KEY_APP_LOCK_ENABLED] = enabled }
     suspend fun setAppLockPin(pin: String) = context.dataStore.edit { it[KEY_APP_LOCK_PIN] = hashPin(pin) }
     suspend fun setHideFromRecents(hide: Boolean) = context.dataStore.edit { it[KEY_HIDE_FROM_RECENTS] = hide }

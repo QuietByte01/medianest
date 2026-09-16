@@ -163,15 +163,14 @@ fun AudioTab(
 
     var effectiveAudioList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
 
-    LaunchedEffect(audioList, cacheMap, sortField, isAscending, subTabState, showHiddenSetting, searchQuery, appHiddenFolders) {
+    LaunchedEffect(audioList, cacheMap, sortField, isAscending, subTabState, searchQuery, appHiddenFolders) {
         val result = withContext(Dispatchers.Default) {
             val baseList = when (subTabState) {
                 7 -> audioList.filter { FolderHiddenUtils.isItemExcluded(it, appHiddenFolders) }
-                8 -> audioList.filter { FolderHiddenUtils.isItemHidden(it) && !FolderHiddenUtils.isItemExcluded(it, appHiddenFolders) }
+                /* 8 -> audioList.filter { FolderHiddenUtils.isItemHidden(it) && !FolderHiddenUtils.isItemExcluded(it, appHiddenFolders) } */
                 5 -> audioList.filter { !FolderHiddenUtils.isItemExcluded(it, appHiddenFolders) }
                 else -> audioList.filter { item ->
-                    !FolderHiddenUtils.isItemExcluded(item, appHiddenFolders) &&
-                    (showHiddenSetting || !FolderHiddenUtils.isItemHidden(item))
+                    !FolderHiddenUtils.isItemExcluded(item, appHiddenFolders)
                 }
             }
 

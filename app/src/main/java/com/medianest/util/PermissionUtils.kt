@@ -6,14 +6,22 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import android.os.Environment
 import android.provider.Settings
 import androidx.core.content.ContextCompat
 
 object PermissionUtils {
 
-    fun hasAllFilesAccess(): Boolean {
-        return Environment.isExternalStorageManager()
+    data class RequiredPermissionInfo(
+        val id: String,
+        val permission: String,
+        val title: String,
+        val description: String,
+        val isGranted: Boolean,
+        val isSpecial: Boolean = false
+    )
+
+    fun hasAllFilesAccess(context: Context): Boolean {
+        return hasStandardMediaPermissions(context)
     }
 
     fun hasStandardMediaPermissions(context: Context): Boolean {
@@ -25,37 +33,87 @@ object PermissionUtils {
                 ContextCompat.checkSelfPermission(context, "android.permission.READ_MEDIA_VISUAL_USER_SELECTED") == PackageManager.PERMISSION_GRANTED
             } else false
 
-            hasImages || hasVideo || hasAudio || hasPartial
+            (hasImages && hasVideo && hasAudio) || hasPartial
         } else {
             ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
         }
     }
 
     fun hasAnyStorageAccess(context: Context): Boolean {
-        return hasAllFilesAccess() || hasStandardMediaPermissions(context)
+        return hasStandardMediaPermissions(context)
     }
 
-    fun openStorageAccessSettings(context: Context) {
-        // 1. Try direct App All Files Access screen
-        try {
-            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                data = Uri.parse("package:${context.packageName}")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-            return
-        } catch (_: Exception) {}
+    fun getRequiredPermissions(context: Context): List<RequiredPermissionInfo> {
+        val list = mutableListOf<RequiredPermissionInfo>()
 
-        // 2. Try generic All Files Access screen
-        try {
-            val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-            return
-        } catch (_: Exception) {}
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            list.add(
+                RequiredPermissionInfo(
+                    id = "READ_MEDIA_IMAGES",
+                    permission = Manifest.permission.READ_MEDIA_IMAGES,
+                    title = "Photos & Images Access",
+                    description = "Required to scan, display, and manage photo and image files in your library via MediaStore.",
+                    isGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
+                )
+            )
+            list.add(
+                RequiredPermissionInfo(
+                    id = "READ_MEDIA_VIDEO",
+                    permission = Manifest.permission.READ_MEDIA_VIDEO,
+                    title = "Videos Access",
+                    description = "Required to discover, play, and organize video files in your library via MediaStore.",
+                    isGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
+                )
+            )
+            list.add(
+                RequiredPermissionInfo(
+                    id = "READ_MEDIA_AUDIO",
+                    permission = Manifest.permission.READ_MEDIA_AUDIO,
+                    title = "Music & Audio Access",
+                    description = "Required to scan audio files, play music tracks, and organize playlists via MediaStore.",
+                    isGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
+                )
+            )
+            list.add(
+                RequiredPermissionInfo(
+                    id = "POST_NOTIFICATIONS",
+                    permission = Manifest.permission.POST_NOTIFICATIONS,
+                    title = "Notifications Access",
+                    description = "Required to display active playback controls, track details, and media status in the notification panel.",
+                    isGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                )
+            )
+        } else {
+            list.add(
+                RequiredPermissionInfo(
+                    id = "READ_EXTERNAL_STORAGE",
+                    permission = Manifest.permission.READ_EXTERNAL_STORAGE,
+                    title = "Device Storage Access",
+                    description = "Required to access photos, videos, music, and media files stored on your device via MediaStore.",
+                    isGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+                )
+            )
+        }
 
-        // 3. Fallback to App Info settings screen
+        // Microphone / Audio Recording permission for visualizer
+        list.add(
+            RequiredPermissionInfo(
+                id = "RECORD_AUDIO",
+                permission = Manifest.permission.RECORD_AUDIO,
+                title = "Audio Visualizer (Microphone)",
+                description = "Required to analyze real-time audio frequencies for rendering live visualizer waveforms during playback.",
+                isGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            )
+        )
+
+        return list
+    }
+
+    fun hasAllMandatoryPermissions(context: Context): Boolean {
+        return getRequiredPermissions(context).all { it.isGranted }
+    }
+
+    fun openAppSettings(context: Context) {
         try {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = Uri.parse("package:${context.packageName}")
@@ -63,5 +121,9 @@ object PermissionUtils {
             }
             context.startActivity(intent)
         } catch (_: Exception) {}
+    }
+
+    fun openStorageAccessSettings(context: Context) {
+        openAppSettings(context)
     }
 }

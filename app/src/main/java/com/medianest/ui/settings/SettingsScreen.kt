@@ -57,8 +57,11 @@ import com.medianest.ui.components.backdropSource
 import com.medianest.ui.components.rememberBackdropBlurState
 import com.medianest.ui.components.dismissKeyboardOnOutsideTap
 import com.medianest.ui.components.rememberBackdropBlurState
+import com.medianest.ui.auth.AuthViewModel
+import com.medianest.ui.auth.UserProfileCard
 import com.medianest.util.AppCacheCleaner
 import com.medianest.util.InitialIndexingManager
+import com.medianest.util.PermissionUtils
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,7 +72,9 @@ fun SettingsScreen(
     mediaStoreRepository: MediaStoreRepository,
     onClearHistory: () -> Unit,
     onClose: () -> Unit,
-    backdropState: BackdropBlurState? = null
+    backdropState: BackdropBlurState? = null,
+    authViewModel: AuthViewModel? = null,
+    onOpenAuthScreen: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -311,6 +316,20 @@ fun SettingsScreen(
                 )
             }
 
+            // USER ACCOUNT & AUTH PROFILE CARD
+            if (authViewModel != null) {
+                val authState by authViewModel.authState.collectAsState()
+                val syncState by authViewModel.syncState.collectAsState()
+
+                UserProfileCard(
+                    authState = authState,
+                    syncState = syncState,
+                    onOpenAuthScreen = onOpenAuthScreen,
+                    onLogout = { authViewModel.logout() },
+                    onSyncNow = { authViewModel.triggerSync() }
+                )
+            }
+
             // SECTION 1: DISPLAY & INTERFACE
             SettingsGlassCard(title = "DISPLAY & INTERFACE") {
                 // Grid Spacing Discrete Slider
@@ -490,15 +509,16 @@ fun SettingsScreen(
 
             // SECTION 2: LIBRARY & FOLDER FILTERS
             SettingsGlassCard(title = "LIBRARY & FOLDER FILTERS") {
-                // Show Hidden Files & Folders
+                /*
+                // Show Hidden Files & Folders (Feature disabled due to MediaStore scoped storage policy)
                 SettingsRowItem(
                     title = "Show Hidden Files & Folders",
                     subtitle = "Display files starting with a dot (.) in directory views",
                     onClick = {
                         val next = !showHiddenFiles
                         scope.launch { settingsManager.setShowHiddenFiles(next) }
-                        if (next && !com.medianest.util.PermissionUtils.hasAllFilesAccess()) {
-                            com.medianest.util.PermissionUtils.openStorageAccessSettings(context)
+                        if (next && !PermissionUtils.hasStandardMediaPermissions(context)) {
+                            PermissionUtils.openAppSettings(context)
                         }
                     },
                     control = {
@@ -506,13 +526,14 @@ fun SettingsScreen(
                             checked = showHiddenFiles,
                             onCheckedChange = { checked ->
                                 scope.launch { settingsManager.setShowHiddenFiles(checked) }
-                                if (checked && !com.medianest.util.PermissionUtils.hasAllFilesAccess()) {
-                                    com.medianest.util.PermissionUtils.openStorageAccessSettings(context)
+                                if (checked && !PermissionUtils.hasStandardMediaPermissions(context)) {
+                                    PermissionUtils.openAppSettings(context)
                                 }
                             }
                         )
                     }
                 )
+                */
 
                 // Rescan All Media (Separate Reusable Component)
                 RescanAllMediaSettingItem(mediaStoreRepository = mediaStoreRepository)
@@ -828,24 +849,23 @@ fun SettingsScreen(
                     }
                 )
 
-                // Storage & All Files Access Permission
-                val hasAllFiles = com.medianest.util.PermissionUtils.hasAllFilesAccess()
-                val hasStandard = com.medianest.util.PermissionUtils.hasStandardMediaPermissions(context)
+                // Storage & Media Permissions
+                val hasStandard = PermissionUtils.hasStandardMediaPermissions(context)
                 SettingsRowItem(
-                    title = "Storage & All Files Access",
-                    subtitle = if (hasAllFiles) "Full access granted (all storage directories and files)" else if (hasStandard) "Standard MediaStore access granted. Tap to allow All Files Access for hidden folders" else "Storage permission required to load files",
+                    title = "Storage & Media Permissions",
+                    subtitle = if (hasStandard) "MediaStore access granted (Images, Videos & Audio)" else "Storage permissions required to load media files",
                     stackedOnPhone = true,
-                    onClick = { com.medianest.util.PermissionUtils.openStorageAccessSettings(context) },
+                    onClick = { PermissionUtils.openAppSettings(context) },
                     control = {
                         Button(
-                            onClick = { com.medianest.util.PermissionUtils.openStorageAccessSettings(context) },
+                            onClick = { PermissionUtils.openAppSettings(context) },
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = if (hasAllFiles) Color(0x2234D399) else Color(0x3338BDF8))
+                            colors = ButtonDefaults.buttonColors(containerColor = if (hasStandard) Color(0x2234D399) else Color(0x3338BDF8))
                         ) {
                             Text(
-                                text = if (hasAllFiles) "Granted (Settings)" else "Open Settings",
+                                text = if (hasStandard) "Granted (Settings)" else "Open Settings",
                                 fontSize = 12.sp,
-                                color = if (hasAllFiles) Color(0xFF34D399) else Color(0xFF38BDF8),
+                                color = if (hasStandard) Color(0xFF34D399) else Color(0xFF38BDF8),
                                 fontWeight = FontWeight.SemiBold
                             )
                         }

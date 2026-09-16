@@ -114,6 +114,7 @@ androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterfa
 playServicesAds = { group = "com.google.android.gms", name = "play-services-ads", version.ref = "playServicesAds" }
 firebaseBom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebaseAnalytics = { group = "com.google.firebase", name = "firebase-analytics" }
+firebaseAuth = { group = "com.google.firebase", name = "firebase-auth" }
 firebaseCrashlytics = { group = "com.google.firebase", name = "firebase-crashlytics" }
 userMessagingPlatform = { group = "com.google.android.ump", name = "user-messaging-platform", version.ref = "userMessagingPlatform" }
 

@@ -151,7 +151,7 @@ fun VideoFilterRow(
             }
         }
 
-        if (showHiddenFiles) {
+        if (excludedCount > 0 || activeFilterTab == "EXCLUDED") {
             item(key = "EXCLUDED") {
                 FilterTabItem(
                     label = if (excludedCount > 0) "Excluded ($excludedCount)" else "Excluded",
@@ -160,7 +160,10 @@ fun VideoFilterRow(
                     onClick = { onFilterSelect("EXCLUDED") }
                 )
             }
+        }
 
+        /*
+        if (showHiddenFiles) {
             item(key = "HIDDEN") {
                 FilterTabItem(
                     label = if (hiddenCount > 0) "Hidden Folders ($hiddenCount)" else "Hidden Folders",
@@ -170,6 +173,7 @@ fun VideoFilterRow(
                 )
             }
         }
+        */
 
         item(key = "CATEGORIES") {
             FilterTabItem(

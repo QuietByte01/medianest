@@ -38,7 +38,6 @@ class MediaStoreRepositoryTest {
         shadowContentResolver = Shadows.shadowOf(contentResolver)
         
         mockkStatic(android.os.Environment::class)
-        every { android.os.Environment.isExternalStorageManager() } returns false
     }
 
     @After

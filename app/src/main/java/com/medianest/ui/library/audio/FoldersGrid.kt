@@ -529,6 +529,7 @@ fun FoldersGrid(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        /*
                         if (isHiddenFeed || isExcludedFeed) {
                             com.medianest.ui.components.RescanHiddenMediaButton(
                                 isScanning = isScanningHidden,
@@ -537,6 +538,7 @@ fun FoldersGrid(
                                 iconSize = 16.dp
                             )
                         }
+                        */
 
                         Text(
                             text = "Show All",

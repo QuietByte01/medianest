@@ -158,7 +158,6 @@ fun VideoFoldersGrid(
                 )
                 Text(
                     text = when (activeFilterTab) {
-                        "HIDDEN" -> "HIDDEN DIRECTORY FOLDERS"
                         "EXCLUDED" -> "EXCLUDED DIRECTORY FOLDERS"
                         else -> "ALL DIRECTORY FOLDERS"
                     },
@@ -169,6 +168,7 @@ fun VideoFoldersGrid(
                 )
             }
 
+            /*
             if (activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED") {
                 com.medianest.ui.components.RescanHiddenMediaButton(
                     isScanning = isScanningHidden,
@@ -176,9 +176,10 @@ fun VideoFoldersGrid(
                     buttonSize = 28.dp
                 )
             }
+            */
         }
 
-        if ((isLoading && visibleFolders.isEmpty()) || (isScanningHidden && (activeFilterTab == "HIDDEN" || activeFilterTab == "EXCLUDED") && visibleFolders.isEmpty())) {
+        if ((isLoading && visibleFolders.isEmpty()) || (isScanningHidden && activeFilterTab == "EXCLUDED" && visibleFolders.isEmpty())) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center

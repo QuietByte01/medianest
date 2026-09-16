@@ -41,7 +41,7 @@ private val ALL_IMAGE_FILTERS = listOf(
     FilterItem("PNG & SVG", "PNG_SVG", Icons.Default.HighQuality, 0),
     FilterItem("Edited", "EDITED", Icons.Default.Edit, 0),
     FilterItem("Wallpapers", "WALLPAPERS", Icons.Default.Wallpaper, 0),
-    FilterItem("Hidden Folders", "HIDDEN", Icons.Default.FolderZip, 1),
+    // FilterItem("Hidden Folders", "HIDDEN", Icons.Default.FolderZip, 1),
     FilterItem("Excluded", "EXCLUDED", Icons.Default.VisibilityOff, 1)
 )
 
@@ -62,10 +62,10 @@ fun ImageFilterRow(
         ALL_IMAGE_FILTERS.filter { filter ->
             val count = filterCounts[filter.id] ?: 0
             val isAlwaysVisible = filter.id in listOf("ALL", "FOLDERS")
-            val isHiddenOrExcluded = filter.id in listOf("HIDDEN", "EXCLUDED")
+            val isExcluded = filter.id == "EXCLUDED"
             
-            if (isHiddenOrExcluded) {
-                showHiddenFiles
+            if (isExcluded) {
+                count > 0 || activeFilterTab == "EXCLUDED"
             } else {
                 isAlwaysVisible || count > 0 || activeFilterTab == filter.id
             }

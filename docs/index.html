@@ -133,11 +133,10 @@
             <h2>Device Permissions & Usage</h2>
             <p>To provide advanced media playback, floating picture-in-picture, and hidden folder scanning, MediaNest requests the following device permissions:</p>
 
-            <h3>1. Media & Storage Access (`MANAGE_EXTERNAL_STORAGE` / `READ_MEDIA_*`)</h3>
+            <h3>1. Media & Storage Access (`READ_MEDIA_*` / `READ_EXTERNAL_STORAGE`)</h3>
             <ul>
-                <li><strong>Purpose:</strong> Used to scan, index, organize, and play your local photos, videos, and audio files.</li>
-                <li><strong>Hidden Folder Support:</strong> Full Storage Access (`MANAGE_EXTERNAL_STORAGE`) is required specifically to scan and display hidden media stored in `.nomedia` directories or private vault folders (e.g. `.vault`, `.private`) which are excluded by standard system media queries.</li>
-                <li><strong>Data Handling:</strong> All file scanning and playback occurs strictly on your device. No file content is ever transmitted over the internet.</li>
+                <li><strong>Purpose:</strong> Used via Android MediaStore API to scan, index, organize, and play your local photos, videos, and audio files.</li>
+                <li><strong>Data Handling:</strong> All file scanning and playback occurs strictly on your device using standard MediaStore APIs. No file content is ever transmitted over the internet.</li>
             </ul>
 
             <h3>2. Audio Recording / Microphone (`RECORD_AUDIO`)</h3>
