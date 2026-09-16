@@ -1,6 +1,7 @@
 package com.medianest
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -42,6 +43,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
+import com.medianest.ads.InterstitialAdHelper
 import com.medianest.data.db.CategoryMediaCrossRef
 import com.medianest.data.db.MediaCategory
 import com.medianest.data.db.MediaType
@@ -115,6 +117,10 @@ class MainActivity : ComponentActivity() {
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
         requestMediaPermissions()
+
+        val hostActivity: Activity = this
+        // Preload full-screen exit ad
+        InterstitialAdHelper.preloadAd(hostActivity)
 
         val db = MediaNestApp.instance.database
         val settingsManager = MediaNestApp.instance.settingsManager
@@ -199,9 +205,18 @@ class MainActivity : ComponentActivity() {
                     val imageFld by targetImageFolder.collectAsState()
                     val mediaTargetUri by targetMediaItemUri.collectAsState()
 
-                    // Prevent back press from exiting app when in sub-screens
-                    BackHandler(enabled = currentScreen != "LIBRARY") {
-                        currentScreen = "LIBRARY"
+                    // Back press handler: returns to LIBRARY tab or shows full-screen exit ad before closing
+                    BackHandler(enabled = true) {
+                        if (currentScreen != "LIBRARY") {
+                            currentScreen = "LIBRARY"
+                        } else {
+                            InterstitialAdHelper.showAdOnExit(
+                                activity = hostActivity,
+                                isPlaybackActive = { false }
+                            ) {
+                                hostActivity.finish()
+                            }
+                        }
                     }
 
                     // FLAG_SECURE check

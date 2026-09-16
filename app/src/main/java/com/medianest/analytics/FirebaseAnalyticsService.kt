@@ -1,5 +1,6 @@
 package com.medianest.analytics
 
+import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
 import android.os.Bundle
@@ -20,6 +21,16 @@ class FirebaseAnalyticsService(private val context: Context) : AnalyticsService 
                 setUserProperty("device_manufacturer", Build.MANUFACTURER)
                 setUserProperty("android_version", Build.VERSION.RELEASE)
                 setUserProperty("sdk_int", Build.VERSION.SDK_INT.toString())
+                setUserProperty("device_brand", Build.BRAND)
+                
+                // Hardware RAM Tier Telemetry (Non-PII Diagnostic)
+                try {
+                    val actManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+                    val memInfo = ActivityManager.MemoryInfo()
+                    actManager?.getMemoryInfo(memInfo)
+                    val totalRamGb = (memInfo.totalMem / (1024 * 1024 * 1024)).toInt()
+                    setUserProperty("ram_gb", "${totalRamGb}GB")
+                } catch (_: Exception) { }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Firebase Analytics not initialized: ${e.message}")
@@ -51,6 +62,8 @@ class FirebaseAnalyticsService(private val context: Context) : AnalyticsService 
                 putString("format", format)
                 putLong("duration_ms", durationMs)
                 putString("device_model", Build.MODEL)
+                putString("device_brand", Build.BRAND)
+                putString("android_version", Build.VERSION.RELEASE)
             }
             firebaseAnalytics?.logEvent("media_playback", bundle)
             Log.d(TAG, "Media playback logged: type=$mediaType, format=$format, duration=${durationMs}ms")

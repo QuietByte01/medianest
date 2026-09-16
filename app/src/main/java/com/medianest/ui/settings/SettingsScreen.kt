@@ -1497,13 +1497,12 @@ fun SettingsGlassCard(
     val isPhoneScreen = LocalConfiguration.current.screenWidthDp < 600
     val cardShape = RoundedCornerShape(22.dp)
 
-    // iOS iPhone fluid glass specular gradient fill
+    // 90% opacity black background fill
     val cardGradient = if (isDark) {
         Brush.verticalGradient(
             colors = listOf(
-                Color(0x38FFFFFF), // Top specular sheen
-                Color(0x22FFFFFF),
-                Color(0x181C212E)  // Deep translucent obsidian base
+                Color.Black.copy(alpha = 0.70f),
+                Color(0xE60A0C10)
             )
         )
     } else {
